@@ -38,6 +38,7 @@ import {
   type LiveRoomTheme,
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
+import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
@@ -113,7 +114,7 @@ export default function CollabRoomPage() {
   const fmt = useFormatCode(wsToken || null)
 
   const handleRoomExpired = useCallback(() => {
-    navigate('/welcome', { replace: true, state: { liveExpired: true } })
+    navigate('/', { replace: true, state: { liveExpired: true } })
   }, [navigate])
 
   useEffect(() => {
@@ -134,9 +135,11 @@ export default function CollabRoomPage() {
     if (trimmed) persistGuestDisplayName(trimmed)
   }, [])
 
-  const handleThemeToggle = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-  }
+  const handleThemeToggle = useCallback((origin?: ThemeToggleOrigin) => {
+    runThemeTransition(() => {
+      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+    }, origin)
+  }, [])
 
   const handleRemoteCodeRun = useCallback(
     (payload: { run_id: string; triggered_by?: string }) => {
@@ -210,7 +213,7 @@ export default function CollabRoomPage() {
   const sessionUserId = wsToken ? jwtSubject(wsToken) : null
   const isOwner = sessionUserId === room.owner_id
   const canRun = !!hasSession
-  const closeTo = '/welcome'
+  const closeTo = '/'
   const designRoom = isDesignRoom(room)
   const displayName = guestName || t('common.guest')
 
@@ -375,7 +378,7 @@ function EditorShell({
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
-      <Logo to="/welcome" />
+      <Logo to="/" />
       <p className="text-sm font-medium text-text-primary">{message}</p>
       {sub ? <p className="max-w-md text-sm leading-relaxed text-text-secondary">{sub}</p> : null}
       {action}

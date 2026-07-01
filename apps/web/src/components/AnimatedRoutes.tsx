@@ -18,7 +18,7 @@ const LegalPrivacyPage = lazy(() => import('@/pages/LegalPrivacyPage'))
 const NordlyDownloadPage = lazy(() => import('@/pages/NordlyDownloadPage'))
 
 function RetiredRedirect() {
-  return <Navigate to="/welcome" replace />
+  return <Navigate to="/" replace />
 }
 
 function LegacyNoteSlugRedirect() {
@@ -32,20 +32,21 @@ export function AnimatedRoutes() {
       <RouteDocumentMeta />
       <Suspense fallback={<RouteLoader />}>
         <Routes>
-          <Route path="/" element={<Navigate to="/welcome" replace />} />
-          <Route path="/download" element={<NordlyDownloadPage />} />
-          <Route path="/notes/:slug" element={<PublishedNotePage />} />
-          <Route path="/board/:slug" element={<PublishedBoardPage />} />
-          <Route path="/n/:slug" element={<LegacyNoteSlugRedirect />} />
-          <Route path="/live/:roomId" element={<CollabRoomPage />} />
+          <Route path="/welcome" element={<Navigate to="/" replace />} />
 
           <Route element={<PublicSiteLayout />}>
-            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/" element={<WelcomePage />} />
             <Route path="/live/new" element={<LiveNewPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/legal/terms" element={<LegalTermsPage />} />
             <Route path="/legal/privacy" element={<LegalPrivacyPage />} />
           </Route>
+
+          <Route path="/download" element={<NordlyDownloadPage />} />
+          <Route path="/notes/:slug" element={<PublishedNotePage />} />
+          <Route path="/board/:slug" element={<PublishedBoardPage />} />
+          <Route path="/n/:slug" element={<LegacyNoteSlugRedirect />} />
+          <Route path="/live/:roomId" element={<CollabRoomPage />} />
 
           <Route path="/login" element={<RetiredRedirect />} />
           <Route path="/auth/callback" element={<RetiredRedirect />} />
@@ -63,7 +64,7 @@ export function AnimatedRoutes() {
           <Route path="/tasks" element={<RetiredRedirect />} />
           <Route path="/admin/*" element={<RetiredRedirect />} />
 
-          <Route path="*" element={<Navigate to="/welcome" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </>

@@ -74,7 +74,7 @@ type RouteMetaKey =
   | 'download'
 
 function routeMetaKey(pathname: string): RouteMetaKey | null {
-  if (pathname === '/welcome' || pathname === '/') return 'welcome'
+  if (pathname === '/') return 'welcome'
   if (pathname === '/pricing') return 'pricing'
   if (pathname === '/legal/terms') return 'legalTerms'
   if (pathname === '/legal/privacy') return 'legalPrivacy'

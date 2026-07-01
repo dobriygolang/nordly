@@ -97,7 +97,7 @@ export default function PublishedBoardPage() {
         <h1 className="text-2xl font-bold mb-3">
           {state.status === 404 ? 'Board not found' : 'Could not load board'}
         </h1>
-        <Link to="/welcome" className="text-sm text-zinc-300 underline underline-offset-4">
+        <Link to="/" className="text-sm text-zinc-300 underline underline-offset-4">
           {t('seo.goHome')}
         </Link>
       </div>
@@ -126,7 +126,7 @@ export default function PublishedBoardPage() {
         />
       </div>
       <Link
-        to="/welcome"
+        to="/"
         className="fixed bottom-6 right-6 flex items-center gap-2 px-2 py-2 rounded-md border border-white/10 bg-black text-xs text-zinc-400 hover:text-white z-50"
       >
         {t('seo.madeWith')}

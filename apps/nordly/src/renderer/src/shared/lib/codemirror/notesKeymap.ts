@@ -1,3 +1,4 @@
+import { syntaxTree } from '@codemirror/language';
 import { indentLess, indentMore } from '@codemirror/commands';
 import type { EditorState, Transaction } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -47,12 +48,79 @@ function isExactKnownLang(lang: string): boolean {
   return NOTES_CODE_LANGS.some((l) => l.id === raw || l.aliases.some((a) => a === raw));
 }
 
-function fenceClosesBelow(state: EditorState, openLineNumber: number): boolean {
-  for (let n = openLineNumber + 1; n <= state.doc.lines; n++) {
-    const text = state.doc.lineAt(n).text.trim();
-    if (/^`{3,}\s*$/.test(text)) return true;
+/** True when this line already opens a fully closed FencedCode (syntax tree). */
+function openingFenceIsComplete(state: EditorState, openLineNumber: number): boolean {
+  const openLine = state.doc.line(openLineNumber);
+  if (!parseOpeningFence(openLine.text)) return false;
+
+  let complete = false;
+  syntaxTree(state).iterate({
+    from: openLine.from,
+    to: openLine.to + 1,
+    enter: (node) => {
+      if (node.name !== 'FencedCode') return;
+      if (state.doc.lineAt(node.from).number !== openLineNumber) return;
+
+      const closeLine = state.doc.lineAt(node.to);
+      if (/^`{3,}\s*$/.test(closeLine.text.trim()) && node.to > openLine.to) {
+        complete = true;
+      }
+    },
+  });
+  return complete;
+}
+
+function focusFenceContentLine(view: EditorView, openLineNumber: number): boolean {
+  const openLine = view.state.doc.line(openLineNumber);
+  let focused = false;
+
+  syntaxTree(view.state).iterate({
+    from: openLine.from,
+    to: openLine.to + 1,
+    enter: (node) => {
+      if (node.name !== 'FencedCode' || focused) return;
+      if (view.state.doc.lineAt(node.from).number !== openLineNumber) return;
+
+      const openNum = view.state.doc.lineAt(node.from).number;
+      const closeNum = view.state.doc.lineAt(node.to).number;
+      const contentLine = openNum + 1;
+      if (contentLine >= closeNum) {
+        view.dispatch({ selection: { anchor: openLine.to + 1 } });
+      } else {
+        view.dispatch({ selection: { anchor: view.state.doc.line(contentLine).from } });
+      }
+      focused = true;
+    },
+  });
+
+  return focused;
+}
+
+/** Reuse ``` / empty / ``` shell left after the opening fence was edited. */
+function tryReuseDanglingFence(
+  view: EditorView,
+  line: { from: number; to: number; number: number },
+  firstChar = '',
+): boolean {
+  const contentNum = line.number + 1;
+  const closeNum = line.number + 2;
+  if (closeNum > view.state.doc.lines) return false;
+
+  const contentLine = view.state.doc.line(contentNum);
+  const closeLine = view.state.doc.line(closeNum);
+  if (contentLine.text.trim().length > 0) return false;
+  if (!/^`{3,}\s*$/.test(closeLine.text.trim())) return false;
+  if (openingFenceIsComplete(view.state, line.number)) return false;
+
+  if (firstChar) {
+    view.dispatch({
+      changes: { from: contentLine.from, to: contentLine.to, insert: firstChar },
+      selection: { anchor: contentLine.from + firstChar.length },
+    });
+  } else {
+    view.dispatch({ selection: { anchor: contentLine.from } });
   }
-  return false;
+  return true;
 }
 
 /** ```lang → ```lang\n[cursor]\n``` — closing fence inserted by the editor. */
@@ -62,7 +130,8 @@ function openFenceBlock(
   fence: string,
   firstChar = '',
 ): boolean {
-  if (fenceClosesBelow(view.state, line.number)) return false;
+  if (openingFenceIsComplete(view.state, line.number)) return false;
+  if (tryReuseDanglingFence(view, line, firstChar)) return true;
 
   const insert = `\n${firstChar}\n${fence}\n`;
   view.dispatch({
@@ -79,10 +148,15 @@ function completeFenceOnEnter(view: EditorView): boolean {
   if (from !== to) return false;
 
   const line = state.doc.lineAt(from);
-  if (from !== line.to) return false;
-
   const parsed = parseOpeningFence(state.sliceDoc(line.from, line.to));
   if (!parsed) return false;
+
+  if (openingFenceIsComplete(state, line.number)) {
+    if (from === line.to) return focusFenceContentLine(view, line.number);
+    return false;
+  }
+
+  if (from !== line.to) return false;
 
   return openFenceBlock(view, line, parsed.fence);
 }
@@ -106,9 +180,12 @@ export const fenceAutoCloseInput = EditorView.inputHandler.of((view, from, to, t
     if (!before.endsWith('``') || view.state.sliceDoc(from, line.to).length > 0) return false;
 
     const fenceMatch = /^(`{3,})\s*$/.exec(`${before}\``);
-    if (!fenceMatch || fenceClosesBelow(view.state, line.number)) return false;
+    if (!fenceMatch) return false;
+    if (openingFenceIsComplete(view.state, line.number)) return false;
 
     const fence = fenceMatch[1];
+    if (tryReuseDanglingFence(view, line)) return true;
+
     view.dispatch({
       changes: { from: line.from, to: line.to, insert: `${fence}\n\n${fence}\n` },
       selection: { anchor: line.from + fence.length + 1 },
@@ -119,7 +196,7 @@ export const fenceAutoCloseInput = EditorView.inputHandler.of((view, from, to, t
   if (!atLineEnd) return false;
 
   const parsed = parseOpeningFence(lineText);
-  if (!parsed || fenceClosesBelow(view.state, line.number)) return false;
+  if (!parsed || openingFenceIsComplete(view.state, line.number)) return false;
 
   const nextLineText = lineText + text;
 

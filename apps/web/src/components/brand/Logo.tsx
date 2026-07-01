@@ -9,7 +9,7 @@ type Props = {
 }
 
 /** NORDLY wordmark — matches Nordly desktop Chrome header. */
-export function Logo({ to = '/welcome', size = 'md', className }: Props) {
+export function Logo({ to = '/', size = 'md', className }: Props) {
   const inner = (
     <span
       className={cn(

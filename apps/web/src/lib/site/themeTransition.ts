@@ -1,8 +1,17 @@
 import { flushSync } from 'react-dom'
+import type { MouseEvent } from 'react'
 
 export type ThemeToggleOrigin = {
   x: number
   y: number
+}
+
+export function themeToggleOrigin(event: MouseEvent<HTMLElement>): ThemeToggleOrigin {
+  const rect = event.currentTarget.getBoundingClientRect()
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  }
 }
 
 function prefersReducedMotion(): boolean {

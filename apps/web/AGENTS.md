@@ -10,14 +10,14 @@ Thin public web surface for Nordly: landing + download, guest live collab (code 
 
 | Area | Routes |
 |------|--------|
-| Landing | `/welcome`, `/download` |
+| Landing | `/`, `/download` |
 | Live collab | `/live/new`, `/live/:roomId` |
 | Public notes | `/notes/:slug`, `/n/:slug` → redirect |
 | Public boards | `/board/:slug` |
 | Pricing | `/pricing` |
 | Legal | `/legal/terms`, `/legal/privacy` |
 
-Retired routes redirect to `/welcome` or `/pricing` (see below).
+Retired routes redirect to `/` or `/pricing` (see below).
 
 ## Routes
 
@@ -25,8 +25,8 @@ Defined in `src/App.tsx`:
 
 | Route | Page | Auth |
 |-------|------|------|
-| `/` | → `/welcome` | — |
-| `/welcome` | `WelcomePage` | — |
+| `/` | `WelcomePage` | — |
+| `/welcome` | → `/` | legacy redirect |
 | `/download` | `NordlyDownloadPage` | redirects to latest OS installer |
 | `/notes/:slug` | `PublishedNotePage` | — |
 | `/n/:slug` | → `/notes/:slug` | — |
@@ -36,9 +36,9 @@ Defined in `src/App.tsx`:
 | `/pricing` | `PricingPage` | — |
 | `/legal/terms` | `LegalTermsPage` | — |
 | `/legal/privacy` | `LegalPrivacyPage` | — |
-| `/login`, `/profile`, `/settings`, `/auth/callback` | → `/welcome` | retired |
+| `/login`, `/profile`, `/settings`, `/auth/callback` | → `/` | retired |
 | `/checkout`, `/billing/welcome` | → `/pricing` | retired |
-| `/today`, `/dashboard`, `/learn/*`, `/mock/*`, `/interview/*`, `/tasks`, `/admin/*` | → `/welcome` | retired |
+| `/today`, `/dashboard`, `/learn/*`, `/mock/*`, `/interview/*`, `/tasks`, `/admin/*` | → `/` | retired |
 
 ## Backend dependencies
 

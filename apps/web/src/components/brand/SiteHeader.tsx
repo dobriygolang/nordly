@@ -21,7 +21,7 @@ export function SiteHeader({ centerLinks, right, className }: SiteHeaderProps) {
   const { theme, toggleTheme } = useSiteTheme()
 
   const defaultCenter: LinkItem[] = [
-    { href: '/welcome#manifesto', label: t('welcome.navPhilosophy') },
+    { href: '/#manifesto', label: t('welcome.navPhilosophy') },
     { href: '/live/new', label: t('public.liveCoding') },
     { href: '/pricing', label: t('public.pricing') },
   ]
@@ -45,7 +45,7 @@ export function SiteHeader({ centerLinks, right, className }: SiteHeaderProps) {
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-        <Logo to="/welcome" />
+        <Logo to="/" />
 
         <nav className="hidden items-center gap-7 md:flex">
           {links.map((item) =>

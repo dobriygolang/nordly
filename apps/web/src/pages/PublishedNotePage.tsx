@@ -110,7 +110,7 @@ export default function PublishedNotePage() {
                 : 'Try again later.'}
             </p>
             <Link
-              to="/welcome"
+              to="/"
               className="inline-flex text-sm text-zinc-300 underline underline-offset-4 hover:text-white"
             >
               {t('seo.goHome')}
@@ -146,7 +146,7 @@ function MadeWithBadge() {
   const { t } = useI18n()
   return (
     <Link
-      to="/welcome"
+      to="/"
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-6 right-6 flex items-center gap-2 px-2 py-2 rounded-md border border-white/10 bg-black backdrop-blur-md shadow-2xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/10 hover:shadow-white/5 transition-all z-50 group"

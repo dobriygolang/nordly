@@ -1,5 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { emit, listen } from '@tauri-apps/api/event';
+
 import { translate } from '@nordly-i18n';
 
 import { CanvasBg, type ThemeId } from '@widgets/CanvasBg';
@@ -10,6 +12,8 @@ import { Dock } from '@widgets/Dock';
 import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { AnimatedCalendarOverlay } from '@widgets/AnimatedCalendarOverlay';
+import { AnimatedDailyPlanningOverlay } from '@widgets/AnimatedDailyPlanningOverlay';
+import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
 import { type PageId, type PaletteAction } from '@widgets/Palette';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
@@ -24,6 +28,7 @@ import { readStoredTheme } from '@shared/model/prefs';
 import { readSettings } from '@pages/Settings/lib/settings-store';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme } from '@shared/lib/applyTheme';
+import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { useSessionStore } from '@shared/model/session';
 import { PageStack } from '@shared/ui/PageStack';
@@ -54,6 +59,7 @@ const PALETTE_CLOSE_MS = 320;
 
 function preloadPalettePages(): void {
   void import('@pages/TaskBoard');
+  void import('@pages/DailyPlanning/DailyPlanningModal');
   void import('@pages/Notes');
   void import('@pages/Settings');
   void import('@pages/Whiteboard');
@@ -93,6 +99,7 @@ export default function App() {
     }
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [planningOpen, setPlanningOpen] = useState(false);
 
   const setPage = useCallback((next: PageId | ((p: PageId) => PageId)) => {
     setPageRaw((current) => {
@@ -111,6 +118,7 @@ export default function App() {
       if (id === page) return;
       setStatsOpen(false);
       setCalendarOpen(false);
+      setPlanningOpen(false);
       setPage(id);
     },
     [page, setPage],
@@ -128,7 +136,12 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(theme);
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      void emit('theme:sync', theme);
+    }
   }, [theme]);
+
+  useEffect(() => initPomodoroLeader(), []);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
@@ -279,6 +292,7 @@ export default function App() {
 
   const openStats = useCallback(() => {
     setCalendarOpen(false);
+    setPlanningOpen(false);
     navigateTo('home');
     setStatsOpen(true);
   }, [navigateTo]);
@@ -289,11 +303,22 @@ export default function App() {
 
   const openCalendar = useCallback(() => {
     setStatsOpen(false);
+    setPlanningOpen(false);
     setCalendarOpen(true);
   }, []);
 
   const closeCalendar = useCallback(() => {
     setCalendarOpen(false);
+  }, []);
+
+  const openPlanning = useCallback(() => {
+    setStatsOpen(false);
+    setCalendarOpen(false);
+    setPlanningOpen(true);
+  }, []);
+
+  const closePlanning = useCallback(() => {
+    setPlanningOpen(false);
   }, []);
 
   const openImpl = useCallback(
@@ -310,9 +335,13 @@ export default function App() {
         openCalendar();
         return;
       }
+      if (id === 'planning') {
+        openPlanning();
+        return;
+      }
       navigateTo(id as PageId);
     },
-    [startFocus, navigateTo, openStats, openCalendar],
+    [startFocus, navigateTo, openStats, openCalendar, openPlanning],
   );
 
   const openPalette = useCallback((taskDate?: Date | null) => {
@@ -320,6 +349,19 @@ export default function App() {
     setPaletteTaskDate(taskDate ?? null);
     setPaletteOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    let unlisten: (() => void) | undefined;
+    void listen('app:open-palette', () => {
+      openPalette();
+    }).then((off) => {
+      unlisten = off;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [openPalette]);
 
   const closePalette = useCallback(() => {
     setPaletteOpen(false);
@@ -359,12 +401,12 @@ export default function App() {
         const start = resolveScheduleStart(dayKey, existing, date);
         created = await scheduleTask(created.id, start, 30);
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-        navigateTo('today');
+        if (!planningOpen) navigateTo('today');
       } catch {
         /* silent */
       }
     },
-    [closePalette, navigateTo],
+    [closePalette, navigateTo, planningOpen],
   );
 
   useEffect(() => {
@@ -415,6 +457,7 @@ export default function App() {
     paletteOpen,
     statsOpen,
     calendarOpen,
+    planningOpen,
     setPaletteOpen: (fn) => {
       const next = fn(paletteOpen);
       if (next) openPalette();
@@ -425,6 +468,8 @@ export default function App() {
     closeStats,
     openCalendar,
     closeCalendar,
+    openPlanning,
+    closePlanning,
     open: (id) => openImpl(id),
   });
 
@@ -492,10 +537,13 @@ export default function App() {
           <AppVersionBadge />
         </div>
 
+        {page === 'home' ? <HomeTodayTasks /> : null}
+
         <PageStack page={page}>{renderPage}</PageStack>
 
         {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
         <AnimatedCalendarOverlay open={calendarOpen} onClose={closeCalendar} />
+        <AnimatedDailyPlanningOverlay open={planningOpen} onClose={closePlanning} />
 
         <PomodoroController />
 

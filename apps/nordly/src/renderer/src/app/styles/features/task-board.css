@@ -562,6 +562,18 @@ body.nordly-task-dragging .nordly-day-column__body {
 }
 
 /* Timeline task blocks — epic tint matches day-board rows */
+.nordly-day-timeline {
+  padding: 0 0 0 16px;
+}
+
+.nordly-day-timeline__header {
+  padding: 0 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-80);
+}
+
 .nordly-timeline-task {
   box-sizing: border-box;
   border-radius: 8px;

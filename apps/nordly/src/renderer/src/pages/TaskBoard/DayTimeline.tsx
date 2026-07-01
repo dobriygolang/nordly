@@ -38,13 +38,23 @@ interface DayTimelineProps {
   tasks: TaskCard[];
   epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
+  /** When false, use fixed hour height and scroll (full 06:00–23:00). Default: true (compress to fit). */
+  fitToHeight?: boolean;
+  className?: string;
 }
 
 function hourLabel(h: number, locale: 'en' | 'ru'): string {
   return formatTimeShort(new Date(2000, 0, 1, h, 0), locale);
 }
 
-export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelineProps) {
+export function DayTimeline({
+  date,
+  tasks,
+  epics,
+  onReschedule,
+  fitToHeight = true,
+  className,
+}: DayTimelineProps) {
   const t = useT();
   const [locale] = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -84,9 +94,13 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
   );
   const planned = useMemo(() => tasksPlannedForDay(dayKey, tasks), [dayKey, tasks]);
 
-  // Fit all hours into the available height
+  // Fit all hours into the available height (task board), or fixed slot height with scroll (planning).
   const [hourPx, setHourPx] = useState(HOUR_PX_DEFAULT);
   useLayoutEffect(() => {
+    if (!fitToHeight) {
+      setHourPx(HOUR_PX_DEFAULT);
+      return;
+    }
     const el = scrollRef.current;
     if (!el) return;
     const recompute = () => {
@@ -98,7 +112,7 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
     const ro = new ResizeObserver(recompute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fitToHeight]);
 
   const timedGoogleLayout = useMemo(
     () =>
@@ -122,17 +136,18 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
 
   return (
     <aside
+      className={className ? `nordly-day-timeline ${className}` : 'nordly-day-timeline'}
       style={{
         flex: '0 0 280px',
         borderLeft: '1px solid var(--ink-tint-06)',
-        padding: '0 0 0 16px',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
+        height: '100%',
         overflow: 'hidden',
       }}
     >
-      <header style={{ padding: '0 8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--ink-80)' }}>
+      <header className="nordly-day-timeline__header">
         {formatTimelineHeader(date, locale)}
       </header>
 
@@ -156,6 +171,7 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
 
       <div
         ref={scrollRef}
+        className="nordly-day-timeline__scroll nordly-hide-scrollbar"
         style={{
           position: 'relative',
           flex: 1,
@@ -176,6 +192,7 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
           {Array.from({ length: HOUR_COUNT }, (_, i) => HOUR_START + i).map((h) => (
             <div
               key={h}
+              className="nordly-day-timeline__hour"
               style={{
                 position: 'absolute',
                 top: GRID_PAD_TOP + (h - HOUR_START) * hourPx,

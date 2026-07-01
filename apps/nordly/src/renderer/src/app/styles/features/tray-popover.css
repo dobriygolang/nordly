@@ -1,0 +1,289 @@
+html[data-nordly-view='tray'],
+html[data-nordly-view='tray'] body,
+html[data-nordly-view='tray'] #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent !important;
+  border-radius: 16px;
+}
+
+@keyframes nordly-tray-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes nordly-tray-colon-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes nordly-tray-play-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.14),
+      0 0 0 0 rgb(255 255 255 / 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.22),
+      0 0 12px 0 rgb(255 255 255 / 0.12);
+  }
+}
+
+@keyframes nordly-tray-timer-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0 rgb(255 255 255 / 0);
+  }
+  50% {
+    text-shadow: 0 0 10px rgb(255 255 255 / 0.14);
+  }
+}
+
+.nordly-tray-popover-shell {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: transparent;
+  -webkit-app-region: no-drag;
+  animation: nordly-tray-pop-in 320ms var(--motion-ease-standard) both;
+}
+
+.nordly-tray-popover {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 9px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0a0a0a;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+
+.nordly-tray-popover__poster {
+  flex: 0 0 68px;
+  width: 68px;
+  height: 68px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.nordly-tray-popover__poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.nordly-tray-popover__controls {
+  flex: 1;
+  min-width: 0;
+  height: 68px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  padding-right: 34px;
+}
+
+.nordly-tray-popover__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.14em;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+}
+
+.nordly-tray-popover__timer.is-running {
+  animation: nordly-tray-timer-glow 2.6s ease-in-out infinite;
+}
+
+.nordly-tray-popover__digit-slot {
+  position: relative;
+  display: inline-block;
+  width: 0.62em;
+  height: 1.05em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.nordly-tray-popover__digit-strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.nordly-tray-popover__digit-cell {
+  flex: 0 0 1.05em;
+  height: 1.05em;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.nordly-tray-popover__timer-sep {
+  display: inline-block;
+  margin: 0 0.04em;
+  opacity: 0.72;
+  transition: opacity var(--t-fast);
+}
+
+.nordly-tray-popover__timer.is-running .nordly-tray-popover__timer-sep {
+  animation: nordly-tray-colon-pulse 1s ease-in-out infinite;
+}
+
+.nordly-tray-popover__menu {
+  position: absolute;
+  top: 10px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.72);
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgb(255 255 255 / 0);
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast),
+    transform var(--motion-dur-small) var(--motion-ease-interactive),
+    box-shadow var(--t-fast),
+    opacity var(--t-fast);
+}
+
+.nordly-tray-popover__menu:hover {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+
+.nordly-tray-popover__menu:active {
+  transform: scale(0.94);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.nordly-tray-popover__menu:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.35);
+}
+
+.nordly-tray-popover__play {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: #fff;
+  color: #0a0a0a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+  transition:
+    transform var(--motion-dur-small) var(--motion-ease-interactive),
+    box-shadow var(--t-fast),
+    background-color var(--t-fast),
+    opacity var(--t-fast);
+}
+
+.nordly-tray-popover__play:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 2px 8px rgb(0 0 0 / 0.22),
+    0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
+.nordly-tray-popover__play:active {
+  transform: scale(0.94);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+}
+
+.nordly-tray-popover__play.is-running {
+  animation: nordly-tray-play-pulse 2.2s ease-in-out infinite;
+}
+
+.nordly-tray-popover__play:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1.5px rgb(255 255 255 / 0.45),
+    0 2px 8px rgb(0 0 0 / 0.2);
+}
+
+.nordly-tray-popover__play-icon {
+  display: grid;
+  place-items: center;
+  transition: transform 220ms var(--motion-ease-standard);
+}
+
+.nordly-tray-popover__play.is-running .nordly-tray-popover__play-icon {
+  transform: scale(0.88);
+}
+
+.nordly-tray-popover__play:hover .nordly-tray-popover__play-icon {
+  transform: scale(1.05);
+}
+
+.nordly-tray-popover__play.is-running:hover .nordly-tray-popover__play-icon {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-tray-popover-shell,
+  .nordly-tray-popover__digit-strip,
+  .nordly-tray-popover__timer.is-running,
+  .nordly-tray-popover__timer.is-running .nordly-tray-popover__timer-sep,
+  .nordly-tray-popover__play.is-running {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .nordly-tray-popover__menu:hover,
+  .nordly-tray-popover__play:hover {
+    transform: none;
+  }
+
+  .nordly-tray-popover__menu:active,
+  .nordly-tray-popover__play:active {
+    transform: none;
+  }
+
+  .nordly-tray-popover__play:hover .nordly-tray-popover__play-icon,
+  .nordly-tray-popover__play.is-running .nordly-tray-popover__play-icon {
+    transform: none;
+  }
+}

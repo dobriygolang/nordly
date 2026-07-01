@@ -1,0 +1,183 @@
+.nordly-home-today {
+  position: absolute;
+  top: 100px;
+  left: 32px;
+  z-index: 3;
+  max-width: 260px;
+  pointer-events: auto;
+}
+
+.nordly-home-today__empty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-40);
+}
+
+.nordly-home-today__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nordly-home-today__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 0;
+  border-radius: 6px;
+  will-change: transform;
+  transition: transform 280ms var(--motion-ease-emphasized);
+}
+
+.nordly-home-today__item:hover {
+  transform: translateX(4px);
+}
+
+.nordly-home-today__item[data-done='true'] .nordly-home-today__title {
+  text-decoration: line-through;
+  color: var(--ink-40);
+}
+
+.nordly-home-today__main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nordly-home-today__stripe {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 2px;
+}
+
+.nordly-home-today__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 280ms var(--motion-ease-emphasized);
+}
+
+.nordly-home-today__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.nordly-home-today__timer {
+  font-size: 10px;
+  color: var(--ink-40);
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+  white-space: nowrap;
+  transition:
+    opacity 200ms var(--motion-ease-emphasized) 60ms,
+    max-width 260ms var(--motion-ease-emphasized) 60ms,
+    transform 260ms var(--motion-ease-emphasized) 60ms;
+}
+
+.nordly-home-today__item[data-active='true'] .nordly-home-today__timer {
+  color: var(--ink-60);
+}
+
+.nordly-home-today__play {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-60);
+  cursor: pointer;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(6px) scale(0.88);
+  pointer-events: none;
+  transition:
+    opacity 200ms var(--motion-ease-emphasized) 0ms,
+    max-width 260ms var(--motion-ease-emphasized) 0ms,
+    transform 260ms var(--motion-ease-emphasized) 0ms,
+    background-color 200ms var(--motion-ease-standard),
+    color 200ms var(--motion-ease-standard);
+}
+
+.nordly-home-today__item:hover .nordly-home-today__timer,
+.nordly-home-today__item:focus-within .nordly-home-today__timer {
+  max-width: 36px;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition:
+    opacity 220ms var(--motion-ease-emphasized) 0ms,
+    max-width 280ms var(--motion-ease-emphasized) 0ms,
+    transform 280ms var(--motion-ease-emphasized) 0ms;
+}
+
+.nordly-home-today__item:hover .nordly-home-today__play,
+.nordly-home-today__item:focus-within .nordly-home-today__play {
+  max-width: 22px;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+  transition:
+    opacity 220ms var(--motion-ease-emphasized) 100ms,
+    max-width 280ms var(--motion-ease-emphasized) 100ms,
+    transform 280ms var(--motion-ease-emphasized) 100ms,
+    background-color 200ms var(--motion-ease-standard),
+    color 200ms var(--motion-ease-standard);
+}
+
+.nordly-home-today__play:hover {
+  background: var(--ink-tint-08);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-home-today__item {
+    transition-duration: 0.01ms;
+  }
+
+  .nordly-home-today__item:hover {
+    transform: none;
+  }
+
+  .nordly-home-today__timer,
+  .nordly-home-today__play {
+    transition-duration: 0.01ms;
+    transition-delay: 0ms;
+  }
+
+  .nordly-home-today__item:hover .nordly-home-today__timer,
+  .nordly-home-today__item:focus-within .nordly-home-today__timer,
+  .nordly-home-today__item:hover .nordly-home-today__play,
+  .nordly-home-today__item:focus-within .nordly-home-today__play {
+    transition-delay: 0ms;
+  }
+}

@@ -129,7 +129,6 @@ fn window_traffic_lights_show(window: tauri::WebviewWindow, visible: bool) -> Re
 /// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
 /// Warm-start deep links arrive via the `app:deep-link` event instead.
 #[tauri::command]
-#[tauri::command]
 fn tray_show_main(app: AppHandle) -> Result<(), String> {
     tray::tray_show_main(app)
 }

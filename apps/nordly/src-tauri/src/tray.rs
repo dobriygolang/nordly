@@ -2,19 +2,37 @@
 
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, RunEvent, WindowEvent,
+    Emitter, Manager, RunEvent, WindowEvent,
 };
 use tauri_plugin_positioner::{on_tray_event, WindowExt, Position};
+
+use crate::window_macos;
 
 const TRAY_ID: &str = "nordly-tray";
 const POPOVER_LABEL: &str = "tray-popover";
 const MAIN_LABEL: &str = "main";
 
-pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let icon = app
+fn load_tray_icon(app: &tauri::App) -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
+    let icon_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/trayTemplate.png");
+    if icon_path.exists() {
+        let img = image::open(icon_path)?.into_rgba8();
+        let (width, height) = img.dimensions();
+        return Ok(tauri::image::Image::new_owned(img.into_raw(), width, height));
+    }
+    let default = app
         .default_window_icon()
         .cloned()
         .ok_or("missing default window icon")?;
+    Ok(tauri::image::Image::new_owned(
+        default.rgba().to_vec(),
+        default.width(),
+        default.height(),
+    ))
+}
+
+pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let icon = load_tray_icon(app)?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
@@ -42,6 +60,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
 
     if let Some(popover) = app.get_webview_window(POPOVER_LABEL) {
+        let _ = window_macos::set_content_corner_radius(&popover, 16.0);
         let handle = app_handle.clone();
         popover.on_window_event(move |event| {
             if let WindowEvent::Focused(false) = event {
@@ -84,12 +103,17 @@ fn toggle_popover(app: &tauri::AppHandle) {
         let _ = app.show();
     }
 
-    let _ = popover.as_ref().window().move_window(Position::TrayCenter);
+    let _ = popover.move_window(Position::TrayCenter);
+    let _ = window_macos::set_content_corner_radius(&popover, 16.0);
     let _ = popover.show();
     let _ = popover.set_focus();
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        let _ = handle.emit("tray-popover:show", ());
+    });
 }
 
-#[tauri::command]
 pub fn tray_show_main(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(popover) = app.get_webview_window(POPOVER_LABEL) {
         let _ = popover.hide();

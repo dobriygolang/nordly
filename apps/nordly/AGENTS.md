@@ -25,13 +25,15 @@ Dock pages (`widgets/Dock.tsx`): `home`, `today`, `notes`, `whiteboard`, `settin
 
 | Page | Component | Notes |
 |------|-----------|-------|
-| Home | `pages/Home.tsx` | Empty shell; timer lives in dock |
+| Home | `pages/Home.tsx` | Theme label + `widgets/HomeTodayTasks` (today list, hover focus/play) |
 | Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule |
 | Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Settings | `pages/Settings/index.tsx` | Theme, locale, pomodoro, Google Calendar, vault, sign out |
 
-Overlays (not pages): `AnimatedStatsOverlay`, `AnimatedCalendarOverlay`, `PomodoroController`, `Palette` (Cmd+K).
+Overlays (not pages): `AnimatedStatsOverlay`, `AnimatedCalendarOverlay`, `AnimatedDailyPlanningOverlay`, `PomodoroController`, `Palette` (Cmd+K).
+
+**Daily Planning** (`pages/DailyPlanning/`): 3-step wizard overlay — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week), Finalize (summary + obstacles). Open via Palette (after Today) or `P`. Task drag reschedules via `scheduleTask`. Obstacles stored locally in IndexedDB meta key `daily_plan::{userId}::{YYYY-MM-DD}` (`pages/DailyPlanning/lib/dailyPlanStore.ts`); manual open only (no auto-open on launch).
 
 ## Env flags
 
@@ -203,9 +205,12 @@ Registered in `src-tauri/src/lib.rs`:
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `shell_open_external` | Open URL in browser |
 | `window_traffic_lights_show` | macOS traffic lights |
+| `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-Events: `app:deep-link` (warm-start), `auth:changed`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open`, `note.open`, `settings?google_calendar=…` (Google Calendar OAuth result).
+**Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
+
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open`, `note.open`, `settings?google_calendar=…` (Google Calendar OAuth result).
 
 ## Commands
 

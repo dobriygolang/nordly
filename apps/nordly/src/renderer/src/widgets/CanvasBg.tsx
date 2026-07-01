@@ -54,6 +54,19 @@ export const THEME_IDS: ThemeId[] = [
 /** Default home-screen canvas — manga ink portrait with ripple animation. */
 export const DEFAULT_THEME_ID: ThemeId = 'launch';
 
+const THEME_POSTER_SRC: Partial<Record<ThemeId, string>> = {
+  drift: '/backgrounds/drift.png',
+  visor: '/backgrounds/visor.png',
+  debris: '/backgrounds/debris.png',
+  launch: '/backgrounds/launch.png',
+  'birthday-light': '/backgrounds/birthday-light.png',
+};
+
+/** Static poster image for image-based canvas themes; fallback for animated themes. */
+export function themePosterSrc(theme: ThemeId): string {
+  return THEME_POSTER_SRC[theme] ?? '/backgrounds/launch.png';
+}
+
 interface CanvasBgProps {
   mode?: CanvasMode;
   theme?: ThemeId;

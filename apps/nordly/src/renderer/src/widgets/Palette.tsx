@@ -20,7 +20,7 @@ export type PageId =
   | 'calendar'
   | 'settings';
 
-export type PaletteAction = PageId | 'stats' | 'calendar';
+export type PaletteAction = PageId | 'stats' | 'calendar' | 'planning';
 
 interface PaletteProps {
   onClose: () => void;
@@ -49,6 +49,7 @@ const NAV_ITEMS: Array<{
   shortcut?: string[];
 }> = [
   { id: 'today', labelKey: 'nordly.palette.nav_today', icon: 'sun', shortcut: ['T'] },
+  { id: 'planning', labelKey: 'nordly.palette.nav_planning', icon: 'pomodoro', shortcut: ['P'] },
   { id: 'notes', labelKey: 'nordly.palette.nav_notes', icon: 'note', shortcut: ['N'] },
   { id: 'whiteboard', labelKey: 'nordly.palette.nav_whiteboard', icon: 'grid', shortcut: ['B'] },
   { id: 'calendar', labelKey: 'nordly.palette.nav_calendar', icon: 'calendar', shortcut: ['C'] },
@@ -58,6 +59,7 @@ const NAV_ITEMS: Array<{
 
 const PALETTE_PAGE_PRELOAD: Partial<Record<string, () => void>> = {
   today: () => void import('@pages/TaskBoard'),
+  planning: () => void import('@pages/DailyPlanning/DailyPlanningModal'),
   notes: () => void import('@pages/Notes'),
   whiteboard: () => void import('@pages/Whiteboard'),
   settings: () => void import('@pages/Settings'),
@@ -155,6 +157,7 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
     <div
       className="nordly-palette-scrim"
       data-closing={closing ? 'true' : undefined}
+      data-elevated={taskDate ? 'true' : undefined}
       onClick={onClose}
     >
       <div

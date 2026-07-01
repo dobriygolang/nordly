@@ -19,15 +19,15 @@ function hitTestAt(
   y: number,
   ignoreTaskId: string | null,
 ): { dayKey: string | null; insertBeforeTaskId: string | null } {
-  const columns = document.querySelectorAll<HTMLElement>('.nordly-day-column__body');
-  let dayKey: string | null = null;
-  for (const body of columns) {
-    const r = body.getBoundingClientRect();
-    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-      dayKey = body.closest('[data-day-key]')?.getAttribute('data-day-key') ?? null;
-      break;
-    }
+  const hit = document.elementFromPoint(x, y);
+  const body = hit?.closest('.nordly-day-column__body');
+  if (!body) return { dayKey: null, insertBeforeTaskId: null };
+
+  const section = body.closest('[data-day-key]');
+  if (section?.hasAttribute('data-planning-no-drop')) {
+    return { dayKey: null, insertBeforeTaskId: null };
   }
+  const dayKey = section?.getAttribute('data-day-key') ?? null;
   if (!dayKey) return { dayKey: null, insertBeforeTaskId: null };
 
   const col = document.querySelector<HTMLElement>(`.nordly-day-column[data-day-key="${dayKey}"]`);

@@ -9,12 +9,15 @@ interface GlobalHotkeysDeps {
   paletteOpen: boolean;
   statsOpen: boolean;
   calendarOpen: boolean;
+  planningOpen: boolean;
   setPaletteOpen: (next: (p: boolean) => boolean) => void;
   goHome: () => void;
   openStats: () => void;
   closeStats: () => void;
   openCalendar: () => void;
   closeCalendar: () => void;
+  openPlanning: () => void;
+  closePlanning: () => void;
   open: (id: PageId) => void;
 }
 
@@ -57,6 +60,11 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
           d.setPaletteOpen(() => false);
           return;
         }
+        if (d.planningOpen) {
+          e.preventDefault();
+          d.closePlanning();
+          return;
+        }
         if (d.calendarOpen) {
           e.preventDefault();
           d.closeCalendar();
@@ -85,6 +93,12 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
       if (e.code === 'KeyC') {
         if (d.calendarOpen) d.closeCalendar();
         else d.openCalendar();
+        return;
+      }
+
+      if (e.code === 'KeyP') {
+        if (d.planningOpen) d.closePlanning();
+        else d.openPlanning();
         return;
       }
 

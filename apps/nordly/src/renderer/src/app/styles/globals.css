@@ -24,6 +24,9 @@
 @import './features/vault.css';
 @import './features/notes.css';
 @import './features/task-board.css';
+@import './features/daily-planning.css';
+@import './features/home-today.css';
 @import './features/palette.css';
 @import './features/settings.css';
 @import './features/login.css';
+@import './features/tray-popover.css';

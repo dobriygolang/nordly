@@ -12,4 +12,6 @@ commands.allow = [
   "pomodoro_save",
   "shell_open_external",
   "window_traffic_lights_show",
+  "tray_show_main",
+  "deep_link_initial",
 ]

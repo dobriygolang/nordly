@@ -72,30 +72,34 @@ const DOCK_CSS = `
   align-items: center;
   justify-content: center;
   transition:
-    opacity var(--t-base),
-    transform var(--t-base);
+    opacity var(--motion-dur-large) var(--motion-ease-emphasized),
+    transform var(--motion-dur-large) var(--motion-ease-emphasized);
 }
 
 .nordly-dock-timer-layer--time {
   gap: 4px;
+  transition-delay: 50ms;
 }
 
 .nordly-dock-timer-layer--reset {
   gap: 4px;
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-4px);
   pointer-events: none;
+  transition-delay: 0ms;
 }
 
 .nordly-dock-timer:hover .nordly-dock-timer-layer--time {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(4px);
+  transition-delay: 0ms;
 }
 
 .nordly-dock-timer:hover .nordly-dock-timer-layer--reset {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+  transition-delay: 60ms;
 }
 
 @media (prefers-reduced-motion: reduce) {

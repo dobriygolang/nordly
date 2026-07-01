@@ -1,4 +1,15 @@
 /* Palette command modal — main menu (⌘K) */
+@keyframes nordly-palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.986);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .nordly-palette-scrim {
   position: absolute;
   inset: 0;
@@ -8,10 +19,14 @@
   justify-content: center;
   background: rgb(0 0 0 / 0.78);
   opacity: 1;
-  transition: opacity var(--motion-dur-medium) var(--motion-ease-emphasized);
+  transition: opacity var(--motion-dur-large) var(--motion-ease-emphasized);
+}
+
+.nordly-palette-scrim[data-elevated='true'] {
+  z-index: 1100;
 }
 .nordly-palette-scrim:not([data-closing='true']) {
-  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+  animation: nordly-fade-in var(--motion-dur-large) var(--motion-ease-emphasized) backwards;
 }
 .nordly-palette-scrim[data-closing='true'] {
   opacity: 0;
@@ -27,23 +42,23 @@
   opacity: 1;
   transform: translateY(0) scale(1);
   transition:
-    opacity var(--motion-dur-medium) var(--motion-ease-emphasized),
-    transform var(--motion-dur-medium) var(--motion-ease-emphasized);
+    opacity var(--motion-dur-large) var(--motion-ease-emphasized),
+    transform var(--motion-dur-large) var(--motion-ease-emphasized);
 }
 .nordly-palette-scrim:not([data-closing='true']) .nordly-palette-panel {
-  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+  animation: nordly-palette-in var(--motion-dur-large) var(--motion-ease-emphasized) backwards;
 }
 .nordly-palette-panel[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.98) translateY(8px);
+  transform: scale(0.986) translateY(6px);
 }
 .nordly-palette-search {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
-  padding: 14px 16px;
+  padding: 11px 14px;
   border-bottom: 1px solid rgb(255 255 255 / 0.05);
 }
 .nordly-palette-search__icon {
@@ -102,16 +117,16 @@
   min-height: 0;
   max-height: min(360px, 52vh);
   overflow-y: auto;
-  padding: 8px 8px 6px;
-  scroll-padding-block: 8px;
+  padding: 6px 6px 4px;
+  scroll-padding-block: 6px;
 }
 .nordly-palette-row {
   display: grid;
   grid-template-columns: 26px 1fr auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   margin: 0;
   border: none;
   border-radius: 6px;
@@ -173,16 +188,16 @@
   opacity: 0.6;
 }
 .nordly-palette-empty {
-  padding: 14px 12px;
+  padding: 10px 10px;
   font-size: 11px;
   color: rgb(255 255 255 / 0.35);
 }
 .nordly-palette-footer {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-top: 1px solid rgb(255 255 255 / 0.05);
   font-size: 10px;
   color: rgb(255 255 255 / 0.35);

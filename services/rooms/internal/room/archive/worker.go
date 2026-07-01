@@ -6,10 +6,11 @@ import (
 
 	roomrepo "github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/logger"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/ws"
 )
 
-// Run periodically archives rooms whose expires_at has passed.
-func Run(ctx context.Context, repo *roomrepo.Repository, interval time.Duration, log logger.Logger) {
+// Run periodically deletes rooms whose expires_at has passed and closes live sessions.
+func Run(ctx context.Context, repo *roomrepo.Repository, hub *ws.Hub, interval time.Duration, log logger.Logger) {
 	if interval <= 0 {
 		interval = time.Minute
 	}
@@ -21,14 +22,21 @@ func Run(ctx context.Context, repo *roomrepo.Repository, interval time.Duration,
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			n, err := repo.ArchiveExpired(ctx)
+			ids, err := repo.DeleteExpired(ctx)
 			if err != nil {
-				log.Error("archive expired rooms", "err", err)
+				log.Error("delete expired rooms", "err", err)
 				continue
 			}
-			if n > 0 {
-				log.Info("archived expired rooms", "count", n)
+			if len(ids) == 0 {
+				continue
 			}
+			if hub != nil {
+				for _, id := range ids {
+					hub.BroadcastRoomClosed(id)
+					hub.CloseRoom(id)
+				}
+			}
+			log.Info("deleted expired rooms", "count", len(ids))
 		}
 	}
 }

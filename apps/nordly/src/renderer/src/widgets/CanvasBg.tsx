@@ -3,7 +3,7 @@
 // Themes (7):
 //   - drift (light): line-art astronaut drifting near a capsule on white
 //   - visor (light): line-art astronaut portrait with Earth reflected in visor
-//   - winter (default): grid + stars float/twinkle + waves drift + 2 rotating squares
+//   - winter: grid + stars float/twinkle + waves drift + 2 rotating squares
 //   - birthday-light: line-art birthday scene — cake, gift, balloons on white
 //   - particles: dense floating particles with proximity lines (canvas2D),
 //     line opacity pulses with sine wave, mouse parallax
@@ -51,12 +51,15 @@ export const THEME_IDS: ThemeId[] = [
   'launch',
 ];
 
+/** Default home-screen canvas — manga ink portrait with ripple animation. */
+export const DEFAULT_THEME_ID: ThemeId = 'launch';
+
 interface CanvasBgProps {
   mode?: CanvasMode;
   theme?: ThemeId;
 }
 
-export function CanvasBg({ mode = 'full', theme = 'winter' }: CanvasBgProps) {
+export function CanvasBg({ mode = 'full', theme = DEFAULT_THEME_ID }: CanvasBgProps) {
   if (mode === 'void') return null;
   switch (theme) {
     case 'drift':

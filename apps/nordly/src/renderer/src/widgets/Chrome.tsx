@@ -26,7 +26,7 @@ const WORDMARK_LABEL_STYLE: CSSProperties = {
 export const Wordmark = memo(function Wordmark() {
   return (
     <div style={WORDMARK_ROOT_STYLE} className="no-select mono">
-      <div style={WORDMARK_LABEL_STYLE}>FRIENDS</div>
+      <div style={WORDMARK_LABEL_STYLE}>NORDLY</div>
     </div>
   );
 });

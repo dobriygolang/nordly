@@ -37,7 +37,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	repo := roomrepo.New(a.Postgres)
 	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, slog.Default())
 
-	go archive.Run(ctx, repo, a.Config.RoomArchiveInterval, a.Logger)
+	go archive.Run(ctx, repo, a.Hub, a.Config.RoomArchiveInterval, a.Logger)
 
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", roomsapi.HealthzHTTP())

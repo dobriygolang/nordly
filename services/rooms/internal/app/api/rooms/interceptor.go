@@ -10,7 +10,6 @@ import (
 
 var protectedMethods = map[string]struct{}{
 	roomsv1.RoomsService_GetRoom_FullMethodName:            {},
-	roomsv1.RoomsService_FreezeRoom_FullMethodName:         {},
 	roomsv1.RoomsService_CreateInvite_FullMethodName:       {},
 	roomsv1.RoomsService_CloseRoom_FullMethodName:          {},
 	roomsv1.RoomsService_ShareWhiteboard_FullMethodName:    {},

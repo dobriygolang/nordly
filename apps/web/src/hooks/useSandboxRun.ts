@@ -8,9 +8,9 @@ import type { CodeRun } from '@/lib/types'
 export function useSandboxRun(accessToken?: string | null) {
   const { t } = useI18n()
   const [runId, setRunId] = useState<string | null>(null)
-  const [panelOpen, setPanelOpen] = useState(false)
   const [outputTab, setOutputTab] = useState<'stdout' | 'stderr'>('stdout')
   const [runError, setRunError] = useState<string | null>(null)
+  const [triggeredBy, setTriggeredBy] = useState<string | null>(null)
 
   const runQ = useQuery({
     queryKey: ['code-run', runId, accessToken ?? ''],
@@ -50,27 +50,36 @@ export function useSandboxRun(accessToken?: string | null) {
   const running =
     runM.isPending || (activeRun != null && !isTerminalRunStatus(activeRun.status))
 
+  const followRun = useCallback((id: string, actor?: string) => {
+    setRunId(id)
+    setRunError(null)
+    setTriggeredBy(actor ?? null)
+    setOutputTab('stdout')
+  }, [])
+
   const executeRun = useCallback(
     async (input: {
       language: string
       code: string
+      triggeredBy?: string
     }) => {
-      if (running) return
-      setPanelOpen(true)
+      if (running) return null
       setRunError(null)
-      await runM.mutateAsync(input)
+      setTriggeredBy(input.triggeredBy ?? null)
+      const result = await runM.mutateAsync({ language: input.language, code: input.code })
+      return result.run.id
     },
     [runM, running],
   )
 
   return {
-    panelOpen,
-    setPanelOpen,
     outputTab,
     setOutputTab,
     runError,
     running,
     activeRun: activeRun as CodeRun | undefined,
+    triggeredBy,
     executeRun,
+    followRun,
   }
 }

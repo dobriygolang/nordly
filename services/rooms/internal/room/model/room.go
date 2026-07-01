@@ -45,7 +45,6 @@ type Room struct {
 	OwnerID        uuid.UUID
 	Type           RoomType
 	Language       Language
-	IsFrozen   bool
 	Visibility Visibility
 	ExpiresAt     time.Time
 	CreatedAt     time.Time

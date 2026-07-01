@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
 import {
   CollabCodeEditor,
   wsStatusColor,
@@ -15,7 +14,7 @@ import { isDesignRoom } from '@/lib/live/roomKind'
 import type { CollabPeer } from '@/lib/codemirror/collabPresence'
 import { LiveRoomBottomBar } from '@/components/live/LiveRoomBottomBar'
 import { LiveRoomTopBar } from '@/components/live/LiveRoomTopBar'
-import { RunOutputPanel, runPanelHeight } from '@/components/live/RunOutputPanel'
+import { RunOutputPanel } from '@/components/live/RunOutputPanel'
 import { PublicPageShell } from '@/components/brand/PublicNav'
 import { Logo } from '@/components/brand/Logo'
 import { brand } from '@/lib/brand/tokens'
@@ -27,14 +26,19 @@ import { normalizeEditorLang } from '@/lib/codemirror/langExtension'
 import {
   closeRoom,
   createInvite,
-  freezeRoom,
   getRoom,
   guestJoin,
   persistGuestToken,
   readGuestToken,
 } from '@/lib/api/rooms'
-import { readGuestDisplayName } from '@/lib/live/guestDisplayName'
+import { readGuestDisplayName, persistGuestDisplayName } from '@/lib/live/guestDisplayName'
+import {
+  persistLiveRoomTheme,
+  readLiveRoomTheme,
+  type LiveRoomTheme,
+} from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
+import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
   const part = token.split('.')[1]
@@ -60,10 +64,13 @@ export default function CollabRoomPage() {
   const [copied, setCopied] = useState(false)
   const [wsStatus, setWsStatus] = useState<import('@/lib/ws/collabEditor').EditorWsStatus>('connecting')
   const [guestName, setGuestName] = useState(() => readGuestDisplayName())
+  const [settingsName, setSettingsName] = useState(() => readGuestDisplayName())
   const [guestToken, setGuestToken] = useState(() => readGuestToken(roomId))
   const [guestRoom, setGuestRoom] = useState<import('@/lib/api/rooms').CodeRoom | null>(null)
   const [fontSize, setFontSize] = useState(14)
   const [peers, setPeers] = useState<CollabPeer[]>([])
+  const [theme, setTheme] = useState<LiveRoomTheme>(() => readLiveRoomTheme())
+  const [autocompleteEnabled, setAutocompleteEnabled] = useState(true)
   const hasSession = !!guestToken
 
   useEffect(() => {
@@ -83,13 +90,6 @@ export default function CollabRoomPage() {
       persistGuestToken(roomId, result.access_token)
       setGuestToken(result.access_token)
       setGuestRoom(result.room)
-    },
-  })
-
-  const freezeM = useMutation({
-    mutationFn: (frozen: boolean) => freezeRoom(roomId, frozen),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['room', roomId] })
     },
   })
 
@@ -113,18 +113,42 @@ export default function CollabRoomPage() {
   const run = useSandboxRun(wsToken || null)
   const fmt = useFormatCode(wsToken || null)
 
+  const handleRoomExpired = useCallback(() => {
+    navigate('/welcome', { replace: true, state: { liveExpired: true } })
+  }, [navigate])
+
   useEffect(() => {
-    document.documentElement.classList.add('light')
+    document.documentElement.classList.toggle('light', theme === 'light')
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    persistLiveRoomTheme(theme)
     return () => {
-      document.documentElement.classList.remove('light')
+      document.documentElement.classList.remove('light', 'dark')
     }
-  }, [])
+  }, [theme])
 
   useEffect(() => {
     if (!fmt.formatError) return
     const id = window.setTimeout(() => fmt.clearFormatError(), 6000)
     return () => window.clearTimeout(id)
   }, [fmt.formatError, fmt.clearFormatError])
+
+  const handleSaveDisplayName = () => {
+    const trimmed = settingsName.trim()
+    if (!trimmed) return
+    setGuestName(trimmed)
+    persistGuestDisplayName(trimmed)
+  }
+
+  const handleThemeToggle = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+  }
+
+  const handleRemoteCodeRun = useCallback(
+    (payload: { run_id: string; triggered_by?: string }) => {
+      run.followRun(payload.run_id, payload.triggered_by)
+    },
+    [run],
+  )
 
   if (!roomId.trim()) {
     return (
@@ -166,7 +190,6 @@ export default function CollabRoomPage() {
           owner_id: jwtSubject(guestToken) ?? '',
           room_type: 'practice',
           language: 'go',
-          is_frozen: false,
           visibility: 'shared',
           ws_url: `/ws/editor/${roomId}`,
           participants: [],
@@ -190,13 +213,10 @@ export default function CollabRoomPage() {
   }
 
   const sessionUserId = wsToken ? jwtSubject(wsToken) : null
-  const myRole = room.participants.find((p) => p.user_id === sessionUserId)?.role
   const isOwner = sessionUserId === room.owner_id
-  const canFreeze = isOwner || myRole === 'owner' || myRole === 'interviewer'
   const canRun = !!hasSession
   const closeTo = '/welcome'
   const designRoom = isDesignRoom(room)
-  const panelHeight = designRoom ? 0 : runPanelHeight(run.panelOpen)
   const displayName = guestName || t('common.guest')
 
   const handleClose = () => {
@@ -214,24 +234,29 @@ export default function CollabRoomPage() {
 
   const handleFormat = async () => {
     const code = codeEditorRef.current?.getCode() ?? ''
-    if (!code.trim() || fmt.formatting || room.is_frozen) return
+    if (!code.trim() || fmt.formatting) return
     const formatted = await fmt.format(room.language, code)
     if (formatted != null) codeEditorRef.current?.setCode(formatted)
   }
 
-  const handleRun = () => {
+  const handleRun = async () => {
     const code = codeEditorRef.current?.getCode() ?? ''
     if (!code.trim()) return
-    run.setPanelOpen(true)
-    void run.executeRun({
+    const runId = await run.executeRun({
       language: room.language,
       code,
+      triggeredBy: displayName,
     })
+    if (runId) {
+      codeEditorRef.current?.broadcastCodeRun({
+        run_id: runId,
+        triggered_by: displayName,
+      })
+    }
   }
 
-  const statusLabel = liveWsStatusLabel(t, wsStatus, room.is_frozen)
-  const statusColor =
-    wsStatus === 'open' && !room.is_frozen ? brand.green : wsStatusColor(wsStatus, room.is_frozen)
+  const statusLabel = liveWsStatusLabel(t, wsStatus)
+  const statusColor = wsStatus === 'open' ? brand.green : wsStatusColor(wsStatus)
   const isGo = normalizeEditorLang(room.language) === 'go'
 
   return (
@@ -244,74 +269,80 @@ export default function CollabRoomPage() {
         inviteLoading={inviteM.isPending}
         inviteCopied={copied}
         onInvite={() => inviteM.mutate()}
-        canFreeze={canFreeze}
-        freezeLoading={freezeM.isPending}
-        frozen={room.is_frozen}
-        onFreeze={() => freezeM.mutate(!room.is_frozen)}
         wsFailed={wsStatus === 'failed'}
         onReconnect={editorReconnect}
         timerMode="countdown"
         createdAt={room.created_at}
         expiresAt={room.expires_at}
+        onTimerExpired={handleRoomExpired}
+        displayName={settingsName}
+        onDisplayNameChange={setSettingsName}
+        onDisplayNameSave={handleSaveDisplayName}
+        theme={theme}
+        onThemeToggle={handleThemeToggle}
       />
 
-      <div className={['relative min-h-0 flex-1', designRoom ? 'bg-bg' : 'bg-white'].join(' ')}>
+      <div className={cn('flex min-h-0 flex-1', designRoom ? 'bg-bg' : 'bg-surface-1')}>
         {designRoom ? (
           <CollabExcalidrawEditor
             ref={diagramEditorRef}
             roomId={room.id}
-            frozen={room.is_frozen}
+            boardTheme={theme}
             userId={sessionUserId ?? guestName}
             displayName={displayName}
             accessToken={wsToken}
             onPeersChange={setPeers}
             onWsStatusChange={setWsStatus}
+            onRoomClosed={handleRoomExpired}
           />
         ) : (
           <>
-            <CollabCodeEditor
-              ref={codeEditorRef}
-              roomId={room.id}
-              language={room.language}
-              frozen={room.is_frozen}
-              userId={sessionUserId ?? guestName}
-              displayName={displayName}
-              accessToken={wsToken}
-              bottomInset={panelHeight}
-              fontSize={fontSize}
-              onRun={canRun ? handleRun : undefined}
-              onFormat={isGo && !room.is_frozen ? () => void handleFormat() : undefined}
-              onPeersChange={setPeers}
-              onWsStatusChange={setWsStatus}
-            />
+            <div className="relative min-w-0 flex-1">
+              <CollabCodeEditor
+                ref={codeEditorRef}
+                roomId={room.id}
+                language={room.language}
+                theme={theme}
+                autocompleteEnabled={autocompleteEnabled}
+                userId={sessionUserId ?? guestName}
+                displayName={displayName}
+                accessToken={wsToken}
+                fontSize={fontSize}
+                onRun={canRun ? () => void handleRun() : undefined}
+                onFormat={isGo ? () => void handleFormat() : undefined}
+                onPeersChange={setPeers}
+                onWsStatusChange={setWsStatus}
+                onRoomClosed={handleRoomExpired}
+                onRemoteCodeRun={handleRemoteCodeRun}
+              />
 
-            {fmt.formatError ? (
-              <div
-                role="alert"
-                className="absolute left-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-white px-3 py-2 text-xs text-danger shadow-md"
-              >
-                <span className="min-w-0 flex-1 leading-relaxed">{fmt.formatError}</span>
-                <button
-                  type="button"
-                  onClick={() => fmt.clearFormatError()}
-                  className="shrink-0 rounded p-0.5 text-danger/70 hover:bg-danger/10 hover:text-danger"
-                  aria-label={t('live.dismissError')}
+              {fmt.formatError ? (
+                <div
+                  role="alert"
+                  className="absolute left-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
                 >
-                  ×
-                </button>
-              </div>
-            ) : null}
+                  <span className="min-w-0 flex-1 leading-relaxed">{fmt.formatError}</span>
+                  <button
+                    type="button"
+                    onClick={() => fmt.clearFormatError()}
+                    className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+                    aria-label={t('live.dismissError')}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
             <RunOutputPanel
-              open={run.panelOpen}
-              onClose={() => run.setPanelOpen(false)}
               tab={run.outputTab}
               onTabChange={run.setOutputTab}
               run={run.activeRun}
               running={run.running}
               error={run.runError}
-              theme="light"
-              placement="contained"
+              triggeredBy={run.triggeredBy}
+              canRun={canRun}
+              onRun={() => void handleRun()}
             />
           </>
         )}
@@ -325,14 +356,11 @@ export default function CollabRoomPage() {
         peers={peers}
         statusLabel={statusLabel}
         statusColor={statusColor}
-        canRun={canRun && !designRoom}
-        running={run.running}
-        onRun={handleRun}
-        canFormat={isGo && !room.is_frozen && !designRoom}
+        canFormat={isGo && !designRoom}
         formatting={fmt.formatting}
         onFormat={() => void handleFormat()}
-        outputOpen={run.panelOpen}
-        onToggleOutput={() => run.setPanelOpen((v) => !v)}
+        autocompleteEnabled={autocompleteEnabled}
+        onAutocompleteChange={setAutocompleteEnabled}
       />
     </div>
   )

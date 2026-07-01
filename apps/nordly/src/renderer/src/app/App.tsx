@@ -4,6 +4,7 @@ import { translate } from '@nordly-i18n';
 
 import { CanvasBg, type ThemeId } from '@widgets/CanvasBg';
 import { Wordmark, AppVersionBadge } from '@widgets/Chrome';
+import { TitlebarDrag } from '@widgets/TitlebarDrag';
 import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
 import { LoginScreen } from '@widgets/LoginScreen';
@@ -20,6 +21,8 @@ import {
 } from '@pages/TaskBoard/lib/dates';
 import { HomePage } from '@pages/Home';
 import { readStoredTheme } from '@shared/model/prefs';
+import { readSettings } from '@pages/Settings/lib/settings-store';
+import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { useSessionStore } from '@shared/model/session';
@@ -105,6 +108,9 @@ export default function App() {
   const [paletteClosing, setPaletteClosing] = useState(false);
   const [paletteTaskDate, setPaletteTaskDate] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => readStoredTheme());
+  const [boardCanvas, setBoardCanvas] = useState<BoardCanvasTheme>(
+    () => readSettings().boardCanvas,
+  );
   const [vaultGateActive, setVaultGateActive] = useState(false);
 
   useEffect(() => {
@@ -389,12 +395,14 @@ export default function App() {
           case 'notes':
             return <NotesPage />;
           case 'whiteboard':
-            return <WhiteboardPage theme={theme} />;
+            return <WhiteboardPage boardCanvas={boardCanvas} />;
           case 'settings':
             return (
               <SettingsPage
                 theme={theme}
                 onThemeChange={setTheme}
+                boardCanvas={boardCanvas}
+                onBoardCanvasChange={setBoardCanvas}
                 onPomoChange={(secs) => usePomodoroStore.getState().setDurationSec(secs)}
               />
             );
@@ -402,7 +410,7 @@ export default function App() {
             return null;
         }
       },
-    [theme],
+    [theme, boardCanvas],
   );
 
   if (status === 'unknown') {
@@ -416,7 +424,7 @@ export default function App() {
   if (status === 'guest') {
     return (
       <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: 'var(--bg)' }}>
-        <div className="nordly-titlebar-drag" data-tauri-drag-region />
+        <TitlebarDrag />
         <CanvasBg mode="full" theme={theme} />
         <div style={{ position: 'relative', zIndex: 2, height: '100%' }}>
           <LoginScreen />
@@ -431,10 +439,7 @@ export default function App() {
         <CanvasBg mode={page === 'home' ? 'full' : 'void'} theme={theme} />
       </div>
 
-      <div
-        className="nordly-titlebar-drag"
-        data-tauri-drag-region
-      />
+      <TitlebarDrag />
 
       <TrafficLightsHover />
       <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>

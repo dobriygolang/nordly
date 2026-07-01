@@ -11,9 +11,9 @@ import {
 } from '@/lib/api/publicBoards'
 import {
   EXCALIDRAW_MOUNT_CLASS,
-  EXCALIDRAW_THEME,
   EXCALIDRAW_UI_OPTIONS,
   excalidrawSiteAppState,
+  excalidrawThemeFor,
 } from '@/lib/collab/excalidrawTheme'
 import { applyDocumentMeta } from '@/lib/site/documentMeta'
 import { useI18n } from '@/lib/i18n'
@@ -109,15 +109,19 @@ export default function PublishedBoardPage() {
       <header className="px-6 py-4 border-b border-white/10">
         <h1 className="text-lg font-semibold truncate">{title}</h1>
       </header>
-      <div className={`flex-1 min-h-0 ${EXCALIDRAW_MOUNT_CLASS}`} style={{ height: 'calc(100vh - 57px)' }}>
+      <div
+        className={`flex-1 min-h-0 ${EXCALIDRAW_MOUNT_CLASS}`}
+        style={{ height: 'calc(100vh - 57px)' }}
+        data-board-theme="dark"
+      >
         <Excalidraw
-          theme={EXCALIDRAW_THEME}
+          theme={excalidrawThemeFor('dark')}
           UIOptions={EXCALIDRAW_UI_OPTIONS}
           viewModeEnabled
           initialData={{
             elements: scene.elements as never[],
             files: scene.files as never,
-            appState: excalidrawSiteAppState(),
+            appState: excalidrawSiteAppState('dark'),
           }}
         />
       </div>

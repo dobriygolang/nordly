@@ -67,7 +67,6 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`.
 | POST | `/v1/rooms/guest-create` | `/live/new` |
 | GET | `/v1/rooms/{id}` | `CollabRoomPage` |
 | POST | `/v1/rooms/{id}/guest-join` | invite flow |
-| POST | `/v1/rooms/{id}/freeze` | owner controls |
 | POST | `/v1/rooms/{id}/invite` | owner controls |
 | POST | `/v1/rooms/{id}/close` | owner controls |
 | GET | `/v1/rooms/boards/public/{slug}` | `PublishedBoardPage` |
@@ -93,7 +92,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`.
 | `WS /ws/editor/{roomId}?token=JWT` | rooms | `lib/ws/collabEditor.ts` |
 | `WS /ws/lsp/go?token=JWT` | sandbox | not wired in editor (future) |
 
-WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `freeze`.
+WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_closed`.
 
 ## Guest JWT flow
 

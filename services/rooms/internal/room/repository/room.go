@@ -42,14 +42,14 @@ func New(pg *Pool) *Repository {
 }
 
 const roomReturning = `
-RETURNING id, owner_id, room_type, language, is_frozen, visibility, expires_at, created_at, is_guest_created`
+RETURNING id, owner_id, room_type, language, visibility, expires_at, created_at, is_guest_created`
 
 func scanRoom(row pgx.Row) (model.Room, error) {
 	var out model.Room
 	var roomType, lang, vis string
 	if err := row.Scan(
 		&out.ID, &out.OwnerID, &roomType, &lang,
-		&out.IsFrozen, &vis, &out.ExpiresAt, &out.CreatedAt, &out.IsGuestCreated,
+		&vis, &out.ExpiresAt, &out.CreatedAt, &out.IsGuestCreated,
 	); err != nil {
 		return model.Room{}, err
 	}
@@ -61,12 +61,12 @@ func scanRoom(row pgx.Row) (model.Room, error) {
 
 func (r *Repository) CreateRoomWithID(ctx context.Context, id uuid.UUID, room model.Room) (model.Room, error) {
 	const q = `
-INSERT INTO code_rooms (id, owner_id, room_type, language, is_frozen, visibility, expires_at, is_guest_created)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)` + roomReturning
+INSERT INTO code_rooms (id, owner_id, room_type, language, visibility, expires_at, is_guest_created)
+VALUES ($1, $2, $3, $4, $5, $6, $7)` + roomReturning
 
 	out, err := scanRoom(r.pg.QueryRow(ctx, q,
 		id, room.OwnerID, room.Type.String(), room.Language.String(),
-		room.IsFrozen, room.Visibility, room.ExpiresAt, room.IsGuestCreated,
+		room.Visibility, room.ExpiresAt, room.IsGuestCreated,
 	))
 	if err != nil {
 		return model.Room{}, fmt.Errorf("CreateRoomWithID: %w", err)
@@ -76,7 +76,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)` + roomReturning
 
 func (r *Repository) GetRoom(ctx context.Context, id uuid.UUID) (model.Room, error) {
 	const q = `
-SELECT id, owner_id, room_type, language, is_frozen, visibility, expires_at, created_at, is_guest_created
+SELECT id, owner_id, room_type, language, visibility, expires_at, created_at, is_guest_created
 FROM code_rooms
 WHERE id = $1 AND archived_at IS NULL`
 
@@ -86,21 +86,6 @@ WHERE id = $1 AND archived_at IS NULL`
 			return model.Room{}, ErrNotFound
 		}
 		return model.Room{}, fmt.Errorf("GetRoom: %w", err)
-	}
-	return out, nil
-}
-
-func (r *Repository) UpdateFreeze(ctx context.Context, id uuid.UUID, frozen bool) (model.Room, error) {
-	const q = `
-UPDATE code_rooms SET is_frozen = $2, updated_at = now()
-WHERE id = $1 AND archived_at IS NULL` + roomReturning
-
-	out, err := scanRoom(r.pg.QueryRow(ctx, q, id, frozen))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return model.Room{}, ErrNotFound
-		}
-		return model.Room{}, fmt.Errorf("UpdateFreeze: %w", err)
 	}
 	return out, nil
 }
@@ -182,7 +167,7 @@ func IsExpired(room model.Room, now time.Time) bool {
 
 func (r *Repository) ListActiveByOwner(ctx context.Context, ownerID uuid.UUID) ([]model.Room, error) {
 	const q = `
-SELECT id, owner_id, room_type, language, is_frozen, visibility, expires_at, created_at, is_guest_created
+SELECT id, owner_id, room_type, language, visibility, expires_at, created_at, is_guest_created
 FROM code_rooms
 WHERE owner_id = $1 AND archived_at IS NULL AND expires_at > now()
 ORDER BY created_at DESC`
@@ -199,7 +184,7 @@ ORDER BY created_at DESC`
 		var roomType, lang, vis string
 		if err := rows.Scan(
 			&room.ID, &room.OwnerID, &roomType, &lang,
-			&room.IsFrozen, &vis, &room.ExpiresAt, &room.CreatedAt, &room.IsGuestCreated,
+			&vis, &room.ExpiresAt, &room.CreatedAt, &room.IsGuestCreated,
 		); err != nil {
 			return nil, fmt.Errorf("ListActiveByOwner scan: %w", err)
 		}
@@ -211,26 +196,33 @@ ORDER BY created_at DESC`
 	return out, rows.Err()
 }
 
-func (r *Repository) ArchiveExpired(ctx context.Context) (int64, error) {
+func (r *Repository) DeleteExpired(ctx context.Context) ([]uuid.UUID, error) {
 	const q = `
-UPDATE code_rooms
-SET archived_at = now(), updated_at = now()
-WHERE archived_at IS NULL AND expires_at <= now()`
-	tag, err := r.pg.Exec(ctx, q)
+DELETE FROM code_rooms
+WHERE archived_at IS NULL AND expires_at <= now()
+RETURNING id`
+	rows, err := r.pg.Query(ctx, q)
 	if err != nil {
-		return 0, fmt.Errorf("ArchiveExpired: %w", err)
+		return nil, fmt.Errorf("DeleteExpired: %w", err)
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("DeleteExpired scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
-func (r *Repository) ArchiveRoom(ctx context.Context, id, ownerID uuid.UUID) error {
-	const q = `
-UPDATE code_rooms
-SET archived_at = now(), updated_at = now()
-WHERE id = $1 AND owner_id = $2 AND archived_at IS NULL`
+func (r *Repository) DeleteRoom(ctx context.Context, id, ownerID uuid.UUID) error {
+	const q = `DELETE FROM code_rooms WHERE id = $1 AND owner_id = $2 AND archived_at IS NULL`
 	tag, err := r.pg.Exec(ctx, q, id, ownerID)
 	if err != nil {
-		return fmt.Errorf("ArchiveRoom: %w", err)
+		return fmt.Errorf("DeleteRoom: %w", err)
 	}
 	if tag.RowsAffected() > 0 {
 		return nil
@@ -243,7 +235,7 @@ WHERE id = $1 AND owner_id = $2 AND archived_at IS NULL`
 		return ErrNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("ArchiveRoom check: %w", err)
+		return fmt.Errorf("DeleteRoom check: %w", err)
 	}
 	if actualOwner != ownerID {
 		return ErrForbidden

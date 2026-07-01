@@ -17,13 +17,6 @@ service RoomsService {
     };
   }
 
-  rpc FreezeRoom(FreezeRoomRequest) returns (FreezeRoomResponse) {
-    option (google.api.http) = {
-      post: "/v1/rooms/{room_id}/freeze"
-      body: "*"
-    };
-  }
-
   rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse) {
     option (google.api.http) = {
       post: "/v1/rooms/{room_id}/invite"
@@ -93,7 +86,6 @@ message Room {
   string owner_id = 2;
   string room_type = 3;
   string language = 4;
-  bool is_frozen = 5;
   string visibility = 6;
   string ws_url = 7;
   google.protobuf.Timestamp expires_at = 8;
@@ -107,15 +99,6 @@ message GetRoomRequest {
 }
 
 message GetRoomResponse {
-  Room room = 1;
-}
-
-message FreezeRoomRequest {
-  string room_id = 1;
-  bool frozen = 2;
-}
-
-message FreezeRoomResponse {
   Room room = 1;
 }
 

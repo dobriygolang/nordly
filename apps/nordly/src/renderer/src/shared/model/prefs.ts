@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
-import { THEME_IDS, type ThemeId } from '@widgets/CanvasBg';
+import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@widgets/CanvasBg';
 
 const SETTINGS_KEY: string = STORAGE_KEYS.settings;
 const THEME_KEY: string = STORAGE_KEYS.theme;
@@ -46,14 +46,14 @@ export function readDailyGoalMin(): number {
 }
 
 export function readStoredTheme(): ThemeId {
-  if (typeof window === 'undefined') return 'winter';
+  if (typeof window === 'undefined') return DEFAULT_THEME_ID;
   try {
     const v = window.localStorage.getItem(THEME_KEY);
     if (v && (THEME_IDS as readonly string[]).includes(v)) return v as ThemeId;
   } catch {
     /* ignore */
   }
-  return 'winter';
+  return DEFAULT_THEME_ID;
 }
 
 export const PREFS_KEYS = { SETTINGS_KEY, THEME_KEY } as const;

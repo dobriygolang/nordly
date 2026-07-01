@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { PublicPageShell } from '@/components/brand/PublicNav'
 import { useI18n } from '@/lib/i18n'
 
 export function LegalLayout({
@@ -21,8 +20,7 @@ export function LegalLayout({
   const { t } = useI18n()
 
   return (
-    <PublicPageShell>
-      <main className="mx-auto max-w-[760px] px-6 py-16">
+    <div className="mx-auto max-w-[760px] px-6 py-16">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-site-muted">{eyebrow}</p>
           {nav}
@@ -35,8 +33,7 @@ export function LegalLayout({
         {footer ? (
           <div className="mt-16 border-t border-site-border pt-6 text-[12.5px] text-site-muted">{footer}</div>
         ) : null}
-      </main>
-    </PublicPageShell>
+    </div>
   )
 }
 

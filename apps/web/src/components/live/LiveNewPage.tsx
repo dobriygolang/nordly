@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { PublicPageShell } from '@/components/brand/PublicNav'
 import { Button } from '@/components/ui/Button'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { formatApiError } from '@/lib/apiClient'
@@ -28,8 +27,7 @@ export function LiveNewPage() {
   }
 
   return (
-    <PublicPageShell>
-      <main className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-20 pt-12 sm:px-8 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
+    <main className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-20 pt-12 sm:px-8 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
         <div className="flex-1 lg:max-w-md">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-site-muted">{t('live.newEyebrow')}</p>
           <h1 className="mt-3 text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-site-text">
@@ -127,7 +125,6 @@ export function LiveNewPage() {
 
           <p className="mt-4 text-center text-[11px] leading-relaxed text-site-muted">{t('live.ttlNote')}</p>
         </div>
-      </main>
-    </PublicPageShell>
+    </main>
   )
 }

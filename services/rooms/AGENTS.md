@@ -19,7 +19,6 @@ HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
 | RPC | HTTP | Auth |
 |-----|------|------|
 | GetRoom | `GET /v1/rooms/{room_id}` | JWT |
-| FreezeRoom | `POST /v1/rooms/{room_id}/freeze` | JWT (owner) |
 | CreateInvite | `POST /v1/rooms/{room_id}/invite` | JWT |
 | GuestJoin | `POST /v1/rooms/{room_id}/guest-join` | no |
 | CreateGuestRoom | `POST /v1/rooms/guest-create` | no |

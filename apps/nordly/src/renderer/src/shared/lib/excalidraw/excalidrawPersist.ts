@@ -1,8 +1,10 @@
 /** Strip Excalidraw runtime appState fields that break after JSON round-trip. */
 
 import {
-  NORDLY_EXCALIDRAW_CANVAS_BG,
+  type BoardCanvasTheme,
+  nordlyExcalidrawCanvasBg,
   nordlyExcalidrawInitialAppState,
+  nordlyExcalidrawStrokeColor,
 } from './nordlyTheme';
 
 const OMIT_KEYS = new Set([
@@ -33,6 +35,7 @@ const OMIT_KEYS = new Set([
 
 export function sanitizeAppStateForPersistence(
   raw: Record<string, unknown> | undefined,
+  boardTheme: BoardCanvasTheme = 'dark',
 ): Record<string, unknown> | undefined {
   if (!raw) return undefined;
   const out: Record<string, unknown> = {};
@@ -40,8 +43,9 @@ export function sanitizeAppStateForPersistence(
     if (OMIT_KEYS.has(key)) continue;
     out[key] = value;
   }
-  // Canvas fill is always white — dark Excalidraw inverts it; light renders as-is.
-  out.viewBackgroundColor = NORDLY_EXCALIDRAW_CANVAS_BG;
+  out.viewBackgroundColor = nordlyExcalidrawCanvasBg(boardTheme);
+  out.currentItemStrokeColor = nordlyExcalidrawStrokeColor(boardTheme);
+  out.currentItemBackgroundColor = 'transparent';
   return out;
 }
 
@@ -49,10 +53,11 @@ export function sanitizeAppStateForPersistence(
 export function mergePersistedAppState(
   base: Record<string, unknown>,
   persisted: Record<string, unknown> | undefined,
+  boardTheme: BoardCanvasTheme = 'dark',
 ): Record<string, unknown> {
   return {
-    ...sanitizeAppStateForPersistence(persisted),
+    ...sanitizeAppStateForPersistence(persisted, boardTheme),
     ...base,
-    ...nordlyExcalidrawInitialAppState(),
+    ...nordlyExcalidrawInitialAppState(boardTheme),
   };
 }

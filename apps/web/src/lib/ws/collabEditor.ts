@@ -142,3 +142,24 @@ export function applyWsEnvelope(
     }
   }
 }
+
+export type CodeRunBroadcast = {
+  run_id: string
+  triggered_by?: string
+}
+
+export type CollabSideEffectHandlers = {
+  onRoomClosed?: () => void
+  onCodeRun?: (payload: CodeRunBroadcast) => void
+}
+
+export function handleCollabSideEffect(env: EditorWsEnvelope, handlers: CollabSideEffectHandlers): void {
+  if (env.kind === 'room_closed') {
+    handlers.onRoomClosed?.()
+    return
+  }
+  if (env.kind === 'code_run') {
+    const data = env.data as CodeRunBroadcast | undefined
+    if (data?.run_id) handlers.onCodeRun?.(data)
+  }
+}

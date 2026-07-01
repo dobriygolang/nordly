@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Code2, Settings, UserPlus, X } from 'lucide-react'
+import { Code2, Moon, Settings, Sun, UserPlus, X } from 'lucide-react'
 import { RoomSessionTimer } from '@/components/live/RoomSessionTimer'
 import { brand } from '@/lib/brand/tokens'
+import type { LiveRoomTheme } from '@/lib/live/roomTheme'
 import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 
@@ -13,15 +14,17 @@ type Props = {
   inviteLoading: boolean
   inviteCopied: boolean
   onInvite: () => void
-  canFreeze: boolean
-  freezeLoading: boolean
-  frozen: boolean
-  onFreeze: () => void
   wsFailed: boolean
   onReconnect: () => void
   timerMode?: 'countdown' | 'elapsed'
   createdAt?: string
   expiresAt?: string
+  onTimerExpired?: () => void
+  displayName: string
+  onDisplayNameChange: (name: string) => void
+  onDisplayNameSave: () => void
+  theme: LiveRoomTheme
+  onThemeToggle: () => void
 }
 
 export function LiveRoomTopBar({
@@ -32,15 +35,17 @@ export function LiveRoomTopBar({
   inviteLoading,
   inviteCopied,
   onInvite,
-  canFreeze,
-  freezeLoading,
-  frozen,
-  onFreeze,
   wsFailed,
   onReconnect,
   timerMode,
   createdAt,
   expiresAt,
+  onTimerExpired,
+  displayName,
+  onDisplayNameChange,
+  onDisplayNameSave,
+  theme,
+  onThemeToggle,
 }: Props) {
   const { t } = useI18n()
 
@@ -71,7 +76,12 @@ export function LiveRoomTopBar({
 
       <div className="flex items-center gap-2">
         {timerMode ? (
-          <RoomSessionTimer mode={timerMode} createdAt={createdAt} expiresAt={expiresAt} />
+          <RoomSessionTimer
+            mode={timerMode}
+            createdAt={createdAt}
+            expiresAt={expiresAt}
+            onExpired={onTimerExpired}
+          />
         ) : null}
 
         {wsFailed ? (
@@ -116,21 +126,48 @@ export function LiveRoomTopBar({
             <span className="hidden sm:inline">{t('live.settings')}</span>
           </summary>
           <div
-            className="absolute right-0 top-[calc(100%+6px)] z-30 min-w-[180px] rounded-xl border border-border bg-surface-1 p-1.5 shadow-lg"
+            className="absolute right-0 top-[calc(100%+6px)] z-30 w-[240px] rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
             style={{ boxShadow: brand.cardShadow }}
           >
+            <label className="block text-[11px] font-medium uppercase tracking-[0.06em] text-text-muted">
+              {t('live.name')}
+            </label>
+            <input
+              value={displayName}
+              onChange={(e) => onDisplayNameChange(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[13px] text-text-primary outline-none focus:border-border-strong"
+              placeholder={t('live.namePlaceholder')}
+            />
+            <button
+              type="button"
+              onClick={onDisplayNameSave}
+              className="mt-2 w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-1"
+            >
+              {t('live.saveName')}
+            </button>
+
+            <div className="my-3 h-px bg-border" />
+
+            <button
+              type="button"
+              onClick={onThemeToggle}
+              className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-2"
+            >
+              {theme === 'light' ? (
+                <Moon className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <Sun className="h-3.5 w-3.5 shrink-0" />
+              )}
+              {theme === 'light' ? t('live.themeDark') : t('live.themeLight')}
+            </button>
+
             {isOwner ? (
-              <MenuButton loading={inviteLoading} onClick={onInvite}>
-                {inviteCopied ? t('live.inviteCopiedMenu') : t('live.copyInvite')}
-              </MenuButton>
-            ) : null}
-            {canFreeze ? (
-              <MenuButton loading={freezeLoading} onClick={onFreeze}>
-                {frozen ? t('live.unfreeze') : t('live.freeze')}
-              </MenuButton>
-            ) : null}
-            {!isOwner && !canFreeze ? (
-              <p className="px-3 py-2 text-[13px] text-text-muted">{t('live.noSettings')}</p>
+              <>
+                <div className="my-3 h-px bg-border" />
+                <MenuButton loading={inviteLoading} onClick={onInvite}>
+                  {inviteCopied ? t('live.inviteCopiedMenu') : t('live.copyInvite')}
+                </MenuButton>
+              </>
             ) : null}
           </div>
         </details>
@@ -184,7 +221,7 @@ function MenuButton({
       type="button"
       disabled={loading}
       onClick={onClick}
-      className="flex w-full rounded-lg px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-2 disabled:opacity-50"
+      className="flex w-full rounded-lg px-1 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-2 disabled:opacity-50"
     >
       {children}
     </button>

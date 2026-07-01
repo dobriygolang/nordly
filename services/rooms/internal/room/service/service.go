@@ -42,7 +42,6 @@ type GuestCreateResult struct {
 type Service interface {
 	CreateGuestRoom(ctx context.Context, displayName string, roomType model.RoomType, language model.Language) (*GuestCreateResult, error)
 	GetRoom(ctx context.Context, userID, roomID string) (*RoomView, error)
-	FreezeRoom(ctx context.Context, userID, roomID string, frozen bool) (*RoomView, error)
 	CreateInvite(ctx context.Context, userID, roomID string) (*model.InviteLink, error)
 	CloseRoom(ctx context.Context, userID, roomID string) error
 	GuestJoin(ctx context.Context, roomID, inviteToken, displayName string) (*GuestJoinResult, error)
@@ -144,7 +143,6 @@ func (s *roomService) CreateGuestRoom(
 		OwnerID:        ownerUUID,
 		Type:           roomType,
 		Language:       language,
-		IsFrozen:       false,
 		Visibility:     model.VisibilityShared,
 		ExpiresAt:      now.Add(guestTTL),
 		IsGuestCreated: true,
@@ -189,29 +187,6 @@ func (s *roomService) GetRoom(ctx context.Context, userID, roomID string) (*Room
 	return s.view(room, participants), nil
 }
 
-func (s *roomService) FreezeRoom(ctx context.Context, userID, roomID string, frozen bool) (*RoomView, error) {
-	uid, rid, _, participants, err := s.loadRoom(ctx, userID, roomID)
-	if err != nil {
-		return nil, err
-	}
-	role, err := s.repo.GetRole(ctx, rid, uid)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, repository.ErrForbidden
-		}
-		return nil, err
-	}
-	if role != model.RoleOwner {
-		return nil, repository.ErrForbidden
-	}
-
-	updated, err := s.repo.UpdateFreeze(ctx, rid, frozen)
-	if err != nil {
-		return nil, err
-	}
-	return s.view(updated, participants), nil
-}
-
 func (s *roomService) CreateInvite(ctx context.Context, userID, roomID string) (*model.InviteLink, error) {
 	uid, rid, room, _, err := s.loadRoom(ctx, userID, roomID)
 	if err != nil {
@@ -237,7 +212,7 @@ func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) erro
 	if uid != room.OwnerID {
 		return repository.ErrForbidden
 	}
-	return s.repo.ArchiveRoom(ctx, rid, uid)
+	return s.repo.DeleteRoom(ctx, rid, uid)
 }
 
 func (s *roomService) GuestJoin(ctx context.Context, roomID, inviteToken, displayName string) (*GuestJoinResult, error) {

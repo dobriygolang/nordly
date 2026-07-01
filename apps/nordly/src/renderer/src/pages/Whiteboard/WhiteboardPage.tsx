@@ -15,7 +15,7 @@ import {
 } from '@features/whiteboard/api/whiteboardRemote';
 import { LOCAL_ONLY } from '@app/config/features';
 import { NORDLY_HEADER_H } from '@widgets/Chrome';
-import type { ThemeId } from '@widgets/CanvasBg';
+import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@pages/Notes/SidebarDivider';
 
@@ -32,10 +32,10 @@ const SIDEBAR_W = 252;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
 
 interface WhiteboardPageProps {
-  theme: ThemeId;
+  boardCanvas: BoardCanvasTheme;
 }
 
-export function WhiteboardPage({ theme }: WhiteboardPageProps) {
+export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   const t = useT();
   const [list, setList] = useState<ListState>(INITIAL_LIST);
   const listRef = useRef(list);
@@ -298,7 +298,7 @@ export function WhiteboardPage({ theme }: WhiteboardPageProps) {
             ref={canvasRef}
             boardId={active.id}
             sceneJson={active.sceneJson}
-            appTheme={theme}
+            boardTheme={boardCanvas}
             onSaved={handleSaved}
             onSaveError={setSaveError}
           />

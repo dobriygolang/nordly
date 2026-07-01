@@ -25,7 +25,6 @@ func toProtoRoom(view *roomservice.RoomView) *roomsv1.Room {
 		OwnerId:        room.OwnerID.String(),
 		RoomType:       room.Type.String(),
 		Language:       room.Language.String(),
-		IsFrozen:       room.IsFrozen,
 		Visibility:     string(room.Visibility),
 		WsUrl:          view.WSURL,
 		ExpiresAt:      timestamppb.New(room.ExpiresAt),

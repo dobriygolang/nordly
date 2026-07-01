@@ -17,6 +17,7 @@ func (i *Implementation) CloseRoom(ctx context.Context, req *roomsv1.CloseRoomRe
 	}
 	if i.hub != nil {
 		if rid, parseErr := uuid.Parse(req.RoomId); parseErr == nil {
+			i.hub.BroadcastRoomClosed(rid)
 			i.hub.CloseRoom(rid)
 		}
 	}

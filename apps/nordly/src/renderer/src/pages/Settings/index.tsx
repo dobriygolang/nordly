@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT, useLocale, type Locale } from '@nordly-i18n';
 
 import { type ThemeId, THEME_IDS } from '@widgets/CanvasBg';
+import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTextScale } from '@shared/model/accessibility';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
@@ -25,12 +26,20 @@ import { ThemeCard } from './primitives/ThemeCard';
 interface SettingsPageProps {
   theme: ThemeId;
   onThemeChange: (t: ThemeId) => void;
+  boardCanvas: BoardCanvasTheme;
+  onBoardCanvasChange: (t: BoardCanvasTheme) => void;
   onPomoChange?: (secs: number) => void;
 }
 
 const LOCALES: Locale[] = ['ru', 'en'];
 
-export function SettingsPage({ theme, onThemeChange, onPomoChange }: SettingsPageProps) {
+export function SettingsPage({
+  theme,
+  onThemeChange,
+  boardCanvas,
+  onBoardCanvasChange,
+  onPomoChange,
+}: SettingsPageProps) {
   const t = useT();
   const [locale, setLocale] = useLocale();
   const [settings, setSettings] = useState<NordlySettings>(() => readSettings());
@@ -57,6 +66,22 @@ export function SettingsPage({ theme, onThemeChange, onPomoChange }: SettingsPag
   const setTextScale = useCallback((scale: TextScale) => {
     setSettings((s) => ({ ...s, textScale: scale }));
   }, []);
+
+  const setBoardCanvas = useCallback(
+    (next: BoardCanvasTheme) => {
+      onBoardCanvasChange(next);
+      setSettings((s) => ({ ...s, boardCanvas: next }));
+    },
+    [onBoardCanvasChange],
+  );
+
+  const boardCanvasOptions = useMemo(
+    () => [
+      { value: 'dark' as const, label: t('nordly.settings.board_canvas.dark') },
+      { value: 'light' as const, label: t('nordly.settings.board_canvas.light') },
+    ],
+    [t],
+  );
 
   const pickTheme = useCallback(
     (id: ThemeId) => {
@@ -115,6 +140,18 @@ export function SettingsPage({ theme, onThemeChange, onPomoChange }: SettingsPag
               value={settings.textScale}
               options={textScaleOptions}
               onChange={setTextScale}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('nordly.settings.board_canvas.label')}
+            hint={t('nordly.settings.board_canvas.hint')}
+          >
+            <SegmentedControl
+              ariaLabel={t('nordly.settings.board_canvas.label')}
+              value={boardCanvas}
+              options={boardCanvasOptions}
+              onChange={setBoardCanvas}
             />
           </SettingRow>
 

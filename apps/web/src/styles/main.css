@@ -24,6 +24,15 @@
     --ink: 15 15 15;
     --ink-60: rgba(15, 15, 15, 0.6);
     --red: #ff3b30;
+    --editor-syntax-keyword: 15 15 15;
+    --editor-syntax-string: 163 70 70;
+    --editor-syntax-number: 76 179 92;
+    --editor-syntax-comment: 142 142 142;
+    --editor-syntax-function: 91 91 91;
+    --editor-syntax-type: 113 113 122;
+    --editor-syntax-constant: 91 91 91;
+    --editor-syntax-operator: 91 91 91;
+    --editor-selection: 232 232 230;
   }
 
   /* Optional dark — live editor chrome only */
@@ -45,6 +54,15 @@
     --ink: 255 255 255;
     --ink-60: rgba(255, 255, 255, 0.6);
     --red: #ff3b30;
+    --editor-syntax-keyword: 255 255 255;
+    --editor-syntax-string: 248 180 180;
+    --editor-syntax-number: 134 203 150;
+    --editor-syntax-comment: 140 140 140;
+    --editor-syntax-function: 200 200 200;
+    --editor-syntax-type: 161 161 170;
+    --editor-syntax-constant: 200 200 200;
+    --editor-syntax-operator: 200 200 200;
+    --editor-selection: 38 38 38;
   }
 
   html {
@@ -190,6 +208,12 @@
 }
 
 /* Excalidraw — sdvg.io light theme (Inter, warm surfaces, soft shadows) */
+.druzya-excalidraw,
+.druzya-excalidraw .excalidraw {
+  height: 100%;
+  width: 100%;
+}
+
 .druzya-excalidraw .excalidraw {
   --theme-filter: none;
   --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
@@ -228,4 +252,42 @@
 .druzya-excalidraw .excalidraw .scroll-back-to-content,
 .druzya-excalidraw .excalidraw .help-icon {
   display: none !important;
+}
+
+/* Dark board — true #000 canvas (matches Nordly --bg), no Excalidraw invert filter */
+html.dark .druzya-excalidraw .excalidraw,
+.druzya-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark {
+  --theme-filter: none;
+}
+
+html.dark .druzya-excalidraw .excalidraw {
+  --island-bg-color: rgb(var(--color-surface-1));
+  --default-bg-color: rgb(var(--color-bg)) !important;
+  --input-bg-color: rgb(var(--color-surface-2));
+  --input-border-color: rgb(var(--color-border-strong));
+  --input-hover-bg-color: rgb(var(--color-surface-2));
+  --input-label-color: rgb(var(--color-text-muted));
+  --default-border-color: rgb(var(--color-border));
+  --popup-secondary-bg-color: rgb(var(--color-surface-2));
+  --popup-text-color: rgb(var(--color-text-primary));
+  --icon-fill-color: rgb(var(--color-text-primary));
+  --link-color: rgb(var(--color-text-primary));
+  --select-highlight-color: rgb(var(--color-text-primary));
+  --focus-highlight-color: rgba(255, 255, 255, 0.1);
+  --button-gray-1: rgb(var(--color-surface-2));
+  --button-gray-2: rgb(var(--color-border));
+  --button-gray-3: rgb(var(--color-border-strong));
+  --button-hover-bg: rgb(var(--color-surface-2));
+  --button-active-bg: rgb(var(--color-surface-3));
+  --shadow-island: 0 4px 20px rgba(0, 0, 0, 0.55);
+  --modal-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
+  --sidebar-shadow: var(--shadow-island);
+  --avatar-border-color: rgb(var(--color-border-strong));
+  --keybinding-color: rgb(var(--color-text-muted));
+  --scrollbar-thumb: rgb(var(--color-border));
+  --scrollbar-thumb-hover: rgb(var(--color-border-strong));
+}
+
+html.dark .druzya-excalidraw .excalidraw.excalidraw-container {
+  background-color: rgb(var(--color-bg)) !important;
 }

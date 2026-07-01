@@ -13,7 +13,6 @@ export type CodeRoom = {
   owner_id: string
   room_type: string
   language: string
-  is_frozen: boolean
   visibility: string
   ws_url: string
   expires_at?: string
@@ -140,17 +139,6 @@ export async function guestJoin(
     expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),
     room,
   }
-}
-
-export async function freezeRoom(roomId: string, frozen: boolean): Promise<CodeRoom> {
-  const token = bearerForRoom(roomId)
-  if (!token) throw new Error('not authenticated')
-  const res = await apiWithBearer<{ room: CodeRoom }>(
-    `/rooms/${encodeURIComponent(roomId)}/freeze`,
-    { method: 'POST', body: JSON.stringify({ frozen }) },
-    token,
-  )
-  return normalizeRoom(res.room)
 }
 
 export async function createInvite(roomId: string): Promise<InviteLink> {

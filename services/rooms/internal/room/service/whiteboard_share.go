@@ -54,7 +54,6 @@ func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, ti
 		OwnerID:        ownerUUID,
 		Type:           model.RoomTypeSystemDesign,
 		Language:       model.LanguageDiagram,
-		IsFrozen:       false,
 		Visibility:     model.VisibilityShared,
 		ExpiresAt:      now.Add(guestTTL),
 		IsGuestCreated: true,

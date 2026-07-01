@@ -146,7 +146,7 @@ export function LoginScreen(): JSX.Element {
   return (
     <div className="login-screen">
       <div className="login-stack">
-        <h1 className="login-brand">FRIENDS</h1>
+        <h1 className="login-brand">NORDLY</h1>
         <span className="login-rule" aria-hidden />
 
         <form className="login-form" onSubmit={(e) => void onSubmit(e)}>

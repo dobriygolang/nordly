@@ -16,14 +16,12 @@ import {
   type WhiteboardScene,
 } from '@features/whiteboard/repository/whiteboardStore';
 import {
-  NORDLY_EXCALIDRAW_CANVAS_BG,
   NORDLY_EXCALIDRAW_MOUNT_CLASS,
   NORDLY_EXCALIDRAW_UI_OPTIONS,
   nordlyExcalidrawCanvasPatch,
   nordlyExcalidrawInitialAppState,
-  nordlyExcalidrawThemeFor,
+  type BoardCanvasTheme,
 } from '@shared/lib/excalidraw/nordlyTheme';
-import type { ThemeId } from '@widgets/CanvasBg';
 import {
   mergePersistedAppState,
   sanitizeAppStateForPersistence,
@@ -49,22 +47,26 @@ export type BoardCanvasHandle = {
 interface BoardCanvasProps {
   boardId: string;
   sceneJson: string;
-  appTheme: ThemeId;
+  boardTheme: BoardCanvasTheme;
   onSaved: () => void;
   onSaveError: (msg: string) => void;
 }
 
-function buildInitialData(sceneJson: string) {
+function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
   const parsed = parseSceneJson(sceneJson);
   return {
     elements: parsed?.elements ?? [],
     files: parsed?.files ?? {},
-    appState: mergePersistedAppState(nordlyExcalidrawInitialAppState(), parsed?.appState),
+    appState: mergePersistedAppState(
+      nordlyExcalidrawInitialAppState(boardTheme),
+      parsed?.appState,
+      boardTheme,
+    ),
   };
 }
 
 export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(function BoardCanvas(
-  { boardId, sceneJson, appTheme, onSaved, onSaveError },
+  { boardId, sceneJson, boardTheme, onSaved, onSaveError },
   ref,
 ) {
   const sceneRef = useRef<WhiteboardScene | null>(null);
@@ -77,7 +79,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   onSavedRef.current = onSaved;
   onSaveErrorRef.current = onSaveError;
 
-  const initialData = useMemo(() => buildInitialData(sceneJson), [boardId, sceneJson]);
+  const initialData = useMemo(
+    () => buildInitialData(sceneJson, boardTheme),
+    [boardId, sceneJson, boardTheme],
+  );
 
   const flushSave = useCallback(async () => {
     if (skipSaveRef.current) return;
@@ -115,12 +120,15 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     [flushSave, prepareDelete, sceneJson],
   );
 
-  const applyCanvasBackground = useCallback((api: ExcalidrawApi) => {
-    api.updateScene({
-      appState: nordlyExcalidrawCanvasPatch(),
-      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-    });
-  }, []);
+  const applyCanvasBackground = useCallback(
+    (api: ExcalidrawApi, theme: BoardCanvasTheme) => {
+      api.updateScene({
+        appState: nordlyExcalidrawCanvasPatch(theme),
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     skipSaveRef.current = true;
@@ -140,15 +148,13 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     };
   }, [boardId, initialData, flushSave]);
 
-  // Docs: set viewBackgroundColor via updateScene after init; wait out isLoading.
-  // https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/props/excalidraw-api
   useEffect(() => {
     if (!excalidrawApi) return;
 
     let cancelled = false;
     const patch = () => {
       if (cancelled) return;
-      applyCanvasBackground(excalidrawApi);
+      applyCanvasBackground(excalidrawApi, boardTheme);
     };
 
     patch();
@@ -170,14 +176,15 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     return () => {
       cancelled = true;
     };
-  }, [excalidrawApi, boardId, applyCanvasBackground]);
+  }, [excalidrawApi, boardId, boardTheme, applyCanvasBackground]);
 
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
       if (skipSaveRef.current) return;
       appStateRef.current = sanitizeAppStateForPersistence(
         (appState as Record<string, unknown>) ?? {},
-      ) ?? { viewBackgroundColor: NORDLY_EXCALIDRAW_CANVAS_BG };
+        boardTheme,
+      ) ?? nordlyExcalidrawInitialAppState(boardTheme);
       sceneRef.current = {
         elements: [...elements],
         files: (files as Record<string, unknown>) ?? {},
@@ -188,16 +195,17 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         void flushSave();
       }, SAVE_DEBOUNCE_MS);
     },
-    [flushSave],
+    [boardTheme, flushSave],
   );
 
-  const excalidrawTheme = nordlyExcalidrawThemeFor(appTheme);
-
   return (
-    <div className={`${NORDLY_EXCALIDRAW_MOUNT_CLASS} nordly-whiteboard-canvas`}>
+    <div
+      className={`${NORDLY_EXCALIDRAW_MOUNT_CLASS} nordly-whiteboard-canvas`}
+      data-board-theme={boardTheme}
+    >
       <Excalidraw
         key={boardId}
-        theme={excalidrawTheme}
+        theme={boardTheme}
         initialData={{
           elements: initialData.elements as never[],
           files: initialData.files as never,

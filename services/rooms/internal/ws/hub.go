@@ -23,7 +23,8 @@ const (
 	KindOp                = "op"
 	KindSnapshot          = "snapshot"
 	KindCursor            = "cursor"
-	KindFreeze            = "freeze"
+	KindCodeRun           = "code_run"
+	KindRoomClosed        = "room_closed"
 	KindRoleChange        = "role_change"
 	KindParticipantJoined = "participant_joined"
 	KindParticipantLeft   = "participant_left"
@@ -34,6 +35,7 @@ const (
 	InSnapshot = "snapshot"
 	InCursor   = "cursor"
 	InPresence = "presence"
+	InCodeRun  = "code_run"
 	InPing     = "ping"
 )
 
@@ -158,11 +160,8 @@ func (h *Hub) Broadcast(roomID uuid.UUID, kind string, data any) {
 	}
 }
 
-func (h *Hub) BroadcastFreeze(roomID uuid.UUID, frozen bool, actor uuid.UUID) {
-	h.Broadcast(roomID, KindFreeze, map[string]any{
-		"frozen":   frozen,
-		"actor_id": actor,
-	})
+func (h *Hub) BroadcastRoomClosed(roomID uuid.UUID) {
+	h.Broadcast(roomID, KindRoomClosed, map[string]any{"room_id": roomID.String()})
 }
 
 // CloseRoom disconnects all clients in the room and drops in-memory state.
@@ -380,12 +379,6 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 			if !role.CanEdit() {
 				continue
 			}
-			if h.RoomResolver != nil {
-				room, rerr := h.RoomResolver(ctx, c.roomID)
-				if rerr == nil && !model.CanEdit(role, room.IsFrozen) {
-					continue
-				}
-			}
 			var p opPayload
 			if err := json.Unmarshal(env.Data, &p); err != nil {
 				continue
@@ -410,6 +403,8 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 			})
 		case InPresence:
 			h.Broadcast(c.roomID, InPresence, map[string]any{"user_id": c.userID, "data": env.Data})
+		case InCodeRun:
+			h.Broadcast(c.roomID, KindCodeRun, env.Data)
 		case InSnapshot:
 			role := c.currentRole()
 			if !role.CanEdit() {

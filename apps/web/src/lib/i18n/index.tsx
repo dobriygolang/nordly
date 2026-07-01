@@ -95,9 +95,7 @@ export function useI18n(): I18nContextValue {
 export function liveWsStatusLabel(
   t: I18nContextValue['t'],
   status: string,
-  frozen: boolean,
 ): string {
-  if (frozen) return t('live.wsFrozen')
   switch (status) {
     case 'open':
       return t('live.wsLive')

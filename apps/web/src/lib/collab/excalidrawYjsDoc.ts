@@ -162,6 +162,9 @@ export function observeSceneChanges(
   const onAfterTransaction = (tr: Y.Transaction) => {
     // Skip echoes from this client's own writes (origin set in writeSceneToYjs).
     if (tr.origin === 'local') return
+    // WS hub echoes ops back to the sender; Yjs applies them as no-ops but still
+    // fires afterTransaction — skip to avoid redundant Excalidraw updateScene calls.
+    if (tr.changedParentTypes.size === 0) return
     schedule()
   }
 

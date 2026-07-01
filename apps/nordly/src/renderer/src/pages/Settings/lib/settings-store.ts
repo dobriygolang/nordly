@@ -1,4 +1,5 @@
 import { PREFS_KEYS, clampInt } from '@shared/model/prefs';
+import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 
 export type TextScale = 'normal' | 'large' | 'xlarge';
 
@@ -6,6 +7,7 @@ export interface NordlySettings {
   pomodoroMinutes: number;
   notifications: boolean;
   textScale: TextScale;
+  boardCanvas: BoardCanvasTheme;
 }
 
 export const SETTINGS_KEY = PREFS_KEYS.SETTINGS_KEY;
@@ -17,11 +19,16 @@ export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
   notifications: true,
   textScale: 'normal',
+  boardCanvas: 'dark',
 };
 
 function parseTextScale(v: unknown): TextScale {
   if (v === 'large' || v === 'xlarge') return v;
   return 'normal';
+}
+
+function parseBoardCanvas(v: unknown): BoardCanvasTheme {
+  return v === 'light' ? 'light' : 'dark';
 }
 
 export function readSettings(): NordlySettings {
@@ -34,6 +41,7 @@ export function readSettings(): NordlySettings {
       pomodoroMinutes: clampInt(parsed?.pomodoroMinutes, 5, 90, DEFAULTS.pomodoroMinutes),
       notifications: typeof parsed?.notifications === 'boolean' ? parsed.notifications : DEFAULTS.notifications,
       textScale: parseTextScale(parsed?.textScale),
+      boardCanvas: parseBoardCanvas(parsed?.boardCanvas),
     };
   } catch {
     return DEFAULTS;
@@ -59,6 +67,6 @@ export function themeLabelKey(id: string): string {
     case 'launch':
       return 'nordly.theme.launch';
     default:
-      return 'nordly.theme.winter';
+      return 'nordly.theme.launch';
   }
 }

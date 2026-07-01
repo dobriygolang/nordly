@@ -7,6 +7,7 @@ type Props = {
   createdAt?: string
   expiresAt?: string
   className?: string
+  onExpired?: () => void
 }
 
 function parseTs(value?: string): number | null {
@@ -26,17 +27,28 @@ function formatDuration(totalSec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export function RoomSessionTimer({ mode, createdAt, expiresAt, className }: Props) {
+export function RoomSessionTimer({ mode, createdAt, expiresAt, className, onExpired }: Props) {
   const { t } = useI18n()
   const [now, setNow] = useState(() => Date.now())
+  const expiresMs = parseTs(expiresAt)
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
   }, [])
 
+  useEffect(() => {
+    if (mode !== 'countdown' || expiresMs == null || !onExpired) return
+    const remainingMs = expiresMs - Date.now()
+    if (remainingMs <= 0) {
+      onExpired()
+      return
+    }
+    const id = window.setTimeout(onExpired, remainingMs)
+    return () => window.clearTimeout(id)
+  }, [mode, expiresMs, onExpired])
+
   const createdMs = parseTs(createdAt)
-  const expiresMs = parseTs(expiresAt)
 
   let label: string
   let value: string

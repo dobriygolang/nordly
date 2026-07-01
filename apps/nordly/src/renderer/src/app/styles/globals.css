@@ -25,6 +25,8 @@ html.dark {
      на 15 15 15, и те же call-site'ы сами рендерятся в чёрный с прозрачностью. */
   --ink-rgb: 255 255 255;
   --nordly-header-h: 40px;
+  /* Draggable strip: overlay titlebar + wordmark row on home. */
+  --nordly-drag-h: 72px;
   --ink-90: rgb(var(--ink-rgb) / 0.9);
   --ink-60: rgb(var(--ink-rgb) / 0.6);
   --ink-40: rgb(var(--ink-rgb) / 0.4);
@@ -1613,8 +1615,9 @@ html.light .nordly-palette-chip {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--nordly-header-h);
-  z-index: 12;
+  height: var(--nordly-drag-h);
+  z-index: 100;
+  pointer-events: auto;
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -1797,7 +1800,55 @@ html.light .nordly-theme-card__fade {
   background: linear-gradient(to top, rgb(255 255 255 / 0.96), transparent);
 }
 
-/* ─── Aurora theme ──────────────────────────────────────────────── */
+/* ─── Winter canvas (grid, stars, waves) ────────────────────────── */
+@keyframes wave-drift {
+  0% { transform: translate3d(-3%, 0, 0); }
+  50% { transform: translate3d(3%, 0, 0); }
+  100% { transform: translate3d(-3%, 0, 0); }
+}
+
+@keyframes wave-tilt {
+  0% { transform: translate3d(0, 0, 0) rotate(-0.6deg); }
+  50% { transform: translate3d(2%, 0, 0) rotate(0.6deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(-0.6deg); }
+}
+
+@keyframes star-float {
+  0% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(var(--star-dx, 6px), var(--star-dy, -4px), 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--star-base, 0.5); }
+  50% { opacity: calc(var(--star-base, 0.5) + 0.25); }
+}
+
+@keyframes winter-square-spin {
+  to { transform: rotate(360deg); }
+}
+
+.winter-square {
+  animation: winter-square-spin 90s linear infinite;
+}
+
+.winter-square--offset {
+  animation-delay: -5.5s;
+}
+
+.wave-layer {
+  position: absolute;
+  inset: -10% -10%;
+  will-change: transform;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: rgb(var(--ink-rgb));
+  will-change: transform, opacity;
+}
+
 /* ─── Particles theme ───────────────────────────────────────────── */
 @keyframes particles-breathe {
   0%, 100% { opacity: 0.6; transform: scale(1); }
@@ -1842,9 +1893,13 @@ html.light .nordly-theme-card__fade {
   --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* Dark Nordly themes — Excalidraw dark UI + inverted canvas */
+/* Dark Nordly themes — Excalidraw dark UI; canvas is true #000 (no invert). */
+html.dark .nordly-excalidraw-mount .excalidraw,
+.nordly-excalidraw-mount[data-board-theme='dark'] .excalidraw.theme--dark {
+  --theme-filter: none;
+}
+
 html.dark .nordly-excalidraw-mount .excalidraw {
-  /* Native dark-theme filter inverts white canvas to ~#121212 — do not disable. */
   --island-bg-color: var(--surface);
   --default-bg-color: var(--bg) !important;
   --input-bg-color: var(--surface-2);
@@ -2324,7 +2379,7 @@ html.light .nordly-settings-group__body {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--ink);
   line-height: 1;
 }
 
@@ -2333,7 +2388,7 @@ html.light .nordly-settings-group__body {
   width: 56px;
   height: 1px;
   margin: 14px 0 22px;
-  background: rgb(255 255 255 / 0.28);
+  background: var(--ink-20);
 }
 
 .login-form {
@@ -2349,8 +2404,13 @@ html.light .nordly-settings-group__body {
   font-size: 12px;
   line-height: 1.5;
   letter-spacing: 0.02em;
-  color: rgb(255 255 255 / 0.58);
+  color: var(--ink-60);
   text-align: center;
+  text-shadow: 0 0 18px rgb(0 0 0 / 0.5);
+}
+
+html.light .login-hint {
+  text-shadow: 0 0 14px rgb(255 255 255 / 0.85);
 }
 
 .login-code-input {
@@ -2359,24 +2419,28 @@ html.light .nordly-settings-group__body {
   height: 32px;
   margin-bottom: 12px;
   padding: 8px 10px;
-  border: 1px solid rgb(255 255 255 / 0.22);
+  border: 1px solid var(--ink-tint-16);
   border-radius: 8px;
-  background: rgb(255 255 255 / 0.06);
-  color: #fff;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--ink);
   font-size: 13px;
   letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;
   outline: none;
+  transition:
+    border-color var(--motion-dur-medium) var(--motion-ease-standard),
+    background-color var(--motion-dur-medium) var(--motion-ease-standard);
 }
 
 .login-code-input::placeholder {
-  color: rgb(255 255 255 / 0.28);
+  color: var(--ink-40);
   letter-spacing: 0.04em;
 }
 
 .login-code-input:focus {
-  border-color: rgb(255 255 255 / 0.35);
+  border-color: var(--ink-40);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .login-tg-btn {

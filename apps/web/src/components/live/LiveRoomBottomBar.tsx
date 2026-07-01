@@ -1,4 +1,4 @@
-import { Minus, Play, Plus } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { LiveRoomParticipants } from '@/components/live/LiveRoomParticipants'
 import { LIVE_LANGS } from '@/lib/live/constants'
 import { brand } from '@/lib/brand/tokens'
@@ -17,14 +17,11 @@ type Props = {
   peers: CollabPeer[]
   statusLabel: string
   statusColor: string
-  canRun: boolean
-  running: boolean
-  onRun: () => void
   canFormat?: boolean
   formatting?: boolean
   onFormat?: () => void
-  outputOpen: boolean
-  onToggleOutput: () => void
+  autocompleteEnabled: boolean
+  onAutocompleteChange: (enabled: boolean) => void
 }
 
 export function LiveRoomBottomBar({
@@ -35,14 +32,11 @@ export function LiveRoomBottomBar({
   peers,
   statusLabel,
   statusColor,
-  canRun,
-  running,
-  onRun,
   canFormat,
   formatting,
   onFormat,
-  outputOpen,
-  onToggleOutput,
+  autocompleteEnabled,
+  onAutocompleteChange,
 }: Props) {
   const { t } = useI18n()
   const isDiagram = mode === 'diagram'
@@ -56,22 +50,6 @@ export function LiveRoomBottomBar({
       style={{ borderColor: brand.hair }}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-        {canRun && !isDiagram ? (
-          <button
-            type="button"
-            onClick={onRun}
-            disabled={running}
-            title="Run (⌘↵)"
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border border-text-primary bg-text-primary px-3 py-1.5',
-              'text-[13px] font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50',
-            )}
-          >
-            <Play className="h-3.5 w-3.5 fill-current" />
-            {running ? t('live.running') : t('live.run')}
-          </button>
-        ) : null}
-
         {canFormat && !isDiagram ? (
           <button
             type="button"
@@ -84,21 +62,6 @@ export function LiveRoomBottomBar({
             )}
           >
             {formatting ? 'FMT…' : 'FMT'}
-          </button>
-        ) : null}
-
-        {!isDiagram ? (
-          <button
-            type="button"
-            onClick={onToggleOutput}
-            className={cn(
-              'hidden rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors sm:inline-flex',
-              outputOpen
-                ? 'border-border-strong bg-surface-2 text-text-primary'
-                : 'border-border text-text-secondary hover:bg-surface-2',
-            )}
-          >
-            {t('live.output')}
           </button>
         ) : null}
 
@@ -129,6 +92,18 @@ export function LiveRoomBottomBar({
               <Plus className="h-3.5 w-3.5" />
             </IconButton>
           </div>
+        ) : null}
+
+        {!isDiagram ? (
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-text-secondary">
+            <input
+              type="checkbox"
+              checked={autocompleteEnabled}
+              onChange={(e) => onAutocompleteChange(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-border accent-text-primary"
+            />
+            <span>{t('live.autocomplete')}</span>
+          </label>
         ) : null}
 
         <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted md:inline-flex">

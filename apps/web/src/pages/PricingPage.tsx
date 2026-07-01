@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { PublicPageShell } from '@/components/brand/PublicNav'
 import { Eyebrow } from '@/components/brand/Eyebrow'
 import { formatPlanLimitSpec, planLimitKeys } from '@/lib/billing/planLimits'
 import { getBillingPlans } from '@/lib/api/billing'
@@ -22,8 +21,7 @@ export default function PricingPage() {
   const limitKeys = planLimitKeys(plans)
 
   return (
-    <PublicPageShell>
-      <PageContent>
+    <PageContent>
         <header className="text-center">
           <Eyebrow className="text-site-muted">{t('pricing.eyebrow')}</Eyebrow>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-site-text sm:text-4xl">
@@ -47,8 +45,13 @@ export default function PricingPage() {
                 <tr className="border-b border-site-border">
                   <th className="px-5 py-4 font-medium text-site-muted">{t('pricing.limitColumn')}</th>
                   {plans.map((plan) => (
-                    <th key={plan.slug} className="px-5 py-4 font-semibold text-site-text">
-                      {plan.name}
+                    <th key={plan.slug} className="px-5 py-4 align-top">
+                      <div className="font-semibold text-site-text">{plan.name}</div>
+                      {plan.tagline ? (
+                        <p className="mt-1 max-w-[12rem] text-xs font-normal leading-snug text-site-muted">
+                          {plan.tagline}
+                        </p>
+                      ) : null}
                     </th>
                   ))}
                 </tr>
@@ -69,29 +72,7 @@ export default function PricingPage() {
           </div>
         ) : null}
 
-        {!plansQ.isLoading && plans.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {plans.map((plan) => (
-              <article key={plan.slug} className="rounded-2xl border border-site-border bg-site-card p-6">
-                <h2 className="text-lg font-semibold text-site-text">{plan.name}</h2>
-                {plan.tagline ? <p className="mt-1 text-sm text-site-muted">{plan.tagline}</p> : null}
-                {plan.highlights.length > 0 ? (
-                  <ul className="mt-4 space-y-2 text-[13.5px] text-site-muted">
-                    {plan.highlights.map((line) => (
-                      <li key={line} className="flex gap-2">
-                        <span className="text-site-text">✓</span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        ) : null}
-
         <p className="text-center text-sm text-site-muted">{t('pricing.desktopNote')}</p>
       </PageContent>
-    </PublicPageShell>
   )
 }

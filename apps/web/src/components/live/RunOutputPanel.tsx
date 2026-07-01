@@ -1,20 +1,17 @@
+import { Play } from 'lucide-react'
 import type { CodeRun } from '@/lib/types'
-
-const PANEL_HEIGHT = 160
+import { cn } from '@/lib/cn'
+import { useI18n } from '@/lib/i18n'
 
 type Props = {
-  open: boolean
-  onClose: () => void
   tab: 'stdout' | 'stderr'
   onTabChange: (tab: 'stdout' | 'stderr') => void
   run?: CodeRun
   running: boolean
   error?: string | null
-  /** viewport = full screen bottom (CollabRoom); contained = inside editor block */
-  placement?: 'viewport' | 'contained'
-  theme?: 'light' | 'dark'
-  panelLabel?: string
-  closeTitle?: string
+  triggeredBy?: string | null
+  canRun?: boolean
+  onRun?: () => void
 }
 
 function isRunnerError(status: string): boolean {
@@ -48,34 +45,17 @@ function panelBody({
   return err || '(no stderr)'
 }
 
-/** @deprecated use {@link runPanelHeight} with explicit open flag */
-export function runPanelHeight(open: boolean): number {
-  return open ? PANEL_HEIGHT : 0
-}
-
-export { PANEL_HEIGHT as RUN_OUTPUT_PANEL_HEIGHT }
-
 export function RunOutputPanel({
-  open,
-  onClose,
   tab,
   onTabChange,
   run,
   running,
   error,
-  placement = 'viewport',
-  theme = 'dark',
-  panelLabel,
-  closeTitle,
+  triggeredBy,
+  canRun,
+  onRun,
 }: Props) {
-  if (!open) return null
-
-  const light = theme === 'light'
-
-  const positionClass =
-    placement === 'contained'
-      ? 'absolute bottom-0 left-0 right-0 z-[24]'
-      : 'fixed bottom-0 left-0 right-0 z-[24]'
+  const { t } = useI18n()
 
   const statusLabel = run
     ? isRunnerError(run.status)
@@ -85,82 +65,71 @@ export function RunOutputPanel({
         : run.status.toUpperCase()
     : null
 
-  // Dark panel uses fixed VS Code-like colors — not page --ink-* vars (light theme = dark ink on dark panel).
-  const shellClass = light
-    ? 'border-t border-border bg-surface-1 text-text-primary'
-    : 'border-t border-white/10 bg-[#1a1a1a] font-mono text-[#d4d4d4] backdrop-blur-[20px]'
-
   return (
-    <div className={`${positionClass} flex flex-col ${shellClass}`} style={{ height: PANEL_HEIGHT }}>
-      <div
-        className={`flex items-center justify-between border-b px-4 py-2.5 ${light ? 'border-border' : 'border-white/10'}`}
-      >
-        <div className="flex items-center gap-3.5">
-          {panelLabel ? (
-            <span
-              className={`text-[10px] uppercase tracking-[0.08em] ${light ? 'font-medium text-text-muted' : 'text-[#858585]'}`}
-            >
-              {panelLabel}
-            </span>
-          ) : null}
-          {(['stdout', 'stderr'] as const).map((t) => (
+    <aside
+      className={cn(
+        'flex h-full w-[min(420px,38%)] min-w-[280px] shrink-0 flex-col',
+        'border-l border-border bg-surface-1 font-mono text-text-primary',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {canRun ? (
             <button
-              key={t}
               type="button"
-              onClick={() => onTabChange(t)}
-              className={`border-none bg-transparent p-0 text-[10px] uppercase tracking-[0.08em] transition-colors ${
-                light
-                  ? tab === t
-                    ? 'font-medium text-text-primary'
-                    : 'font-medium text-text-muted'
-                  : tab === t
-                    ? 'text-[#d4d4d4]'
-                    : 'text-[#858585] hover:text-[#d4d4d4]'
-              }`}
+              onClick={onRun}
+              disabled={running}
+              title="Run (⌘↵)"
+              className={cn(
+                'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-text-primary',
+                'bg-text-primary px-2.5 py-1.5 text-[12px] font-medium text-bg transition-opacity',
+                'hover:opacity-90 disabled:opacity-50',
+              )}
             >
-              {t}
+              <Play className="h-3.5 w-3.5 fill-current" />
+              {running ? t('live.running') : t('live.run')}
+            </button>
+          ) : null}
+          {(['stdout', 'stderr'] as const).map((tabName) => (
+            <button
+              key={tabName}
+              type="button"
+              onClick={() => onTabChange(tabName)}
+              className={cn(
+                'border-none bg-transparent p-0 text-[10px] uppercase tracking-[0.08em] transition-colors',
+                tab === tabName ? 'font-medium text-text-primary' : 'font-medium text-text-muted',
+              )}
+            >
+              {tabName}
             </button>
           ))}
-          {statusLabel ? (
-            <span
-              className={`font-mono text-[10px] tracking-[0.08em] ${
-                run && isRunnerError(run.status)
-                  ? 'text-[#f48771]'
-                  : light
-                    ? 'text-text-muted'
-                    : 'text-[#858585]'
-              }`}
-            >
-              {statusLabel}
-            </span>
-          ) : null}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className={`border-none bg-transparent text-sm leading-none transition-colors ${
-            light
-              ? 'text-text-muted hover:text-text-primary'
-              : 'text-[#858585] hover:text-[#d4d4d4]'
-          }`}
-          title={closeTitle ?? 'Close output'}
-        >
-          ×
-        </button>
+        {statusLabel ? (
+          <span
+            className={cn(
+              'shrink-0 font-mono text-[10px] tracking-[0.08em]',
+              run && isRunnerError(run.status) ? 'text-danger' : 'text-text-muted',
+            )}
+          >
+            {statusLabel}
+          </span>
+        ) : null}
       </div>
+
+      {triggeredBy ? (
+        <p className="border-b border-border px-3 py-1.5 text-[11px] text-text-muted">
+          {t('live.runBy', { name: triggeredBy })}
+        </p>
+      ) : null}
+
       <pre
-        className={`m-0 flex-1 overflow-auto px-4 py-3 text-xs whitespace-pre-wrap ${
-          tab === 'stderr'
-            ? light
-              ? 'font-mono text-danger'
-              : 'text-[#f48771]'
-            : light
-              ? 'font-mono text-text-primary'
-              : 'text-[#d4d4d4]'
-        }`}
+        className={cn(
+          'm-0 flex-1 overflow-auto px-3 py-3 text-xs whitespace-pre-wrap',
+          tab === 'stderr' ? 'text-danger' : 'text-text-primary',
+        )}
       >
-        {panelBody({ tab, run, running, error })}
+        {panelBody({ tab, run, running, error }) || t('live.runHint')}
       </pre>
-    </div>
+    </aside>
   )
 }

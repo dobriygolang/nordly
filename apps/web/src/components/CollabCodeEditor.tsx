@@ -9,28 +9,39 @@ import { cmLanguageExt } from '@/lib/codemirror/langExtension'
 import { editorAssistExtensions } from '@/lib/codemirror/editorAssist'
 import { collabUserColors } from '@/lib/codemirror/collabColors'
 import { peersFromAwareness, type CollabPeer } from '@/lib/codemirror/collabPresence'
-import { bytesToB64, applyWsEnvelope, useEditorWs, type EditorWsEnvelope } from '@/lib/ws/collabEditor'
-import { vscodeLightEditorExtensions } from '@/lib/codemirror/vscodeTheme'
+import {
+  bytesToB64,
+  applyWsEnvelope,
+  handleCollabSideEffect,
+  useEditorWs,
+  type CodeRunBroadcast,
+  type EditorWsEnvelope,
+} from '@/lib/ws/collabEditor'
+import { editorExtensionsForTheme } from '@/lib/codemirror/liveEditorTheme'
+import type { LiveRoomTheme } from '@/lib/live/roomTheme'
 
 export type CollabCodeEditorHandle = {
   getCode: () => string
   setCode: (code: string) => void
   reconnect: () => void
+  broadcastCodeRun: (payload: CodeRunBroadcast) => void
 }
 
 type Props = {
   roomId: string
   language: string
-  frozen: boolean
+  theme?: LiveRoomTheme
+  autocompleteEnabled?: boolean
   userId?: string
   displayName?: string
   accessToken?: string
-  bottomInset?: number
   fontSize?: number
   onRun?: () => void
   onFormat?: () => void
   onPeersChange?: (peers: CollabPeer[]) => void
   onWsStatusChange?: (status: import('@/lib/ws/collabEditor').EditorWsStatus) => void
+  onRoomClosed?: () => void
+  onRemoteCodeRun?: (payload: CodeRunBroadcast) => void
 }
 
 function isTabActive(): boolean {
@@ -41,16 +52,18 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   {
     roomId,
     language,
-    frozen,
+    theme = 'light',
+    autocompleteEnabled = true,
     userId,
     displayName,
     accessToken,
-    bottomInset = 0,
     fontSize = 14,
     onRun,
     onFormat,
     onPeersChange,
     onWsStatusChange,
+    onRoomClosed,
+    onRemoteCodeRun,
   },
   ref,
 ) {
@@ -58,7 +71,8 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   const viewRef = useRef<EditorView | null>(null)
   const ydocRef = useRef<Y.Doc | null>(null)
   const awarenessRef = useRef<Awareness | null>(null)
-  const frozenCompartment = useRef(new Compartment())
+  const themeCompartment = useRef(new Compartment())
+  const assistCompartment = useRef(new Compartment())
   const fontSizeCompartment = useRef(new Compartment())
   const wsSendRef = useRef<(env: EditorWsEnvelope) => boolean>(() => false)
   const sendRef = useRef<(update: Uint8Array) => void>(() => {})
@@ -67,14 +81,22 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   const onRunRef = useRef(onRun)
   const onFormatRef = useRef(onFormat)
   const onPeersChangeRef = useRef(onPeersChange)
+  const onRoomClosedRef = useRef(onRoomClosed)
+  const onRemoteCodeRunRef = useRef(onRemoteCodeRun)
   const pendingEnvelopesRef = useRef<EditorWsEnvelope[]>([])
   onRunRef.current = onRun
   onFormatRef.current = onFormat
   onPeersChangeRef.current = onPeersChange
+  onRoomClosedRef.current = onRoomClosed
+  onRemoteCodeRunRef.current = onRemoteCodeRun
 
   const token = accessToken ?? ''
 
   const handleWsEnvelope = useCallback((env: EditorWsEnvelope) => {
+    handleCollabSideEffect(env, {
+      onRoomClosed: () => onRoomClosedRef.current?.(),
+      onCodeRun: (payload) => onRemoteCodeRunRef.current?.(payload),
+    })
     const ydoc = ydocRef.current
     const awareness = awarenessRef.current
     if (!ydoc) {
@@ -92,6 +114,10 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     if (pending.length === 0) return
     pendingEnvelopesRef.current = []
     for (const env of pending) {
+      handleCollabSideEffect(env, {
+        onRoomClosed: () => onRoomClosedRef.current?.(),
+        onCodeRun: (payload) => onRemoteCodeRunRef.current?.(payload),
+      })
       applyWsEnvelope(env, ydoc, awareness)
     }
   }, [])
@@ -116,6 +142,9 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
       })
     },
     reconnect,
+    broadcastCodeRun: (payload) => {
+      wsSendRef.current({ kind: 'code_run', data: payload })
+    },
   }))
 
   useEffect(() => {
@@ -199,8 +228,8 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
         history(),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
         cmLanguageExt(language),
-        editorAssistExtensions,
-        ...vscodeLightEditorExtensions,
+        assistCompartment.current.of(editorAssistExtensions({ autocomplete: autocompleteEnabled })),
+        themeCompartment.current.of(editorExtensionsForTheme(theme)),
         fontSizeCompartment.current.of(
           EditorView.theme({
             '&': { fontSize: `${fontSize}px` },
@@ -209,7 +238,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
           }),
         ),
         yCollab(ytext, awareness),
-        frozenCompartment.current.of(EditorView.editable.of(!frozen)),
+        EditorView.editable.of(true),
       ],
     })
     const view = new EditorView({ state, parent: mount })
@@ -245,9 +274,19 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     const view = viewRef.current
     if (!view) return
     view.dispatch({
-      effects: frozenCompartment.current.reconfigure(EditorView.editable.of(!frozen)),
+      effects: themeCompartment.current.reconfigure(editorExtensionsForTheme(theme)),
     })
-  }, [frozen])
+  }, [theme])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: assistCompartment.current.reconfigure(
+        editorAssistExtensions({ autocomplete: autocompleteEnabled }),
+      ),
+    })
+  }, [autocompleteEnabled])
 
   useEffect(() => {
     const view = viewRef.current
@@ -295,20 +334,10 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     return () => window.removeEventListener('keydown', onKey)
   }, [onRun, onFormat])
 
-  return (
-    <div
-      ref={mountRef}
-      className="absolute inset-0 always-show-cursor-labels"
-      style={{
-        paddingBottom: bottomInset,
-        transition: 'padding-bottom var(--motion-dur-medium) var(--motion-ease-standard)',
-      }}
-    />
-  )
+  return <div ref={mountRef} className="absolute inset-0 always-show-cursor-labels" />
 })
 
-export function wsStatusColor(status: string, frozen: boolean): string {
-  if (frozen) return 'var(--red)'
+export function wsStatusColor(status: string): string {
   if (status === 'open') return 'rgb(var(--ink))'
   if (status === 'failed') return 'var(--red)'
   return 'var(--ink-60)'

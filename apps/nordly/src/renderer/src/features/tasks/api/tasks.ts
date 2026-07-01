@@ -1,9 +1,10 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
 import { LOCAL_ONLY } from '@app/config/features';
-import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete } from '@features/tasks/repository/tasksStore';
+import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {
   remoteCreateTaskConference,
 } from '@features/tasks/repository/tasksRemote';
+import { isTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { getServerId } from '@shared/sync/idMap';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
@@ -25,7 +26,8 @@ export interface TaskCard {
   scheduledStart?: string;
   scheduledDurationMin?: number;
   googleEventId?: string;
-  epicId?: string;
+  /** Local-first epic tint (hex). Device-only — not synced to tracker yet. */
+  epicColor?: string;
   conferenceUrl?: string;
   conferenceProvider?: ConferenceProvider;
   /** Manual order within a day column. Undefined → derived from schedule/createdAt. */
@@ -153,9 +155,26 @@ export async function reorderTasks(updated: TaskCard[]): Promise<void> {
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
 }
 
+/** Set epic accent color — local-first only; no backend/outbox. */
+export async function patchTaskEpicColor(taskId: string, epicColor: string | null): Promise<TaskCard> {
+  if (epicColor !== null && !isTaskEpicColor(epicColor)) {
+    throw new Error(`Invalid epic color: ${epicColor}`);
+  }
+  const prev = await resolveTask(taskId);
+  if (!prev) throw new Error(`Task not found: ${taskId}`);
+  const task: TaskCard = {
+    ...prev,
+    epicColor: epicColor ?? undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  await tasksStorePut(task);
+  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  return task;
+}
+
 export async function patchTaskDetails(
   taskId: string,
-  patch: { epicId?: string | null; clearConference?: boolean },
+  patch: { clearConference?: boolean },
 ): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
@@ -163,16 +182,13 @@ export async function patchTaskDetails(
   const task: TaskCard = {
     ...prev,
     updatedAt: now,
-    epicId: patch.epicId === null ? undefined : patch.epicId ?? prev.epicId,
     conferenceUrl: patch.clearConference ? undefined : prev.conferenceUrl,
     conferenceProvider: patch.clearConference ? undefined : prev.conferenceProvider,
   };
   await tasksStorePut(task);
-  if (isSyncEnabled()) {
+  if (isSyncEnabled() && patch.clearConference) {
     await enqueueOutbox('tasks', 'patch', taskId, {
-      epicId: patch.epicId,
-      clearEpic: patch.epicId === null,
-      clearConference: patch.clearConference ?? false,
+      clearConference: true,
     });
     scheduleSync();
   }
@@ -189,7 +205,7 @@ export async function createTaskConference(
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
   const updated = await remoteCreateTaskConference(taskId, provider);
-  await tasksStorePut(updated);
+  const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  return updated;
+  return task;
 }

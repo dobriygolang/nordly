@@ -64,8 +64,6 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
 
   if (entry.op === 'patch') {
     const updated = await remotePatchTask(serverId, {
-      epicId: payload.epicId as string | null | undefined,
-      clearEpic: payload.clearEpic === true,
       clearConference: payload.clearConference === true,
     });
     await tasksStoreMergeRemote(updated);

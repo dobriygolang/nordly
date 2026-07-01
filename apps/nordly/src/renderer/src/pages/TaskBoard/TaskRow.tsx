@@ -6,7 +6,7 @@ import type { TaskCard, ConferenceProvider } from '@features/tasks/api/tasks';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { defaultDurationMin } from './lib/dates';
-import { epicById, type TaskEpic } from './lib/taskUi';
+import { taskEpicColor } from './lib/taskUi';
 import { DurationPicker } from './DurationPicker';
 import { TaskDetailPopover } from './TaskDetailPopover';
 
@@ -14,7 +14,6 @@ const DETAIL_POP_CLOSE_MS = 140;
 
 interface TaskRowProps {
   task: TaskCard;
-  epics: TaskEpic[];
   settings: TrackerSettings | null;
   dragging: boolean;
   detailOpen: boolean;
@@ -24,7 +23,7 @@ interface TaskRowProps {
   onTitleChange: (task: TaskCard, title: string) => void;
   onOpenDetail: (task: TaskCard) => void;
   onCloseDetail: () => void;
-  onEpicChange: (task: TaskCard, epicId: string | null) => void;
+  onEpicColorChange: (task: TaskCard, color: string | null) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<void>;
   onClearConference: (task: TaskCard) => void;
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
@@ -32,7 +31,6 @@ interface TaskRowProps {
 
 export function TaskRow({
   task,
-  epics,
   settings,
   dragging,
   detailOpen,
@@ -42,14 +40,14 @@ export function TaskRow({
   onTitleChange,
   onOpenDetail,
   onCloseDetail,
-  onEpicChange,
+  onEpicColorChange,
   onCreateConference,
   onClearConference,
   onPointerDragStart,
 }: TaskRowProps): JSX.Element {
   const t = useT();
   const done = task.status === 'done';
-  const epic = epicById(epics, task.epicId);
+  const epicColor = taskEpicColor(task);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -121,11 +119,11 @@ export function TaskRow({
       data-done={done ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
       data-detail-open={detailVisible ? 'true' : 'false'}
-      data-epic={epic ? 'true' : 'false'}
+      data-epic={epicColor ? 'true' : 'false'}
       className="nordly-task-row"
       style={
-        epic
-          ? ({ '--task-epic-color': epic.color } as CSSProperties)
+        epicColor
+          ? ({ '--task-epic-color': epicColor } as CSSProperties)
           : undefined
       }
       onPointerDown={(e) => {
@@ -259,11 +257,10 @@ export function TaskRow({
       {detailMounted && (
         <TaskDetailPopover
           task={task}
-          epics={epics}
           settings={settings}
           anchorRef={detailBtnRef}
           closing={detailClosing}
-          onEpicChange={(epicId) => onEpicChange(task, epicId)}
+          onEpicColorChange={(color) => onEpicColorChange(task, color)}
           onCreateConference={(provider) => onCreateConference(task, provider)}
           onClearConference={() => onClearConference(task)}
           onClose={onCloseDetail}

@@ -133,60 +133,63 @@ export function ZoomSection(): JSX.Element | null {
     }
   };
 
+  const statusLabel = loading
+    ? t('nordly.settings.zoom.loading')
+    : oauthPending
+      ? t('nordly.settings.zoom.oauth_pending')
+      : reauthNeeded
+        ? t('nordly.settings.zoom.reauth')
+        : connected
+          ? t('nordly.settings.zoom.connected')
+          : t('nordly.settings.zoom.not_connected');
+
   return (
-    <SettingRow
-      label={t('nordly.settings.zoom.account_label')}
-      hint={t('nordly.settings.zoom.account_hint')}
-    >
-      <div className="nordly-settings-actions">
-        {loading ? (
-          <span className="nordly-settings-muted">{t('nordly.settings.zoom.loading')}</span>
-        ) : (
-          <>
-            <span className="nordly-settings-muted">
-              {connected && !reauthNeeded
-                ? t('nordly.settings.zoom.connected')
-                : t('nordly.settings.zoom.not_connected')}
-            </span>
-            {reauthNeeded && (
-              <p className="nordly-settings-warning">{t('nordly.settings.zoom.reauth')}</p>
-            )}
-            {oauthPending && (
-              <p className="nordly-settings-muted">
-                <InlineSpinner /> {t('nordly.settings.zoom.oauth_pending')}
-              </p>
-            )}
-            {error && <p className="nordly-settings-error">{error}</p>}
-            {connected && !reauthNeeded ? (
-              <button
-                type="button"
-                className="nordly-pill-btn"
-                disabled={controlsDisabled}
-                onClick={() => void disconnect()}
-              >
-                {busy ? <InlineSpinner /> : t('nordly.settings.zoom.disconnect')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="nordly-pill-btn nordly-pill-btn--primary"
-                disabled={controlsDisabled}
-                onClick={() => void connect()}
-              >
-                {busy || oauthPending ? (
-                  <>
-                    <InlineSpinner /> {t('nordly.settings.zoom.connecting')}
-                  </>
-                ) : reauthNeeded ? (
-                  t('nordly.settings.zoom.reconnect')
-                ) : (
-                  t('nordly.settings.zoom.connect')
-                )}
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </SettingRow>
+    <>
+      <SettingRow label={t('nordly.settings.zoom.account_label')} hint={t('nordly.settings.zoom.account_hint')}>
+        <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
+          <span className="mono nordly-settings-google-status" data-loading={loading ? 'true' : undefined}>
+            {loading ? <InlineSpinner /> : null}
+            {statusLabel}
+          </span>
+          {connected && !reauthNeeded ? (
+            <button
+              type="button"
+              className="nordly-settings-vault-btn"
+              disabled={controlsDisabled}
+              onClick={() => void disconnect()}
+            >
+              {busy ? (
+                <>
+                  <InlineSpinner />
+                  {t('nordly.vault.cta.working')}
+                </>
+              ) : (
+                t('nordly.settings.zoom.disconnect')
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="nordly-settings-vault-btn"
+              disabled={controlsDisabled}
+              onClick={() => void connect()}
+            >
+              {busy || oauthPending ? (
+                <>
+                  <InlineSpinner />
+                  {t('nordly.settings.zoom.connecting')}
+                </>
+              ) : reauthNeeded ? (
+                t('nordly.settings.zoom.reconnect')
+              ) : (
+                t('nordly.settings.zoom.connect')
+              )}
+            </button>
+          )}
+        </div>
+      </SettingRow>
+
+      {error && <p className="nordly-settings-google-error mono">{error}</p>}
+    </>
   );
 }

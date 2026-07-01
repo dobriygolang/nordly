@@ -22,7 +22,7 @@ import {
   startOfLocalDay,
   toDayKey,
 } from './lib/dates';
-import { epicById, epicTimelineSurfaceStyle, type TaskEpic } from './lib/taskUi';
+import { epicTimelineSurfaceStyle, taskEpicColor } from './lib/taskUi';
 
 const HOUR_START = 6;
 const HOUR_END = 23;
@@ -35,7 +35,6 @@ const GRID_PAD_BOTTOM = 24;
 interface DayTimelineProps {
   date: Date;
   tasks: TaskCard[];
-  epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
 }
 
@@ -43,7 +42,7 @@ function hourLabel(h: number, locale: 'en' | 'ru'): string {
   return formatTimeShort(new Date(2000, 0, 1, h, 0), locale);
 }
 
-export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelineProps) {
+export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
   const t = useT();
   const [locale] = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -263,9 +262,9 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
             const top = Math.max(minTop, Math.min(isDragging ? dragTop : baseTop, maxTop));
             const done = task.status === 'done';
             const canDrag = Boolean(onReschedule);
-            const epic = epicById(epics, task.epicId);
-            const epicSurface = epic
-              ? epicTimelineSurfaceStyle(epic.color, { done, dragging: isDragging })
+            const epicColor = taskEpicColor(task);
+            const epicSurface = epicColor
+              ? epicTimelineSurfaceStyle(epicColor, { done, dragging: isDragging })
               : null;
 
             const commit = (finalTop: number) => {
@@ -280,7 +279,7 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
                 key={task.id}
                 className="nordly-timeline-task"
                 data-done={done ? 'true' : 'false'}
-                data-epic={epic ? 'true' : 'false'}
+                data-epic={epicColor ? 'true' : 'false'}
                 title={task.title}
                 onPointerDown={
                   canDrag
@@ -307,7 +306,7 @@ export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelinePro
                   touchAction: 'none',
                   userSelect: 'none',
                   ...(epicSurface ?? {}),
-                  ...(isDragging && !epic
+                  ...(isDragging && !epicColor
                     ? { boxShadow: '0 8px 24px rgb(0 0 0 / 0.5)' }
                     : {}),
                 } as React.CSSProperties}

@@ -8,16 +8,15 @@ import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import {
   conferenceDisplay,
   conferenceProvider,
-  type TaskEpic,
+  TASK_EPIC_PALETTE,
 } from './lib/taskUi';
 
 interface TaskDetailPopoverProps {
   task: TaskCard;
-  epics: TaskEpic[];
   settings: TrackerSettings | null;
   anchorRef: RefObject<HTMLElement | null>;
   closing?: boolean;
-  onEpicChange: (epicId: string | null) => void;
+  onEpicColorChange: (color: string | null) => void;
   onCreateConference: (provider: ConferenceProvider) => Promise<void>;
   onClearConference: () => void;
   onClose: () => void;
@@ -26,11 +25,10 @@ interface TaskDetailPopoverProps {
 /** Compact row-attached popover — epic + meeting integrations. */
 export function TaskDetailPopover({
   task,
-  epics,
   settings,
   anchorRef,
   closing = false,
-  onEpicChange,
+  onEpicColorChange,
   onCreateConference,
   onClearConference,
   onClose,
@@ -108,25 +106,24 @@ export function TaskDetailPopover({
           <button
             type="button"
             role="option"
-            aria-selected={!task.epicId}
+            aria-selected={!task.epicColor}
             title={t('nordly.taskboard.detail_epic_none')}
-            className={`nordly-task-detail-pop__epic-dot-btn${!task.epicId ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
-            onClick={() => onEpicChange(null)}
+            className={`nordly-task-detail-pop__epic-dot-btn${!task.epicColor ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
+            onClick={() => onEpicColorChange(null)}
           >
             <span className="nordly-task-detail-pop__epic-dot nordly-task-detail-pop__epic-dot--none" />
           </button>
-          {epics.map((item) => {
-            const active = task.epicId === item.id;
+          {TASK_EPIC_PALETTE.map((color) => {
+            const active = task.epicColor === color;
             return (
               <button
-                key={item.id}
+                key={color}
                 type="button"
                 role="option"
                 aria-selected={active}
-                title={item.name}
                 className={`nordly-task-detail-pop__epic-dot-btn${active ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
-                style={{ '--epic-color': item.color } as React.CSSProperties}
-                onClick={() => onEpicChange(item.id)}
+                style={{ '--epic-color': color } as React.CSSProperties}
+                onClick={() => onEpicColorChange(active ? null : color)}
               >
                 <span className="nordly-task-detail-pop__epic-dot" aria-hidden />
               </button>

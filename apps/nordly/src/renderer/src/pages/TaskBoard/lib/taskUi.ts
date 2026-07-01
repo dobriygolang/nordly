@@ -1,49 +1,13 @@
-/** Task board UI helpers — epic colors, conference display. */
+/** Task board UI helpers — conference display. Epic colors: `@features/tasks/lib/epicColor`. */
 
-export interface TaskEpic {
-  id: string;
-  name: string;
-  color: string;
-}
-
-export function epicById(epics: TaskEpic[], id: string | null | undefined): TaskEpic | null {
-  if (!id) return null;
-  return epics.find((e) => e.id === id) ?? null;
-}
-
-function parseHexColor(hex: string): { r: number; g: number; b: number } | null {
-  const raw = hex.trim().replace('#', '');
-  if (!/^[0-9a-f]{6}$/i.test(raw)) return null;
-  return {
-    r: Number.parseInt(raw.slice(0, 2), 16),
-    g: Number.parseInt(raw.slice(2, 4), 16),
-    b: Number.parseInt(raw.slice(4, 6), 16),
-  };
-}
-
-/** Inline epic tint for timeline blocks — avoids color-mix gaps in WKWebView. */
-export function epicTimelineSurfaceStyle(
-  color: string,
-  opts?: { done?: boolean; dragging?: boolean },
-): Record<string, string> {
-  const rgb = parseHexColor(color);
-  if (!rgb) return { '--task-epic-color': color };
-  const { r, g, b } = rgb;
-  const accent = `inset 3px 0 0 ${opts?.done ? `rgba(${r}, ${g}, ${b}, 0.4)` : color}`;
-  const dragLift = opts?.dragging ? ', 0 8px 24px rgb(0 0 0 / 0.5)' : '';
-  if (opts?.done) {
-    return {
-      '--task-epic-color': color,
-      boxShadow: accent + dragLift,
-    };
-  }
-  return {
-    '--task-epic-color': color,
-    background: `rgba(${r}, ${g}, ${b}, 0.34)`,
-    border: `1px solid rgba(${r}, ${g}, ${b}, 0.52)`,
-    boxShadow: accent + dragLift,
-  };
-}
+export {
+  TASK_EPIC_PALETTE,
+  epicEntrySurface,
+  epicTimelineSurfaceStyle,
+  isTaskEpicColor,
+  taskEpicColor,
+  type TaskEpicColor,
+} from '@features/tasks/lib/epicColor';
 
 export function conferenceProvider(
   url: string | null | undefined,

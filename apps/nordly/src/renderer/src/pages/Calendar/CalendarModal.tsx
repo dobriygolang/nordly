@@ -39,6 +39,7 @@ import {
 import { listTasks, createTask, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
 import { SegmentedControl } from '@pages/Settings/primitives/SegmentedControl';
 import { snapMinutes, toDayKey } from '@pages/TaskBoard/lib/dates';
+import { epicEntrySurface } from '@features/tasks/lib/epicColor';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { formatLocaleDate, formatLocaleTime, formatTimeZoneLabel, getUserTimeZone } from '@shared/lib/localeFormat';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
@@ -619,6 +620,17 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   );
 }
 
+function calendarEpicSurface(
+  entry: CalendarEntry,
+  opts?: { dragging?: boolean },
+): Record<string, string> | null {
+  if (entry.source !== 'task') return null;
+  return epicEntrySurface(entry.epicColor, {
+    done: entry.taskStatus === 'done',
+    dragging: opts?.dragging,
+  });
+}
+
 function AllDayEventChip({
   entry,
   onActivate,
@@ -627,12 +639,15 @@ function AllDayEventChip({
   onActivate: () => void;
 }): JSX.Element {
   const isGoogle = entry.source === 'google';
+  const epicSurface = calendarEpicSurface(entry);
   return (
     <button
       type="button"
       className="nordly-calendar-allday-chip focus-ring"
       data-source={isGoogle ? 'google' : 'task'}
+      data-epic={epicSurface ? 'true' : undefined}
       data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
+      style={epicSurface ?? undefined}
       onClick={onActivate}
       title={entry.title}
     >
@@ -663,13 +678,15 @@ function CalendarEventBlock({
   const done = entry.taskStatus === 'done';
   const isGoogle = entry.source === 'google';
   const interactive = Boolean(onPointerDown) || isGoogle || Boolean(entry.taskId);
+  const epicSurface = calendarEpicSurface(entry, { dragging });
   const style = {
     top,
     height,
     '--cal-col': column,
     '--cal-cols': columnCount,
     zIndex: dragging ? 5 : column + 1,
-    boxShadow: dragging ? '0 10px 28px rgb(0 0 0 / 0.5)' : undefined,
+    ...(epicSurface ?? {}),
+    boxShadow: epicSurface?.boxShadow ?? (dragging ? '0 10px 28px rgb(0 0 0 / 0.5)' : undefined),
     cursor: onPointerDown ? (dragging ? 'grabbing' : 'grab') : interactive ? 'pointer' : undefined,
     touchAction: onPointerDown ? 'none' : undefined,
     userSelect: 'none',
@@ -681,6 +698,7 @@ function CalendarEventBlock({
       className="nordly-calendar-event focus-ring"
       data-source={isGoogle ? 'google' : 'task'}
       data-done={done ? 'true' : undefined}
+      data-epic={epicSurface ? 'true' : undefined}
       data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
       style={style}
       onPointerDown={(e) => {
@@ -845,21 +863,26 @@ function MonthGrid({
           >
             <span className="nordly-calendar-month__date">{cell.date.getDate()}</span>
             <div className="nordly-calendar-month__events">
-              {dayEntries.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className="nordly-calendar-month__chip"
-                  data-source={entry.source}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEntryClick(entry);
-                  }}
-                  title={entry.title}
-                >
-                  {entry.title}
-                </button>
-              ))}
+              {dayEntries.map((entry) => {
+                const epicSurface = calendarEpicSurface(entry);
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="nordly-calendar-month__chip"
+                    data-source={entry.source}
+                    data-epic={epicSurface ? 'true' : undefined}
+                    style={epicSurface ?? undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEntryClick(entry);
+                    }}
+                    title={entry.title}
+                  >
+                    {entry.title}
+                  </button>
+                );
+              })}
             </div>
           </div>
         );

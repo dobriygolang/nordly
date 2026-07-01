@@ -56,10 +56,6 @@ func (s *trackerService) DisconnectZoom(ctx context.Context, userID string) (*mo
 	return s.GetSettings(ctx, userID)
 }
 
-func (s *trackerService) zoomReady() bool {
-	return s.zoom != nil && s.zoom.Configured()
-}
-
 func (s *trackerService) zoomRefreshToken(settings *model.UserSettings) (string, error) {
 	if !settings.ZoomConnected() {
 		return "", model.ErrZoomNotConnected

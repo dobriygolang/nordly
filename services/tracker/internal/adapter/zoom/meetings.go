@@ -89,7 +89,7 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 	if err != nil {
 		return MeetingResult{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return MeetingResult{}, ErrReauthRequired

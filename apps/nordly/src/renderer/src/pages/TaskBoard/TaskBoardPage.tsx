@@ -9,17 +9,16 @@ import {
   renameTask,
   reorderTasks,
   patchTaskDetails,
+  patchTaskEpicColor,
   createTaskConference,
   type TaskCard,
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
-import { remoteListEpics } from '@features/tasks/repository/tasksRemote';
 import { LOCAL_ONLY } from '@app/config/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { DayColumn } from './DayColumn';
 import { useDayTaskDrag } from './useDayTaskDrag';
-import type { TaskEpic } from './lib/taskUi';
 import { useHorizontalPanScroll } from './useHorizontalPanScroll';
 import { useInfiniteDayScroll } from './useInfiniteDayScroll';
 import { DayTimeline } from './DayTimeline';
@@ -46,7 +45,6 @@ export function TaskBoardPage(): JSX.Element {
   const [selectedDay, setSelectedDay] = useState(() => todayKey);
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
-  const [epics, setEpics] = useState<TaskEpic[]>([]);
   const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
   const didExpandTasksRef = useRef(false);
 
@@ -55,15 +53,6 @@ export function TaskBoardPage(): JSX.Element {
       setTasks(await listTasks());
     } catch {
       /* keep stale list */
-    }
-  }, []);
-
-  const loadEpics = useCallback(async () => {
-    if (LOCAL_ONLY) return;
-    try {
-      setEpics(await remoteListEpics());
-    } catch {
-      setEpics([]);
     }
   }, []);
 
@@ -78,9 +67,8 @@ export function TaskBoardPage(): JSX.Element {
 
   useEffect(() => {
     void refresh();
-    void loadEpics();
     void loadSettings();
-  }, [refresh, loadEpics, loadSettings]);
+  }, [refresh, loadSettings]);
 
   useEffect(() => {
     const onTasksChanged = () => void refresh();
@@ -251,15 +239,17 @@ export function TaskBoardPage(): JSX.Element {
     setDetailTaskId(null);
   }, []);
 
-  const handleEpicChange = useCallback(
-    async (task: TaskCard, epicId: string | null) => {
+  const handleEpicColorChange = useCallback(
+    async (task: TaskCard, epicColor: string | null) => {
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === task.id ? { ...t, epicId: epicId ?? undefined, updatedAt: new Date().toISOString() } : t,
+          t.id === task.id
+            ? { ...t, epicColor: epicColor ?? undefined, updatedAt: new Date().toISOString() }
+            : t,
         ),
       );
       try {
-        const updated = await patchTaskDetails(task.id, { epicId });
+        const updated = await patchTaskEpicColor(task.id, epicColor);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
       } catch {
         void refresh();
@@ -472,7 +462,6 @@ export function TaskBoardPage(): JSX.Element {
               dropHighlight={dropDay === d.key && draggingId !== null}
               dropInsertBeforeId={dropDay === d.key ? dropInsertBeforeId : null}
               detailTaskId={detailTaskId}
-              epics={epics}
               settings={trackerSettings}
               editRequest={editRequest}
               durationTasks={columnDurationTasks(d.key)}
@@ -485,7 +474,7 @@ export function TaskBoardPage(): JSX.Element {
               onTitleChange={(task, title) => void handleTitleChange(task, title)}
               onOpenDetail={handleOpenDetail}
               onCloseDetail={handleCloseDetail}
-              onEpicChange={(task, epicId) => void handleEpicChange(task, epicId)}
+              onEpicColorChange={(task, color) => void handleEpicColorChange(task, color)}
               onCreateConference={handleCreateConference}
               onClearConference={(task) => void handleClearConference(task)}
               onPointerDragStart={onPointerDragStart}
@@ -497,7 +486,6 @@ export function TaskBoardPage(): JSX.Element {
       <DayTimeline
         date={selectedDate}
         tasks={tasks}
-        epics={epics}
         onReschedule={(task, start) => void handleReschedule(task, start)}
       />
 

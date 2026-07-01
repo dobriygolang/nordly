@@ -4,7 +4,6 @@ import { useT, useLocale } from '@nordly-i18n';
 import type { TaskCard, ConferenceProvider } from '@features/tasks/api/tasks';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from './lib/dates';
-import type { TaskEpic } from './lib/taskUi';
 import { TaskInsertSlot } from './TaskInsertSlot';
 import { TaskRow } from './TaskRow';
 import { useFlipList } from './useFlipList';
@@ -22,7 +21,6 @@ interface DayColumnProps {
   dropHighlight: boolean;
   dropInsertBeforeId: string | null;
   detailTaskId: string | null;
-  epics: TaskEpic[];
   settings: TrackerSettings | null;
   editRequest: { taskId: string; key: number } | null;
   selected: boolean;
@@ -33,7 +31,7 @@ interface DayColumnProps {
   onTitleChange: (task: TaskCard, title: string) => void;
   onOpenDetail: (task: TaskCard) => void;
   onCloseDetail: () => void;
-  onEpicChange: (task: TaskCard, epicId: string | null) => void;
+  onEpicColorChange: (task: TaskCard, color: string | null) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<void>;
   onClearConference: (task: TaskCard) => void;
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
@@ -50,7 +48,6 @@ export function DayColumn({
   dropHighlight,
   dropInsertBeforeId,
   detailTaskId,
-  epics,
   settings,
   editRequest,
   selected,
@@ -61,7 +58,7 @@ export function DayColumn({
   onTitleChange,
   onOpenDetail,
   onCloseDetail,
-  onEpicChange,
+  onEpicColorChange,
   onCreateConference,
   onClearConference,
   onPointerDragStart,
@@ -128,11 +125,10 @@ export function DayColumn({
           {listTasks.map((task) => (
             <Fragment key={task.id}>
               {showInsertPreview && dropInsertBeforeId === task.id && (
-                <TaskInsertSlot task={draggingTask} epics={epics} />
+                <TaskInsertSlot task={draggingTask} />
               )}
               <TaskRow
                 task={task}
-                epics={epics}
                 settings={settings}
                 dragging={draggingId === task.id}
                 detailOpen={detailTaskId === task.id}
@@ -142,7 +138,7 @@ export function DayColumn({
                 onTitleChange={onTitleChange}
                 onOpenDetail={onOpenDetail}
                 onCloseDetail={onCloseDetail}
-                onEpicChange={onEpicChange}
+                onEpicColorChange={onEpicColorChange}
                 onCreateConference={onCreateConference}
                 onClearConference={onClearConference}
                 onPointerDragStart={onPointerDragStart}
@@ -150,7 +146,7 @@ export function DayColumn({
             </Fragment>
           ))}
           {showInsertPreview && dropInsertBeforeId === null && (
-            <TaskInsertSlot task={draggingTask} epics={epics} />
+            <TaskInsertSlot task={draggingTask} />
           )}
         </div>
       </div>

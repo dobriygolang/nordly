@@ -15,8 +15,20 @@ export interface StoredTask extends TaskCard {
   deleted?: boolean;
 }
 
+/** Fields stored on-device only — never overwritten by tracker pull/push responses. */
+export type LocalOnlyTaskField = 'order' | 'epicColor';
+
 function rowFrom(userId: string, task: TaskCard, deleted = false): StoredTask {
   return { ...task, userId, key: entityKey(task.id, userId), deleted };
+}
+
+/** Keep manual column order and epic tint when applying a remote task snapshot. */
+export function preserveLocalOnlyTaskFields(local: TaskCard, remote: TaskCard): TaskCard {
+  return {
+    ...remote,
+    order: local.order ?? remote.order,
+    epicColor: local.epicColor ?? remote.epicColor,
+  };
 }
 
 export async function tasksStoreList(userId?: string): Promise<TaskCard[]> {
@@ -40,6 +52,15 @@ export async function tasksStorePut(task: TaskCard): Promise<void> {
   await dbPut('tasks', rowFrom(userId, task));
 }
 
+/** Apply a remote/API task while keeping device-only fields from the local row. */
+export async function tasksStoreApplyRemote(task: TaskCard): Promise<TaskCard> {
+  const userId = requireUserId();
+  const local = await dbGet<StoredTask>('tasks', entityKey(task.id, userId));
+  const merged = local ? preserveLocalOnlyTaskFields(local, task) : task;
+  await dbPut('tasks', rowFrom(userId, merged));
+  return merged;
+}
+
 export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
   const userId = requireUserId();
   const local = await dbGet<StoredTask>('tasks', entityKey(task.id, userId));
@@ -50,9 +71,7 @@ export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
   const lt = new Date(local.updatedAt).getTime();
   const rt = new Date(task.updatedAt).getTime();
   if (rt >= lt) {
-    // Preserve local manual order — the backend has no order column, so a
-    // remote pull would otherwise wipe the user's drag-reordering.
-    await dbPut('tasks', rowFrom(userId, { ...task, order: local.order }));
+    await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
   }
 }
 
@@ -78,6 +97,11 @@ export async function tasksStoreSoftDelete(id: string): Promise<void> {
 
 export async function tasksStoreReplaceId(oldId: string, task: TaskCard): Promise<void> {
   const userId = requireUserId();
+  const existing = await dbGet<StoredTask>('tasks', entityKey(oldId, userId));
   await dbDelete('tasks', entityKey(oldId, userId));
-  await dbPut('tasks', rowFrom(userId, task));
+  const { userId: _u, key: _k, deleted: _d, ...localTask } = existing ?? {};
+  const merged = existing
+    ? preserveLocalOnlyTaskFields(localTask as TaskCard, task)
+    : task;
+  await dbPut('tasks', rowFrom(userId, merged));
 }

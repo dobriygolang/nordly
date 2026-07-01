@@ -142,12 +142,14 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|
 | notes | create, update, delete | full list + get each | notes CRUD + vault encrypt |
-| tasks | create, status, schedule, unschedule, delete | full list | tracker work tasks |
+| tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
+
+Task fields **device-only** (preserved on pull/replace): `order`, `epicColor` (hex accent from fixed palette; server epic sync TBD).
 
 Conflict: LWW by `updatedAt`. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
 
-Not synced: whiteboards (local + share/publish via rooms), vault prefs, Google Calendar reads, publish status (direct API on user action).
+Not synced: whiteboards (local + share/publish via rooms), vault prefs, Google Calendar reads, publish status (direct API on user action), task epic colors.
 
 ## Vault (E2EE)
 

@@ -287,6 +287,13 @@ button.nordly-calendar-event {
 button.nordly-calendar-event:hover {
   background: rgb(var(--ink-rgb) / 0.18);
 }
+.nordly-calendar-event[data-epic='true']:hover {
+  filter: brightness(1.06);
+}
+.nordly-calendar-allday-chip[data-epic='true']:hover,
+.nordly-calendar-month__chip[data-epic='true']:hover {
+  filter: brightness(1.06);
+}
 .nordly-calendar-event[data-done='true'] {
   opacity: 0.45;
 }

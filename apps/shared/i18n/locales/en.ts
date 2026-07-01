@@ -60,6 +60,8 @@ export const en = {
   'nordly.sync.banner_unreachable': 'Cannot sync — check your connection',
   'nordly.sync.banner_error': 'Sync paused',
   'nordly.sync.banner_recovering': 'Back online — syncing',
+  'nordly.sync.banner_reauth_offline':
+    'Session expired — working offline. Sync resumes automatically when online.',
   'nordly.sync.retry': 'Retry',
   'nordly.sync.error_no_network': 'No internet connection',
   'nordly.sync.error_server_unreachable': 'Cannot reach server',

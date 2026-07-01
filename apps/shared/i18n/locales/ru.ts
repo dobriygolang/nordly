@@ -60,6 +60,8 @@ export const ru = {
   'nordly.sync.banner_unreachable': 'Не удаётся синхронизировать — проверьте интернет',
   'nordly.sync.banner_error': 'Синхронизация приостановлена',
   'nordly.sync.banner_recovering': 'Снова в сети — синхронизация',
+  'nordly.sync.banner_reauth_offline':
+    'Сессия истекла — работаем офлайн. Синхронизация возобновится автоматически, когда появится интернет.',
   'nordly.sync.retry': 'Повторить',
   'nordly.sync.error_no_network': 'Нет подключения к интернету',
   'nordly.sync.error_server_unreachable': 'Не удаётся связаться с сервером',

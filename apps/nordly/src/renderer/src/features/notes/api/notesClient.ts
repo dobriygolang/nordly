@@ -15,9 +15,11 @@ import {
   type PublishStatus,
 } from '@features/notes/repository/publishRemote';
 import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
+import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getServerId } from '@shared/sync/idMap';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
+import { ensureNoteServerId } from '@shared/sync/domains/notesSync';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 
 export type { PublishStatus };
@@ -89,8 +91,11 @@ export async function updateNote(id: string, title: string, bodyMd: string): Pro
 
 async function resolveServerNoteId(localId: string, forceSync = true): Promise<string | null> {
   if (!isSyncEnabled()) return null;
+  if (!(await ensureAccessTokenForSync())) return null;
   if (forceSync) await syncNow();
-  return getServerId('notes', localId);
+  const mapped = await getServerId('notes', localId);
+  if (mapped) return mapped;
+  return ensureNoteServerId(localId);
 }
 
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {

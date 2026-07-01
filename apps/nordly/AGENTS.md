@@ -71,6 +71,7 @@ Billing is not called from Nordly.
 |--------|------|--------|
 | GET | `/v1/auth/config` | `features/auth/api/auth.ts` via `apiFetch` |
 | POST | `/v1/auth/telegram` | same |
+| POST | `/v1/auth/refresh` | `shared/api/authSession.ts` via raw HTTP (no 401 retry loop) |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
 **Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
@@ -139,9 +140,13 @@ Scoped by `setDbUserId()` on sign-in.
 
 ## Sync engine
 
-Enabled when: signed in **and** `LOCAL_ONLY === false`.
+**Local app access** (`canUseLocalApp()`): signed in with `userId` — works offline even when access token expired.
 
-Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers.
+**Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid access token **or** refresh token when online. Offline + expired session → local-only grace (no sync, no logout).
+
+**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests; logout only if refresh fails. Offline 401/expiry: keep local session, show `SyncStatusBanner`.
+
+Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Calls `ensureAccessTokenForSync()` before each run.
 
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|

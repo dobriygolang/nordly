@@ -16,6 +16,7 @@ import { AnimatedDailyPlanningOverlay } from '@widgets/AnimatedDailyPlanningOver
 import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
 import { type PageId, type PaletteAction } from '@widgets/Palette';
+import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
 import {
@@ -30,6 +31,7 @@ import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
+import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
@@ -145,11 +147,8 @@ export default function App() {
 
   useEffect(() => {
     if (status !== 'signed_in') return;
-    const { accessToken, expiresAt } = useSessionStore.getState();
-    if (!accessToken || (expiresAt > 0 && Date.now() > expiresAt)) {
-      void clear();
-    }
-  }, [status, clear]);
+    return startSessionRefreshLoop();
+  }, [status]);
 
   useEffect(() => {
     void bootstrap();
@@ -546,6 +545,8 @@ export default function App() {
         </div>
 
         <TitlebarDrag />
+
+        <SyncStatusBanner />
 
         <TrafficLightsHover />
         <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>

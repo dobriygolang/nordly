@@ -37,16 +37,31 @@ function readBrowserPersist(): PersistedSession | null {
     const raw = window.localStorage.getItem(BROWSER_PERSIST_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as Partial<PersistedSession>;
-    if (!s.userId || !s.accessToken) return null;
-    if (s.expiresAt && s.expiresAt > 0 && Date.now() > s.expiresAt) return null;
+    if (!s.userId) return null;
+    if (!s.accessToken && !s.refreshToken) return null;
     return {
       userId: s.userId,
-      accessToken: s.accessToken,
+      accessToken: s.accessToken ?? '',
       refreshToken: s.refreshToken ?? null,
       expiresAt: s.expiresAt ?? 0,
     };
   } catch {
     return null;
+  }
+}
+
+async function persistSessionToNative(session: PersistedSession): Promise<void> {
+  const bridge = window.nordly;
+  if (!bridge) return;
+  try {
+    await bridge.auth.persist({
+      userId: session.userId,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken ?? '',
+      expiresAt: session.expiresAt,
+    });
+  } catch {
+    /* keychain may be locked */
   }
 }
 
@@ -86,6 +101,9 @@ interface SessionState {
 
   /** Clears in-memory + keychain. Used by logout. */
   clear: () => Promise<void>;
+
+  /** Updates tokens after refresh — persists to browser + keychain. */
+  applyTokens: (s: PersistedSession) => void;
 }
 
 const BOOTSTRAP_IPC_TIMEOUT_MS = 4_000;
@@ -145,7 +163,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     }
     try {
       const s = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
-      if (s && s.accessToken) {
+      if (s && s.userId && (s.accessToken || s.refreshToken)) {
         setDbUserId(s.userId);
         set({
           status: 'signed_in',
@@ -177,6 +195,12 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
 
   hydrate: ({ userId, accessToken, refreshToken, expiresAt }) => {
+    const session: PersistedSession = {
+      userId,
+      accessToken,
+      refreshToken: refreshToken ?? null,
+      expiresAt: expiresAt ?? 0,
+    };
     setDbUserId(userId);
     set({
       status: 'signed_in',
@@ -185,12 +209,20 @@ export const useSessionStore = create<SessionState>((set) => ({
       refreshToken: refreshToken ?? null,
       expiresAt: expiresAt ?? 0,
     });
-    writeBrowserPersist({
+    writeBrowserPersist(session);
+    void persistSessionToNative(session);
+  },
+
+  applyTokens: ({ userId, accessToken, refreshToken, expiresAt }) => {
+    const session: PersistedSession = {
       userId,
       accessToken,
-      refreshToken: refreshToken ?? null,
-      expiresAt: expiresAt ?? 0,
-    });
+      refreshToken,
+      expiresAt,
+    };
+    set({ accessToken, refreshToken, expiresAt });
+    writeBrowserPersist(session);
+    void persistSessionToNative(session);
   },
 
   clear: async () => {

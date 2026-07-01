@@ -62,6 +62,37 @@ async function resolveNoteServerId(
   return created.id;
 }
 
+/** Create remote note + id_map when a local note has never been synced (e.g. publish). */
+export async function ensureNoteServerId(localId: string): Promise<string | null> {
+  const userId = requireUserId();
+  const mapped = await getServerId('notes', localId, userId);
+  if (mapped) return mapped;
+
+  const local = await notesStoreGet(localId, userId);
+  if (!local) return null;
+
+  if (isVaultEnabledSync() && !isVaultUnlocked()) {
+    throw new Error('Vault locked — unlock in Settings to sync encrypted notes');
+  }
+
+  return resolveNoteServerId(
+    {
+      id: 'ensure',
+      userId,
+      domain: 'notes',
+      op: 'update',
+      entityId: localId,
+      payload: {},
+      createdAt: Date.now(),
+      attempts: 0,
+    },
+    userId,
+    local.title,
+    local.bodyMd,
+    shouldPushE2ee(),
+  );
+}
+
 function shouldPushE2ee(): boolean {
   return isVaultEnabledSync() && isVaultUnlocked();
 }

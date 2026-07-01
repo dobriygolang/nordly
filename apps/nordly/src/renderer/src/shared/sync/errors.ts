@@ -1,4 +1,4 @@
-export type SyncErrorCode = 'no_network' | 'server_unreachable';
+export type SyncErrorCode = 'no_network' | 'server_unreachable' | 'session_expired';
 
 export class SyncError extends Error {
   readonly code: SyncErrorCode;

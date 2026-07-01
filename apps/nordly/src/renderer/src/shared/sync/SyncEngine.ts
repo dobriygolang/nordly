@@ -1,5 +1,6 @@
 import { HEALTH_CHECK_URL } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
+import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSyncStore } from '@shared/model/sync';
@@ -61,6 +62,17 @@ async function syncNow(options?: SyncOptions): Promise<void> {
     running = false;
     if (options?.explicit) {
       throw new SyncError('no_network', 'No internet connection');
+    }
+    return;
+  }
+
+  const tokenReady = await ensureAccessTokenForSync();
+  if (!tokenReady) {
+    store.setStatus('offline');
+    store.setLastError(null);
+    running = false;
+    if (options?.explicit) {
+      throw new SyncError('session_expired', 'Session expired');
     }
     return;
   }

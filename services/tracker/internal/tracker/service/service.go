@@ -28,11 +28,16 @@ type Repository interface {
 	ClearGoogleConnection(ctx context.Context, userID string) error
 	SaveGoogleSyncState(ctx context.Context, userID, syncToken string) error
 	ClearGoogleSyncState(ctx context.Context, userID string) error
+	GetGoogleCalendarSyncToken(ctx context.Context, userID, calendarID string) (string, error)
+	SaveGoogleCalendarSyncToken(ctx context.Context, userID, calendarID, syncToken string) error
+	ClearAllGoogleCalendarSyncState(ctx context.Context, userID string) error
 
 	UpsertGoogleEvents(ctx context.Context, userID string, events []model.CachedCalendarEvent) error
 	DeleteGoogleEvents(ctx context.Context, userID, calendarID string, eventIDs []string) error
+	DeleteGoogleEventsByCalendar(ctx context.Context, userID, calendarID string) error
 	ClearGoogleEventsCache(ctx context.Context, userID string) error
 	ListGoogleEvents(ctx context.Context, userID, calendarID string, timeMin, timeMax time.Time) ([]model.CachedCalendarEvent, error)
+	ListGoogleEventsForUser(ctx context.Context, userID string, timeMin, timeMax time.Time) ([]model.CachedCalendarEvent, error)
 }
 
 // GoogleEventInput is a create/update payload for a Google Calendar event.

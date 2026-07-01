@@ -28,17 +28,6 @@ func (s *trackerService) GetSettings(ctx context.Context, userID string) (*model
 }
 
 func (s *trackerService) UpdateSettings(ctx context.Context, userID string, in UpdateSettingsParams) (*model.UserSettingsView, error) {
-	// Switching calendars invalidates the cached events + incremental token.
-	if in.GoogleCalendarID != nil {
-		want := *in.GoogleCalendarID
-		if want == "" {
-			want = model.DefaultGoogleCalendarID
-		}
-		if current, err := s.repo.GetUserSettings(ctx, userID); err == nil && current.CalendarID() != want {
-			_ = s.repo.ClearGoogleSyncState(ctx, userID)
-			_ = s.repo.ClearGoogleEventsCache(ctx, userID)
-		}
-	}
 	settings, err := s.repo.UpsertUserSettings(ctx, userID, repository.UserSettingsPatch{
 		GoogleSync:       in.GoogleCalendarSyncEnabled,
 		GoogleCalendarID: in.GoogleCalendarID,

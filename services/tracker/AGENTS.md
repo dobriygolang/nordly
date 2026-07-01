@@ -36,7 +36,7 @@ Custom HTTP (not grpc-gateway):
 
 | Route | Purpose |
 |-------|---------|
-| `GET /v1/tracker/integrations/google/callback` | Google OAuth callback → redirect to `NORDLY_CALLBACK_URL` (default `nordly://settings?google_calendar=…`) |
+| `GET /v1/tracker/integrations/google/callback` | Google OAuth callback → redirect to `NORDLY_CALLBACK_URL?google_calendar=…` (default web: `https://trynordly.app/oauth/google-calendar`) |
 
 ## Outbox events
 
@@ -52,6 +52,8 @@ Statuses: `todo` | `in_progress` | `in_review` | `done` | `dismissed`. Schedule 
 
 `google_calendar_events(user_id, calendar_id, event_id, title, start_at, end_at, all_day, editable, html_link, updated_at)` — local cache of inbound Google events (PK `user_id, calendar_id, event_id`; index on `user_id, start_at`).
 
+`google_calendar_sync_state(user_id, calendar_id, sync_token, synced_at)` — per-calendar incremental sync tokens.
+
 ## Google Calendar
 
 Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (callback path `/v1/tracker/integrations/google/callback`), `TOKEN_ENCRYPTION_KEY`.
@@ -61,8 +63,8 @@ OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD
 **Two-way sync.**
 
 - **Outbound (task → Google):** when `google_calendar_sync_enabled` + refresh token present, scheduled work tasks create/update/delete events via `google_event_id`.
-- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally using `google_sync_token` (falls back to a full resync on `410 Gone`). Read is decoupled from the sync toggle — connecting is enough to see events.
-- **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists the user's calendars for target selection (`google_calendar_id`, default `primary`).
+- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view). Read is decoupled from the sync toggle.
+- **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
 
 **Token security.** Refresh tokens are encrypted at rest via `secretbox` (AES-GCM) when `TOKEN_ENCRYPTION_KEY` is set; legacy plaintext tokens are read transparently.
 
@@ -86,7 +88,7 @@ make start | gen-proto | test | lint | build
 | POSTGRES_DSN | localhost:5441 / `nordly_tracker` |
 | JWT_PUBLIC_KEY / JWT_PUBLIC_KEY_FILE | required |
 | INTERNAL_API_TOKEN | required (reserved; no internal RPCs yet) |
-| NORDLY_CALLBACK_URL | `nordly://settings` — deep link after Google Calendar OAuth (legacy: `HONE_CALLBACK_URL`) |
+| NORDLY_CALLBACK_URL | `https://trynordly.app/oauth/google-calendar` (web bridge → `nordly://settings`); legacy: `nordly://settings` |
 | GOOGLE_CLIENT_ID | optional |
 | GOOGLE_CLIENT_SECRET | optional |
 | GOOGLE_REDIRECT_URI | optional |

@@ -156,8 +156,11 @@ export const en = {
   'nordly.settings.google.reauth': 'Google access expired — reconnect to resume sync',
   'nordly.settings.google.reconnect': 'Reconnect',
   'nordly.settings.google.calendar_label': 'Target calendar',
-  'nordly.settings.google.calendar_hint': 'Calendar used to read events and write scheduled tasks.',
+  'nordly.settings.google.calendar_hint':
+    'Where Nordly writes new events and scheduled tasks. The calendar view shows events from all your Google calendars.',
   'nordly.settings.google.error_detail': 'Google sign-in failed: {{detail}}',
+  'nordly.settings.google.oauth_pending':
+    'Finish sign-in in the browser, then return to Nordly — status will refresh automatically.',
   'nordly.calendar.title': 'Calendar',
   'nordly.calendar.view_week': 'Week',
   'nordly.calendar.view_month': 'Month',

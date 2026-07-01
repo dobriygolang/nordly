@@ -39,6 +39,19 @@ func (r *Repository) UpsertGoogleEvents(ctx context.Context, userID string, even
 	return nil
 }
 
+// DeleteGoogleEventsByCalendar removes all cached events for one calendar.
+func (r *Repository) DeleteGoogleEventsByCalendar(ctx context.Context, userID, calendarID string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		DELETE FROM google_calendar_events
+		WHERE user_id = $1 AND calendar_id = $2
+	`, uid, calendarID)
+	return err
+}
+
 // DeleteGoogleEvents removes cached events by id.
 func (r *Repository) DeleteGoogleEvents(ctx context.Context, userID, calendarID string, eventIDs []string) error {
 	if len(eventIDs) == 0 {
@@ -63,6 +76,40 @@ func (r *Repository) ClearGoogleEventsCache(ctx context.Context, userID string) 
 	}
 	_, err = r.conn(ctx).Exec(ctx, `DELETE FROM google_calendar_events WHERE user_id = $1`, uid)
 	return err
+}
+
+// ListGoogleEventsForUser returns cached events from all synced calendars overlapping the window.
+func (r *Repository) ListGoogleEventsForUser(
+	ctx context.Context,
+	userID string,
+	timeMin, timeMax time.Time,
+) ([]model.CachedCalendarEvent, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user_id: %w", err)
+	}
+	rows, err := r.conn(ctx).Query(ctx, `
+		SELECT calendar_id, event_id, title, start_at, end_at, all_day, editable, html_link
+		FROM google_calendar_events
+		WHERE user_id = $1
+		  AND ($2::timestamptz IS NULL OR end_at >= $2)
+		  AND ($3::timestamptz IS NULL OR start_at < $3)
+		ORDER BY start_at
+	`, uid, nullableTime(timeMin), nullableTime(timeMax))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.CachedCalendarEvent
+	for rows.Next() {
+		var ev model.CachedCalendarEvent
+		if err := rows.Scan(&ev.CalendarID, &ev.EventID, &ev.Title,
+			&ev.Start, &ev.End, &ev.AllDay, &ev.Editable, &ev.HTMLLink); err != nil {
+			return nil, err
+		}
+		out = append(out, ev)
+	}
+	return out, rows.Err()
 }
 
 // ListGoogleEvents returns cached events for a calendar overlapping [timeMin, timeMax).

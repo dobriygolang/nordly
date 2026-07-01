@@ -156,8 +156,11 @@ export const ru = {
   'nordly.settings.google.reauth': 'Доступ к Google истёк — переподключите, чтобы возобновить синхронизацию',
   'nordly.settings.google.reconnect': 'Переподключить',
   'nordly.settings.google.calendar_label': 'Целевой календарь',
-  'nordly.settings.google.calendar_hint': 'Календарь для чтения событий и записи запланированных задач.',
+  'nordly.settings.google.calendar_hint':
+    'Куда Nordly пишет новые события и запланированные задачи. В календаре показываются события из всех ваших Google-календарей.',
   'nordly.settings.google.error_detail': 'Ошибка входа Google: {{detail}}',
+  'nordly.settings.google.oauth_pending':
+    'Завершите вход в браузере, затем вернитесь в Nordly — статус обновится сам.',
   'nordly.calendar.title': 'Календарь',
   'nordly.calendar.view_week': 'Неделя',
   'nordly.calendar.view_month': 'Месяц',

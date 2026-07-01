@@ -186,6 +186,18 @@ export const ru = {
     wsReconnecting: 'RECONNECT…',
     wsConnecting: 'CONNECT…',
   },
+  oauth: {
+    google: {
+      missing: 'Статус OAuth не передан.',
+      successTitle: 'Google Calendar подключён',
+      successBody: 'Вернитесь в Nordly — настройки обновятся автоматически.',
+      errorTitle: 'Не удалось подключить Google Calendar',
+      errorBody: 'Вход отменён или отклонён.',
+      openApp: 'Открыть Nordly',
+      fallbackHint:
+        'Если приложение не открылось, переключитесь в Nordly вручную и нажмите «Обновить статус» в Настройках → Интеграции.',
+    },
+  },
   legal: legalRu,
 } as const
 

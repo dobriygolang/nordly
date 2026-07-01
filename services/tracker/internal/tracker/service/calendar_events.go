@@ -18,7 +18,8 @@ const (
 
 // ListGoogleCalendarEvents serves calendar events from the local cache, refreshed
 // via an incremental sync. It requires only that the account is connected — the
-// task→Google sync toggle does not gate reads.
+// task→Google sync toggle does not gate reads. Inbound sync covers all calendars
+// on the user's account (merged view), not only the write target calendar.
 func (s *trackerService) ListGoogleCalendarEvents(
 	ctx context.Context,
 	userID string,
@@ -40,7 +41,7 @@ func (s *trackerService) ListGoogleCalendarEvents(
 			return nil, serr
 		}
 	}
-	cached, err := s.repo.ListGoogleEvents(ctx, userID, settings.CalendarID(), timeMin, timeMax)
+	cached, err := s.repo.ListGoogleEventsForUser(ctx, userID, timeMin, timeMax)
 	if err != nil {
 		return nil, err
 	}
@@ -60,32 +61,56 @@ func (s *trackerService) ListGoogleCalendarEvents(
 	return out, nil
 }
 
-// syncGoogleCache pulls incremental changes into the local cache using the stored
-// sync token, falling back to a full windowed resync when the token is stale.
+// syncGoogleCache pulls incremental changes for every calendar on the account.
 func (s *trackerService) syncGoogleCache(ctx context.Context, userID string, settings *model.UserSettings) error {
 	token, err := s.refreshToken(settings)
 	if err != nil {
 		return err
 	}
-	calID := settings.CalendarID()
-	syncToken := ""
-	if settings.GoogleSyncToken != nil {
-		syncToken = *settings.GoogleSyncToken
+	calendars, err := s.google.ListCalendars(ctx, token)
+	if err != nil {
+		return s.handleGoogleErr(ctx, userID, err)
 	}
 	now := time.Now().UTC()
+	windowMin := now.Add(syncWindowPast)
+	windowMax := now.Add(syncWindowFuture)
+
+	for _, cal := range calendars {
+		if err := s.syncOneCalendar(ctx, userID, settings, token, cal.ID, windowMin, windowMax); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *trackerService) syncOneCalendar(
+	ctx context.Context,
+	userID string,
+	settings *model.UserSettings,
+	refreshToken, calendarID string,
+	windowMin, windowMax time.Time,
+) error {
+	syncToken, err := s.repo.GetGoogleCalendarSyncToken(ctx, userID, calendarID)
+	if err != nil {
+		return err
+	}
+	// Legacy: single token stored on user_settings before multical migration.
+	if syncToken == "" && settings.GoogleSyncToken != nil && calendarID == settings.CalendarID() {
+		syncToken = *settings.GoogleSyncToken
+	}
+
 	var timeMin, timeMax time.Time
 	if syncToken == "" {
-		timeMin = now.Add(syncWindowPast)
-		timeMax = now.Add(syncWindowFuture)
+		timeMin, timeMax = windowMin, windowMax
 	}
-	res, err := s.google.SyncEvents(ctx, token, calID, syncToken, timeMin, timeMax)
+
+	res, err := s.google.SyncEvents(ctx, refreshToken, calendarID, syncToken, timeMin, timeMax)
 	if err != nil {
 		return s.handleGoogleErr(ctx, userID, err)
 	}
 	if res.FullResync {
-		_ = s.repo.ClearGoogleEventsCache(ctx, userID)
-		_ = s.repo.ClearGoogleSyncState(ctx, userID)
-		res, err = s.google.SyncEvents(ctx, token, calID, "", now.Add(syncWindowPast), now.Add(syncWindowFuture))
+		_ = s.repo.DeleteGoogleEventsByCalendar(ctx, userID, calendarID)
+		res, err = s.google.SyncEvents(ctx, refreshToken, calendarID, "", windowMin, windowMax)
 		if err != nil {
 			return s.handleGoogleErr(ctx, userID, err)
 		}
@@ -100,12 +125,12 @@ func (s *trackerService) syncGoogleCache(ctx context.Context, userID string, set
 		}
 	}
 	if len(res.DeletedIDs) > 0 {
-		if err := s.repo.DeleteGoogleEvents(ctx, userID, calID, res.DeletedIDs); err != nil {
+		if err := s.repo.DeleteGoogleEvents(ctx, userID, calendarID, res.DeletedIDs); err != nil {
 			return err
 		}
 	}
 	if res.NextSyncToken != "" {
-		if err := s.repo.SaveGoogleSyncState(ctx, userID, res.NextSyncToken); err != nil {
+		if err := s.repo.SaveGoogleCalendarSyncToken(ctx, userID, calendarID, res.NextSyncToken); err != nil {
 			return err
 		}
 	}

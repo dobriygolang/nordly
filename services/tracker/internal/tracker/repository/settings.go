@@ -112,7 +112,10 @@ func (r *Repository) SaveGoogleRefreshToken(ctx context.Context, userID, refresh
 			google_synced_at = NULL,
 			updated_at = now()
 	`, uid, refreshToken)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
 }
 
 // MarkGoogleReauthRequired drops the invalid token and flags the connection as
@@ -131,7 +134,10 @@ func (r *Repository) MarkGoogleReauthRequired(ctx context.Context, userID string
 			updated_at = now()
 		WHERE user_id = $1
 	`, uid)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
 }
 
 // ClearGoogleConnection wipes all Google state on disconnect.
@@ -151,7 +157,10 @@ func (r *Repository) ClearGoogleConnection(ctx context.Context, userID string) e
 			updated_at = now()
 		WHERE user_id = $1
 	`, uid)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
 }
 
 // SaveGoogleSyncState persists the incremental sync token after a successful sync.
@@ -177,7 +186,10 @@ func (r *Repository) ClearGoogleSyncState(ctx context.Context, userID string) er
 		UPDATE user_settings SET google_sync_token = NULL, google_synced_at = NULL, updated_at = now()
 		WHERE user_id = $1
 	`, uid)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
 }
 
 func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {

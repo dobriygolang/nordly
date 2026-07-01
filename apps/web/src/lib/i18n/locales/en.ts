@@ -187,5 +187,17 @@ export const en: Messages = {
     wsReconnecting: 'RECONNECT…',
     wsConnecting: 'CONNECT…',
   },
+  oauth: {
+    google: {
+      missing: 'Missing OAuth status.',
+      successTitle: 'Google Calendar connected',
+      successBody: 'Return to the Nordly app — settings will refresh automatically.',
+      errorTitle: 'Google Calendar connection failed',
+      errorBody: 'Sign-in was cancelled or denied.',
+      openApp: 'Open Nordly',
+      fallbackHint:
+        'If the app does not open, switch back to Nordly manually and tap Refresh in Settings → Integrations.',
+    },
+  },
   legal: legalEn,
 }

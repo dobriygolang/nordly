@@ -17,6 +17,9 @@ import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { SettingRow } from '../primitives/SettingRow';
 import { Toggle } from '../primitives/Toggle';
 
+const OAUTH_POLL_MS = 2_000;
+const OAUTH_POLL_MAX_MS = 3 * 60_000;
+
 function InlineSpinner(): JSX.Element {
   return <span className="nordly-inline-spinner" aria-hidden />;
 }
@@ -28,6 +31,7 @@ export function GoogleCalendarSection(): JSX.Element | null {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [oauthPending, setOauthPending] = useState(false);
 
   const loadCalendars = useCallback(async (s: TrackerSettings | null) => {
     if (!s?.googleCalendarConnected || s.googleReauthRequired) {
@@ -64,6 +68,7 @@ export function GoogleCalendarSection(): JSX.Element | null {
     const onOAuth = (e: Event): void => {
       const detail = (e as CustomEvent<{ status?: string; detail?: string | null }>).detail;
       if (!detail?.status) return;
+      setOauthPending(false);
       if (detail.status === 'connected') {
         void load();
         return;
@@ -78,13 +83,51 @@ export function GoogleCalendarSection(): JSX.Element | null {
     return () => window.removeEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
   }, [load, t]);
 
+  useEffect(() => {
+    if (!oauthPending) return;
+
+    let cancelled = false;
+    const started = Date.now();
+
+    const poll = async (): Promise<void> => {
+      if (cancelled) return;
+      try {
+        const s = await getTrackerSettings();
+        if (s.googleCalendarConnected && !s.googleReauthRequired) {
+          setSettings(s);
+          void loadCalendars(s);
+          setOauthPending(false);
+          setError(null);
+          return;
+        }
+      } catch {
+        /* keep polling until timeout */
+      }
+      if (Date.now() - started >= OAUTH_POLL_MAX_MS) {
+        setOauthPending(false);
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), OAUTH_POLL_MS);
+    const onFocus = (): void => {
+      void poll();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [oauthPending, loadCalendars]);
+
   if (LOCAL_ONLY) return null;
 
   const connected = settings?.googleCalendarConnected ?? false;
   const reauthNeeded = settings?.googleReauthRequired ?? false;
   const syncEnabled = settings?.googleCalendarSyncEnabled ?? false;
   const calendarId = settings?.googleCalendarId ?? 'primary';
-  const controlsDisabled = loading || busy;
+  const controlsDisabled = loading || busy || oauthPending;
 
   const setCalendar = async (id: string) => {
     setBusy(true);
@@ -116,6 +159,7 @@ export function GoogleCalendarSection(): JSX.Element | null {
     try {
       const url = await getGoogleCalendarAuthURL();
       openExternalUrl(url);
+      setOauthPending(true);
     } catch {
       setError(t('nordly.settings.google.error_connect'));
     } finally {
@@ -137,7 +181,9 @@ export function GoogleCalendarSection(): JSX.Element | null {
 
   const statusLabel = loading
     ? t('nordly.settings.google.loading')
-    : reauthNeeded
+    : oauthPending
+      ? t('nordly.settings.google.oauth_pending')
+      : reauthNeeded
       ? t('nordly.settings.google.reauth')
       : connected
         ? t('nordly.settings.google.connected')

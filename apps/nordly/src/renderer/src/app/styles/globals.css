@@ -556,11 +556,190 @@ button.nordly-calendar-event:hover {
 .nordly-calendar-year__cell[data-busy='true'] {
   background: rgb(var(--ink-rgb) / 0.08);
 }
+.nordly-calendar-event[data-source='google'][data-readonly='true'] {
+  opacity: 0.7;
+  background: rgb(66 133 244 / 0.1);
+  border-style: dashed;
+}
 .nordly-calendar-footnote {
   margin: 10px 0 0;
   font-size: 10px;
   color: var(--ink-40);
   flex-shrink: 0;
+}
+
+/* Re-auth banner */
+.nordly-calendar-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(234 179 8 / 0.35);
+  background: rgb(234 179 8 / 0.12);
+  color: var(--ink-90);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.nordly-calendar-banner__btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.nordly-calendar-banner__btn:hover {
+  background: rgb(var(--ink-rgb) / 0.12);
+}
+
+/* Month view */
+.nordly-calendar-month {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(84px, 1fr);
+  gap: 2px;
+}
+.nordly-calendar-month__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--ink-tint-06);
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.02);
+  cursor: pointer;
+  overflow: hidden;
+}
+.nordly-calendar-month__cell:hover {
+  background: rgb(var(--ink-rgb) / 0.05);
+}
+.nordly-calendar-month__cell[data-outside='true'] {
+  opacity: 0.4;
+}
+.nordly-calendar-month__cell[data-today='true'] {
+  border-color: rgb(var(--ink-rgb) / 0.3);
+}
+.nordly-calendar-month__date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-90);
+}
+.nordly-calendar-month__events {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.nordly-calendar-month__chip {
+  text-align: left;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.1);
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nordly-calendar-month__chip[data-source='google'] {
+  background: rgb(66 133 244 / 0.18);
+  border-color: rgb(66 133 244 / 0.35);
+}
+
+/* Event editor popover */
+.nordly-calendar-editor-scrim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.4);
+}
+.nordly-calendar-editor {
+  width: min(420px, 92vw);
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--ink-tint-08);
+  background: var(--surface, rgb(20 20 22));
+  color: var(--ink);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+.nordly-calendar-editor__heading {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.nordly-calendar-editor__input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.04);
+  color: var(--ink);
+  font-size: 13px;
+}
+.nordly-calendar-editor__when {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--ink-40);
+}
+.nordly-calendar-editor__note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--ink-40);
+}
+.nordly-calendar-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.nordly-calendar-editor__spacer {
+  flex: 1;
+}
+.nordly-calendar-editor__btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.nordly-calendar-editor__btn:hover {
+  background: rgb(var(--ink-rgb) / 0.12);
+}
+.nordly-calendar-editor__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.nordly-calendar-editor__btn--primary {
+  background: var(--ink);
+  color: var(--surface, #000);
+  border-color: transparent;
+}
+.nordly-calendar-editor__btn--danger {
+  color: rgb(248 113 113);
+  border-color: rgb(248 113 113 / 0.4);
+}
+.nordly-settings-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.04);
+  color: var(--ink);
+  font-size: 12px;
+  max-width: 260px;
 }
 .nordly-settings-google-actions {
   display: flex;

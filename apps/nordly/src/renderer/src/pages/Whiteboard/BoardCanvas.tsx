@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,9 +28,9 @@ import {
   sanitizeAppStateForPersistence,
 } from '@shared/lib/excalidraw/excalidrawPersist';
 import {
-  applyLocalBoardTheme,
   boardThemeSceneFromCanonical,
   canonicalizeElementsForStorage,
+  remapDisplayElementsForBoardTheme,
 } from '@shared/lib/excalidraw/excalidrawBoardColors';
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -136,20 +137,21 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   );
 
   const applyCanvasBackground = useCallback(
-    (api: ExcalidrawApi, theme: BoardCanvasTheme, prevTheme: BoardCanvasTheme | null) => {
-      let elements: unknown[] | undefined;
-      if (prevTheme !== null && prevTheme !== theme) {
-        const canonical = canonicalizeElementsForStorage(
-          (sceneRef.current?.elements ??
-            api.getSceneElements()) as Parameters<typeof canonicalizeElementsForStorage>[0],
-        );
-        elements = applyLocalBoardTheme(
-          canonical as Parameters<typeof applyLocalBoardTheme>[0],
-          theme,
-        );
-        if (sceneRef.current) {
-          sceneRef.current = { ...sceneRef.current, elements: canonical };
-        }
+    (api: ExcalidrawApi, theme: BoardCanvasTheme, isThemeChange: boolean) => {
+      const elements = isThemeChange
+        ? remapDisplayElementsForBoardTheme(
+            api.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
+            theme,
+          )
+        : undefined;
+
+      if (isThemeChange && sceneRef.current) {
+        sceneRef.current = {
+          ...sceneRef.current,
+          elements: canonicalizeElementsForStorage(
+            api.getSceneElements() as Parameters<typeof canonicalizeElementsForStorage>[0],
+          ),
+        };
       }
 
       if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current);
@@ -167,7 +169,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         themeApplyTimerRef.current = window.setTimeout(() => {
           applyingThemeRef.current = false;
           themeApplyTimerRef.current = null;
-        }, 300);
+        }, 400);
       }
     },
     [],
@@ -194,13 +196,15 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     };
   }, [boardId, initialData, flushSave]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!excalidrawApi) return;
 
     let cancelled = false;
     const patch = () => {
       if (cancelled) return;
-      applyCanvasBackground(excalidrawApi, boardTheme, prevBoardThemeRef.current);
+      const isThemeChange =
+        prevBoardThemeRef.current !== null && prevBoardThemeRef.current !== boardTheme;
+      applyCanvasBackground(excalidrawApi, boardTheme, isThemeChange);
       prevBoardThemeRef.current = boardTheme;
     };
 

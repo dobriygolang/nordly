@@ -152,7 +152,7 @@ export default function App() {
       }
     });
 
-    const offDeep = bridge.on('deepLink', ({ url }) => {
+    const handleDeepLink = (url: string) => {
       try {
         const u = new URL(url);
         const host = u.host.toLowerCase();
@@ -196,6 +196,14 @@ export default function App() {
       } catch {
         /* ignore malformed */
       }
+    };
+
+    const offDeep = bridge.on('deepLink', ({ url }) => handleDeepLink(url));
+
+    // Cold start: the OAuth redirect may have launched the app before this
+    // listener attached, so pull any launch URL and process it once.
+    void window.nordly?.deepLink?.initial?.().then((url) => {
+      if (url) handleDeepLink(url);
     });
 
     return () => {

@@ -43,3 +43,11 @@ export function boardThemeSceneFromCanonical<T extends ColoredElement>(
 ): T[] {
   return applyLocalBoardTheme(canonicalizeElementsForStorage(canonicalElements), boardTheme)
 }
+
+/** Remap live canvas elements when the viewer toggles board theme (read from getSceneElements). */
+export function remapDisplayElementsForBoardTheme<T extends ColoredElement>(
+  displayElements: readonly T[],
+  boardTheme: BoardCanvasTheme,
+): T[] {
+  return applyLocalBoardTheme(canonicalizeElementsForStorage(displayElements), boardTheme)
+}

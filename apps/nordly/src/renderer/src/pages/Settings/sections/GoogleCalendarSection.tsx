@@ -6,8 +6,10 @@ import {
   disconnectGoogleCalendar,
   getGoogleCalendarAuthURL,
   getTrackerSettings,
+  listGoogleCalendars,
   openExternalUrl,
   updateTrackerSettings,
+  type GoogleCalendarListEntry,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
 import { LOCAL_ONLY } from '@app/config/features';
@@ -22,22 +24,37 @@ function InlineSpinner(): JSX.Element {
 export function GoogleCalendarSection(): JSX.Element | null {
   const t = useT();
   const [settings, setSettings] = useState<TrackerSettings | null>(null);
+  const [calendars, setCalendars] = useState<GoogleCalendarListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadCalendars = useCallback(async (s: TrackerSettings | null) => {
+    if (!s?.googleCalendarConnected || s.googleReauthRequired) {
+      setCalendars([]);
+      return;
+    }
+    try {
+      setCalendars(await listGoogleCalendars());
+    } catch {
+      setCalendars([]);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (LOCAL_ONLY) return;
     setLoading(true);
     setError(null);
     try {
-      setSettings(await getTrackerSettings());
+      const s = await getTrackerSettings();
+      setSettings(s);
+      void loadCalendars(s);
     } catch {
       setError(t('nordly.settings.google.error_load'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, loadCalendars]);
 
   useEffect(() => {
     void load();
@@ -51,7 +68,11 @@ export function GoogleCalendarSection(): JSX.Element | null {
         void load();
         return;
       }
-      setError(t('nordly.settings.google.error_oauth'));
+      setError(
+        detail.detail
+          ? t('nordly.settings.google.error_detail', { detail: detail.detail })
+          : t('nordly.settings.google.error_oauth'),
+      );
     };
     window.addEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
     return () => window.removeEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
@@ -60,8 +81,22 @@ export function GoogleCalendarSection(): JSX.Element | null {
   if (LOCAL_ONLY) return null;
 
   const connected = settings?.googleCalendarConnected ?? false;
+  const reauthNeeded = settings?.googleReauthRequired ?? false;
   const syncEnabled = settings?.googleCalendarSyncEnabled ?? false;
+  const calendarId = settings?.googleCalendarId ?? 'primary';
   const controlsDisabled = loading || busy;
+
+  const setCalendar = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      setSettings(await updateTrackerSettings({ googleCalendarId: id }));
+    } catch {
+      setError(t('nordly.settings.google.error_save'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const setSync = async (enabled: boolean) => {
     setBusy(true);
@@ -102,9 +137,11 @@ export function GoogleCalendarSection(): JSX.Element | null {
 
   const statusLabel = loading
     ? t('nordly.settings.google.loading')
-    : connected
-      ? t('nordly.settings.google.connected')
-      : t('nordly.settings.google.not_connected');
+    : reauthNeeded
+      ? t('nordly.settings.google.reauth')
+      : connected
+        ? t('nordly.settings.google.connected')
+        : t('nordly.settings.google.not_connected');
 
   return (
     <>
@@ -173,6 +210,28 @@ export function GoogleCalendarSection(): JSX.Element | null {
           </button>
         </div>
       </SettingRow>
+
+      {connected && !reauthNeeded && calendars.length > 0 && (
+        <SettingRow
+          label={t('nordly.settings.google.calendar_label')}
+          hint={t('nordly.settings.google.calendar_hint')}
+        >
+          <select
+            className="nordly-settings-select focus-ring"
+            value={calendarId}
+            disabled={controlsDisabled}
+            onChange={(e) => void setCalendar(e.target.value)}
+          >
+            {calendars.map((cal) => (
+              <option key={cal.id} value={cal.id} disabled={!cal.writable}>
+                {cal.summary || cal.id}
+                {cal.primary ? ' ★' : ''}
+                {cal.writable ? '' : ' (read-only)'}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+      )}
 
       {error && <p className="nordly-settings-google-error mono">{error}</p>}
     </>

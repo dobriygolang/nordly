@@ -37,6 +37,9 @@ export function installNativeBridge(): void {
       setTrafficLights: (visible) =>
         invoke('window_traffic_lights_show', { visible }),
     },
+    deepLink: {
+      initial: () => invoke<string | null>('deep_link_initial'),
+    },
     vault: {
       passLoad: (userId) => invoke<string | null>('vault_pass_load', { userId }),
       passSave: (userId, passphrase) => invoke('vault_pass_save', { userId, passphrase }),

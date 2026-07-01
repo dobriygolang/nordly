@@ -25,7 +25,6 @@ import { useSandboxRun } from '@/hooks/useSandboxRun'
 import { normalizeEditorLang } from '@/lib/codemirror/langExtension'
 import {
   closeRoom,
-  createInvite,
   getRoom,
   guestJoin,
   persistGuestToken,
@@ -39,6 +38,7 @@ import {
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
 import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
+import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
@@ -93,14 +93,15 @@ export default function CollabRoomPage() {
     },
   })
 
-  const inviteM = useMutation({
-    mutationFn: () => createInvite(roomId),
-    onSuccess: async (invite) => {
-      await navigator.clipboard.writeText(invite.url)
+  const handleCopyInvite = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(publicLiveRoomUrl(roomId))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
-    },
-  })
+    } catch {
+      /* clipboard blocked */
+    }
+  }, [roomId])
 
   const closeM = useMutation({
     mutationFn: () => closeRoom(roomId),
@@ -264,9 +265,9 @@ export default function CollabRoomPage() {
         onClose={handleClose}
         closeLoading={closeM.isPending}
         isOwner={isOwner}
-        inviteLoading={inviteM.isPending}
+        inviteLoading={false}
         inviteCopied={copied}
-        onInvite={() => inviteM.mutate()}
+        onInvite={() => void handleCopyInvite()}
         wsFailed={wsStatus === 'failed'}
         onReconnect={editorReconnect}
         timerMode="countdown"

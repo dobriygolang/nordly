@@ -21,6 +21,10 @@ export interface NordlyAPI {
   window: {
     setTrafficLights: (visible: boolean) => Promise<void>;
   };
+  deepLink?: {
+    /** URL that cold-launched the app via a custom scheme, if any. */
+    initial: () => Promise<string | null>;
+  };
   vault?: {
     passLoad: (userId: string) => Promise<string | null>;
     passSave: (userId: string, passphrase: string) => Promise<void>;

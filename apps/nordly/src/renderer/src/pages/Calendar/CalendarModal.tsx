@@ -354,10 +354,13 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     setViewYear((y) => y + delta);
   };
 
-  const openTask = (taskId: string) => {
-    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.navOpenTask, { detail: { taskId } }));
-    onClose();
-  };
+  const openTask = useCallback(
+    (taskId: string) => {
+      window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.navOpenTask, { detail: { taskId } }));
+      onClose();
+    },
+    [onClose],
+  );
 
   const onEntryClick = useCallback(
     (entry: CalendarEntry) => {
@@ -367,7 +370,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
       }
       if (entry.source === 'google') openEditorForEntry(entry);
     },
-    [openEditorForEntry],
+    [openTask, openEditorForEntry],
   );
 
   const viewOptions = useMemo(

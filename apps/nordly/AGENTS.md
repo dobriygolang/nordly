@@ -197,8 +197,9 @@ Registered in `src-tauri/src/lib.rs`:
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `shell_open_external` | Open URL in browser |
 | `window_traffic_lights_show` | macOS traffic lights |
+| `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-Events: `app:deep-link`, `auth:changed`. Deep link schemes: `focus`, `task.open`, `note.open`.
+Events: `app:deep-link` (warm-start), `auth:changed`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open`, `note.open`, `settings?google_calendar=…` (Google Calendar OAuth result).
 
 ## Commands
 
@@ -236,7 +237,7 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 |-----|--------|
 | Note folders | Data model only; no folder UI |
 | Task delete in UI | Remote + sync support exists; no TaskRow delete button |
-| Google OAuth callback | Tracker redirects to web `/tasks`; Nordly should handle deep link |
+| Google OAuth callback | Handled: tracker redirects to `nordly://settings?google_calendar=…`, routed via `app:deep-link` / cold-start `deep_link_initial` |
 
 ## Layout
 

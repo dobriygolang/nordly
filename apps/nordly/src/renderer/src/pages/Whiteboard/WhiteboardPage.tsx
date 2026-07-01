@@ -230,7 +230,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title;
       const res = await remoteShareWhiteboard(sceneJson, title);
-      const url = res.inviteUrl || `${import.meta.env.VITE_NORDLY_WEB_BASE ?? 'https://trynordly.app'}/live/${res.roomId}`;
+      const url = `${import.meta.env.VITE_NORDLY_WEB_BASE ?? 'https://trynordly.app'}/live/${res.roomId}`;
       await navigator.clipboard.writeText(url);
       const open = window.nordly?.shell.openExternal;
       if (open) void open(url);

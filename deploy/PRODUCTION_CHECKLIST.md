@@ -21,6 +21,8 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | `ROOM_INVITE_SECRET` | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms invite/board links) |
 | `NORDLY_CALLBACK_URL` | `nordly://settings` (Google Calendar OAuth → Nordly desktop) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud OAuth app (Calendar integration; optional) |
+| `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts Google refresh tokens at rest; optional but recommended) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | BotFather |
 | `YANDEX_*` | OAuth app |
 | `CADDY_EMAIL` | Let's Encrypt |

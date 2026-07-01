@@ -80,16 +80,18 @@ export function CanvasBg({ mode = 'full', theme = DEFAULT_THEME_ID }: CanvasBgPr
   }
 }
 
-// ─── Image — manga-ink scene as a wide rippling background ───────────────
+// ─── Image — manga-ink scene as a pleated-curtain background ─────────────
 // Фон живёт в полосе между шапкой и доком (см. .nordly-bg-poster-host в CSS),
-// заполняя её по cover. Анимация — WebGL fragment-shader с плавным UV-displacement
-// (паттерн: Codrops "wavy shader" / JS Monkey ripple). Смещение попиксельное
-// в UV-пространстве => нет столбцов и "плющения", картинка колышется как ткань.
-// Тень складки = |cos(phase)| * uShadow, движется вместе с волной.
-const CURTAIN_AMP = 0.0035; // UV-единицы (~0.35% размера)
-const CURTAIN_WAVES = 1.0;
-const CURTAIN_SPEED = 0.22; // рад в секунду
-const CURTAIN_SHADOW = 0.045; // макс. альфа тени складки
+// заполняя её по cover. Анимация — плиссированная штора: картинку режем на
+// вертикальные секторы-складки (pleated curtain / vertical louver shading).
+// Каждая складка выпукла (лёгкий UV-bulge для 3D) и по-своему ловит свет:
+// один бок светлее, другой в тени, тень в сгибах "плывёт" во времени =>
+// картина кажется живой тканью. Всё во фрагментном шейдере, без библиотек.
+// Границы секторов бесшовны: sin(fract*TAU) непрерывен на стыке.
+const CURTAIN_AMP = 0.0015; // UV-единицы — глубина выпуклости складки (мягко)
+const CURTAIN_SECTORS = 12.0; // число вертикальных складок шторы
+const CURTAIN_SPEED = 0.22; // скорость "дыхания" света, рад/с
+const CURTAIN_SHADOW = 0.07; // контраст тени/света складок
 
 const POSTER_VERT = `
 attribute vec2 aPos;
@@ -106,24 +108,36 @@ uniform sampler2D uTex;
 uniform float uTime;
 uniform float uAmp;
 uniform float uSpeed;
-uniform float uWaves;
+uniform float uSectors;
 uniform float uShadow;
 uniform float uAmpMul;
+
+const float TAU = 6.2831853;
 
 void main() {
   vec2 uv = vUv;
   float t = uTime * uSpeed;
-  float phase = uv.x * 6.2831853 * uWaves;
-  float wave = sin(phase + t) + 0.3 * sin(phase * 0.5 + t * 0.7);
-  // Вертикальное смещение (флаг) + лёгкий горизонтальный повод (ткань).
-  vec2 d = vec2(
-    sin(uv.y * 6.2831853 * uWaves * 0.5 + t * 0.8) * uAmp * 0.4,
-    wave * uAmp
-  ) * uAmpMul;
+
+  // Координата внутри складки (0..1) и её индекс.
+  float s = uv.x * uSectors;
+  float fold = fract(s);
+
+  // Медленное дыхание всей шторы + лёгкий общий повод.
+  float breathe = 0.85 + 0.15 * sin(t * 0.5);
+  float sway = sin(uv.y * 2.5 + t * 0.8) * uAmp * 0.5 * uAmpMul;
+
+  // Выпуклость складки — горизонтальный UV-bulge даёт 3D-объём ткани.
+  // sin(fold*TAU) непрерывен на стыке секторов => швов не видно.
+  float bulge = sin(fold * TAU) * uAmp * breathe * uAmpMul;
+  vec2 d = vec2(bulge + sway, 0.0);
   vec3 col = texture2D(uTex, uv + d).rgb;
-  // Тень на краю складки (крутизна волны), движется с волной.
-  float slope = abs(cos(phase + t));
-  col *= 1.0 - slope * uShadow * uAmpMul;
+
+  // Освещение складок: один бок светлее, другой в тени; блик "плывёт" во времени.
+  float flank = sin(fold * TAU - t);
+  // Затемнение в сгибах (стыки складок темнее гребня).
+  float seam = 0.5 - 0.5 * cos(fold * TAU);
+  col *= 1.0 + flank * uShadow * 0.6 * uAmpMul;
+  col *= 1.0 - seam * uShadow * uAmpMul;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -189,12 +203,12 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
     const uTime = gl.getUniformLocation(prog, 'uTime');
     const uAmp = gl.getUniformLocation(prog, 'uAmp');
     const uSpeed = gl.getUniformLocation(prog, 'uSpeed');
-    const uWaves = gl.getUniformLocation(prog, 'uWaves');
+    const uSectors = gl.getUniformLocation(prog, 'uSectors');
     const uShadow = gl.getUniformLocation(prog, 'uShadow');
     const uAmpMul = gl.getUniformLocation(prog, 'uAmpMul');
     gl.uniform1f(uAmp, CURTAIN_AMP);
     gl.uniform1f(uSpeed, CURTAIN_SPEED);
-    gl.uniform1f(uWaves, CURTAIN_WAVES);
+    gl.uniform1f(uSectors, CURTAIN_SECTORS);
     gl.uniform1f(uShadow, CURTAIN_SHADOW);
     gl.uniform1f(uAmpMul, ampMul);
 

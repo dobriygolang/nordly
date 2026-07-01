@@ -55,6 +55,10 @@
   animation: motion-scrim-in var(--motion-dur-medium) var(--motion-ease-interactive) both;
 }
 
+.motion-pop-in {
+  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) both;
+}
+
 .motion-press {
   transition: transform var(--motion-dur-small) var(--motion-ease-interactive);
 }

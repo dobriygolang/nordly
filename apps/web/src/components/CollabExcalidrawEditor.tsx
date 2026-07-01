@@ -1,12 +1,12 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import * as Y from 'yjs'
 import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import {
-  applyLocalBoardTheme,
   boardThemeSceneFromCanonical,
   canonicalizeElementsForStorage,
+  remapDisplayElementsForBoardTheme,
 } from '@/lib/collab/excalidrawBoardColors'
 import {
   EXCALIDRAW_MOUNT_CLASS,
@@ -165,7 +165,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     }, [])
 
     const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
-      if (!apiRef.current) return
+      if (!apiRef.current || applyingThemeRef.current) return
 
       if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
       applyingRemoteRef.current = true
@@ -377,23 +377,22 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
     }, [status, roomId, token, flushPendingEnvelopes])
 
-    const applyBoardTheme = useCallback((theme: BoardCanvasTheme, prevTheme: BoardCanvasTheme | null) => {
+    const applyBoardTheme = useCallback((theme: BoardCanvasTheme, isThemeChange: boolean) => {
       const api = apiRef.current
       if (!api) return
 
-      let elements: unknown[] | undefined
-      if (prevTheme !== null && prevTheme !== theme) {
-        const ydoc = ydocRef.current
-        const canonical = ydoc
-          ? readSceneFromYjs(ydoc).elements
-          : canonicalizeElementsForStorage(
-              api.getSceneElements() as Parameters<typeof canonicalizeElementsForStorage>[0],
-            )
-        elements = applyLocalBoardTheme(
-          canonical as Parameters<typeof applyLocalBoardTheme>[0],
-          theme,
-        )
+      if (isThemeChange && localRafRef.current) {
+        cancelAnimationFrame(localRafRef.current)
+        localRafRef.current = 0
+        flushLocalToYjs()
       }
+
+      const elements = isThemeChange
+        ? remapDisplayElementsForBoardTheme(
+            api.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
+            theme,
+          )
+        : undefined
 
       if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
       applyingThemeRef.current = true
@@ -410,20 +409,22 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         themeApplyTimerRef.current = window.setTimeout(() => {
           applyingThemeRef.current = false
           themeApplyTimerRef.current = null
-        }, 300)
+        }, 400)
       }
-    }, [])
+    }, [flushLocalToYjs])
 
     const prevBoardThemeRef = useRef<BoardCanvasTheme | null>(null)
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       const api = apiRef.current
       if (!api) return
 
       let cancelled = false
       const patch = () => {
         if (cancelled) return
-        applyBoardTheme(boardTheme, prevBoardThemeRef.current)
+        const isThemeChange =
+          prevBoardThemeRef.current !== null && prevBoardThemeRef.current !== boardTheme
+        applyBoardTheme(boardTheme, isThemeChange)
         prevBoardThemeRef.current = boardTheme
       }
 

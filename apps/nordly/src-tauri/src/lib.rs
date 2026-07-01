@@ -46,6 +46,7 @@ pub fn run() {
             pomodoro_save,
             shell_open_external,
             window_traffic_lights_show,
+            deep_link_initial,
         ])
         .run(tauri::generate_context!())
         .expect("error while running nordly");
@@ -112,4 +113,24 @@ async fn shell_open_external(app: AppHandle, url: String) -> Result<(), String> 
 #[tauri::command]
 fn window_traffic_lights_show(window: tauri::WebviewWindow, visible: bool) -> Result<(), String> {
     window_macos::set_traffic_lights(&window, visible)
+}
+
+/// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
+/// Warm-start deep links arrive via the `app:deep-link` event instead.
+#[tauri::command]
+fn deep_link_initial(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_deep_link::DeepLinkExt;
+        match app.deep_link().get_current() {
+            Ok(Some(urls)) => Ok(urls.into_iter().next().map(|u| u.to_string())),
+            Ok(None) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Ok(None)
+    }
 }

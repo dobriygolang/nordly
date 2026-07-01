@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { createGuestRoom, persistGuestToken } from '@/lib/api/rooms'
 import { persistGuestDisplayName, readGuestDisplayName } from '@/lib/live/guestDisplayName'
+import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 
 export function useCreateLiveRoom() {
   const navigate = useNavigate()
@@ -22,17 +23,14 @@ export function useCreateLiveRoom() {
       return {
         room: result.room,
         access_token: result.access_token,
-        inviteUrl: result.invite.url || null,
       }
     },
-    onSuccess: async ({ room, access_token, inviteUrl }) => {
+    onSuccess: async ({ room, access_token }) => {
       persistGuestToken(room.id, access_token)
-      if (inviteUrl) {
-        try {
-          await navigator.clipboard.writeText(inviteUrl)
-        } catch {
-          /* clipboard blocked */
-        }
+      try {
+        await navigator.clipboard.writeText(publicLiveRoomUrl(room.id))
+      } catch {
+        /* clipboard blocked */
       }
       navigate(`/live/${room.id}`)
     },

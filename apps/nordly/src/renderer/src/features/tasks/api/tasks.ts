@@ -247,7 +247,8 @@ export async function createTaskConference(
   }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  const updated = await remoteCreateTaskConference(taskId, provider);
+  const serverId = (await getServerId('tasks', taskId)) ?? taskId;
+  const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
   return task;

@@ -13,14 +13,54 @@ import {
 } from '@features/notes/repository/notesRemote';
 import { remoteEncryptNoteBody } from '@features/notes/repository/vaultRemote';
 import {
+  notesStoreGet,
   notesStoreMergeRemote,
   notesStoreReplaceId,
 } from '@features/notes/repository/notesStore';
 import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { resolveEntityId, setServerId } from '@shared/sync/idMap';
+import { getServerId, setServerId } from '@shared/sync/idMap';
 import { removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
+
+function isRemoteNotFound(err: unknown): boolean {
+  return err instanceof Error && err.message.includes(': 404');
+}
+
+async function resolveNoteServerId(
+  entry: OutboxEntry,
+  userId: string,
+  title: string,
+  bodyMd: string,
+  e2ee: boolean,
+): Promise<string | null> {
+  const mapped = await getServerId('notes', entry.entityId, userId);
+  if (mapped) return mapped;
+
+  const local = await notesStoreGet(entry.entityId, userId);
+  if (!local) {
+    await removeOutbox(entry.id, userId);
+    return null;
+  }
+
+  const localTitle = title || local.title;
+  const localBody = bodyMd || local.bodyMd;
+
+  if (e2ee) {
+    const { encTitle, encBody } = await encryptNoteForRemote(localTitle, localBody);
+    const created = await remoteCreateNote(encTitle, encBody);
+    await remoteEncryptNoteBody(created.id, encBody);
+    await setServerId('notes', entry.entityId, created.id, userId);
+    const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
+    await notesStoreReplaceId(entry.entityId, plain);
+    return created.id;
+  }
+
+  const created = await remoteCreateNote(localTitle, localBody);
+  await setServerId('notes', entry.entityId, created.id, userId);
+  await notesStoreReplaceId(entry.entityId, created);
+  return created.id;
+}
 
 function shouldPushE2ee(): boolean {
   return isVaultEnabledSync() && isVaultUnlocked();
@@ -68,25 +108,42 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
     return;
   }
 
-  const serverId = await resolveEntityId('notes', entry.entityId, userId);
+  const serverId = await resolveNoteServerId(entry, userId, title, bodyMd, e2ee);
+  if (!serverId) return;
 
   if (entry.op === 'update') {
-    if (e2ee) {
-      await pushEncryptedNote(serverId, title, bodyMd);
-      const wire = await remoteGetNote(serverId);
-      const plain = await decryptNoteFromRemote(wire);
-      await notesStoreMergeRemote(noteToStored(plain, userId, true));
-    } else {
-      await pushPlainNote(serverId, title, bodyMd);
-      const wire = await remoteGetNote(serverId);
-      await notesStoreMergeRemote(noteToStored(wire, userId, false));
+    try {
+      if (e2ee) {
+        await pushEncryptedNote(serverId, title, bodyMd);
+        const wire = await remoteGetNote(serverId);
+        const plain = await decryptNoteFromRemote(wire);
+        await notesStoreMergeRemote(noteToStored(plain, userId, true));
+      } else {
+        await pushPlainNote(serverId, title, bodyMd);
+        const wire = await remoteGetNote(serverId);
+        await notesStoreMergeRemote(noteToStored(wire, userId, false));
+      }
+    } catch (err) {
+      if (isRemoteNotFound(err)) {
+        await removeOutbox(entry.id, userId);
+        return;
+      }
+      throw err;
     }
     await removeOutbox(entry.id, userId);
     return;
   }
 
   if (entry.op === 'delete') {
-    await remoteDeleteNote(serverId);
+    try {
+      await remoteDeleteNote(serverId);
+    } catch (err) {
+      if (isRemoteNotFound(err)) {
+        await removeOutbox(entry.id, userId);
+        return;
+      }
+      throw err;
+    }
     await removeOutbox(entry.id, userId);
   }
 }

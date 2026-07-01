@@ -43,6 +43,8 @@ export async function remoteGetPublishStatus(noteId: string): Promise<PublishSta
     `${API_BASE_URL}/v1/notes/${encodeURIComponent(noteId)}/publish-status`,
     { headers: authHeaders() },
   );
+  if (resp.status === 401) return { published: false };
+  if (resp.status === 404) return { published: false };
   if (!resp.ok) throw new Error(`publish status: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
   return {

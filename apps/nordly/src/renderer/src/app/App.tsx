@@ -145,8 +145,8 @@ export default function App() {
 
   useEffect(() => {
     if (status !== 'signed_in') return;
-    const token = useSessionStore.getState().accessToken;
-    if (!token) {
+    const { accessToken, expiresAt } = useSessionStore.getState();
+    if (!accessToken || (expiresAt > 0 && Date.now() > expiresAt)) {
       void clear();
     }
   }, [status, clear]);

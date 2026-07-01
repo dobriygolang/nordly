@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import * as Y from 'yjs'
@@ -100,6 +100,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const localRafRef = useRef(0)
     /** Block local Yjs writes until server snapshot / remote ops are applied. */
     const canPublishLocalRef = useRef(false)
+    const prevBoardThemeRef = useRef<BoardCanvasTheme | null>(null)
 
     const [initialScene, setInitialScene] = useState<ScenePayload>({ elements: [], files: {} })
     const [ready, setReady] = useState(false)
@@ -338,6 +339,45 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
     }, [roomId, token, displayName, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
 
+    const applyBoardTheme = useCallback((theme: BoardCanvasTheme) => {
+      const api = apiRef.current
+      if (!api) return
+
+      if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
+      applyingThemeRef.current = true
+
+      if (localRafRef.current) {
+        cancelAnimationFrame(localRafRef.current)
+        localRafRef.current = 0
+      }
+      if (pendingLocalRef.current) {
+        flushLocalToYjs()
+      }
+
+      const paint = () => {
+        const elements = remapDisplayElementsForBoardTheme(
+          api.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
+          theme,
+        )
+        api.updateScene({
+          elements,
+          appState: excalidrawCanvasPatch(theme),
+          captureUpdate:
+            elements.length > 0 ? CaptureUpdateAction.IMMEDIATELY : CaptureUpdateAction.NEVER,
+        })
+      }
+
+      paint()
+      // Excalidraw applies its own theme transition after our layout effect — repaint next frame.
+      requestAnimationFrame(() => {
+        paint()
+        themeApplyTimerRef.current = window.setTimeout(() => {
+          applyingThemeRef.current = false
+          themeApplyTimerRef.current = null
+        }, 400)
+      })
+    }, [flushLocalToYjs])
+
     useEffect(() => {
       prevBoardThemeRef.current = null
     }, [roomId])
@@ -378,75 +418,38 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
     }, [status, roomId, token, flushPendingEnvelopes])
 
-    const applyBoardTheme = useCallback((theme: BoardCanvasTheme, isThemeChange: boolean) => {
-      const api = apiRef.current
-      if (!api) return
-
-      if (isThemeChange && localRafRef.current) {
-        cancelAnimationFrame(localRafRef.current)
-        localRafRef.current = 0
-        flushLocalToYjs()
+    // Freeze initialData at editor mount — do not rebuild when boardTheme toggles.
+    const excalidrawInitialData = useMemo(() => {
+      if (!ready) return null
+      return {
+        elements: boardThemeSceneFromCanonical(
+          initialScene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+          boardThemeRef.current,
+        ),
+        files: initialScene.files,
+        appState: excalidrawSiteAppState(boardThemeRef.current),
       }
-
-      const elements = isThemeChange
-        ? remapDisplayElementsForBoardTheme(
-            api.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
-            theme,
-          )
-        : undefined
-
-      if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
-      applyingThemeRef.current = true
-      try {
-        api.updateScene({
-          elements,
-          appState: excalidrawCanvasPatch(theme),
-          captureUpdate:
-            elements && elements.length > 0
-              ? CaptureUpdateAction.IMMEDIATELY
-              : CaptureUpdateAction.NEVER,
-        })
-      } finally {
-        themeApplyTimerRef.current = window.setTimeout(() => {
-          applyingThemeRef.current = false
-          themeApplyTimerRef.current = null
-        }, 400)
-      }
-    }, [flushLocalToYjs])
-
-    const prevBoardThemeRef = useRef<BoardCanvasTheme | null>(null)
+      // initialScene is read once when `ready` flips true for this room.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    }, [ready, roomId])
 
     useLayoutEffect(() => {
-      const api = apiRef.current
-      if (!api) return
+      if (!ready || !apiRef.current) return
+      if (prevBoardThemeRef.current === boardTheme) return
 
       let cancelled = false
-      const patch = () => {
+      const apply = () => {
         if (cancelled) return
-        const isThemeChange =
-          prevBoardThemeRef.current !== null && prevBoardThemeRef.current !== boardTheme
-        applyBoardTheme(boardTheme, isThemeChange)
+        applyBoardTheme(boardTheme)
         prevBoardThemeRef.current = boardTheme
       }
 
-      patch()
-
-      if (api.getAppState().isLoading) {
-        const poll = window.setInterval(() => {
-          if (cancelled) return
-          if (!api.getAppState().isLoading) {
-            window.clearInterval(poll)
-            patch()
-          }
-        }, 50)
-        return () => {
-          cancelled = true
-          window.clearInterval(poll)
-        }
-      }
+      apply()
+      const raf = requestAnimationFrame(apply)
 
       return () => {
         cancelled = true
+        cancelAnimationFrame(raf)
       }
     }, [boardTheme, ready, applyBoardTheme])
 
@@ -483,25 +486,22 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           if (e.ctrlKey || e.metaKey) e.preventDefault()
         }}
       >
-        {ready ? (
+        {ready && excalidrawInitialData ? (
           <Excalidraw
             theme={excalidrawThemeFor(boardTheme)}
             initialData={{
-              elements: boardThemeSceneFromCanonical(
-                initialScene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
-                boardTheme,
-              ) as never[],
-              files: initialScene.files as never,
-              appState: excalidrawSiteAppState(boardTheme),
+              elements: excalidrawInitialData.elements as never[],
+              files: excalidrawInitialData.files as never,
+              appState: excalidrawInitialData.appState as never,
             }}
             onChange={handleChange}
             viewModeEnabled={false}
             excalidrawAPI={(api) => {
               apiRef.current = api as typeof apiRef.current
-              api.updateScene({
-                appState: excalidrawCanvasPatch(boardThemeRef.current),
-                captureUpdate: CaptureUpdateAction.NEVER,
-              })
+              if (prevBoardThemeRef.current === null) {
+                prevBoardThemeRef.current = boardThemeRef.current
+              }
+              applyBoardTheme(boardThemeRef.current)
             }}
             UIOptions={EXCALIDRAW_UI_OPTIONS}
           />

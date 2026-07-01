@@ -87,20 +87,21 @@ export async function updateNote(id: string, title: string, bodyMd: string): Pro
   return note;
 }
 
-async function resolveServerNoteId(localId: string, forceSync = true): Promise<string> {
-  if (!isSyncEnabled()) throw new Error('Cloud sync required to publish notes');
+async function resolveServerNoteId(localId: string, forceSync = true): Promise<string | null> {
+  if (!isSyncEnabled()) return null;
   if (forceSync) await syncNow();
-  const mapped = await getServerId('notes', localId);
-  return mapped ?? localId;
+  return getServerId('notes', localId);
 }
 
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
   const serverId = await resolveServerNoteId(noteId, false);
+  if (!serverId) return { published: false };
   return remoteGetPublishStatus(serverId);
 }
 
 export async function publishNoteToWeb(noteId: string): Promise<PublishStatus> {
   const serverId = await resolveServerNoteId(noteId);
+  if (!serverId) throw new Error('Cloud sync required to publish notes');
   const note = await getNote(noteId);
   await remoteUpdateNote(serverId, note.title, note.bodyMd);
   const res = await remoteShareNoteToWeb(serverId, note.bodyMd);
@@ -114,6 +115,7 @@ export async function publishNoteToWeb(noteId: string): Promise<PublishStatus> {
 
 export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   const serverId = await resolveServerNoteId(noteId);
+  if (!serverId) throw new Error('Cloud sync required to publish notes');
   const note = await getNote(noteId);
   await remoteUnpublishNote(serverId);
   if (isVaultEnabledSync() && isVaultUnlocked()) {
@@ -127,7 +129,9 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
 }
 
 export async function regeneratePublicLink(noteId: string): Promise<PublishStatus> {
-  await remoteUnpublishNote(await resolveServerNoteId(noteId));
+  const serverId = await resolveServerNoteId(noteId);
+  if (!serverId) throw new Error('Cloud sync required to publish notes');
+  await remoteUnpublishNote(serverId);
   return publishNoteToWeb(noteId);
 }
 

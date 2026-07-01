@@ -96,8 +96,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   onSaveErrorRef.current = onSaveError;
 
   const initialData = useMemo(
-    () => buildInitialData(sceneJson, boardTheme),
-    [boardId, sceneJson, boardTheme],
+    () => buildInitialData(sceneJson, boardThemeRef.current),
+    [boardId, sceneJson],
   );
 
   const flushSave = useCallback(async () => {
@@ -181,10 +181,11 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     skipSaveRef.current = true;
     setExcalidrawApi(null);
     prevBoardThemeRef.current = null;
+    const boot = buildInitialData(sceneJson, boardThemeRef.current);
     sceneRef.current = {
-      elements: initialData.canonicalElements,
-      files: initialData.files,
-      appState: initialData.appState,
+      elements: boot.canonicalElements,
+      files: boot.files,
+      appState: boot.appState,
     };
     const readyTimer = window.setTimeout(() => {
       skipSaveRef.current = false;
@@ -194,7 +195,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
       void flushSave();
     };
-  }, [boardId, initialData, flushSave]);
+  }, [boardId, sceneJson, flushSave]);
 
   useLayoutEffect(() => {
     if (!excalidrawApi) return;

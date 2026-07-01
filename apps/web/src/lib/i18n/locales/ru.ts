@@ -90,7 +90,7 @@ export const ru = {
   welcome: {
     pill: 'РАННИЙ ДОСТУП',
     navPhilosophy: 'Философия',
-    navDownload: 'скачать',
+    navDownload: 'Скачать',
     heroLine1: 'Глубокий фокус.',
     heroLine2: 'Красивый дизайн.',
     heroLine3: 'Для тех, кто строит.',

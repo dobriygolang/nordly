@@ -4,14 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 
+	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 )
 
 type UpdateSettingsParams struct {
 	GoogleCalendarSyncEnabled *bool
+	GoogleCalendarID          *string
 }
 
 func (s *trackerService) GetSettings(ctx context.Context, userID string) (*model.UserSettingsView, error) {
@@ -24,7 +28,21 @@ func (s *trackerService) GetSettings(ctx context.Context, userID string) (*model
 }
 
 func (s *trackerService) UpdateSettings(ctx context.Context, userID string, in UpdateSettingsParams) (*model.UserSettingsView, error) {
-	settings, err := s.repo.UpsertUserSettings(ctx, userID, in.GoogleCalendarSyncEnabled)
+	// Switching calendars invalidates the cached events + incremental token.
+	if in.GoogleCalendarID != nil {
+		want := *in.GoogleCalendarID
+		if want == "" {
+			want = model.DefaultGoogleCalendarID
+		}
+		if current, err := s.repo.GetUserSettings(ctx, userID); err == nil && current.CalendarID() != want {
+			_ = s.repo.ClearGoogleSyncState(ctx, userID)
+			_ = s.repo.ClearGoogleEventsCache(ctx, userID)
+		}
+	}
+	settings, err := s.repo.UpsertUserSettings(ctx, userID, repository.UserSettingsPatch{
+		GoogleSync:       in.GoogleCalendarSyncEnabled,
+		GoogleCalendarID: in.GoogleCalendarID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -61,18 +79,66 @@ func (s *trackerService) HandleGoogleCallback(ctx context.Context, code, state s
 	if err != nil {
 		return s.callbackRedirect("error", "exchange_failed"), nil
 	}
-	if err := s.repo.SaveGoogleRefreshToken(ctx, userID, refresh); err != nil {
+	sealed, err := s.cipher.Seal(refresh)
+	if err != nil {
+		return s.callbackRedirect("error", "save_failed"), nil
+	}
+	if err := s.repo.SaveGoogleRefreshToken(ctx, userID, sealed); err != nil {
 		return s.callbackRedirect("error", "save_failed"), nil
 	}
 	return s.callbackRedirect("connected", ""), nil
 }
 
 func (s *trackerService) DisconnectGoogleCalendar(ctx context.Context, userID string) (*model.UserSettingsView, error) {
-	if err := s.repo.ClearGoogleRefreshToken(ctx, userID); err != nil {
+	// Best-effort: remove Google events that were created from tasks so the
+	// user's calendar isn't left with orphans.
+	if settings, err := s.repo.GetUserSettings(ctx, userID); err == nil && s.googleReady() && settings.Connected() {
+		if token, terr := s.refreshToken(settings); terr == nil {
+			calID := settings.CalendarID()
+			if ids, lerr := s.repo.ListGoogleEventIDs(ctx, userID); lerr == nil {
+				for _, id := range ids {
+					_ = s.google.DeleteEvent(ctx, token, calID, id)
+				}
+			}
+		}
+	}
+	_ = s.repo.ClearAllGoogleEventIDs(ctx, userID)
+	_ = s.repo.ClearGoogleEventsCache(ctx, userID)
+	if err := s.repo.ClearGoogleConnection(ctx, userID); err != nil {
 		return nil, err
 	}
-	disabled := false
-	return s.UpdateSettings(ctx, userID, UpdateSettingsParams{GoogleCalendarSyncEnabled: &disabled})
+	return s.GetSettings(ctx, userID)
+}
+
+// googleReady reports whether the Google adapter is configured for use.
+func (s *trackerService) googleReady() bool {
+	return s.google != nil && s.google.Configured()
+}
+
+// refreshToken decrypts and returns the stored refresh token.
+func (s *trackerService) refreshToken(settings *model.UserSettings) (string, error) {
+	if !settings.Connected() {
+		return "", model.ErrGoogleNotConnected
+	}
+	token, err := s.cipher.Open(*settings.GoogleRefreshToken)
+	if err != nil {
+		return "", fmt.Errorf("open refresh token: %w", err)
+	}
+	return token, nil
+}
+
+// handleGoogleErr maps adapter errors: a revoked/expired token flips the user to
+// re-auth state and returns a typed error; everything else passes through.
+func (s *trackerService) handleGoogleErr(ctx context.Context, userID string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, googleadapter.ErrReauthRequired) {
+		_ = s.repo.MarkGoogleReauthRequired(ctx, userID)
+		_ = s.repo.ClearGoogleEventsCache(ctx, userID)
+		return model.ErrGoogleReauthRequired
+	}
+	return err
 }
 
 func (s *trackerService) callbackRedirect(status, detail string) string {

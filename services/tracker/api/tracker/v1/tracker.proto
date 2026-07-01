@@ -34,6 +34,28 @@ service TrackerService {
     option (google.api.http) = {get: "/v1/tracker/integrations/google/events"};
   }
 
+  rpc CreateGoogleCalendarEvent(CreateGoogleCalendarEventRequest) returns (CreateGoogleCalendarEventResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/integrations/google/events"
+      body: "*"
+    };
+  }
+
+  rpc UpdateGoogleCalendarEvent(UpdateGoogleCalendarEventRequest) returns (UpdateGoogleCalendarEventResponse) {
+    option (google.api.http) = {
+      patch: "/v1/tracker/integrations/google/events/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteGoogleCalendarEvent(DeleteGoogleCalendarEventRequest) returns (DeleteGoogleCalendarEventResponse) {
+    option (google.api.http) = {delete: "/v1/tracker/integrations/google/events/{id}"};
+  }
+
+  rpc ListGoogleCalendars(ListGoogleCalendarsRequest) returns (ListGoogleCalendarsResponse) {
+    option (google.api.http) = {get: "/v1/tracker/integrations/google/calendars"};
+  }
+
   rpc ListWorkTasks(ListWorkTasksRequest) returns (ListWorkTasksResponse) {
     option (google.api.http) = {get: "/v1/tracker/work/tasks"};
   }
@@ -76,6 +98,10 @@ message UserSettings {
   reserved "user_id";
   bool google_calendar_sync_enabled = 2;
   bool google_calendar_connected = 3;
+  // Set when the stored Google token was revoked/expired and the user must reconnect.
+  bool google_reauth_required = 4;
+  // Calendar used for reads and outbound task sync (defaults to "primary").
+  string google_calendar_id = 5;
 }
 
 message GetSettingsRequest {}
@@ -86,6 +112,7 @@ message GetSettingsResponse {
 
 message UpdateSettingsRequest {
   optional bool google_calendar_sync_enabled = 2;
+  optional string google_calendar_id = 3;
 }
 
 message UpdateSettingsResponse {
@@ -115,10 +142,59 @@ message GoogleCalendarEvent {
   google.protobuf.Timestamp start = 3;
   google.protobuf.Timestamp end = 4;
   bool all_day = 5;
+  string calendar_id = 6;
+  string html_link = 7;
+  bool editable = 8;
 }
 
 message ListGoogleCalendarEventsResponse {
   repeated GoogleCalendarEvent events = 1;
+}
+
+message CreateGoogleCalendarEventRequest {
+  string title = 1;
+  google.protobuf.Timestamp start = 2;
+  google.protobuf.Timestamp end = 3;
+  bool all_day = 4;
+  string calendar_id = 5;
+}
+
+message CreateGoogleCalendarEventResponse {
+  GoogleCalendarEvent event = 1;
+}
+
+message UpdateGoogleCalendarEventRequest {
+  string id = 1;
+  string title = 2;
+  google.protobuf.Timestamp start = 3;
+  google.protobuf.Timestamp end = 4;
+  bool all_day = 5;
+  string calendar_id = 6;
+}
+
+message UpdateGoogleCalendarEventResponse {
+  GoogleCalendarEvent event = 1;
+}
+
+message DeleteGoogleCalendarEventRequest {
+  string id = 1;
+  string calendar_id = 2;
+}
+
+message DeleteGoogleCalendarEventResponse {}
+
+message GoogleCalendarListEntry {
+  string id = 1;
+  string summary = 2;
+  bool primary = 3;
+  bool writable = 4;
+  string background_color = 5;
+}
+
+message ListGoogleCalendarsRequest {}
+
+message ListGoogleCalendarsResponse {
+  repeated GoogleCalendarListEntry calendars = 1;
 }
 
 message WorkTask {

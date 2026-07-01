@@ -181,6 +181,60 @@ func (r *Repository) PatchWorkTask(ctx context.Context, taskID, userID string, p
 	return task, err
 }
 
+// ListGoogleEventIDs returns non-archived tasks' Google event ids for cleanup.
+func (r *Repository) ListGoogleEventIDs(ctx context.Context, userID string) ([]string, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user_id: %w", err)
+	}
+	rows, err := r.conn(ctx).Query(ctx, `
+		SELECT google_event_id FROM work_tasks
+		WHERE user_id = $1 AND google_event_id IS NOT NULL AND google_event_id <> ''
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// ClearAllGoogleEventIDs unlinks every task from its Google event (on disconnect).
+func (r *Repository) ClearAllGoogleEventIDs(ctx context.Context, userID string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		UPDATE work_tasks SET google_event_id = NULL, updated_at = now()
+		WHERE user_id = $1 AND google_event_id IS NOT NULL
+	`, uid)
+	return err
+}
+
+// ClearGoogleEventIDByEventID unlinks the task referencing a deleted Google event.
+func (r *Repository) ClearGoogleEventIDByEventID(ctx context.Context, userID, eventID string) error {
+	if eventID == "" {
+		return nil
+	}
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		UPDATE work_tasks SET google_event_id = NULL, updated_at = now()
+		WHERE user_id = $1 AND google_event_id = $2
+	`, uid, eventID)
+	return err
+}
+
 func scanWorkTask(row pgx.Row) (*model.WorkTask, error) {
 	var t model.WorkTask
 	var uid uuid.UUID

@@ -4,8 +4,9 @@ import '@excalidraw/excalidraw/index.css'
 import * as Y from 'yjs'
 import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import {
-  elementsForBoardTheme,
-  elementsToCanonicalStorage,
+  applyLocalBoardTheme,
+  boardThemeSceneFromCanonical,
+  canonicalizeElementsForStorage,
 } from '@/lib/collab/excalidrawBoardColors'
 import {
   EXCALIDRAW_MOUNT_CLASS,
@@ -85,6 +86,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const boardThemeRef = useRef<BoardCanvasTheme>(boardTheme)
     boardThemeRef.current = boardTheme
     const applyingRemoteRef = useRef(false)
+    const applyingThemeRef = useRef(false)
+    const themeApplyTimerRef = useRef<number | null>(null)
     const remoteApplyTimerRef = useRef<number | null>(null)
     const wsSendRef = useRef<(env: EditorWsEnvelope) => boolean>(() => false)
     const sendRef = useRef<(update: Uint8Array) => void>(() => {})
@@ -168,8 +171,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       applyingRemoteRef.current = true
       try {
         apiRef.current.updateScene({
-          elements: elementsForBoardTheme(
-            scene.elements as Parameters<typeof elementsForBoardTheme>[0],
+          elements: boardThemeSceneFromCanonical(
+            scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
             boardThemeRef.current,
           ),
           files: scene.files,
@@ -307,6 +310,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         pendingEnvelopesRef.current = []
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
         if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
+        if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
         try {
           if (canPublishLocalRef.current) sendFullSnapshot()
         } catch {
@@ -379,18 +383,35 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
       let elements: unknown[] | undefined
       if (prevTheme !== null && prevTheme !== theme) {
-        const canonical = elementsToCanonicalStorage(
-          api.getSceneElements() as Parameters<typeof elementsToCanonicalStorage>[0],
-          prevTheme,
+        const ydoc = ydocRef.current
+        const canonical = ydoc
+          ? readSceneFromYjs(ydoc).elements
+          : canonicalizeElementsForStorage(
+              api.getSceneElements() as Parameters<typeof canonicalizeElementsForStorage>[0],
+            )
+        elements = applyLocalBoardTheme(
+          canonical as Parameters<typeof applyLocalBoardTheme>[0],
+          theme,
         )
-        elements = elementsForBoardTheme(canonical, theme)
       }
 
-      api.updateScene({
-        elements,
-        appState: excalidrawCanvasPatch(theme),
-        captureUpdate: CaptureUpdateAction.NEVER,
-      })
+      if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
+      applyingThemeRef.current = true
+      try {
+        api.updateScene({
+          elements,
+          appState: excalidrawCanvasPatch(theme),
+          captureUpdate:
+            elements && elements.length > 0
+              ? CaptureUpdateAction.IMMEDIATELY
+              : CaptureUpdateAction.NEVER,
+        })
+      } finally {
+        themeApplyTimerRef.current = window.setTimeout(() => {
+          applyingThemeRef.current = false
+          themeApplyTimerRef.current = null
+        }, 300)
+      }
     }, [])
 
     const prevBoardThemeRef = useRef<BoardCanvasTheme | null>(null)
@@ -429,14 +450,13 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
     const handleChange = useCallback(
       (elements: readonly unknown[], _appState: unknown, files: unknown) => {
-        if (applyingRemoteRef.current || !canPublishLocalRef.current) return
+        if (applyingRemoteRef.current || applyingThemeRef.current || !canPublishLocalRef.current) return
         const ydoc = ydocRef.current
         if (!ydoc) return
 
         pendingLocalRef.current = {
-          elements: elementsToCanonicalStorage(
-            elements as Parameters<typeof elementsToCanonicalStorage>[0],
-            boardThemeRef.current,
+          elements: canonicalizeElementsForStorage(
+            elements as Parameters<typeof canonicalizeElementsForStorage>[0],
           ),
           files: (files as Record<string, unknown>) ?? {},
         }
@@ -457,13 +477,16 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       <div
         className={`${EXCALIDRAW_MOUNT_CLASS} h-full w-full`}
         data-board-theme={boardTheme}
+        onWheelCapture={(e) => {
+          if (e.ctrlKey || e.metaKey) e.preventDefault()
+        }}
       >
         {ready ? (
           <Excalidraw
             theme={excalidrawThemeFor(boardTheme)}
             initialData={{
-              elements: elementsForBoardTheme(
-                initialScene.elements as Parameters<typeof elementsForBoardTheme>[0],
+              elements: boardThemeSceneFromCanonical(
+                initialScene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
                 boardTheme,
               ) as never[],
               files: initialScene.files as never,
@@ -473,6 +496,10 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
             viewModeEnabled={false}
             excalidrawAPI={(api) => {
               apiRef.current = api as typeof apiRef.current
+              api.updateScene({
+                appState: excalidrawCanvasPatch(boardThemeRef.current),
+                captureUpdate: CaptureUpdateAction.NEVER,
+              })
             }}
             UIOptions={EXCALIDRAW_UI_OPTIONS}
           />

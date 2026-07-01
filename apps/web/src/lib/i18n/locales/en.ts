@@ -91,7 +91,7 @@ export const en: Messages = {
   welcome: {
     pill: 'EARLY ACCESS',
     navPhilosophy: 'Philosophy',
-    navDownload: 'download',
+    navDownload: 'Download',
     heroLine1: 'Deep focus.',
     heroLine2: 'Beautiful design.',
     heroLine3: 'Made for builders.',

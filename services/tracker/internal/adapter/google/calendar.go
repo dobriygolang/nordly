@@ -2,201 +2,249 @@ package google
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
-var (
-	calTimePattern = regexp.MustCompile(`^(\d{1,2})[:.](\d{2})$`)
-	calDatePattern = regexp.MustCompile(`^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$`)
-)
-
-// CreateEventFromTask inserts a calendar event from task title and metadata fields.
-func (c *Client) CreateEventFromTask(ctx context.Context, refreshToken, title string, meta map[string]any) (string, error) {
-	if !c.Configured() {
-		return "", fmt.Errorf("google calendar not configured")
-	}
-	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
-	if err != nil {
-		return "", fmt.Errorf("calendar service: %w", err)
-	}
-	start, end, allDay := parseEventWindow(meta, time.Now().UTC())
-	ev := &calendar.Event{
-		Summary: title,
-		Start:   &calendar.EventDateTime{},
-		End:     &calendar.EventDateTime{},
-	}
-	if allDay {
-		date := start.Format("2006-01-02")
-		ev.Start.Date = date
-		ev.End.Date = start.Add(24 * time.Hour).Format("2006-01-02")
-	} else {
-		ev.Start.DateTime = start.Format(time.RFC3339)
-		ev.Start.TimeZone = "UTC"
-		ev.End.DateTime = end.Format(time.RFC3339)
-		ev.End.TimeZone = "UTC"
-	}
-	created, err := svc.Events.Insert("primary", ev).Context(ctx).Do()
-	if err != nil {
-		return "", fmt.Errorf("create calendar event: %w", err)
-	}
-	return created.Id, nil
-}
-
-// UpdateEventFromTask updates an existing calendar event from task fields.
-func (c *Client) UpdateEventFromTask(ctx context.Context, refreshToken, eventID, title string, meta map[string]any) error {
-	if !c.Configured() {
-		return fmt.Errorf("google calendar not configured")
-	}
-	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
-	if err != nil {
-		return fmt.Errorf("calendar service: %w", err)
-	}
-	start, end, allDay := parseEventWindow(meta, time.Now().UTC())
-	ev := &calendar.Event{
-		Summary: title,
-		Start:   &calendar.EventDateTime{},
-		End:     &calendar.EventDateTime{},
-	}
-	if allDay {
-		date := start.Format("2006-01-02")
-		ev.Start.Date = date
-		ev.End.Date = start.Add(24 * time.Hour).Format("2006-01-02")
-	} else {
-		ev.Start.DateTime = start.Format(time.RFC3339)
-		ev.Start.TimeZone = "UTC"
-		ev.End.DateTime = end.Format(time.RFC3339)
-		ev.End.TimeZone = "UTC"
-	}
-	if _, err := svc.Events.Update("primary", eventID, ev).Context(ctx).Do(); err != nil {
-		return fmt.Errorf("update calendar event: %w", err)
-	}
-	return nil
-}
-
-// DeleteEvent removes a calendar event by id.
-func (c *Client) DeleteEvent(ctx context.Context, refreshToken, eventID string) error {
-	if !c.Configured() || eventID == "" {
-		return nil
-	}
-	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
-	if err != nil {
-		return fmt.Errorf("calendar service: %w", err)
-	}
-	if err := svc.Events.Delete("primary", eventID).Context(ctx).Do(); err != nil {
-		return fmt.Errorf("delete calendar event: %w", err)
-	}
-	return nil
-}
-
-// CreateEventFromSchedule inserts a timed calendar event from a work-task schedule.
-func (c *Client) CreateEventFromSchedule(ctx context.Context, refreshToken, title string, start time.Time, durationMin int) (string, error) {
-	if !c.Configured() {
-		return "", fmt.Errorf("google calendar not configured")
-	}
-	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
-	if err != nil {
-		return "", fmt.Errorf("calendar service: %w", err)
-	}
-	end := start.Add(time.Duration(durationMin) * time.Minute)
-	ev := &calendar.Event{
-		Summary: title,
-		Start: &calendar.EventDateTime{
-			DateTime: start.UTC().Format(time.RFC3339),
-			TimeZone: "UTC",
-		},
-		End: &calendar.EventDateTime{
-			DateTime: end.UTC().Format(time.RFC3339),
-			TimeZone: "UTC",
-		},
-	}
-	created, err := svc.Events.Insert("primary", ev).Context(ctx).Do()
-	if err != nil {
-		return "", fmt.Errorf("create calendar event: %w", err)
-	}
-	return created.Id, nil
-}
-
-// UpdateEventFromSchedule updates a timed calendar event from a work-task schedule.
-func (c *Client) UpdateEventFromSchedule(ctx context.Context, refreshToken, eventID, title string, start time.Time, durationMin int) error {
-	if !c.Configured() {
-		return fmt.Errorf("google calendar not configured")
-	}
-	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
-	if err != nil {
-		return fmt.Errorf("calendar service: %w", err)
-	}
-	end := start.Add(time.Duration(durationMin) * time.Minute)
-	ev := &calendar.Event{
-		Summary: title,
-		Start: &calendar.EventDateTime{
-			DateTime: start.UTC().Format(time.RFC3339),
-			TimeZone: "UTC",
-		},
-		End: &calendar.EventDateTime{
-			DateTime: end.UTC().Format(time.RFC3339),
-			TimeZone: "UTC",
-		},
-	}
-	if _, err := svc.Events.Update("primary", eventID, ev).Context(ctx).Do(); err != nil {
-		return fmt.Errorf("update calendar event: %w", err)
-	}
-	return nil
-}
-
 // CalendarEvent is a normalized Google Calendar event for the tracker API.
 type CalendarEvent struct {
-	ID     string
+	ID         string
+	CalendarID string
+	Title      string
+	Start      time.Time
+	End        time.Time
+	AllDay     bool
+	HTMLLink   string
+	Editable   bool
+}
+
+// EventInput describes a create/update payload for a calendar event.
+type EventInput struct {
 	Title  string
 	Start  time.Time
 	End    time.Time
 	AllDay bool
 }
 
-// ListEvents returns primary-calendar events in [timeMin, timeMax).
-func (c *Client) ListEvents(ctx context.Context, refreshToken string, timeMin, timeMax time.Time) ([]CalendarEvent, error) {
-	if !c.Configured() {
-		return nil, fmt.Errorf("google calendar not configured")
+// Calendar is a normalized entry from the user's calendar list.
+type Calendar struct {
+	ID              string
+	Summary         string
+	Primary         bool
+	Writable        bool
+	BackgroundColor string
+}
+
+// SyncResult is the delta returned by an incremental events sync.
+type SyncResult struct {
+	Upserts       []CalendarEvent
+	DeletedIDs    []string
+	NextSyncToken string
+	FullResync    bool // caller must clear its cache + syncToken and retry from scratch
+}
+
+func normalizeCalendarID(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return "primary"
 	}
+	return id
+}
+
+func (c *Client) service(ctx context.Context, refreshToken string) (*calendar.Service, error) {
 	svc, err := calendar.NewService(ctx, option.WithTokenSource(c.TokenSource(ctx, refreshToken)))
 	if err != nil {
 		return nil, fmt.Errorf("calendar service: %w", err)
 	}
-	call := svc.Events.List("primary").Context(ctx).ShowDeleted(false).SingleEvents(true).OrderBy("startTime")
-	if !timeMin.IsZero() {
-		call = call.TimeMin(timeMin.UTC().Format(time.RFC3339))
+	return svc, nil
+}
+
+func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime) {
+	if in.AllDay {
+		endDate := in.End
+		if !endDate.After(in.Start) {
+			endDate = in.Start.Add(24 * time.Hour)
+		}
+		return &calendar.EventDateTime{Date: in.Start.Format("2006-01-02")},
+			&calendar.EventDateTime{Date: endDate.Format("2006-01-02")}
 	}
-	if !timeMax.IsZero() {
-		call = call.TimeMax(timeMax.UTC().Format(time.RFC3339))
+	endTime := in.End
+	if !endTime.After(in.Start) {
+		endTime = in.Start.Add(time.Hour)
 	}
-	resp, err := call.Do()
+	return &calendar.EventDateTime{DateTime: in.Start.UTC().Format(time.RFC3339), TimeZone: "UTC"},
+		&calendar.EventDateTime{DateTime: endTime.UTC().Format(time.RFC3339), TimeZone: "UTC"}
+}
+
+// CreateEvent inserts a new event and returns the normalized result.
+func (c *Client) CreateEvent(ctx context.Context, refreshToken, calendarID string, in EventInput) (CalendarEvent, error) {
+	if !c.Configured() {
+		return CalendarEvent{}, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
 	if err != nil {
-		return nil, fmt.Errorf("list calendar events: %w", err)
+		return CalendarEvent{}, err
 	}
-	out := make([]CalendarEvent, 0, len(resp.Items))
-	for _, item := range resp.Items {
-		if item == nil {
+	cid := normalizeCalendarID(calendarID)
+	start, end := toEventDateTimes(in)
+	created, err := svc.Events.Insert(cid, &calendar.Event{Summary: in.Title, Start: start, End: end}).Context(ctx).Do()
+	if err != nil {
+		return CalendarEvent{}, classifyErr(fmt.Errorf("create calendar event: %w", err))
+	}
+	ev, _ := calendarEventFromAPI(created, cid)
+	return ev, nil
+}
+
+// UpdateEvent patches an existing event's title and time window.
+func (c *Client) UpdateEvent(ctx context.Context, refreshToken, calendarID, eventID string, in EventInput) (CalendarEvent, error) {
+	if !c.Configured() {
+		return CalendarEvent{}, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
+	cid := normalizeCalendarID(calendarID)
+	start, end := toEventDateTimes(in)
+	updated, err := svc.Events.Patch(cid, eventID, &calendar.Event{Summary: in.Title, Start: start, End: end}).Context(ctx).Do()
+	if err != nil {
+		return CalendarEvent{}, classifyErr(fmt.Errorf("update calendar event: %w", err))
+	}
+	ev, _ := calendarEventFromAPI(updated, cid)
+	return ev, nil
+}
+
+// DeleteEvent removes a calendar event; already-deleted events are treated as success.
+func (c *Client) DeleteEvent(ctx context.Context, refreshToken, calendarID, eventID string) error {
+	if !c.Configured() || eventID == "" {
+		return nil
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return err
+	}
+	if err := svc.Events.Delete(normalizeCalendarID(calendarID), eventID).Context(ctx).Do(); err != nil {
+		var ge *googleapi.Error
+		if errors.As(err, &ge) && (ge.Code == 404 || ge.Code == 410) {
+			return nil
+		}
+		return classifyErr(fmt.Errorf("delete calendar event: %w", err))
+	}
+	return nil
+}
+
+// ListCalendars returns the user's calendar list entries.
+func (c *Client) ListCalendars(ctx context.Context, refreshToken string) ([]Calendar, error) {
+	if !c.Configured() {
+		return nil, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := svc.CalendarList.List().Context(ctx).Do()
+	if err != nil {
+		return nil, classifyErr(fmt.Errorf("list calendars: %w", err))
+	}
+	out := make([]Calendar, 0, len(resp.Items))
+	for _, it := range resp.Items {
+		if it == nil {
 			continue
 		}
-		ev, ok := calendarEventFromAPI(item)
-		if !ok {
-			continue
-		}
-		out = append(out, ev)
+		out = append(out, Calendar{
+			ID:              it.Id,
+			Summary:         it.Summary,
+			Primary:         it.Primary,
+			Writable:        it.AccessRole == "owner" || it.AccessRole == "writer",
+			BackgroundColor: it.BackgroundColor,
+		})
 	}
 	return out, nil
 }
 
-func calendarEventFromAPI(item *calendar.Event) (CalendarEvent, bool) {
+// SyncEvents performs an incremental (or, with an empty syncToken, a windowed
+// full) sync and returns the changes since the last token.
+func (c *Client) SyncEvents(
+	ctx context.Context,
+	refreshToken, calendarID, syncToken string,
+	timeMin, timeMax time.Time,
+) (SyncResult, error) {
+	if !c.Configured() {
+		return SyncResult{}, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	cid := normalizeCalendarID(calendarID)
+	var res SyncResult
+	pageToken := ""
+	for {
+		call := svc.Events.List(cid).Context(ctx).ShowDeleted(true).SingleEvents(true).MaxResults(2500)
+		if syncToken != "" {
+			call = call.SyncToken(syncToken)
+		} else {
+			if !timeMin.IsZero() {
+				call = call.TimeMin(timeMin.UTC().Format(time.RFC3339))
+			}
+			if !timeMax.IsZero() {
+				call = call.TimeMax(timeMax.UTC().Format(time.RFC3339))
+			}
+		}
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			if isGone(err) {
+				return SyncResult{FullResync: true}, nil
+			}
+			return SyncResult{}, classifyErr(fmt.Errorf("sync calendar events: %w", err))
+		}
+		for _, item := range resp.Items {
+			if item == nil {
+				continue
+			}
+			if item.Status == "cancelled" {
+				res.DeletedIDs = append(res.DeletedIDs, item.Id)
+				continue
+			}
+			ev, ok := calendarEventFromAPI(item, cid)
+			if !ok {
+				continue
+			}
+			res.Upserts = append(res.Upserts, ev)
+		}
+		if resp.NextPageToken != "" {
+			pageToken = resp.NextPageToken
+			continue
+		}
+		res.NextSyncToken = resp.NextSyncToken
+		break
+	}
+	return res, nil
+}
+
+func calendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEvent, bool) {
 	title := strings.TrimSpace(item.Summary)
 	if title == "" {
 		title = "(No title)"
+	}
+	editable := true
+	if item.Organizer != nil && !item.Organizer.Self && !item.GuestsCanModify {
+		editable = false
+	}
+	base := CalendarEvent{
+		ID:         item.Id,
+		CalendarID: calendarID,
+		Title:      title,
+		HTMLLink:   item.HtmlLink,
+		Editable:   editable,
 	}
 	if item.Start != nil && item.Start.Date != "" {
 		start, err := time.Parse("2006-01-02", item.Start.Date)
@@ -209,13 +257,8 @@ func calendarEventFromAPI(item *calendar.Event) (CalendarEvent, bool) {
 				end = parsed
 			}
 		}
-		return CalendarEvent{
-			ID:     item.Id,
-			Title:  title,
-			Start:  start,
-			End:    end,
-			AllDay: true,
-		}, true
+		base.Start, base.End, base.AllDay = start, end, true
+		return base, true
 	}
 	if item.Start == nil || item.Start.DateTime == "" {
 		return CalendarEvent{}, false
@@ -230,77 +273,6 @@ func calendarEventFromAPI(item *calendar.Event) (CalendarEvent, bool) {
 			end = parsed
 		}
 	}
-	return CalendarEvent{
-		ID:     item.Id,
-		Title:  title,
-		Start:  start,
-		End:    end,
-		AllDay: false,
-	}, true
-}
-
-func parseEventWindow(meta map[string]any, now time.Time) (start, end time.Time, allDay bool) {
-	year, month, day := now.Date()
-	if raw, ok := meta["event_date"].(string); ok && raw != "" {
-		if y, m, d, ok := parseEventDate(raw, now); ok {
-			year, month, day = y, m, d
-		}
-	}
-	hour, min := 9, 0
-	hasTime := false
-	if raw, ok := meta["event_time"].(string); ok && raw != "" {
-		if h, m, ok := parseEventTime(raw); ok {
-			hour, min = h, m
-			hasTime = true
-		}
-	}
-	start = time.Date(year, month, day, hour, min, 0, 0, time.UTC)
-	if hasTime {
-		return start, start.Add(time.Hour), false
-	}
-	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC), time.Time{}, true
-}
-
-func parseEventTime(raw string) (hour, min int, ok bool) {
-	m := calTimePattern.FindStringSubmatch(strings.TrimSpace(raw))
-	if len(m) != 3 {
-		return 0, 0, false
-	}
-	h, err := strconv.Atoi(m[1])
-	if err != nil || h < 0 || h > 23 {
-		return 0, 0, false
-	}
-	mi, err := strconv.Atoi(m[2])
-	if err != nil || mi < 0 || mi > 59 {
-		return 0, 0, false
-	}
-	return h, mi, true
-}
-
-func parseEventDate(raw string, now time.Time) (year int, month time.Month, day int, ok bool) {
-	m := calDatePattern.FindStringSubmatch(strings.TrimSpace(raw))
-	if len(m) < 3 {
-		return 0, 0, 0, false
-	}
-	d, err := strconv.Atoi(m[1])
-	if err != nil || d < 1 || d > 31 {
-		return 0, 0, 0, false
-	}
-	mo, err := strconv.Atoi(m[2])
-	if err != nil || mo < 1 || mo > 12 {
-		return 0, 0, 0, false
-	}
-	y := now.Year()
-	if len(m) >= 4 && m[3] != "" {
-		yr, err := strconv.Atoi(m[3])
-		if err != nil {
-			return 0, 0, 0, false
-		}
-		if yr < 100 {
-			y = 2000 + yr
-		} else {
-			y = yr
-		}
-	}
-	return y, time.Month(mo), d, true
+	base.Start, base.End, base.AllDay = start, end, false
+	return base, true
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/secretbox"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 )
@@ -14,12 +15,33 @@ type Repository interface {
 	GetWorkTask(ctx context.Context, taskID, userID string) (*model.WorkTask, error)
 	CreateWorkTask(ctx context.Context, userID, kind, title, status string) (*model.WorkTask, error)
 	PatchWorkTask(ctx context.Context, taskID, userID string, patch repository.WorkTaskPatch) (*model.WorkTask, error)
+	ListGoogleEventIDs(ctx context.Context, userID string) ([]string, error)
+	ClearAllGoogleEventIDs(ctx context.Context, userID string) error
+	ClearGoogleEventIDByEventID(ctx context.Context, userID, eventID string) error
+
 	GetUserSettings(ctx context.Context, userID string) (*model.UserSettings, error)
-	UpsertUserSettings(ctx context.Context, userID string, googleSync *bool) (*model.UserSettings, error)
+	UpsertUserSettings(ctx context.Context, userID string, patch repository.UserSettingsPatch) (*model.UserSettings, error)
 	SaveGoogleOAuthState(ctx context.Context, userID, state string) error
 	ConsumeGoogleOAuthState(ctx context.Context, state string) (string, error)
 	SaveGoogleRefreshToken(ctx context.Context, userID, refreshToken string) error
-	ClearGoogleRefreshToken(ctx context.Context, userID string) error
+	MarkGoogleReauthRequired(ctx context.Context, userID string) error
+	ClearGoogleConnection(ctx context.Context, userID string) error
+	SaveGoogleSyncState(ctx context.Context, userID, syncToken string) error
+	ClearGoogleSyncState(ctx context.Context, userID string) error
+
+	UpsertGoogleEvents(ctx context.Context, userID string, events []model.CachedCalendarEvent) error
+	DeleteGoogleEvents(ctx context.Context, userID, calendarID string, eventIDs []string) error
+	ClearGoogleEventsCache(ctx context.Context, userID string) error
+	ListGoogleEvents(ctx context.Context, userID, calendarID string, timeMin, timeMax time.Time) ([]model.CachedCalendarEvent, error)
+}
+
+// GoogleEventInput is a create/update payload for a Google Calendar event.
+type GoogleEventInput struct {
+	Title      string
+	Start      time.Time
+	End        time.Time
+	AllDay     bool
+	CalendarID string
 }
 
 type Service interface {
@@ -35,17 +57,23 @@ type Service interface {
 	HandleGoogleCallback(ctx context.Context, code, state string) (string, error)
 	DisconnectGoogleCalendar(ctx context.Context, userID string) (*model.UserSettingsView, error)
 	ListGoogleCalendarEvents(ctx context.Context, userID string, timeMin, timeMax time.Time) ([]googleadapter.CalendarEvent, error)
+	CreateGoogleCalendarEvent(ctx context.Context, userID string, in GoogleEventInput) (*googleadapter.CalendarEvent, error)
+	UpdateGoogleCalendarEvent(ctx context.Context, userID, eventID string, in GoogleEventInput) (*googleadapter.CalendarEvent, error)
+	DeleteGoogleCalendarEvent(ctx context.Context, userID, eventID, calendarID string) error
+	ListGoogleCalendars(ctx context.Context, userID string) ([]googleadapter.Calendar, error)
 }
 
 type trackerService struct {
-	repo             Repository
-	google           *googleadapter.Client
-	honeCallbackURL  string
+	repo            Repository
+	google          *googleadapter.Client
+	cipher          *secretbox.Cipher
+	honeCallbackURL string
 }
 
 type Deps struct {
 	Repo            Repository
 	Google          *googleadapter.Client
+	Cipher          *secretbox.Cipher
 	HoneCallbackURL string
 }
 
@@ -54,5 +82,10 @@ func New(deps Deps) Service {
 	if callback == "" {
 		callback = "nordly://settings"
 	}
-	return &trackerService{repo: deps.Repo, google: deps.Google, honeCallbackURL: callback}
+	return &trackerService{
+		repo:            deps.Repo,
+		google:          deps.Google,
+		cipher:          deps.Cipher,
+		honeCallbackURL: callback,
+	}
 }

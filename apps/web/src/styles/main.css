@@ -254,7 +254,12 @@
 
 .druzya-excalidraw .excalidraw .layer-ui__wrapper__top-right,
 .druzya-excalidraw .excalidraw .scroll-back-to-content,
-.druzya-excalidraw .excalidraw .help-icon {
+.druzya-excalidraw .excalidraw .help-icon,
+.druzya-excalidraw .excalidraw .App-menu__left,
+.druzya-excalidraw .excalidraw .App-menu_left,
+.druzya-excalidraw .excalidraw .color-picker-container,
+.druzya-excalidraw .excalidraw .zoom-actions,
+.druzya-excalidraw .excalidraw .layer-ui__wrapper__footer-left {
   display: none !important;
 }
 

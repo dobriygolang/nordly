@@ -15,6 +15,7 @@ import {
   excalidrawSiteAppState,
   excalidrawThemeFor,
 } from '@/lib/collab/excalidrawTheme'
+import { boardThemeSceneFromCanonical } from '@/lib/collab/excalidrawBoardColors'
 import { applyDocumentMeta } from '@/lib/site/documentMeta'
 import { useI18n } from '@/lib/i18n'
 
@@ -119,7 +120,10 @@ export default function PublishedBoardPage() {
           UIOptions={EXCALIDRAW_UI_OPTIONS}
           viewModeEnabled
           initialData={{
-            elements: scene.elements as never[],
+            elements: boardThemeSceneFromCanonical(
+              scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+              'dark',
+            ) as never[],
             files: scene.files as never,
             appState: excalidrawSiteAppState('dark'),
           }}

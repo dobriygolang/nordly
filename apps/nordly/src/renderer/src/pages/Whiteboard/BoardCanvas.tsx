@@ -27,8 +27,9 @@ import {
   sanitizeAppStateForPersistence,
 } from '@shared/lib/excalidraw/excalidrawPersist';
 import {
-  elementsForBoardTheme,
-  elementsToCanonicalStorage,
+  applyLocalBoardTheme,
+  boardThemeSceneFromCanonical,
+  canonicalizeElementsForStorage,
 } from '@shared/lib/excalidraw/excalidrawBoardColors';
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -60,18 +61,18 @@ interface BoardCanvasProps {
 
 function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
   const parsed = parseSceneJson(sceneJson);
-  const rawElements = parsed?.elements ?? [];
+  const canonical = canonicalizeElementsForStorage(
+    (parsed?.elements ?? []) as Parameters<typeof canonicalizeElementsForStorage>[0],
+  );
   return {
-    elements: elementsForBoardTheme(
-      rawElements as Parameters<typeof elementsForBoardTheme>[0],
-      boardTheme,
-    ),
+    elements: boardThemeSceneFromCanonical(canonical, boardTheme),
     files: parsed?.files ?? {},
     appState: mergePersistedAppState(
       nordlyExcalidrawInitialAppState(boardTheme),
       parsed?.appState,
       boardTheme,
     ),
+    canonicalElements: canonical,
   };
 }
 
@@ -82,6 +83,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const sceneRef = useRef<WhiteboardScene | null>(null);
   const appStateRef = useRef<Record<string, unknown>>({});
   const skipSaveRef = useRef(true);
+  const applyingThemeRef = useRef(false);
+  const themeApplyTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawApi | null>(null);
   const onSavedRef = useRef(onSaved);
@@ -136,18 +139,36 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     (api: ExcalidrawApi, theme: BoardCanvasTheme, prevTheme: BoardCanvasTheme | null) => {
       let elements: unknown[] | undefined;
       if (prevTheme !== null && prevTheme !== theme) {
-        const canonical = elementsToCanonicalStorage(
-          api.getSceneElements() as Parameters<typeof elementsToCanonicalStorage>[0],
-          prevTheme,
+        const canonical = canonicalizeElementsForStorage(
+          (sceneRef.current?.elements ??
+            api.getSceneElements()) as Parameters<typeof canonicalizeElementsForStorage>[0],
         );
-        elements = elementsForBoardTheme(canonical, theme);
+        elements = applyLocalBoardTheme(
+          canonical as Parameters<typeof applyLocalBoardTheme>[0],
+          theme,
+        );
+        if (sceneRef.current) {
+          sceneRef.current = { ...sceneRef.current, elements: canonical };
+        }
       }
 
-      api.updateScene({
-        elements,
-        appState: nordlyExcalidrawCanvasPatch(theme),
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
+      if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current);
+      applyingThemeRef.current = true;
+      try {
+        api.updateScene({
+          elements,
+          appState: nordlyExcalidrawCanvasPatch(theme),
+          captureUpdate:
+            elements && elements.length > 0
+              ? CaptureUpdateAction.IMMEDIATELY
+              : CaptureUpdateAction.NEVER,
+        });
+      } finally {
+        themeApplyTimerRef.current = window.setTimeout(() => {
+          applyingThemeRef.current = false;
+          themeApplyTimerRef.current = null;
+        }, 300);
+      }
     },
     [],
   );
@@ -159,7 +180,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     setExcalidrawApi(null);
     prevBoardThemeRef.current = null;
     sceneRef.current = {
-      elements: initialData.elements,
+      elements: initialData.canonicalElements,
       files: initialData.files,
       appState: initialData.appState,
     };
@@ -206,15 +227,14 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
 
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
-      if (skipSaveRef.current) return;
+      if (skipSaveRef.current || applyingThemeRef.current) return;
       appStateRef.current = sanitizeAppStateForPersistence(
         (appState as Record<string, unknown>) ?? {},
         boardTheme,
       ) ?? nordlyExcalidrawInitialAppState(boardTheme);
       sceneRef.current = {
-        elements: elementsToCanonicalStorage(
-          elements as Parameters<typeof elementsToCanonicalStorage>[0],
-          boardThemeRef.current,
+        elements: canonicalizeElementsForStorage(
+          elements as Parameters<typeof canonicalizeElementsForStorage>[0],
         ),
         files: (files as Record<string, unknown>) ?? {},
         appState: appStateRef.current,
@@ -231,6 +251,9 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     <div
       className={`${NORDLY_EXCALIDRAW_MOUNT_CLASS} nordly-whiteboard-canvas`}
       data-board-theme={boardTheme}
+      onWheelCapture={(e) => {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+      }}
     >
       <Excalidraw
         key={boardId}
@@ -241,7 +264,13 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
           appState: initialData.appState as never,
         }}
         onChange={handleChange}
-        excalidrawAPI={(api) => setExcalidrawApi(api as ExcalidrawApi)}
+        excalidrawAPI={(api) => {
+          setExcalidrawApi(api as ExcalidrawApi);
+          api.updateScene({
+            appState: nordlyExcalidrawCanvasPatch(boardThemeRef.current),
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+        }}
         UIOptions={NORDLY_EXCALIDRAW_UI_OPTIONS}
         aiEnabled={false}
         renderTopRightUI={() => null}

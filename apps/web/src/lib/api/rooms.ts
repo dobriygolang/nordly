@@ -81,14 +81,13 @@ export async function createGuestRoom(input: {
   }))
   const tokens = parseAuthTokens(body)
   const room = normalizeRoom(body.room as CodeRoom)
-  const inviteRaw = body.invite as InviteLink | undefined
+  const inviteRaw = body.invite as { url?: string; expires_at?: string } | undefined
   const invite: InviteLink = inviteRaw
     ? {
         url: inviteRaw.url ?? '',
-        token: inviteRaw.token ?? '',
         expires_at: inviteRaw.expires_at,
       }
-    : { url: '', token: '' }
+    : { url: '' }
   return {
     access_token: tokens.access_token,
     expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),

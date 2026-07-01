@@ -31,6 +31,22 @@ import {
 const SIDEBAR_W = 252;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
 
+async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {
+  try {
+    await navigator.clipboard.writeText(url);
+    return 'copied';
+  } catch {
+    /* clipboard denied or unavailable */
+  }
+  const open = window.nordly?.shell.openExternal;
+  if (open) {
+    await open(url);
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  return 'opened';
+}
+
 interface WhiteboardPageProps {
   boardCanvas: BoardCanvasTheme;
 }
@@ -231,10 +247,16 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       const title = activeRef.current?.title;
       const res = await remoteShareWhiteboard(sceneJson, title);
       const url = `${import.meta.env.VITE_NORDLY_WEB_BASE ?? 'https://trynordly.app'}/live/${res.roomId}`;
-      await navigator.clipboard.writeText(url);
-      const open = window.nordly?.shell.openExternal;
-      if (open) void open(url);
-      setShareMsg(t('nordly.whiteboard.share_copied'));
+      const outcome = await copyLinkAndOpen(url);
+      if (outcome === 'copied') {
+        const open = window.nordly?.shell.openExternal;
+        if (open) void open(url);
+      }
+      setShareMsg(
+        outcome === 'copied'
+          ? t('nordly.whiteboard.share_copied')
+          : t('nordly.whiteboard.share_opened'),
+      );
     } catch (err: unknown) {
       setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
     }
@@ -247,10 +269,16 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title;
       const res = await remotePublishWhiteboard(sceneJson, title);
-      await navigator.clipboard.writeText(res.url);
-      const open = window.nordly?.shell.openExternal;
-      if (open) void open(res.url);
-      setShareMsg(t('nordly.whiteboard.publish_copied'));
+      const outcome = await copyLinkAndOpen(res.url);
+      if (outcome === 'copied') {
+        const open = window.nordly?.shell.openExternal;
+        if (open) void open(res.url);
+      }
+      setShareMsg(
+        outcome === 'copied'
+          ? t('nordly.whiteboard.publish_copied')
+          : t('nordly.whiteboard.publish_opened'),
+      );
     } catch (err: unknown) {
       setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
     }

@@ -37,6 +37,18 @@ export function applyLocalBoardTheme<T extends ColoredElement>(
   return elements.map((el) => patchElementColors(el, strokeColor, 'transparent'))
 }
 
+export function boardElementsNeedThemeRemap<T extends ColoredElement & { isDeleted?: boolean }>(
+  elements: readonly T[],
+  boardTheme: BoardCanvasTheme,
+): boolean {
+  const strokeColor = EXCALIDRAW_STROKE[boardTheme]
+  for (const el of elements) {
+    if (el.isDeleted) continue
+    if (el.strokeColor !== strokeColor) return true
+  }
+  return false
+}
+
 export function boardThemeSceneFromCanonical<T extends ColoredElement>(
   canonicalElements: readonly T[],
   boardTheme: BoardCanvasTheme,

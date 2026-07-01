@@ -28,7 +28,6 @@ export function excalidrawCanvasBg(boardTheme: BoardCanvasTheme): string {
 
 export function excalidrawSiteAppState(boardTheme: BoardCanvasTheme = 'dark') {
   return {
-    theme: excalidrawThemeFor(boardTheme),
     viewBackgroundColor: excalidrawCanvasBg(boardTheme),
     showWelcomeScreen: false,
     currentItemStrokeColor: EXCALIDRAW_STROKE[boardTheme],
@@ -38,7 +37,6 @@ export function excalidrawSiteAppState(boardTheme: BoardCanvasTheme = 'dark') {
 
 export function excalidrawCanvasPatch(boardTheme: BoardCanvasTheme) {
   return {
-    theme: excalidrawThemeFor(boardTheme),
     viewBackgroundColor: excalidrawCanvasBg(boardTheme),
     currentItemStrokeColor: EXCALIDRAW_STROKE[boardTheme],
     currentItemBackgroundColor: 'transparent',

@@ -252,10 +252,11 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           /* optional seed */
         })
         .finally(() => {
+          // Allow local edits once initial scene seed is done. Do not gate on peer
+          // count — with 2+ clients connected, awareness size is always > 1 and
+          // edits would never sync without a prior remote snapshot.
           window.setTimeout(() => {
-            const awareness = awarenessRef.current
-            const peers = awareness ? awareness.getStates().size : 0
-            if (!gotRemoteRef.current && peers <= 1) {
+            if (!gotRemoteRef.current) {
               canPublishLocalRef.current = true
             }
           }, 300)

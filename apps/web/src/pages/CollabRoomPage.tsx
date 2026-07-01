@@ -27,7 +27,9 @@ import {
   closeRoom,
   getRoom,
   guestJoin,
+  persistGuestRoom,
   persistGuestToken,
+  readGuestRoom,
   readGuestToken,
 } from '@/lib/api/rooms'
 import { readGuestDisplayName, persistGuestDisplayName } from '@/lib/live/guestDisplayName'
@@ -66,7 +68,9 @@ export default function CollabRoomPage() {
   const [wsStatus, setWsStatus] = useState<import('@/lib/ws/collabEditor').EditorWsStatus>('connecting')
   const [guestName, setGuestName] = useState(() => readGuestDisplayName())
   const [guestToken, setGuestToken] = useState(() => readGuestToken(roomId))
-  const [guestRoom, setGuestRoom] = useState<import('@/lib/api/rooms').CodeRoom | null>(null)
+  const [guestRoom, setGuestRoom] = useState<import('@/lib/api/rooms').CodeRoom | null>(() =>
+    readGuestRoom(roomId),
+  )
   const [fontSize, setFontSize] = useState(14)
   const [peers, setPeers] = useState<CollabPeer[]>([])
   const [theme, setTheme] = useState<LiveRoomTheme>(() => readLiveRoomTheme())
@@ -75,6 +79,7 @@ export default function CollabRoomPage() {
 
   useEffect(() => {
     setGuestToken(readGuestToken(roomId))
+    setGuestRoom(readGuestRoom(roomId))
   }, [roomId])
 
   const roomQ = useQuery({
@@ -84,10 +89,15 @@ export default function CollabRoomPage() {
     retry: false,
   })
 
+  useEffect(() => {
+    if (roomQ.data) persistGuestRoom(roomId, roomQ.data)
+  }, [roomId, roomQ.data])
+
   const guestJoinM = useMutation({
     mutationFn: () => guestJoin(roomId, inviteToken ?? '', guestName.trim() || 'guest'),
     onSuccess: (result) => {
       persistGuestToken(roomId, result.access_token)
+      persistGuestRoom(roomId, result.room)
       setGuestToken(result.access_token)
       setGuestRoom(result.room)
     },
@@ -178,20 +188,7 @@ export default function CollabRoomPage() {
     return <EditorShell message={t('live.loadingRoom')} />
   }
 
-  const room =
-    guestRoom ??
-    roomQ.data ??
-    (guestToken
-      ? {
-          id: roomId,
-          owner_id: jwtSubject(guestToken) ?? '',
-          room_type: 'practice',
-          language: 'go',
-          visibility: 'shared',
-          ws_url: `/ws/editor/${roomId}`,
-          participants: [],
-        }
-      : null)
+  const room = guestRoom ?? roomQ.data ?? null
 
   if (!room) {
     return (

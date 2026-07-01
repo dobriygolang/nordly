@@ -44,6 +44,7 @@ function normalizeRoom(raw: CodeRoom): CodeRoom {
 }
 
 const guestTokenKey = (roomId: string) => `nordly_guest_token_${roomId}`
+const guestRoomKey = (roomId: string) => `nordly_guest_room_${roomId}`
 
 export function readGuestToken(roomId: string): string | null {
   try {
@@ -56,6 +57,24 @@ export function readGuestToken(roomId: string): string | null {
 export function persistGuestToken(roomId: string, token: string): void {
   try {
     sessionStorage.setItem(guestTokenKey(roomId), token)
+  } catch {
+    /* noop */
+  }
+}
+
+export function readGuestRoom(roomId: string): CodeRoom | null {
+  try {
+    const raw = sessionStorage.getItem(guestRoomKey(roomId))
+    if (!raw) return null
+    return normalizeRoom(JSON.parse(raw) as CodeRoom)
+  } catch {
+    return null
+  }
+}
+
+export function persistGuestRoom(roomId: string, room: CodeRoom): void {
+  try {
+    sessionStorage.setItem(guestRoomKey(roomId), JSON.stringify(room))
   } catch {
     /* noop */
   }
@@ -132,6 +151,7 @@ export async function guestJoin(
   const body = normalizeProtoJson(await res.json()) as Record<string, unknown>
   const tokens = parseAuthTokens(body)
   const room = normalizeRoom(body.room as CodeRoom)
+  persistGuestRoom(id, room)
   return {
     access_token: tokens.access_token,
     expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),

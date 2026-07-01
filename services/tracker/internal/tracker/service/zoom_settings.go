@@ -101,9 +101,7 @@ func (s *trackerService) zoomBridgeURL() *url.URL {
 		return u
 	}
 	path := strings.TrimSuffix(u.Path, "/")
-	if strings.HasSuffix(path, "/oauth/google-calendar") {
-		path = strings.TrimSuffix(path, "/oauth/google-calendar")
-	}
+	path = strings.TrimSuffix(path, "/oauth/google-calendar")
 	if !strings.HasSuffix(path, "/oauth/zoom") {
 		path = strings.TrimRight(path, "/") + "/oauth/zoom"
 	}

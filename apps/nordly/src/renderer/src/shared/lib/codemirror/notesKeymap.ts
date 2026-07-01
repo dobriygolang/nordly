@@ -1,6 +1,8 @@
 import { indentLess, indentMore } from '@codemirror/commands';
 import type { EditorState, Transaction } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
+
+import { NOTES_CODE_LANGS } from './notesCodeLanguages';
 
 function wrapSelection(state: EditorState, before: string, after: string, placeholder = ''): Transaction | null {
   const range = state.selection.main;
@@ -33,6 +35,122 @@ function prependLines(state: EditorState, prefix: string | ((i: number) => strin
     selection: { anchor: lineStart, head: lineStart + transformed.length },
   });
 }
+
+function parseOpeningFence(lineText: string): { fence: string; lang: string } | null {
+  const match = /^(`{3,})([\w-]*)\s*$/.exec(lineText);
+  if (!match) return null;
+  return { fence: match[1], lang: match[2] ?? '' };
+}
+
+function isExactKnownLang(lang: string): boolean {
+  const raw = lang.toLowerCase();
+  return NOTES_CODE_LANGS.some((l) => l.id === raw || l.aliases.some((a) => a === raw));
+}
+
+function fenceClosesBelow(state: EditorState, openLineNumber: number): boolean {
+  for (let n = openLineNumber + 1; n <= state.doc.lines; n++) {
+    const text = state.doc.lineAt(n).text.trim();
+    if (/^`{3,}\s*$/.test(text)) return true;
+  }
+  return false;
+}
+
+/** ```lang → ```lang\n[cursor]\n``` — closing fence inserted by the editor. */
+function openFenceBlock(
+  view: EditorView,
+  line: { from: number; to: number; number: number },
+  fence: string,
+  firstChar = '',
+): boolean {
+  if (fenceClosesBelow(view.state, line.number)) return false;
+
+  const insert = `\n${firstChar}\n${fence}\n`;
+  view.dispatch({
+    changes: { from: line.to, insert },
+    selection: { anchor: line.to + 1 + firstChar.length },
+  });
+  return true;
+}
+
+/** Enter on ``` / ```lang — land on the content line inside the block. */
+function completeFenceOnEnter(view: EditorView): boolean {
+  const { state } = view;
+  const { from, to } = state.selection.main;
+  if (from !== to) return false;
+
+  const line = state.doc.lineAt(from);
+  if (from !== line.to) return false;
+
+  const parsed = parseOpeningFence(state.sliceDoc(line.from, line.to));
+  if (!parsed) return false;
+
+  return openFenceBlock(view, line, parsed.fence);
+}
+
+/**
+ * Auto-close fenced blocks while typing:
+ * - third ` on a bare ``` line
+ * - last letter of a known lang (```go) → cursor inside the block
+ * - any further character on ```lang → starts code on the content line
+ */
+export const fenceAutoCloseInput = EditorView.inputHandler.of((view, from, to, text) => {
+  if (from !== to) return false;
+
+  const line = view.state.doc.lineAt(from);
+  const lineText = view.state.sliceDoc(line.from, line.to);
+  const atLineEnd = from === line.to;
+
+  // Bare ``` — third backtick completes the opening fence line.
+  if (text === '`') {
+    const before = view.state.sliceDoc(line.from, from);
+    if (!before.endsWith('``') || view.state.sliceDoc(from, line.to).length > 0) return false;
+
+    const fenceMatch = /^(`{3,})\s*$/.exec(`${before}\``);
+    if (!fenceMatch || fenceClosesBelow(view.state, line.number)) return false;
+
+    const fence = fenceMatch[1];
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: `${fence}\n\n${fence}\n` },
+      selection: { anchor: line.from + fence.length + 1 },
+    });
+    return true;
+  }
+
+  if (!atLineEnd) return false;
+
+  const parsed = parseOpeningFence(lineText);
+  if (!parsed || fenceClosesBelow(view.state, line.number)) return false;
+
+  const nextLineText = lineText + text;
+
+  // Finishing a known lang token (```go) — open block immediately, cursor inside.
+  if (/[\w-]/.test(text)) {
+    const nextParsed = parseOpeningFence(nextLineText);
+    if (
+      nextParsed?.lang &&
+      isExactKnownLang(nextParsed.lang) &&
+      !isExactKnownLang(parsed.lang)
+    ) {
+      view.dispatch({
+        changes: { from, to, insert: `${text}\n\n${nextParsed.fence}\n` },
+        selection: { anchor: from + text.length + 1 },
+      });
+      return true;
+    }
+  }
+
+  // ```lang already complete — first keystroke of code goes on the content line.
+  if (parsed.lang) {
+    if (text === ' ') {
+      return openFenceBlock(view, line, parsed.fence);
+    }
+    if (text.length === 1) {
+      return openFenceBlock(view, line, parsed.fence, text);
+    }
+  }
+
+  return false;
+});
 
 function continueListOnEnter(view: EditorView): boolean {
   const { state } = view;
@@ -139,6 +257,7 @@ export const notesKeymap = [
   {
     key: 'Enter',
     run(view: EditorView) {
+      if (completeFenceOnEnter(view)) return true;
       return continueListOnEnter(view);
     },
   },

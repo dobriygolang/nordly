@@ -12,7 +12,7 @@ import {
   notesCodeSyntaxHighlighting,
   notesMarkdownSupport,
 } from '@shared/lib/codemirror/notesCodeLanguages';
-import { notesKeymap } from '@shared/lib/codemirror/notesKeymap';
+import { notesKeymap, fenceAutoCloseInput } from '@shared/lib/codemirror/notesKeymap';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
@@ -95,6 +95,7 @@ export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdow
           codeBlockField,
           livePreviewPlugin,
           notesEditorTheme,
+          fenceAutoCloseInput,
           EditorView.lineWrapping,
           keymap.of([...notesKeymap, ...defaultKeymap, ...historyKeymap]),
           EditorView.updateListener.of((update) => {

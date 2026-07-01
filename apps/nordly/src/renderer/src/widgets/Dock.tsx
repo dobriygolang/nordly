@@ -39,7 +39,14 @@ const DOCK_CSS = `
   color: var(--ink);
 }
 .nordly-dock-btn[data-variant="menu"]:hover {
-  opacity: 0.75;
+  opacity: 1;
+}
+.nordly-dock-btn__icon {
+  display: flex;
+  transition: transform var(--motion-dur-xxlarge) var(--motion-ease-interactive);
+}
+.nordly-dock-btn[data-variant="menu"]:hover .nordly-dock-btn__icon {
+  transform: rotate(180deg);
 }
 .nordly-dock-btn[data-variant="action"]:hover {
   transform: scale(1.02);
@@ -98,7 +105,9 @@ const DOCK_CSS = `
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-  .nordly-dock-btn[data-variant="menu"]:hover,
+  .nordly-dock-btn[data-variant="menu"]:hover .nordly-dock-btn__icon {
+    transform: none;
+  }
   .nordly-dock-btn[data-variant="action"]:hover,
   .nordly-dock-btn[data-variant="action"]:active {
     transform: none;
@@ -141,7 +150,9 @@ export function Dock({ onMenu }: DockProps) {
         }
       >
         <DockBtn onClick={onMenu} title="Menu (⌘K)" ariaLabel="Open menu" variant="menu">
-          <Icon name="menu" size={14} />
+          <span className="nordly-dock-btn__icon">
+            <Icon name="menu" size={14} />
+          </span>
         </DockBtn>
         <Divider />
         <TimerControls />

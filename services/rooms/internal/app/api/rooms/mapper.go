@@ -3,7 +3,6 @@ package roomsapi
 import (
 	"errors"
 
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
@@ -61,11 +60,6 @@ func mapServiceError(err error) error {
 		return status.Errorf(codes.Unavailable, "guest join unavailable")
 	}
 	return status.Errorf(codes.Internal, "internal error")
-}
-
-func parseUserActor(userID string) uuid.UUID {
-	id, _ := uuid.Parse(userID)
-	return id
 }
 
 func defaultLanguage(lang string) model.Language {

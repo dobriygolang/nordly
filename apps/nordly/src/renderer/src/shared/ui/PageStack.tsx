@@ -2,8 +2,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { PageId } from '@widgets/Palette';
 
-import { PageSkeleton } from './Skeleton';
-
+/** Matches page-layer opacity transition (`--motion-dur-small`). */
 const PAGE_FADE_MS = 220;
 
 type LayerStatus = 'active' | 'entering' | 'leaving';
@@ -50,11 +49,9 @@ export function PageStack({
     ]);
 
     const enterRaf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setLayers((prev) =>
-          prev.map((l) => (l.status === 'entering' ? { ...l, status: 'active' as const } : l)),
-        );
-      });
+      setLayers((prev) =>
+        prev.map((l) => (l.status === 'entering' ? { ...l, status: 'active' as const } : l)),
+      );
     });
 
     window.clearTimeout(timerRef.current);
@@ -77,7 +74,7 @@ export function PageStack({
           data-status={layer.status}
           aria-hidden={layer.status === 'leaving' ? true : undefined}
         >
-          <Suspense fallback={<PageSkeleton />}>{children(layer.id)}</Suspense>
+          <Suspense fallback={null}>{children(layer.id)}</Suspense>
         </div>
       ))}
     </>

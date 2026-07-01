@@ -1233,11 +1233,12 @@ button.nordly-calendar-event:hover {
   align-items: center;
   justify-content: center;
   background: rgb(0 0 0 / 0.78);
+  opacity: 1;
+  transition: opacity var(--motion-dur-small) var(--motion-ease-interactive);
 }
 .nordly-palette-scrim[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--motion-dur-medium) var(--motion-ease-interactive);
 }
 .nordly-palette-panel {
   width: min(540px, 92vw);
@@ -1246,14 +1247,16 @@ button.nordly-calendar-event:hover {
   flex-direction: column;
   overflow: hidden;
   border-radius: 12px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity var(--motion-dur-small) var(--motion-ease-interactive),
+    transform var(--motion-dur-small) var(--motion-ease-interactive);
 }
 .nordly-palette-panel[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.985) translateY(6px);
-  transition:
-    opacity var(--motion-dur-medium) var(--motion-ease-interactive),
-    transform var(--motion-dur-medium) var(--motion-ease-interactive);
+  transform: scale(0.985) translateY(4px);
 }
 .nordly-palette-search {
   display: flex;
@@ -1631,29 +1634,22 @@ html.light .nordly-palette-chip {
   min-height: 0;
   z-index: 1;
   opacity: 1;
-  transform: translateY(0) scale(1);
-  transition:
-    opacity var(--motion-dur-large) var(--motion-ease-interactive),
-    transform var(--motion-dur-large) var(--motion-ease-interactive);
-  will-change: opacity, transform;
+  transition: opacity var(--motion-dur-small) var(--motion-ease-interactive);
   contain: layout style paint;
   pointer-events: auto;
 }
 .nordly-page-layer[data-status='leaving'] {
   opacity: 0;
-  transform: translateY(-4px) scale(0.995);
   pointer-events: none;
   z-index: 1;
 }
 .nordly-page-layer[data-status='entering'] {
   opacity: 0;
-  transform: translateY(8px) scale(0.995);
   pointer-events: none;
   z-index: 2;
 }
 .nordly-page-layer[data-status='active'] {
   opacity: 1;
-  transform: translateY(0) scale(1);
   pointer-events: auto;
   z-index: 2;
 }

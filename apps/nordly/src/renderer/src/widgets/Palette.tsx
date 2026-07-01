@@ -56,6 +56,13 @@ const NAV_ITEMS: Array<{
   { id: 'settings', labelKey: 'nordly.palette.nav_settings', icon: 'settings', shortcut: [','] },
 ];
 
+const PALETTE_PAGE_PRELOAD: Partial<Record<string, () => void>> = {
+  today: () => void import('@pages/TaskBoard'),
+  notes: () => void import('@pages/Notes'),
+  whiteboard: () => void import('@pages/Whiteboard'),
+  settings: () => void import('@pages/Settings'),
+};
+
 export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = false }: PaletteProps) {
   const t = useT();
   const [locale] = useLocale();
@@ -115,7 +122,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
   const runRow = (row: Row) => {
     if (row.kind === 'nav') {
       row.item.run();
-      onClose();
       return;
     }
     const whenDate = buildCreateScheduleDate(
@@ -124,7 +130,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
       timeCustomizedRef.current,
     );
     onCreateTask?.(row.title, whenDate);
-    onClose();
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -148,12 +153,12 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
 
   return (
     <div
-      className="nordly-palette-scrim motion-scrim-in"
+      className="nordly-palette-scrim"
       data-closing={closing ? 'true' : undefined}
       onClick={onClose}
     >
       <div
-        className="nordly-palette-panel motion-modal-in"
+        className="nordly-palette-panel"
         data-closing={closing ? 'true' : undefined}
         onClick={(e) => e.stopPropagation()}
       >
@@ -240,7 +245,10 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
                 type="button"
                 className="nordly-palette-row nordly-palette-option"
                 data-active={active ? 'true' : 'false'}
-                onMouseEnter={() => setIdx(i)}
+                onMouseEnter={() => {
+                  PALETTE_PAGE_PRELOAD[it.id]?.();
+                  setIdx(i);
+                }}
                 onClick={() => runRow(row)}
                 role="option"
                 aria-selected={active}

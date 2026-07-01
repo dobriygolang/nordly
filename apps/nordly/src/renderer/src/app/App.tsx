@@ -44,7 +44,15 @@ const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
 );
 
-const PALETTE_UNMOUNT_DELAY_MS = 160;
+/** Must match palette close transition in globals.css (`--motion-dur-small`). */
+const PALETTE_CLOSE_MS = 220;
+
+function preloadPalettePages(): void {
+  void import('@pages/TaskBoard');
+  void import('@pages/Notes');
+  void import('@pages/Settings');
+  void import('@pages/Whiteboard');
+}
 
 type StartFocusArgs = PomodoroStartArgs;
 
@@ -282,6 +290,7 @@ export default function App() {
   );
 
   const openPalette = useCallback((taskDate?: Date | null) => {
+    preloadPalettePages();
     setPaletteTaskDate(taskDate ?? null);
     setPaletteOpen(true);
   }, []);
@@ -302,12 +311,21 @@ export default function App() {
     const t = window.setTimeout(() => {
       setPaletteMounted(false);
       setPaletteClosing(false);
-    }, PALETTE_UNMOUNT_DELAY_MS);
+    }, PALETTE_CLOSE_MS);
     return () => window.clearTimeout(t);
   }, [paletteOpen, paletteMounted]);
 
+  const handlePaletteSelect = useCallback(
+    (id: PaletteAction) => {
+      closePalette();
+      openImpl(id);
+    },
+    [closePalette, openImpl],
+  );
+
   const handlePaletteCreateTask = useCallback(
     async (title: string, date: Date) => {
+      closePalette();
       const dayKey = toDayKey(date);
       try {
         const existing = await listTasks();
@@ -320,7 +338,7 @@ export default function App() {
         /* silent */
       }
     },
-    [navigateTo],
+    [closePalette, navigateTo],
   );
 
   useEffect(() => {
@@ -460,10 +478,7 @@ export default function App() {
         <Suspense fallback={null}>
           <Palette
             onClose={closePalette}
-            onOpen={(id) => {
-              openImpl(id);
-              closePalette();
-            }}
+            onOpen={handlePaletteSelect}
             taskDate={paletteTaskDate}
             onCreateTask={handlePaletteCreateTask}
             closing={paletteClosing}

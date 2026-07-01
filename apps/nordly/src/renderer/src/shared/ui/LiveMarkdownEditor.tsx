@@ -4,11 +4,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { markdownLanguage } from '@codemirror/lang-markdown';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 
-import { livePreviewPlugin, notesEditorTheme } from '@shared/lib/codemirror/livePreview';
+import { codeBlockField, livePreviewPlugin, notesEditorTheme } from '@shared/lib/codemirror/livePreview';
+import {
+  notesCodeSyntaxHighlighting,
+  notesMarkdownSupport,
+} from '@shared/lib/codemirror/notesCodeLanguages';
 import { notesKeymap } from '@shared/lib/codemirror/notesKeymap';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
@@ -87,7 +90,9 @@ export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdow
         doc: value,
         extensions: [
           history(),
-          markdownLanguage,
+          notesMarkdownSupport,
+          notesCodeSyntaxHighlighting,
+          codeBlockField,
           livePreviewPlugin,
           notesEditorTheme,
           EditorView.lineWrapping,
@@ -143,8 +148,8 @@ export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdow
     return {
       insertBlock: (prefix) => replaceSlashWith(prefix),
       insertCodeBlock: () => {
-        const block = '```javascript\n\n```\n';
-        replaceSlashWith(block, '```javascript\n'.length);
+        const block = '```go\n\n```\n';
+        replaceSlashWith(block, '```go\n'.length);
       },
     };
   }, [slash]);

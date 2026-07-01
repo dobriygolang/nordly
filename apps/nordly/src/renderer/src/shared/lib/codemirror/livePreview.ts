@@ -1,4 +1,5 @@
-import { RangeSetBuilder, type EditorState } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import { RangeSetBuilder, StateField, type EditorState, type Range } from '@codemirror/state';
 import {
   Decoration,
   DecorationSet,
@@ -7,6 +8,8 @@ import {
   WidgetType,
   type ViewUpdate,
 } from '@codemirror/view';
+
+import { notesCodeLangLabel } from './notesCodeLanguages';
 
 function rangeTouches(from: number, to: number, start: number, end: number): boolean {
   return from < end && to > start;
@@ -83,7 +86,50 @@ class HrWidget extends WidgetType {
   }
 }
 
+class CodeLangBadgeWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+
+  eq(other: CodeLangBadgeWidget): boolean {
+    return other.label === this.label;
+  }
+
+  toDOM(): HTMLElement {
+    const bar = document.createElement('div');
+    bar.className = 'nordly-md-code-block__lang-bar';
+    const badge = document.createElement('span');
+    badge.className = 'nordly-md-code-block__lang';
+    badge.textContent = this.label;
+    badge.setAttribute('aria-hidden', 'true');
+    bar.appendChild(badge);
+    return bar;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 const hidden = new HiddenWidget();
+
+function addMark(
+  builder: RangeSetBuilder<Decoration>,
+  from: number,
+  to: number,
+  spec: Parameters<typeof Decoration.mark>[0],
+): void {
+  if (from < to) builder.add(from, to, Decoration.mark(spec));
+}
+
+function pushMark(
+  decorations: Range<Decoration>[],
+  from: number,
+  to: number,
+  spec: Parameters<typeof Decoration.mark>[0],
+): void {
+  if (from < to) decorations.push(Decoration.mark(spec).range(from, to));
+}
 
 function overlapsRange(ranges: [number, number][], start: number, end: number): boolean {
   return ranges.some(([a, b]) => start < b && end > a);
@@ -111,10 +157,10 @@ function applyDelimitedInline(
       const contentStart = start + open;
       const contentEnd = end - close;
       if (showSyntax) {
-        builder.add(contentStart, contentEnd, Decoration.mark({ class: className }));
+        addMark(builder, contentStart, contentEnd, { class: className });
       } else {
         if (open > 0) builder.add(start, start + open, Decoration.replace({ widget: hidden }));
-        builder.add(contentStart, contentEnd, Decoration.mark({ class: className }));
+        addMark(builder, contentStart, contentEnd, { class: className });
         if (close > 0) builder.add(end - close, end, Decoration.replace({ widget: hidden }));
       }
       occupied.push([relStart, relEnd]);
@@ -142,10 +188,10 @@ function applyLinkInline(
       const contentStart = start + 1;
       const contentEnd = contentStart + labelLen;
       if (showSyntax) {
-        builder.add(contentStart, contentEnd, Decoration.mark({ class: 'nordly-md-link' }));
+        addMark(builder, contentStart, contentEnd, { class: 'nordly-md-link' });
       } else {
         builder.add(start, start + 1, Decoration.replace({ widget: hidden }));
-        builder.add(contentStart, contentEnd, Decoration.mark({ class: 'nordly-md-link' }));
+        addMark(builder, contentStart, contentEnd, { class: 'nordly-md-link' });
         builder.add(contentEnd, end, Decoration.replace({ widget: hidden }));
       }
       occupied.push([relStart, relEnd]);
@@ -171,51 +217,82 @@ function decorateInlines(
   applyDelimitedInline(builder, lineFrom, text, showSyntax, /_([^_\n]+)_/g, 'nordly-md-italic', 1, 1, occupied);
 }
 
-function addCodeBlockLine(
-  builder: RangeSetBuilder<Decoration>,
-  line: { from: number; to: number },
-  showSyntax: boolean,
-  kind: 'fence' | 'body',
-): void {
-  builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-code-block' }));
-  if (kind === 'body') {
-    builder.add(line.from, line.to, Decoration.mark({ class: 'nordly-md-code-block__line' }));
-    return;
+function lineInFencedCode(state: EditorState, line: { from: number; to: number }): boolean {
+  const pos = line.from === line.to ? line.from : line.from + 1;
+  let node: import('@lezer/common').SyntaxNode | null = syntaxTree(state).resolve(pos, 1);
+  while (node) {
+    if (node.name === 'FencedCode') return true;
+    node = node.parent;
   }
-  if (showSyntax) {
-    builder.add(line.from, line.to, Decoration.mark({ class: 'nordly-md-code-block__fence' }));
-  } else {
-    builder.add(line.from, line.to, Decoration.replace({ widget: hidden, block: true }));
-  }
+  return false;
 }
+
+function buildCodeBlockDecorations(state: EditorState): DecorationSet {
+  const decorations: Range<Decoration>[] = [];
+
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.name !== 'FencedCode') return;
+
+      const openLine = state.doc.lineAt(node.from);
+      const closeLine = state.doc.lineAt(node.to);
+      const codeInfo = node.node.getChild('CodeInfo');
+      const langInfo = codeInfo ? state.doc.sliceString(codeInfo.from, codeInfo.to).trim() : '';
+      const langLabel = notesCodeLangLabel(langInfo);
+
+      for (let lineNum = openLine.number; lineNum <= closeLine.number; lineNum++) {
+        const line = state.doc.line(lineNum);
+        const showFence = showLineSyntax(state, line);
+        const isOpenFence = lineNum === openLine.number;
+        const isCloseFence = lineNum === closeLine.number;
+
+        decorations.push(Decoration.line({ class: 'nordly-md-code-block' }).range(line.from));
+
+        if (isOpenFence || isCloseFence) {
+          if (showFence) {
+            pushMark(decorations, line.from, line.to, { class: 'nordly-md-code-block__fence' });
+          } else if (isOpenFence && langLabel) {
+            decorations.push(
+              Decoration.replace({
+                widget: new CodeLangBadgeWidget(langLabel),
+                block: true,
+                inclusiveEnd: true,
+              }).range(line.from, line.to),
+            );
+          } else if (line.from < line.to) {
+            decorations.push(Decoration.replace({ widget: hidden }).range(line.from, line.to));
+          }
+        }
+      }
+    },
+  });
+
+  return Decoration.set(decorations.sort((a, b) => a.from - b.from), true);
+}
+
+export const codeBlockField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildCodeBlockDecorations(state);
+  },
+  update(deco, tr) {
+    if (tr.docChanged || tr.selection || tr.reconfigured) {
+      return buildCodeBlockDecorations(tr.state);
+    }
+    return deco;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 function buildLivePreview(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
-  let inFence = false;
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const text = line.text;
     const showSyntax = showLineSyntax(view.state, line);
 
-    const fenceOpen = /^(`{3,})([\w-]*)?\s*$/.exec(text);
-    if (!inFence && fenceOpen) {
-      inFence = true;
-      addCodeBlockLine(builder, line, showSyntax, 'fence');
-      continue;
-    }
-
-    if (inFence && /^`{3,}\s*$/.test(text)) {
-      addCodeBlockLine(builder, line, showSyntax, 'fence');
-      inFence = false;
-      continue;
-    }
-
-    if (inFence) {
-      addCodeBlockLine(builder, line, showSyntax, 'body');
-      continue;
-    }
+    if (lineInFencedCode(view.state, line)) continue;
 
     // Heading — style the whole line (including `#`); hide markers only off-line.
     const heading = /^(#{1,6})(\s*)(.*)$/.exec(text);
@@ -223,14 +300,12 @@ function buildLivePreview(view: EditorView): DecorationSet {
       const level = heading[1].length;
       const prefixEnd = line.from + heading[1].length + heading[2].length;
       if (showSyntax) {
-        builder.add(line.from, line.to, Decoration.mark({ class: `nordly-md-h${level}` }));
+        addMark(builder, line.from, line.to, { class: `nordly-md-h${level}` });
       } else {
         if (prefixEnd > line.from) {
           builder.add(line.from, prefixEnd, Decoration.replace({ widget: hidden }));
         }
-        if (prefixEnd < line.to) {
-          builder.add(prefixEnd, line.to, Decoration.mark({ class: `nordly-md-h${level}` }));
-        }
+        addMark(builder, prefixEnd, line.to, { class: `nordly-md-h${level}` });
       }
       decorateInlines(builder, line.from, text, showSyntax);
       continue;
@@ -288,7 +363,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
       const numFrom = line.from + ordered[1].length;
       const numTo = numFrom + ordered[2].length;
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      builder.add(numFrom, numTo, Decoration.mark({ class: 'nordly-md-list-num' }));
+      addMark(builder, numFrom, numTo, { class: 'nordly-md-list-num' });
       decorateInlines(builder, line.from, text, showSyntax);
       continue;
     }
@@ -358,8 +433,8 @@ export const notesEditorTheme = EditorView.theme({
   '&.cm-focused .cm-selectionBackground': {
     backgroundColor: 'rgb(var(--ink-rgb) / 0.18) !important',
   },
-  /* Live preview wins over CM markdown token colors */
-  '.cm-header, .tok-heading, .tok-heading1, .tok-heading2, .tok-heading3, .tok-strong, .tok-emphasis, .tok-monospace, .tok-strikethrough, .tok-link, .tok-url': {
+  /* Live preview wins over CM markdown token colors — not inside code blocks */
+  '.cm-line:not(.nordly-md-code-block) .cm-header, .cm-line:not(.nordly-md-code-block) .tok-heading, .cm-line:not(.nordly-md-code-block) .tok-heading1, .cm-line:not(.nordly-md-code-block) .tok-heading2, .cm-line:not(.nordly-md-code-block) .tok-heading3, .cm-line:not(.nordly-md-code-block) .tok-strong, .cm-line:not(.nordly-md-code-block) .tok-emphasis, .cm-line:not(.nordly-md-code-block) .tok-monospace, .cm-line:not(.nordly-md-code-block) .tok-strikethrough, .cm-line:not(.nordly-md-code-block) .tok-link, .cm-line:not(.nordly-md-code-block) .tok-url': {
     color: 'inherit',
     fontSize: 'inherit',
     fontWeight: 'inherit',

@@ -84,8 +84,11 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const sendSnapshotRef = useRef<(full: Uint8Array) => void>(() => {})
     const sendAwarenessRef = useRef<(update: Uint8Array) => void>(() => {})
     const pendingEnvelopesRef = useRef<EditorWsEnvelope[]>([])
+    const gotRemoteRef = useRef(false)
     const pendingLocalRef = useRef<ScenePayload | null>(null)
     const localRafRef = useRef(0)
+    /** Block local Yjs writes until server snapshot / remote ops are applied. */
+    const canPublishLocalRef = useRef(false)
 
     const [initialScene, setInitialScene] = useState<ScenePayload>({ elements: [], files: {} })
     const [ready, setReady] = useState(false)
@@ -106,6 +109,10 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         return
       }
       applyWsEnvelope(env, ydoc, awareness)
+      if (env.kind === 'snapshot') {
+        canPublishLocalRef.current = true
+        gotRemoteRef.current = true
+      }
     }, [])
 
     const flushPendingEnvelopes = useCallback(() => {
@@ -120,6 +127,10 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           onRoomClosed: () => onRoomClosedRef.current?.(),
         })
         applyWsEnvelope(env, ydoc, awareness)
+        if (env.kind === 'snapshot') {
+          canPublishLocalRef.current = true
+          gotRemoteRef.current = true
+        }
       }
     }, [])
 
@@ -166,6 +177,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     useEffect(() => {
       if (!token) return
 
+      canPublishLocalRef.current = false
+      gotRemoteRef.current = false
       const ydoc = new Y.Doc()
       ydocRef.current = ydoc
       const awareness = new Awareness(ydoc)
@@ -228,8 +241,18 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         pushSceneToExcalidraw(scene)
       })
 
+      const onAfterTransaction = (tr: Y.Transaction) => {
+        if (tr.origin !== 'remote') return
+        gotRemoteRef.current = true
+        if (tr.changedParentTypes.size > 0) {
+          canPublishLocalRef.current = true
+        }
+      }
+      ydoc.on('afterTransaction', onAfterTransaction)
+
       const onYUpdate = (update: Uint8Array, origin: unknown) => {
         if (origin === 'remote') return
+        if (!canPublishLocalRef.current) return
         sendRef.current(update)
         scheduleSnapshot()
       }
@@ -257,7 +280,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
 
       setInitialScene(readSceneFromYjs(ydoc))
-      setReady(true)
       flushPendingEnvelopes()
 
       return () => {
@@ -265,11 +287,12 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
         if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
         try {
-          sendFullSnapshot()
+          if (canPublishLocalRef.current) sendFullSnapshot()
         } catch {
           /* ignore */
         }
         stopObserving()
+        ydoc.off('afterTransaction', onAfterTransaction)
         document.removeEventListener('visibilitychange', onTabActivity)
         window.removeEventListener('focus', onTabActivity)
         window.removeEventListener('blur', onTabActivity)
@@ -284,9 +307,30 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         awarenessRef.current = null
         apiRef.current = null
         pendingLocalRef.current = null
+        canPublishLocalRef.current = false
         setReady(false)
       }
     }, [roomId, token, displayName, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
+
+    // Mount editor after WS is open (server snapshot may arrive on connect).
+    useEffect(() => {
+      if (status !== 'open' || !ydocRef.current) return
+
+      flushPendingEnvelopes()
+      setInitialScene(readSceneFromYjs(ydocRef.current))
+      setReady(true)
+
+      const soloTimer = window.setTimeout(() => {
+        if (!gotRemoteRef.current) {
+          canPublishLocalRef.current = true
+        }
+      }, 500)
+
+      return () => {
+        window.clearTimeout(soloTimer)
+        setReady(false)
+      }
+    }, [status, roomId, token, flushPendingEnvelopes])
 
     const applyBoardTheme = useCallback((theme: BoardCanvasTheme) => {
       const api = apiRef.current
@@ -330,7 +374,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
     const handleChange = useCallback(
       (elements: readonly unknown[], _appState: unknown, files: unknown) => {
-        if (applyingRemoteRef.current) return
+        if (applyingRemoteRef.current || !canPublishLocalRef.current) return
         const ydoc = ydocRef.current
         if (!ydoc) return
 

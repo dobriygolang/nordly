@@ -55,6 +55,17 @@ html.dark {
   --theme-card-shadow: 0 4px 12px -8px rgba(0, 0, 0, 0.6);
   --theme-card-shadow-active:
     0 0 0 3px var(--ink-tint-08), 0 8px 22px -10px rgb(var(--ink-rgb) / 0.18);
+  /* Code block syntax — mirrors live-coding palette (apps/web) */
+  --editor-syntax-keyword: 245 245 245;
+  --editor-syntax-string: 195 160 160;
+  --editor-syntax-number: 130 175 140;
+  --editor-syntax-comment: 115 115 115;
+  --editor-syntax-function: 215 210 195;
+  --editor-syntax-method: 215 210 195;
+  --editor-syntax-type: 165 175 185;
+  --editor-syntax-variable: 175 180 190;
+  --editor-syntax-constant: 130 175 140;
+  --editor-syntax-operator: 130 130 130;
 }
 
 /* LIGHT theme — sdvg.io palette (matches apps/web/src/styles/main.css). */
@@ -87,6 +98,16 @@ html.light {
     0 1px 1px rgba(15, 15, 15, 0.04), 0 6px 14px -8px rgba(15, 15, 15, 0.16);
   --theme-card-shadow-active:
     0 0 0 3px rgba(15, 15, 15, 0.1), 0 8px 20px -10px rgba(15, 15, 15, 0.22);
+  --editor-syntax-keyword: 15 15 15;
+  --editor-syntax-string: 140 75 75;
+  --editor-syntax-number: 56 130 72;
+  --editor-syntax-comment: 142 142 142;
+  --editor-syntax-function: 75 65 45;
+  --editor-syntax-method: 75 65 45;
+  --editor-syntax-type: 70 95 110;
+  --editor-syntax-variable: 70 85 115;
+  --editor-syntax-constant: 56 110 80;
+  --editor-syntax-operator: 120 120 120;
 }
 
 html,
@@ -1818,6 +1839,9 @@ body.nordly-task-dragging * {
   padding: 0 1rem;
   border-left: 1px solid rgb(var(--ink-rgb) / 0.12);
   border-right: 1px solid rgb(var(--ink-rgb) / 0.12);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.875em;
+  line-height: 1.55;
 }
 
 .nordly-live-md .cm-line.nordly-md-code-block:not(.nordly-md-code-block + .nordly-md-code-block) {
@@ -1836,19 +1860,27 @@ body.nordly-task-dragging * {
   margin-bottom: 0.35rem;
 }
 
-.nordly-md-code-block__line,
-.nordly-md-code-block__fence {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.875em;
-  line-height: 1.55;
-}
-
-.nordly-md-code-block__line {
-  color: var(--ink-90);
-}
-
 .nordly-md-code-block__fence {
   color: var(--ink-40);
+}
+
+.nordly-md-code-block__lang-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 0;
+  margin: -0.15rem 0 0.1rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+.nordly-md-code-block__lang {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--ink-40);
+  text-transform: lowercase;
 }
 
 .nordly-notes-title {

@@ -3,8 +3,8 @@ package trackerapi
 import (
 	"context"
 
-	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
+	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 )
 
 func (i *Implementation) GetSettings(ctx context.Context, _ *trackerv1.GetSettingsRequest) (*trackerv1.GetSettingsResponse, error) {
@@ -26,6 +26,7 @@ func (i *Implementation) UpdateSettings(ctx context.Context, req *trackerv1.Upda
 	}
 	settings, err := i.svc.UpdateSettings(ctx, userID, trackerservice.UpdateSettingsParams{
 		GoogleCalendarSyncEnabled: req.GoogleCalendarSyncEnabled,
+		GoogleCalendarID:          req.GoogleCalendarId,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)

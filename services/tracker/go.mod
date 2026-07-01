@@ -3,10 +3,10 @@ module github.com/dobriygolang/project-nordly/services/tracker
 go 1.25.8
 
 require (
+	github.com/dobriygolang/project-nordly/services/identity v0.0.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/dobriygolang/project-nordly/services/identity v0.0.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.286.0

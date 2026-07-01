@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 )
 
 const userSettingsColumns = `user_id, google_calendar_sync_enabled,

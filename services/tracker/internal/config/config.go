@@ -20,6 +20,7 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleRedirectURI  string
 	HoneCallbackURL    string
+	TokenEncryptionKey string
 }
 
 func Load() (*Config, error) {
@@ -52,6 +53,7 @@ func Load() (*Config, error) {
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURI:  os.Getenv("GOOGLE_REDIRECT_URI"),
 		HoneCallbackURL:    getEnv("NORDLY_CALLBACK_URL", getEnv("HONE_CALLBACK_URL", "nordly://settings")),
+		TokenEncryptionKey: os.Getenv("TOKEN_ENCRYPTION_KEY"),
 	}, nil
 }
 

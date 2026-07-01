@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/humanerror"
 	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/humanerror"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

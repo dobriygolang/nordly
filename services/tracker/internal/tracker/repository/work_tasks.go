@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 )
 
 const workTaskSelectCols = `id, user_id, status, kind, title, created_at, updated_at, completed_at,

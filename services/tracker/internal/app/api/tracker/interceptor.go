@@ -3,8 +3,8 @@ package trackerapi
 import (
 	"context"
 
-	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	"google.golang.org/grpc"
 )
 

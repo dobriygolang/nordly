@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
 	trackerapi "github.com/dobriygolang/project-nordly/services/tracker/internal/app/api/tracker"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/config"
-	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/logger"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/secretbox"
 	trackerrepo "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/logger"
-	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -45,9 +46,17 @@ func New(ctx context.Context) (*App, error) {
 	}
 	repo := trackerrepo.New(pg)
 	googleClient := googleadapter.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURI)
+	cipher, err := secretbox.New(cfg.TokenEncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("init token cipher: %w", err)
+	}
+	if cipher == nil {
+		log.Warn("TOKEN_ENCRYPTION_KEY not set — Google refresh tokens stored as plaintext")
+	}
 	svc := trackerservice.New(trackerservice.Deps{
 		Repo:            repo,
 		Google:          googleClient,
+		Cipher:          cipher,
 		HoneCallbackURL: cfg.HoneCallbackURL,
 	})
 	return &App{Config: cfg, Logger: log, Postgres: pg, JWT: jwtValidator, Service: svc}, nil

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
+	"github.com/google/uuid"
 )
 
 // UpsertGoogleEvents inserts or updates cached calendar events.

@@ -3,8 +3,8 @@ package trackerapi
 import (
 	"context"
 
-	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
+	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

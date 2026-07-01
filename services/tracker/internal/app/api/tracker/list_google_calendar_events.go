@@ -5,7 +5,6 @@ import (
 	"time"
 
 	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (i *Implementation) ListGoogleCalendarEvents(
@@ -29,13 +28,7 @@ func (i *Implementation) ListGoogleCalendarEvents(
 	}
 	out := make([]*trackerv1.GoogleCalendarEvent, 0, len(events))
 	for _, ev := range events {
-		out = append(out, &trackerv1.GoogleCalendarEvent{
-			Id:      ev.ID,
-			Title:   ev.Title,
-			Start:   timestamppb.New(ev.Start),
-			End:     timestamppb.New(ev.End),
-			AllDay:  ev.AllDay,
-		})
+		out = append(out, calendarEventToProto(ev))
 	}
 	return &trackerv1.ListGoogleCalendarEventsResponse{Events: out}, nil
 }

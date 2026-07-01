@@ -3,6 +3,7 @@ export type SyncDomain = 'notes' | 'tasks' | 'focus';
 export type OutboxOp =
   | 'create'
   | 'update'
+  | 'patch'
   | 'delete'
   | 'schedule'
   | 'unschedule'

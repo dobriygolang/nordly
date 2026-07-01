@@ -451,6 +451,14 @@ body.nordly-task-dragging .nordly-day-column__body {
   background: rgb(var(--ink-rgb) / 0.06);
 }
 
+.nordly-task-detail-pop__error {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--danger, #e57373);
+}
+
 .nordly-task-detail-pop__meet-badge {
   flex-shrink: 0;
   font-size: 10px;

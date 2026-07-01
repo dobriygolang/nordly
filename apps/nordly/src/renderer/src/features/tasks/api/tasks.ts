@@ -3,7 +3,6 @@ import { LOCAL_ONLY } from '@app/config/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete } from '@features/tasks/repository/tasksStore';
 import {
   remoteCreateTaskConference,
-  remotePatchTask,
 } from '@features/tasks/repository/tasksRemote';
 import { getServerId } from '@shared/sync/idMap';
 import { enqueueOutbox } from '@shared/sync/outbox';

@@ -1,8 +1,6 @@
-import { Suspense, lazy, memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
-const StatsOverlayCards = lazy(() =>
-  import('./StatsOverlayCards').then((m) => ({ default: m.StatsOverlayCards })),
-);
+import { StatsOverlayCards } from './StatsOverlayCards';
 
 const UNMOUNT_DELAY_MS = 320;
 
@@ -32,9 +30,5 @@ export const AnimatedStatsOverlay = memo(function AnimatedStatsOverlay({
   }, [open, mounted]);
 
   if (!mounted) return null;
-  return (
-    <Suspense fallback={null}>
-      <StatsOverlayCards onClose={onClose} closing={closing} />
-    </Suspense>
-  );
+  return <StatsOverlayCards onClose={onClose} closing={closing} />;
 });

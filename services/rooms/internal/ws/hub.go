@@ -436,7 +436,8 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 				"user_id": c.userID, "line": p.Line, "column": p.Column,
 			})
 		case InPresence:
-			h.Broadcast(c.roomID, InPresence, map[string]any{"user_id": c.userID, "data": env.Data})
+			// Forward { "update": "<b64>" } as-is; clientId is inside the awareness blob.
+			h.Broadcast(c.roomID, InPresence, json.RawMessage(env.Data))
 		case InCodeRun:
 			h.Broadcast(c.roomID, KindCodeRun, env.Data)
 		case InSnapshot:

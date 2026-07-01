@@ -6,6 +6,12 @@ import { listTasks, moveTaskStatus, type TaskCard } from '@features/tasks/api/ta
 import { focusStoreList } from '@features/focus/repository/focusStore';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
+import { loadDailyPlan, type DailyPlanRecord } from '@pages/DailyPlanning/lib/dailyPlanStore';
+import {
+  computePlanProgress,
+  isPlanFinalizedToday,
+  parseObstacleLines,
+} from '@pages/DailyPlanning/lib/planningProgress';
 import { tasksForToday } from '@pages/DailyPlanning/lib/planningTasks';
 import { toDayKey } from '@pages/TaskBoard/lib/dates';
 import { useFlipList } from '@pages/TaskBoard/useFlipList';
@@ -47,6 +53,7 @@ export function HomeTodayTasks(): JSX.Element {
   const { epics } = useTaskEpics();
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [focusSessions, setFocusSessions] = useState<Awaited<ReturnType<typeof focusStoreList>>>([]);
+  const [dailyPlan, setDailyPlan] = useState<DailyPlanRecord>({});
 
   const activeId = usePomodoroStore((s) => s.pinnedPlanItemId);
   const running = usePomodoroStore((s) => s.running);
@@ -66,9 +73,18 @@ export function HomeTodayTasks(): JSX.Element {
     }
   }, []);
 
+  const refreshPlan = useCallback(async () => {
+    try {
+      setDailyPlan(await loadDailyPlan(todayKey));
+    } catch {
+      /* keep stale */
+    }
+  }, [todayKey]);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshPlan();
+  }, [refresh, refreshPlan]);
 
   useEffect(() => {
     const onTasksChanged = () => void refresh();
@@ -76,10 +92,20 @@ export function HomeTodayTasks(): JSX.Element {
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
   }, [refresh]);
 
+  useEffect(() => {
+    const onPlanChanged = () => void refreshPlan();
+    window.addEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
+    return () => window.removeEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
+  }, [refreshPlan]);
+
   const todayTasks = useMemo(
     () => [...tasksForToday(tasks, todayKey)].sort(sortHomeTasks),
     [tasks, todayKey],
   );
+
+  const planFinalized = isPlanFinalizedToday(dailyPlan, todayKey);
+  const planProgress = computePlanProgress(dailyPlan.snapshot, todayTasks);
+  const obstacles = parseObstacleLines(dailyPlan.obstacles);
 
   const listRef = useFlipList(
     todayTasks.map((task) => task.id),
@@ -104,7 +130,11 @@ export function HomeTodayTasks(): JSX.Element {
     [refresh],
   );
 
-  if (todayTasks.length === 0) {
+  const openPlanning = () => {
+    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openPlanning));
+  };
+
+  if (todayTasks.length === 0 && !planFinalized) {
     return (
       <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
         <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
@@ -114,65 +144,101 @@ export function HomeTodayTasks(): JSX.Element {
 
   return (
     <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
-      <div className="nordly-home-today__list" ref={listRef} role="list">
-        {todayTasks.map((task) => {
-          const done = task.status === 'done';
-          const epicColor = resolveTaskEpicColor(task, epics);
-          const isActive = activeId === task.id;
-          const timerSec = isActive
-            ? displaySec
-            : focusSecondsTodayForTask(focusSessions, task.id, todayKey);
+      {planFinalized && planProgress ? (
+        <header className="nordly-home-today__plan">
+          <span className="nordly-home-today__plan-label">{t('nordly.home.plan_ready')}</span>
+          <span className="nordly-home-today__plan-progress mono">
+            {t('nordly.home.plan_progress', {
+              done: planProgress.doneCount,
+              total: planProgress.plannedTotal,
+            })}
+          </span>
+          <button
+            type="button"
+            className="nordly-home-today__plan-edit focus-ring"
+            onClick={openPlanning}
+          >
+            {t('nordly.home.plan_edit')}
+          </button>
+        </header>
+      ) : null}
 
-          return (
-            <div
-              key={task.id}
-              data-flip-key={task.id}
-              className="nordly-home-today__item"
-              role="listitem"
-              data-done={done ? 'true' : undefined}
-              data-active={isActive ? 'true' : undefined}
-              data-open={done ? undefined : 'true'}
-            >
-              <button
-                type="button"
-                className="nordly-home-today__main focus-ring"
-                onClick={() => void toggleTaskOpen(task)}
+      {todayTasks.length === 0 ? (
+        <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
+      ) : (
+        <div className="nordly-home-today__list" ref={listRef} role="list">
+          {todayTasks.map((task) => {
+            const done = task.status === 'done';
+            const epicColor = resolveTaskEpicColor(task, epics);
+            const isActive = activeId === task.id;
+            const timerSec = isActive
+              ? displaySec
+              : focusSecondsTodayForTask(focusSessions, task.id, todayKey);
+
+            return (
+              <div
+                key={task.id}
+                data-flip-key={task.id}
+                className="nordly-home-today__item"
+                role="listitem"
+                data-done={done ? 'true' : undefined}
+                data-active={isActive ? 'true' : undefined}
+                data-open={done ? undefined : 'true'}
               >
-                {epicColor ? (
-                  <span
-                    className="nordly-home-today__stripe"
-                    style={{ background: epicColor }}
-                    aria-hidden
-                  />
-                ) : null}
-                <span className="nordly-home-today__title">{task.title}</span>
-              </button>
-              {!done ? (
-                <span className="nordly-home-today__meta">
-                  <span className="nordly-home-today__timer mono">{formatFocusMmSs(timerSec)}</span>
-                  <button
-                    type="button"
-                    className="nordly-home-today__play focus-ring"
-                    title={t('nordly.home.today_start_focus')}
-                    aria-label={t('nordly.home.today_start_focus')}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isActive) toggle();
-                      else startPomodoro(task);
-                    }}
-                  >
-                    <Icon
-                      name={isActive && running ? 'pause' : 'play-outline'}
-                      size={12}
-                      strokeWidth={2}
+                <button
+                  type="button"
+                  className="nordly-home-today__main focus-ring"
+                  onClick={() => void toggleTaskOpen(task)}
+                >
+                  {epicColor ? (
+                    <span
+                      className="nordly-home-today__stripe"
+                      style={{ background: epicColor }}
+                      aria-hidden
                     />
-                  </button>
-                </span>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+                  ) : null}
+                  <span className="nordly-home-today__title">{task.title}</span>
+                </button>
+                {!done ? (
+                  <span className="nordly-home-today__meta">
+                    <span className="nordly-home-today__timer mono">{formatFocusMmSs(timerSec)}</span>
+                    <button
+                      type="button"
+                      className="nordly-home-today__play focus-ring"
+                      title={t('nordly.home.today_start_focus')}
+                      aria-label={t('nordly.home.today_start_focus')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isActive) toggle();
+                        else startPomodoro(task);
+                      }}
+                    >
+                      <Icon
+                        name={isActive && running ? 'pause' : 'play-outline'}
+                        size={12}
+                        strokeWidth={2}
+                      />
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {planFinalized && obstacles.length > 0 ? (
+        <section className="nordly-home-today__obstacles" aria-label={t('nordly.planning.obstacles_heading')}>
+          <h3 className="nordly-home-today__obstacles-heading">{t('nordly.planning.obstacles_heading')}</h3>
+          <ul className="nordly-home-today__obstacles-list">
+            {obstacles.map((item, index) => (
+              <li key={`home-obstacle-${index}`} className="nordly-home-today__obstacles-item">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import {
 
 const SYNC_EVENT = 'pomodoro:sync';
 const CMD_EVENT = 'pomodoro:cmd';
+export const POMODORO_EXPIRED_EVENT = 'pomodoro:expired';
 
 export interface PomodoroSyncPayload {
   mode: FocusTimerMode;
@@ -97,7 +98,14 @@ export function initPomodoroFollower(): () => void {
       const elapsedMs = Date.now() - snap.savedAt;
       if (mode === 'pomodoro') {
         if (snap.running && elapsedMs >= snap.remainSec * 1000) {
-          applyPayload({ mode, remain: 0, elapsed: 0, running: false, durationSec: snap.remainSec });
+          applyPayload({
+            mode,
+            remain: 0,
+            elapsed: 0,
+            running: false,
+            durationSec: usePomodoroStore.getState().durationSec,
+          });
+          void emit(POMODORO_EXPIRED_EVENT, {});
           return;
         }
         const adjusted = snap.running
@@ -108,7 +116,7 @@ export function initPomodoroFollower(): () => void {
           remain: adjusted,
           elapsed: 0,
           running: snap.running,
-          durationSec: adjusted,
+          durationSec: usePomodoroStore.getState().durationSec,
         });
         return;
       }

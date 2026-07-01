@@ -14,7 +14,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT, useLocale, type TFunc } from '@nordly-i18n';
 
 import { getStats, padToSevenDays, type NordlyStats, type FocusDay } from '@features/focus/api/focusClient';
-import { formatWeekdayShort } from '@pages/TaskBoard/lib/dates';
+import { loadDailyPlan } from '@pages/DailyPlanning/lib/dailyPlanStore';
+import {
+  computePlanProgress,
+  isPlanFinalizedToday,
+} from '@pages/DailyPlanning/lib/planningProgress';
+import { tasksForToday } from '@pages/DailyPlanning/lib/planningTasks';
+import { listTasks } from '@features/tasks/api/tasks';
+import { formatWeekdayShort, addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
 import { readDailyGoalMin } from '@shared/model/prefs';
 
 interface FetchState {
@@ -164,6 +171,8 @@ export function StatsOverlayCards({ onClose: _onClose, closing = false }: { onCl
           </BigCard>
         </div>
 
+        <TodayPlanReviewCard closing={closing} t={t} />
+
         {state.status === 'error' && state.unauthenticated && (
           <div
             className={`mono nordly-stats-card nordly-stats-notice ${closing ? 'slide-to-right' : 'slide-from-right'}`}
@@ -252,19 +261,15 @@ function HeatmapLegend() {
 const HEATMAP_CELLS = 7 * 16; // ужали до 16 колонок чтобы влезло в 320px aside
 
 function ReferenceHeatmap({ days }: { days: FocusDay[] }) {
-  // 112 cells × `new Date` clone — non-trivial без memo, особенно когда
-  // sibling карточки рендерятся (animTick changes etc). Pure-функция от
-  // `days`, кешируем по identity.
   const cells = useMemo(() => {
     const bySeconds = new Map(days.map((d) => [d.date, d.seconds]));
-    const todayISO = days.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
-    const anchor = new Date(`${todayISO}T00:00:00Z`);
+    const todayKey = toDayKey(new Date());
+    const todayDate = parseDayKey(todayKey);
     const out: { iso: string; seconds: number; isToday: boolean }[] = [];
     for (let i = HEATMAP_CELLS - 1; i >= 0; i--) {
-      const d = new Date(anchor);
-      d.setUTCDate(anchor.getUTCDate() - i);
-      const iso = d.toISOString().slice(0, 10);
-      out.push({ iso, seconds: bySeconds.get(iso) ?? 0, isToday: iso === todayISO });
+      const d = addDays(todayDate, -i);
+      const iso = toDayKey(d);
+      out.push({ iso, seconds: bySeconds.get(iso) ?? 0, isToday: iso === todayKey });
     }
     return out;
   }, [days]);
@@ -286,9 +291,11 @@ function ReferenceHeatmap({ days }: { days: FocusDay[] }) {
           style={{
             aspectRatio: '1/1',
             borderRadius: 2,
-            background: c.isToday
-              ? 'rgb(var(--ink-rgb) / 0.95)'
-              : `rgb(var(--ink-rgb) / ${heatmapOpacity(c.seconds)})`,
+            background:
+              c.seconds > 0
+                ? `rgb(var(--ink-rgb) / ${c.isToday ? 0.95 : heatmapOpacity(c.seconds)})`
+                : 'rgb(var(--ink-rgb) / 0.04)',
+            boxShadow: c.isToday ? 'inset 0 0 0 1px rgb(var(--ink-rgb) / 0.35)' : undefined,
           }}
         />
       ))}
@@ -391,7 +398,7 @@ function ReferenceBars({ days, locale }: { days: FocusDay[]; locale: 'en' | 'ru'
     return () => window.clearTimeout(t);
   }, []);
 
-  const todayISO = days.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
+  const todayISO = toDayKey(new Date());
   // Absolute scale: 24h = 100% bar-height. Раньше был relative-max (max
   // bucket в данных = 100%) — 3 часа в один день рендерились full-height,
   // юзер не мог сравнить с другим днём. Теперь абсолютная шкала: 3 часа =
@@ -414,7 +421,7 @@ function ReferenceBars({ days, locale }: { days: FocusDay[]; locale: 'en' | 'ru'
     >
       {days.map((d, i) => {
         const ratio = d.seconds / maxSeconds;
-        const targetH = d.seconds > 0 ? MIN_H + ratio * (MAX_H - MIN_H) : MIN_H;
+        const targetH = d.seconds > 0 ? MIN_H + ratio * (MAX_H - MIN_H) : 0;
         // animTick=0 → bars at 0, после mount'а tick=1 → растут до target.
         // staggered delay чтобы bars росли по очереди, не все вместе.
         const h = animTick === 0 ? 0 : targetH;
@@ -426,7 +433,12 @@ function ReferenceBars({ days, locale }: { days: FocusDay[]; locale: 'en' | 'ru'
                 style={{
                   width: '100%',
                   height: h,
-                  background: isToday ? 'rgb(var(--ink-rgb) / 0.95)' : 'var(--ink-tint-16)',
+                  background:
+                    d.seconds > 0
+                      ? isToday
+                        ? 'rgb(var(--ink-rgb) / 0.95)'
+                        : 'var(--ink-tint-16)'
+                      : 'transparent',
                   borderTopLeftRadius: 6,
                   borderTopRightRadius: 6,
                   transition: `height var(--motion-dur-xxlarge) var(--motion-ease-standard) ${i * 60}ms`,
@@ -488,18 +500,16 @@ function InsightsGrid({ data, t }: { data: NordlyStats | null; t: TFunc }) {
   const derived = useMemo(() => {
     const heatmap = data?.heatmap ?? [];
     const lastSeven = data?.lastSevenDays ?? [];
-    const todayISO = lastSeven.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
+    const todayISO = toDayKey(new Date());
 
     // ── Compare-week: текущая неделя (last 7) vs prev 7
     const thisWeekSec = lastSeven.reduce((s, d) => s + d.seconds, 0);
     const heatmapByISO = new Map(heatmap.map((d) => [d.date, d]));
     const prevWeekISOs: string[] = [];
     {
-      const t = new Date(`${todayISO}T00:00:00Z`);
+      const anchor = parseDayKey(todayISO);
       for (let i = 7; i < 14; i++) {
-        const d = new Date(t);
-        d.setUTCDate(t.getUTCDate() - i);
-        prevWeekISOs.push(d.toISOString().slice(0, 10));
+        prevWeekISOs.push(toDayKey(addDays(anchor, -i)));
       }
     }
     const prevWeekSec = prevWeekISOs.reduce(
@@ -512,8 +522,11 @@ function InsightsGrid({ data, t }: { data: NordlyStats | null; t: TFunc }) {
 
     const streakPct = Math.min(100, ((data?.currentStreakDays ?? 0) / STREAK_GOAL) * 100);
 
-    const todaySec = lastSeven.find((d) => d.date === todayISO)?.seconds ?? 0;
-    const todayMin = Math.round(todaySec / 60);
+    const todaySec =
+      heatmapByISO.get(todayISO)?.seconds ??
+      lastSeven.find((d) => d.date === todayISO)?.seconds ??
+      0;
+    const todayMin = todaySec > 0 ? Math.ceil(todaySec / 60) : 0;
 
     // ── Avg session length — полезный «качественный» сигнал. Streak меряет
     // консистентность, Compare-week — общий объём, Goal-meter — сегодня. Avg
@@ -734,6 +747,83 @@ function SimpleStatCell({ value, unit, label, sub }: { value: string; unit?: str
       </div>
       <div style={{ fontSize: 10, color: 'var(--ink-40)' }}>{label}</div>
       {sub && <div style={{ fontSize: 9, color: 'var(--ink-20)', marginTop: 1 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function TodayPlanReviewCard({ closing, t }: { closing: boolean; t: TFunc }) {
+  const todayKey = toDayKey(new Date());
+  const [progress, setProgress] = useState<{ done: number; total: number; remaining: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [plan, tasks] = await Promise.all([loadDailyPlan(todayKey), listTasks()]);
+        if (cancelled) return;
+        if (!isPlanFinalizedToday(plan, todayKey)) {
+          setProgress(null);
+          return;
+        }
+        const computed = computePlanProgress(plan.snapshot, tasksForToday(tasks, todayKey));
+        if (!computed) {
+          setProgress(null);
+          return;
+        }
+        setProgress({
+          done: computed.doneCount,
+          total: computed.plannedTotal,
+          remaining: computed.activeRemaining,
+        });
+      } catch {
+        if (!cancelled) setProgress(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [todayKey]);
+
+  if (!progress) return null;
+
+  const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  return (
+    <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '0ms' : '320ms' }}>
+      <BigCard>
+        <CardHead title={t('nordly.stats.today_plan')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          <div style={BASELINE_ROW}>
+            <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+              {progress.done}/{progress.total}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--ink-40)' }}>{t('nordly.stats.today_plan_done')}</span>
+          </div>
+          <div
+            aria-hidden
+            style={{
+              height: 4,
+              borderRadius: 2,
+              background: 'var(--ink-tint-06)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: `${pct}%`,
+                background: 'var(--ink)',
+                transition: 'width var(--motion-dur-cinematic) var(--motion-ease-standard)',
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--ink-40)' }}>
+            {t('nordly.stats.today_plan_remaining', { count: progress.remaining })}
+          </div>
+        </div>
+      </BigCard>
     </div>
   );
 }

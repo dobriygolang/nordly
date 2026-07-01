@@ -26,4 +26,8 @@ export const NORDLY_EVENTS = {
   googleCalendarChanged: 'nordly:google-calendar-changed',
   /** Local app settings persisted (poll interval, etc.). */
   settingsChanged: 'nordly:settings-changed',
+  /** Daily planning finalized or obstacles updated. */
+  dailyPlanChanged: 'nordly:daily-plan-changed',
+  /** Home / hotkey → App: open daily planning overlay. */
+  openPlanning: 'nordly:open-planning',
 } as const;

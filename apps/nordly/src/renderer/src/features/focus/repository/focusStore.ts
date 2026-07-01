@@ -49,4 +49,13 @@ export async function focusStoreUnsynced(userId?: string): Promise<StoredFocusSe
   return rows.filter((s) => s.endedAt && !s.synced);
 }
 
+/** Most recent session without endedAt — open focus burst. */
+export async function findOpenFocusSession(userId?: string): Promise<StoredFocusSession | null> {
+  const rows = await focusStoreList(userId);
+  const open = rows.filter((s) => !s.endedAt);
+  if (open.length === 0) return null;
+  open.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  return open[0] ?? null;
+}
+
 export { rowFrom };

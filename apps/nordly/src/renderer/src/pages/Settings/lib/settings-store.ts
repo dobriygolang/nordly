@@ -11,6 +11,7 @@ export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[nu
 export interface NordlySettings {
   pomodoroMinutes: number;
   notifications: boolean;
+  dailyGoalMin: number;
   textScale: TextScale;
   boardCanvas: BoardCanvasTheme;
   googleCalendarPollMinutes: GoogleCalendarPollMinutes;
@@ -24,6 +25,7 @@ export const TEXT_SCALES: TextScale[] = ['normal', 'large', 'xlarge'];
 export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
   notifications: true,
+  dailyGoalMin: 120,
   textScale: 'normal',
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
@@ -55,6 +57,7 @@ export function readSettings(): NordlySettings {
     return {
       pomodoroMinutes: clampInt(parsed?.pomodoroMinutes, 5, 90, DEFAULTS.pomodoroMinutes),
       notifications: typeof parsed?.notifications === 'boolean' ? parsed.notifications : DEFAULTS.notifications,
+      dailyGoalMin: clampInt(parsed?.dailyGoalMin, 15, 720, DEFAULTS.dailyGoalMin),
       textScale: parseTextScale(parsed?.textScale),
       boardCanvas: parseBoardCanvas(parsed?.boardCanvas),
       googleCalendarPollMinutes: parsePollMinutes(parsed?.googleCalendarPollMinutes),

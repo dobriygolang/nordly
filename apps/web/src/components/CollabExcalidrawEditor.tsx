@@ -31,6 +31,7 @@ import {
 import { fetchInitialScene } from '@/lib/api/rooms'
 import {
   applyWsEnvelope,
+  applyWsEnvelopes,
   bytesToB64,
   handleCollabSideEffect,
   useEditorWs,
@@ -136,12 +137,12 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         handleCollabSideEffect(env, {
           onRoomClosed: () => onRoomClosedRef.current?.(),
         })
-        applyWsEnvelope(env, ydoc, awareness)
         if (env.kind === 'snapshot') {
           canPublishLocalRef.current = true
           gotRemoteRef.current = true
         }
       }
+      applyWsEnvelopes(pending, ydoc, awareness)
     }, [])
 
     const { send, status, reconnect } = useEditorWs(roomId, token || undefined, handleWsEnvelope)

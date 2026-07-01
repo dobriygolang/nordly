@@ -5,6 +5,70 @@
   z-index: 3;
   max-width: 260px;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nordly-home-today__plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+
+.nordly-home-today__plan-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+
+.nordly-home-today__plan-progress {
+  font-size: 11px;
+  color: var(--ink-40);
+}
+
+.nordly-home-today__plan-edit {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  color: var(--ink-40);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.nordly-home-today__plan-edit:hover {
+  color: var(--ink);
+}
+
+.nordly-home-today__obstacles {
+  margin-top: 4px;
+}
+
+.nordly-home-today__obstacles-heading {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+.nordly-home-today__obstacles-list {
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: disc;
+}
+
+.nordly-home-today__obstacles-item {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-60);
 }
 
 .nordly-home-today__empty {

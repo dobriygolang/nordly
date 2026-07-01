@@ -321,6 +321,11 @@ export default function App() {
     setPlanningOpen(false);
   }, []);
 
+  const completePlanning = useCallback(() => {
+    setPlanningOpen(false);
+    navigateTo('home');
+  }, [navigateTo]);
+
   const openImpl = useCallback(
     (id: PaletteAction, args?: StartFocusArgs) => {
       if (args) {
@@ -447,6 +452,17 @@ export default function App() {
   }, [goHome]);
 
   useEffect(() => {
+    const onOpenPlanning = () => openPlanning();
+    window.addEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
+    return () => window.removeEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
+  }, [openPlanning]);
+
+  useEffect(() => {
+    if (status === 'unknown') return;
+    preloadPalettePages();
+  }, [status]);
+
+  useEffect(() => {
     const onOpenSettings = () => navigateTo('settings');
     window.addEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
     return () => window.removeEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
@@ -543,7 +559,11 @@ export default function App() {
 
         {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
         <AnimatedCalendarOverlay open={calendarOpen} onClose={closeCalendar} />
-        <AnimatedDailyPlanningOverlay open={planningOpen} onClose={closePlanning} />
+        <AnimatedDailyPlanningOverlay
+          open={planningOpen}
+          onClose={closePlanning}
+          onComplete={completePlanning}
+        />
 
         <PomodoroController />
 

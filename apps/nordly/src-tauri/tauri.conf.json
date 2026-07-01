@@ -52,6 +52,21 @@
         "resizable": false,
         "skipTaskbar": true,
         "focus": true
+      },
+      {
+        "label": "notification",
+        "title": "Nordly",
+        "url": "index.html?view=notification",
+        "width": 360,
+        "height": 84,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "focus": false,
+        "acceptFirstMouse": true
       }
     ],
     "security": {

@@ -10,6 +10,7 @@ import { installNativeBridge } from '@platform/native-bridge';
 import { applyTextScale, readTextScale } from '@shared/model/accessibility';
 import { readStoredTheme } from '@shared/model/prefs';
 import { applyTheme } from '@shared/lib/applyTheme';
+import { NotificationOverlayApp } from '@widgets/NotificationOverlay';
 import { TrayPopoverApp } from '@widgets/TrayPopover';
 import './styles/globals.css';
 
@@ -17,18 +18,24 @@ installNativeBridge();
 applyTextScale(readTextScale());
 applyTheme(readStoredTheme());
 
-function resolveView(): 'main' | 'tray' {
+type NordlyView = 'main' | 'tray' | 'notification';
+
+function resolveView(): NordlyView {
   if (typeof window === 'undefined') return 'main';
   try {
-    if ('__TAURI_INTERNALS__' in window && getCurrentWebviewWindow().label === 'tray-popover') {
-      return 'tray';
+    if ('__TAURI_INTERNALS__' in window) {
+      const label = getCurrentWebviewWindow().label;
+      if (label === 'tray-popover') return 'tray';
+      if (label === 'notification') return 'notification';
     }
   } catch {
     /* ignore */
   }
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'tray') return 'tray';
+    const view = params.get('view');
+    if (view === 'tray') return 'tray';
+    if (view === 'notification') return 'notification';
   } catch {
     /* ignore */
   }
@@ -36,16 +43,23 @@ function resolveView(): 'main' | 'tray' {
 }
 
 const view = resolveView();
-if (view === 'tray' && typeof document !== 'undefined') {
-  document.documentElement.dataset.nordlyView = 'tray';
+if (view !== 'main' && typeof document !== 'undefined') {
+  document.documentElement.dataset.nordlyView = view;
 }
-const RootApp = view === 'tray' ? TrayPopoverApp : App;
+
+const ROOT_META: Record<NordlyView, { component: () => JSX.Element; section: string }> = {
+  main: { component: App, section: 'Nordly' },
+  tray: { component: TrayPopoverApp, section: 'Nordly Tray' },
+  notification: { component: NotificationOverlayApp, section: 'Nordly Notification' },
+};
+
+const { component: RootApp, section } = ROOT_META[view];
 
 const mount = document.getElementById('root');
 if (!mount) throw new Error('nordly: #root missing');
 
 createRoot(mount).render(
-  <ErrorBoundary section={view === 'tray' ? 'Nordly Tray' : 'Nordly'}>
+  <ErrorBoundary section={section}>
     <RootApp />
   </ErrorBoundary>,
 );

@@ -10,6 +10,7 @@ import {
   type QueueStats,
 } from '@features/focus/repository/focusRemote';
 import { focusStoreList } from '@features/focus/repository/focusStore';
+import { addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
@@ -27,7 +28,10 @@ interface StoredSession {
   pomodorosCompleted: number;
   secondsFocused: number;
   mode: string;
+  synced?: boolean;
 }
+
+type StatsCore = Omit<NordlyStats, 'queue'>;
 
 function toSession(row: StoredSession): FocusSession {
   return {
@@ -42,15 +46,11 @@ function toSession(row: StoredSession): FocusSession {
   };
 }
 
-function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 function aggregateDays(sessions: StoredSession[]): Map<string, FocusDay> {
   const map = new Map<string, FocusDay>();
   for (const s of sessions) {
     if (!s.endedAt || s.secondsFocused <= 0) continue;
-    const key = dayKey(new Date(s.endedAt));
+    const key = toDayKey(new Date(s.endedAt));
     const cur = map.get(key) ?? { date: key, seconds: 0, sessions: 0 };
     cur.seconds += s.secondsFocused;
     cur.sessions += 1;
@@ -61,22 +61,122 @@ function aggregateDays(sessions: StoredSession[]): Map<string, FocusDay> {
 
 function streakFromDays(days: Set<string>, anchor: string): number {
   let streak = 0;
-  const d = new Date(`${anchor}T12:00:00Z`);
+  let d = parseDayKey(anchor);
   for (;;) {
-    const key = dayKey(d);
+    const key = toDayKey(d);
     if (!days.has(key)) break;
     streak += 1;
-    d.setUTCDate(d.getUTCDate() - 1);
+    d = addDays(d, -1);
   }
   return streak;
 }
 
+function statsFromSessions(sessions: StoredSession[], upToDate?: string): StatsCore {
+  const byDay = aggregateDays(sessions);
+  const heatmap = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const anchor = upToDate ?? toDayKey(new Date());
+  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+  const totalFocusedSeconds = sessions.reduce((sum, s) => sum + (s.secondsFocused ?? 0), 0);
+
+  let longest = 0;
+  for (const date of [...activeDays].sort()) {
+    longest = Math.max(longest, streakFromDays(activeDays, date));
+  }
+
+  return {
+    currentStreakDays: streakFromDays(activeDays, anchor),
+    longestStreakDays: longest,
+    totalFocusedSeconds,
+    heatmap,
+    lastSevenDays,
+  };
+}
+
+function mergeFocusDays(a: FocusDay[], b: FocusDay[]): FocusDay[] {
+  const map = new Map<string, FocusDay>();
+  for (const d of a) map.set(d.date, { ...d });
+  for (const d of b) {
+    const cur = map.get(d.date);
+    if (!cur) {
+      map.set(d.date, { ...d });
+      continue;
+    }
+    map.set(d.date, {
+      date: d.date,
+      seconds: cur.seconds + d.seconds,
+      sessions: cur.sessions + d.sessions,
+    });
+  }
+  return [...map.values()].sort((x, y) => x.date.localeCompare(y.date));
+}
+
+/** Prefer the higher per-day totals — avoids stale remote wiping synced local data. */
+function mergeFocusDaysMax(a: FocusDay[], b: FocusDay[]): FocusDay[] {
+  const map = new Map<string, FocusDay>();
+  for (const d of [...a, ...b]) {
+    const cur = map.get(d.date);
+    if (!cur || d.seconds > cur.seconds) {
+      map.set(d.date, { ...d });
+      continue;
+    }
+    if (d.seconds === cur.seconds) {
+      map.set(d.date, { date: d.date, seconds: cur.seconds, sessions: Math.max(cur.sessions, d.sessions) });
+    }
+  }
+  return [...map.values()].sort((x, y) => x.date.localeCompare(y.date));
+}
+
+function statsFromHeatmap(heatmap: FocusDay[], upToDate?: string): StatsCore {
+  const anchor = upToDate ?? toDayKey(new Date());
+  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+  const totalFocusedSeconds = heatmap.reduce((sum, d) => sum + d.seconds, 0);
+
+  let longest = 0;
+  for (const date of [...activeDays].sort()) {
+    longest = Math.max(longest, streakFromDays(activeDays, date));
+  }
+
+  return {
+    currentStreakDays: streakFromDays(activeDays, anchor),
+    longestStreakDays: longest,
+    totalFocusedSeconds,
+    heatmap,
+    lastSevenDays,
+  };
+}
+
+function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): StatsCore {
+  const heatmap = mergeFocusDays(base.heatmap, extra.heatmap);
+  const anchor = upToDate ?? toDayKey(new Date());
+  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+
+  let longest = 0;
+  for (const date of [...activeDays].sort()) {
+    longest = Math.max(longest, streakFromDays(activeDays, date));
+  }
+
+  return {
+    currentStreakDays: streakFromDays(activeDays, anchor),
+    longestStreakDays: Math.max(base.longestStreakDays, extra.longestStreakDays, longest),
+    totalFocusedSeconds: base.totalFocusedSeconds + extra.totalFocusedSeconds,
+    heatmap,
+    lastSevenDays,
+  };
+}
+
+function isRemoteStatsEmpty(remote: StatsCore): boolean {
+  return remote.totalFocusedSeconds === 0 && remote.heatmap.every((d) => d.seconds === 0);
+}
+
 async function buildQueueStats(): Promise<QueueStats> {
   const tasks = await listTasks();
-  const today = dayKey(new Date());
+  const today = toDayKey(new Date());
   const todayTasks = tasks.filter((t) => {
     if (!t.scheduledStart) return false;
-    return dayKey(new Date(t.scheduledStart)) === today;
+    return toDayKey(new Date(t.scheduledStart)) === today;
   });
   const done = todayTasks.filter((t) => t.status === 'done').length;
   return {
@@ -90,25 +190,8 @@ async function buildQueueStats(): Promise<QueueStats> {
 async function buildLocalStats(upToDate?: string): Promise<NordlyStats> {
   const rows = await focusStoreList();
   const sessions = rows.filter((s) => s.endedAt) as StoredSession[];
-  const byDay = aggregateDays(sessions);
-  const heatmap = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
-  const anchor = upToDate ?? dayKey(new Date());
-  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
-  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
-  const totalFocusedSeconds = sessions.reduce((sum, s) => sum + (s.secondsFocused ?? 0), 0);
-
-  let longest = 0;
-  const sorted = [...activeDays].sort();
-  for (const date of sorted) {
-    longest = Math.max(longest, streakFromDays(activeDays, date));
-  }
-
   return {
-    currentStreakDays: streakFromDays(activeDays, anchor),
-    longestStreakDays: longest,
-    totalFocusedSeconds,
-    heatmap,
-    lastSevenDays,
+    ...statsFromSessions(sessions, upToDate),
     queue: await buildQueueStats(),
   };
 }
@@ -116,15 +199,42 @@ async function buildLocalStats(upToDate?: string): Promise<NordlyStats> {
 export async function getStats(upToDate?: string): Promise<NordlyStats> {
   const local = await buildLocalStats(upToDate);
   if (!isSyncEnabled() || !canReachNetwork()) return local;
+
   try {
     const remote = await remoteGetStats(upToDate);
-    return {
-      ...remote,
-      lastSevenDays: remote.lastSevenDays.length
-        ? remote.lastSevenDays
-        : local.lastSevenDays,
-      queue: await buildQueueStats(),
+    const remoteCore: StatsCore = {
+      currentStreakDays: remote.currentStreakDays,
+      longestStreakDays: remote.longestStreakDays,
+      totalFocusedSeconds: remote.totalFocusedSeconds,
+      heatmap: remote.heatmap,
+      lastSevenDays: remote.lastSevenDays,
     };
+
+    const rows = await focusStoreList();
+    const unsynced = rows.filter((s) => s.endedAt && !s.synced) as StoredSession[];
+    const queue = await buildQueueStats();
+
+    if (unsynced.length === 0) {
+      if (isRemoteStatsEmpty(remoteCore) && local.totalFocusedSeconds > 0) return local;
+      const mergedHeatmap = mergeFocusDaysMax(remoteCore.heatmap, local.heatmap);
+      const merged = statsFromHeatmap(mergedHeatmap, upToDate);
+      return {
+        ...merged,
+        longestStreakDays: Math.max(
+          merged.longestStreakDays,
+          remoteCore.longestStreakDays,
+          local.longestStreakDays,
+        ),
+        queue,
+      };
+    }
+
+    const pending = statsFromSessions(unsynced, upToDate);
+    const merged = isRemoteStatsEmpty(remoteCore)
+      ? pending
+      : mergeStats(remoteCore, pending, upToDate);
+
+    return { ...merged, queue };
   } catch {
     return local;
   }

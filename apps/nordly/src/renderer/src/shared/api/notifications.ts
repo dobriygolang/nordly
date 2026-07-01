@@ -1,16 +1,12 @@
-// notifications.ts — system-native notifications for Nordly.
+// notifications.ts — Nordly toast banner (Tauri overlay window) + Web fallback.
 //
-// Используется через `notify(title, body)`. Внутри:
-//   1. Проверяем `settings.notifications` (юзер мог отключить в Settings).
-//   2. Если permission ещё не запрашивался — `requestPermission()`.
-//   3. Если granted — `new Notification(...)` (нативный OS-popup на macOS
-//      / Windows / Linux). Electron renderer наследует Chromium API,
-//      работает out of the box.
-//
-// До этой утилиты `settings.notifications` toggle был чисто декоративным —
-// нигде не читался. Теперь focus auto-end (см. App.tsx finishSession)
-// вызывает `notify('Focus session complete', ...)`.
+// Desktop: `show_notification` opens a small always-on-top window styled like
+// a macOS banner in Nordly theme colors (surface, ink, blur).
+// Browser dev: falls back to the Web Notification API.
 
+import { invoke } from '@tauri-apps/api/core';
+
+import { playSessionCompleteSound } from '@shared/lib/sessionCompleteSound';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 
 const SETTINGS_KEY: string = STORAGE_KEYS.settings;
@@ -19,10 +15,14 @@ interface StoredSettings {
   notifications?: boolean;
 }
 
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 function isNotificationsEnabled(): boolean {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return true; // default ON
+    if (!raw) return true;
     const parsed = JSON.parse(raw) as StoredSettings;
     return typeof parsed.notifications === 'boolean' ? parsed.notifications : true;
   } catch {
@@ -32,30 +32,50 @@ function isNotificationsEnabled(): boolean {
 
 let permissionPromise: Promise<NotificationPermission> | null = null;
 
-async function ensurePermission(): Promise<NotificationPermission> {
+async function ensureWebPermission(): Promise<NotificationPermission> {
   if (typeof Notification === 'undefined') return 'denied';
   if (Notification.permission === 'granted' || Notification.permission === 'denied') {
     return Notification.permission;
   }
-  // Single-flight: не дёргаем requestPermission несколько раз параллельно.
   if (!permissionPromise) {
     permissionPromise = Notification.requestPermission();
   }
   return permissionPromise;
 }
 
-/**
- * notify — native OS notification. Best-effort: silently no-op'ит если
- * настройка отключена / permission denied / API недоступно. Не throws.
- */
-export async function notify(title: string, body?: string): Promise<void> {
-  if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
-  if (!isNotificationsEnabled()) return;
+async function notifyWeb(title: string, body?: string): Promise<void> {
+  if (typeof Notification === 'undefined') return;
   try {
-    const perm = await ensurePermission();
+    const perm = await ensureWebPermission();
     if (perm !== 'granted') return;
     new Notification(title, { body, silent: false });
   } catch {
-    /* native notification fail — degraded UX, не валим caller */
+    /* degraded UX */
   }
+}
+
+export interface NotifyOptions {
+  /** Play the built-in session-complete chime. */
+  sound?: boolean;
+}
+
+/**
+ * notify — themed system banner on desktop; Web Notification in browser dev.
+ */
+export async function notify(title: string, body?: string, options?: NotifyOptions): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!isNotificationsEnabled()) return;
+
+  if (options?.sound) void playSessionCompleteSound();
+
+  if (isTauri()) {
+    try {
+      await invoke('show_notification', { title, body: body ?? '' });
+      return;
+    } catch {
+      /* fall through to web API */
+    }
+  }
+
+  await notifyWeb(title, body);
 }

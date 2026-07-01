@@ -14,4 +14,7 @@ commands.allow = [
   "window_traffic_lights_show",
   "tray_show_main",
   "deep_link_initial",
+  "show_notification",
+  "hide_notification",
+  "focus_main_window",
 ]

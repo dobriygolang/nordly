@@ -1,10 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import * as Y from 'yjs'
 import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
-import { yCollab } from 'y-codemirror.next'
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { cmLanguageExt } from '@/lib/codemirror/langExtension'
 import { editorAssistExtensions } from '@/lib/codemirror/editorAssist'
 import { collabUserColors } from '@/lib/codemirror/collabColors'
@@ -12,6 +12,7 @@ import { peersFromAwareness, type CollabPeer } from '@/lib/codemirror/collabPres
 import {
   bytesToB64,
   applyWsEnvelope,
+  applyWsEnvelopes,
   handleCollabSideEffect,
   useEditorWs,
   type CodeRunBroadcast,
@@ -118,8 +119,9 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
         onRoomClosed: () => onRoomClosedRef.current?.(),
         onCodeRun: (payload) => onRemoteCodeRunRef.current?.(payload),
       })
-      applyWsEnvelope(env, ydoc, awareness)
     }
+    applyWsEnvelopes(pending, ydoc, awareness)
+    viewRef.current?.dispatch({})
   }, [])
 
   const { send, status, reconnect } = useEditorWs(roomId, token || undefined, handleWsEnvelope)
@@ -225,8 +227,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
       doc: ytext.toString(),
       extensions: [
         lineNumbers(),
-        history(),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+        keymap.of([indentWithTab, ...defaultKeymap, ...yUndoManagerKeymap]),
         cmLanguageExt(language),
         assistCompartment.current.of(editorAssistExtensions({ autocomplete: autocompleteEnabled })),
         themeCompartment.current.of(editorExtensionsForTheme(theme)),

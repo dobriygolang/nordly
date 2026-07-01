@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import { translate } from '@nordly-i18n';
+import { listen } from '@tauri-apps/api/event';
 
-import { endFocusSession, startFocusSession } from '@features/focus/api/focusClient';
-import { notify } from '@shared/api/notifications';
+import {
+  applyPersistedSnapshot,
+  completePomodoroTimer,
+  finishFocusSession,
+  reattachFocusSession,
+} from '@features/focus/lib/pomodoroSession';
+import { POMODORO_EXPIRED_EVENT } from '@features/focus/lib/pomodoroCrossWindow';
+import { startFocusSession } from '@features/focus/api/focusClient';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
 
 function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): number {
@@ -16,48 +22,42 @@ export function PomodoroController(): null {
   const lastSavedRef = useRef(0);
 
   const finishSession = useCallback(async () => {
-    const id = sessionRef.current;
-    if (!id) return;
-    const { remain, durationSec, mode, elapsed } = usePomodoroStore.getState();
-    const secondsFocused =
-      mode === 'pomodoro' ? Math.max(0, durationSec - remain) : Math.max(0, elapsed);
-    const pomodorosCompleted = mode === 'pomodoro' && remain === 0 ? 1 : 0;
-    sessionRef.current = null;
-    try {
-      await endFocusSession({
-        sessionId: id,
-        pomodorosCompleted,
-        secondsFocused,
-        reflection: '',
-      });
-    } catch {
-      /* silent */
-    }
+    await finishFocusSession(sessionRef);
+  }, []);
+
+  const loadPersistedSnapshot = useCallback(async () => {
+    const bridge = typeof window !== 'undefined' ? window.nordly : undefined;
+    if (!bridge) return;
+    const snap = await bridge.pomodoro.load();
+    if (!snap) return;
+    await applyPersistedSnapshot(snap, sessionRef);
   }, []);
 
   useEffect(() => {
-    const bridge = typeof window !== 'undefined' ? window.nordly : undefined;
-    if (!bridge) return;
-    void bridge.pomodoro.load().then((snap) => {
-      if (!snap) return;
-      const mode: FocusTimerMode = snap.mode === 'stopwatch' ? 'stopwatch' : 'pomodoro';
-      const elapsedMs = Date.now() - snap.savedAt;
-      if (mode === 'pomodoro') {
-        if (snap.running && elapsedMs >= snap.remainSec * 1000) {
-          usePomodoroStore.getState().hydrate(0, false, mode);
-          return;
-        }
-        const adjusted = snap.running
-          ? Math.max(0, snap.remainSec - Math.floor(elapsedMs / 1000))
-          : snap.remainSec;
-        usePomodoroStore.getState().hydrate(adjusted, snap.running, mode);
-        return;
-      }
-      const adjusted = snap.running
-        ? Math.max(0, snap.remainSec + Math.floor(elapsedMs / 1000))
-        : snap.remainSec;
-      usePomodoroStore.getState().hydrate(adjusted, snap.running, mode);
+    void loadPersistedSnapshot();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadPersistedSnapshot();
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [loadPersistedSnapshot]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    let unlisten: (() => void) | undefined;
+    void listen(POMODORO_EXPIRED_EVENT, () => {
+      void completePomodoroTimer(sessionRef, usePomodoroStore.getState().durationSec);
+    }).then((off) => {
+      unlisten = off;
     });
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export function PomodoroController(): null {
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
       if (state.running && !prev.running && !sessionRef.current) {
-        startFocusSession({
+        void startFocusSession({
           planItemId: state.pinnedPlanItemId ?? undefined,
           pinnedTitle: state.pinnedTitle ?? undefined,
           mode: state.mode,
@@ -126,21 +126,23 @@ export function PomodoroController(): null {
             sessionRef.current = s.id;
           })
           .catch(() => {
-            /* silent */
+            void reattachFocusSession(sessionRef);
           });
+        return;
+      }
+      if (!state.running && prev.running) {
+        void finishSession();
       }
     });
-  }, []);
+  }, [finishSession]);
 
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
       if (state.mode !== 'pomodoro') return;
       if (!state.running || state.remain !== 0 || prev.remain === 0) return;
-      void finishSession();
-      void notify(translate('nordly.notify.session_title'), translate('nordly.notify.session_body'));
-      usePomodoroStore.getState().complete();
+      void completePomodoroTimer(sessionRef, state.durationSec);
     });
-  }, [finishSession]);
+  }, []);
 
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
@@ -156,4 +158,4 @@ export function PomodoroController(): null {
   }, [finishSession]);
 
   return null;
-}
+};

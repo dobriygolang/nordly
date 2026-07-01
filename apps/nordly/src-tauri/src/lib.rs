@@ -1,4 +1,5 @@
 mod auth;
+mod notification;
 mod store;
 mod tray;
 mod vault;
@@ -38,6 +39,7 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::setup(app)?;
+                notification::setup(app)?;
             }
             Ok(())
         })
@@ -54,6 +56,9 @@ pub fn run() {
             window_traffic_lights_show,
             deep_link_initial,
             tray_show_main,
+            notification::show_notification,
+            notification::hide_notification,
+            notification::focus_main_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building nordly")

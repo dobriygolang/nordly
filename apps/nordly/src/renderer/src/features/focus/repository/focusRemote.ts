@@ -1,3 +1,4 @@
+import { addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
 import { API_BASE_URL, DEV_BEARER_TOKEN } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
 import { useSessionStore } from '@shared/model/session';
@@ -154,16 +155,11 @@ export async function remoteEndFocusSession(args: {
 export function padToSevenDays(input: FocusDay[]): FocusDay[] {
   const byDate = new Map(input.map((d) => [d.date, d]));
   const out: FocusDay[] = [];
-  const todayISO = (() => {
-    const sortedDates = input.map((d) => d.date).sort();
-    const last = sortedDates[sortedDates.length - 1];
-    return last ?? new Date().toISOString().slice(0, 10);
-  })();
-  const anchor = new Date(`${todayISO}T00:00:00Z`);
+  const todayKey = toDayKey(new Date());
+  const anchor = parseDayKey(todayKey);
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(anchor);
-    d.setUTCDate(anchor.getUTCDate() - i);
-    const iso = d.toISOString().slice(0, 10);
+    const d = addDays(anchor, -i);
+    const iso = toDayKey(d);
     out.push(byDate.get(iso) ?? { date: iso, seconds: 0, sessions: 0 });
   }
   return out;

@@ -66,6 +66,11 @@ export function SettingsPage({
 
   const setNotif = useCallback((b: boolean) => setSettings((s) => ({ ...s, notifications: b })), []);
 
+  const setDailyGoal = useCallback(
+    (n: number) => setSettings((s) => ({ ...s, dailyGoalMin: n })),
+    [],
+  );
+
   const setTextScale = useCallback((scale: TextScale) => {
     setSettings((s) => ({ ...s, textScale: scale }));
   }, []);
@@ -168,6 +173,14 @@ export function SettingsPage({
         </SettingsGroup>
 
         <SettingsGroup title={t('nordly.settings.section.focus')}>
+          <SettingRow label={t('nordly.settings.notifications.label')} hint={t('nordly.settings.notifications.hint')}>
+            <Toggle
+              value={settings.notifications}
+              onChange={setNotif}
+              label={settings.notifications ? t('nordly.settings.notifications.on') : t('nordly.settings.notifications.off')}
+            />
+          </SettingRow>
+
           <SettingRow label={t('nordly.settings.pomodoro.label')} hint={t('nordly.settings.pomodoro.hint')}>
             <Slider
               min={5}
@@ -179,11 +192,14 @@ export function SettingsPage({
             />
           </SettingRow>
 
-          <SettingRow label={t('nordly.settings.notifications.label')} hint={t('nordly.settings.notifications.hint')}>
-            <Toggle
-              value={settings.notifications}
-              onChange={setNotif}
-              label={settings.notifications ? t('nordly.settings.notifications.on') : t('nordly.settings.notifications.off')}
+          <SettingRow label={t('nordly.settings.daily_goal.label')} hint={t('nordly.settings.daily_goal.hint')}>
+            <Slider
+              min={15}
+              max={480}
+              step={15}
+              value={settings.dailyGoalMin}
+              onChange={setDailyGoal}
+              unit={t('nordly.settings.pomodoro.unit')}
             />
           </SettingRow>
         </SettingsGroup>

@@ -123,7 +123,7 @@ pub fn tray_show_main(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
+pub fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let _ = app.show();

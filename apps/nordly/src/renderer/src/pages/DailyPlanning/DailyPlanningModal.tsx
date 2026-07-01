@@ -10,6 +10,7 @@ import { DayTimeline } from '@pages/TaskBoard/DayTimeline';
 import {
   defaultDurationMin,
   startOfLocalDay,
+  sumDurationMin,
   toDayKey,
 } from '@pages/TaskBoard/lib/dates';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -27,10 +28,15 @@ export type PlanningStep = 'pick' | 'defer' | 'finalize';
 
 interface DailyPlanningModalProps {
   onClose: () => void;
+  onComplete?: () => void;
   closing?: boolean;
 }
 
-export function DailyPlanningModal({ onClose, closing = false }: DailyPlanningModalProps): JSX.Element {
+export function DailyPlanningModal({
+  onClose,
+  onComplete,
+  closing = false,
+}: DailyPlanningModalProps): JSX.Element {
   const t = useT();
   const today = useMemo(() => startOfLocalDay(new Date()), []);
   const todayKey = toDayKey(today);
@@ -78,10 +84,22 @@ export function DailyPlanningModal({ onClose, closing = false }: DailyPlanningMo
     void saveDailyPlanObstacles(obstacles, todayKey);
   }, [obstacles, todayKey]);
 
+  const doneTodayCount = todayTasks.length - activeTodayTasks.length;
+
   const handleFinalize = useCallback(async () => {
-    await finalizeDailyPlan(obstacles, todayKey);
+    await finalizeDailyPlan(
+      obstacles,
+      {
+        taskIds: todayTasks.map((task) => task.id),
+        activeCount: activeTodayTasks.length,
+        totalDurationMin: sumDurationMin(activeTodayTasks),
+      },
+      todayKey,
+    );
+    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.dailyPlanChanged));
+    onComplete?.();
     onClose();
-  }, [obstacles, todayKey, onClose]);
+  }, [obstacles, todayKey, todayTasks, activeTodayTasks, onComplete, onClose]);
 
   const stepMeta = useMemo(() => {
     if (step === 'pick') {
@@ -162,6 +180,8 @@ export function DailyPlanningModal({ onClose, closing = false }: DailyPlanningMo
             <FinalizeStep
               todayTasks={todayTasks}
               epics={epics}
+              activeCount={activeTodayTasks.length}
+              doneCount={doneTodayCount}
               totalLabel={totalDurationLabel(activeTodayTasks)}
               obstacles={obstacles}
               onObstaclesChange={setObstacles}
@@ -171,7 +191,7 @@ export function DailyPlanningModal({ onClose, closing = false }: DailyPlanningMo
         </div>
 
         <aside className="nordly-planning-timeline">
-          {step !== 'defer' ? (
+          {step === 'finalize' ? (
             <DayTimeline
               date={today}
               tasks={todayTasks}

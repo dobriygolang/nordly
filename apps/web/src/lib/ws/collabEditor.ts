@@ -116,6 +116,50 @@ export function b64ToBytes(b64: string): Uint8Array {
   return out
 }
 
+const ENVELOPE_KIND_ORDER: Record<string, number> = {
+  snapshot: 0,
+  op: 1,
+  presence: 2,
+}
+
+function envelopeKindOrder(kind: string): number {
+  return ENVELOPE_KIND_ORDER[kind] ?? 50
+}
+
+/** Hub relay wraps as { user_id, data: { update } }; client sends { update } directly. */
+export function extractPresenceUpdate(data: unknown): string | null {
+  if (data == null || typeof data !== 'object') return null
+  const root = data as Record<string, unknown>
+
+  const direct = root.update
+  if (typeof direct === 'string') return direct
+
+  const nested = root.data
+  if (nested != null && typeof nested === 'object') {
+    const upd = (nested as Record<string, unknown>).update
+    if (typeof upd === 'string') return upd
+  }
+  if (typeof nested === 'string') {
+    try {
+      const parsed = JSON.parse(nested) as { update?: unknown }
+      if (typeof parsed.update === 'string') return parsed.update
+    } catch {
+      /* ignore */
+    }
+  }
+  return null
+}
+
+function applyPresenceUpdate(awareness: Awareness, data: unknown): void {
+  const b64 = extractPresenceUpdate(data)
+  if (!b64) return
+  try {
+    applyAwarenessUpdate(awareness, b64ToBytes(b64), 'remote')
+  } catch {
+    /* ignore malformed awareness */
+  }
+}
+
 export function applyWsEnvelope(
   env: EditorWsEnvelope,
   ydoc: Y.Doc,
@@ -131,14 +175,28 @@ export function applyWsEnvelope(
   }
 
   if (env.kind === 'presence' && awareness) {
-    const data = env.data as { data?: { update?: string }; update?: string } | undefined
-    const b64 = data?.data?.update ?? data?.update
-    if (typeof b64 === 'string') {
-      try {
-        applyAwarenessUpdate(awareness, b64ToBytes(b64), 'remote')
-      } catch {
-        /* ignore */
-      }
+    // Relative cursor positions bind to Y.Text — apply after doc ops in the same tick.
+    queueMicrotask(() => applyPresenceUpdate(awareness, env.data))
+  }
+}
+
+/** Apply a batch of WS envelopes: doc sync first, then awareness (deferred per envelope). */
+export function applyWsEnvelopes(
+  envs: EditorWsEnvelope[],
+  ydoc: Y.Doc,
+  awareness: Awareness | null,
+): void {
+  const sorted = [...envs].sort(
+    (a, b) => envelopeKindOrder(a.kind) - envelopeKindOrder(b.kind),
+  )
+  for (const env of sorted) {
+    if (env.kind === 'snapshot' || env.kind === 'op') {
+      applyWsEnvelope(env, ydoc, awareness)
+    }
+  }
+  for (const env of sorted) {
+    if (env.kind === 'presence' && awareness) {
+      applyPresenceUpdate(awareness, env.data)
     }
   }
 }

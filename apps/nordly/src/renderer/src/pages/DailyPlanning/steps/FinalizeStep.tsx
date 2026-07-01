@@ -11,6 +11,8 @@ import { durationLabel } from '../lib/planningTasks';
 interface FinalizeStepProps {
   todayTasks: TaskCard[];
   epics: TaskEpic[];
+  activeCount: number;
+  doneCount: number;
   totalLabel: string;
   obstacles: string;
   onObstaclesChange: (value: string) => void;
@@ -27,6 +29,8 @@ function parseObstacles(value: string): string[] {
 export function FinalizeStep({
   todayTasks,
   epics,
+  activeCount,
+  doneCount,
   totalLabel,
   obstacles,
   onObstaclesChange,
@@ -36,7 +40,9 @@ export function FinalizeStep({
   const [draft, setDraft] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const items = parseObstacles(obstacles);
-  const activeTasks = todayTasks.filter((task) => task.status !== 'done');
+
+  const summaryKey =
+    doneCount > 0 ? 'nordly.planning.finalize_summary_with_done' : 'nordly.planning.finalize_summary';
 
   const focusInput = useCallback((index: number) => {
     const el = inputRefs.current[index];
@@ -130,18 +136,25 @@ export function FinalizeStep({
   return (
     <div className="nordly-planning-finalize">
       <p className="nordly-planning-finalize__summary">
-        {t('nordly.planning.finalize_summary', {
-          count: activeTasks.length,
+        {t(summaryKey, {
+          count: activeCount,
+          done: doneCount,
           duration: totalLabel,
         })}
       </p>
+      <p className="nordly-planning-finalize__hint">{t('nordly.planning.finalize_home_hint')}</p>
 
-      {activeTasks.length > 0 ? (
+      {todayTasks.length > 0 ? (
         <ul className="nordly-planning-finalize__tasks">
-          {activeTasks.map((task) => {
+          {todayTasks.map((task) => {
+            const done = task.status === 'done';
             const epicColor = resolveTaskEpicColor(task, epics);
             return (
-              <li key={task.id} className="nordly-planning-finalize__task">
+              <li
+                key={task.id}
+                className="nordly-planning-finalize__task"
+                data-done={done ? 'true' : undefined}
+              >
                 {epicColor ? (
                   <span
                     className="nordly-planning-finalize__task-stripe"
@@ -150,7 +163,9 @@ export function FinalizeStep({
                   />
                 ) : null}
                 <span className="nordly-planning-finalize__task-title">{task.title}</span>
-                <span className="nordly-planning-finalize__task-dur mono">{durationLabel(task)}</span>
+                {!done ? (
+                  <span className="nordly-planning-finalize__task-dur mono">{durationLabel(task)}</span>
+                ) : null}
               </li>
             );
           })}

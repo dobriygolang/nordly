@@ -1,17 +1,17 @@
-import { Suspense, lazy, memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
-const DailyPlanningModal = lazy(() =>
-  import('@pages/DailyPlanning/DailyPlanningModal').then((m) => ({ default: m.DailyPlanningModal })),
-);
+import { DailyPlanningModal } from '@pages/DailyPlanning/DailyPlanningModal';
 
 const UNMOUNT_DELAY_MS = 320;
 
 export const AnimatedDailyPlanningOverlay = memo(function AnimatedDailyPlanningOverlay({
   open,
   onClose,
+  onComplete,
 }: {
   open: boolean;
   onClose: () => void;
+  onComplete?: () => void;
 }): JSX.Element | null {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
@@ -32,9 +32,5 @@ export const AnimatedDailyPlanningOverlay = memo(function AnimatedDailyPlanningO
   }, [open, mounted]);
 
   if (!mounted) return null;
-  return (
-    <Suspense fallback={null}>
-      <DailyPlanningModal onClose={onClose} closing={closing} />
-    </Suspense>
-  );
+  return <DailyPlanningModal onClose={onClose} onComplete={onComplete} closing={closing} />;
 });

@@ -2,9 +2,16 @@ import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
 import { toDayKey } from '@pages/TaskBoard/lib/dates';
 
+export interface DailyPlanSnapshot {
+  taskIds: string[];
+  activeCount: number;
+  totalDurationMin: number;
+}
+
 export interface DailyPlanRecord {
   obstacles?: string;
   finalizedAt?: string;
+  snapshot?: DailyPlanSnapshot;
 }
 
 function metaKey(userId: string, dayKey: string): string {
@@ -18,11 +25,19 @@ interface DailyPlanMetaRow extends DailyPlanRecord {
   updatedAt: number;
 }
 
+function rowToRecord(row: DailyPlanMetaRow | null | undefined): DailyPlanRecord {
+  if (!row) return {};
+  return {
+    obstacles: row.obstacles,
+    finalizedAt: row.finalizedAt,
+    snapshot: row.snapshot,
+  };
+}
+
 export async function loadDailyPlan(dayKey = toDayKey(new Date())): Promise<DailyPlanRecord> {
   const userId = requireUserId();
   const row = await dbGet<DailyPlanMetaRow>('meta', metaKey(userId, dayKey));
-  if (!row) return {};
-  return { obstacles: row.obstacles, finalizedAt: row.finalizedAt };
+  return rowToRecord(row);
 }
 
 export async function saveDailyPlanObstacles(
@@ -37,12 +52,14 @@ export async function saveDailyPlanObstacles(
     dayKey,
     obstacles,
     finalizedAt: prev.finalizedAt,
+    snapshot: prev.snapshot,
     updatedAt: Date.now(),
   });
 }
 
 export async function finalizeDailyPlan(
   obstacles: string,
+  snapshot: DailyPlanSnapshot,
   dayKey = toDayKey(new Date()),
 ): Promise<void> {
   const userId = requireUserId();
@@ -51,6 +68,7 @@ export async function finalizeDailyPlan(
     userId,
     dayKey,
     obstacles,
+    snapshot,
     finalizedAt: new Date().toISOString(),
     updatedAt: Date.now(),
   });

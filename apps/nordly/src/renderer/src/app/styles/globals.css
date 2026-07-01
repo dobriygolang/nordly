@@ -30,3 +30,4 @@
 @import './features/settings.css';
 @import './features/login.css';
 @import './features/tray-popover.css';
+@import './features/notification-overlay.css';

@@ -33,7 +33,7 @@ Dock pages (`widgets/Dock.tsx`): `home`, `today`, `notes`, `whiteboard`, `settin
 
 Overlays (not pages): `AnimatedStatsOverlay`, `AnimatedCalendarOverlay`, `AnimatedDailyPlanningOverlay`, `PomodoroController`, `Palette` (Cmd+K).
 
-**Daily Planning** (`pages/DailyPlanning/`): 3-step wizard overlay — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week), Finalize (summary + obstacles). Open via Palette (after Today) or `P`. Task drag reschedules via `scheduleTask`. Obstacles stored locally in IndexedDB meta key `daily_plan::{userId}::{YYYY-MM-DD}` (`pages/DailyPlanning/lib/dailyPlanStore.ts`); manual open only (no auto-open on launch).
+**Daily Planning** (`pages/DailyPlanning/`): 3-step triage wizard — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week; full-width, no timeline), Finalize (summary + obstacles + timeline preview). Open via Palette or `P`. On **Get started**: saves obstacles + plan snapshot (`taskIds`, `activeCount`, `totalDurationMin`) to IndexedDB meta `daily_plan::{userId}::{YYYY-MM-DD}`, dispatches `nordly:daily-plan-changed`, navigates to Home. **Home** shows the live today list + plan progress + obstacles; **Stats** overlay shows plan vs actual when finalized today. Manual open only (no auto-open on launch).
 
 ## Env flags
 
@@ -149,6 +149,8 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
+**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): always builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with **unsynced local sessions only** (avoids double-count). If remote is empty (focus service down / no migrations), falls back to local data.
+
 Task fields **device-only** (preserved on pull/replace): `order`.
 
 Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
@@ -203,6 +205,9 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_logout` | Clear session |
 | `vault_pass_load/save/clear` | Vault passphrase keychain |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
+| `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 30s |
+| `hide_notification` | Dismiss notification banner (swipe or timeout) |
+| `focus_main_window` | Raise main window (notification click) |
 | `shell_open_external` | Open URL in browser |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |

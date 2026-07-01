@@ -3,7 +3,6 @@ import { Code2, Moon, Settings, Sun, UserPlus, X } from 'lucide-react'
 import { RoomSessionTimer } from '@/components/live/RoomSessionTimer'
 import { brand } from '@/lib/brand/tokens'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
-import { themeToggleOrigin, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 
@@ -24,7 +23,7 @@ type Props = {
   displayName: string
   onDisplayNameChange: (name: string) => void
   theme: LiveRoomTheme
-  onThemeToggle: (origin?: ThemeToggleOrigin) => void
+  onThemeToggle: () => void
 }
 
 export function LiveRoomTopBar({
@@ -142,7 +141,7 @@ export function LiveRoomTopBar({
 
             <button
               type="button"
-              onClick={(event) => onThemeToggle(themeToggleOrigin(event))}
+              onClick={onThemeToggle}
               className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-1"
             >
               {theme === 'light' ? (

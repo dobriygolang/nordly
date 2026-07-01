@@ -38,7 +38,6 @@ import {
   type LiveRoomTheme,
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
-import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
@@ -121,9 +120,6 @@ export default function CollabRoomPage() {
     document.documentElement.classList.toggle('light', theme === 'light')
     document.documentElement.classList.toggle('dark', theme === 'dark')
     persistLiveRoomTheme(theme)
-    return () => {
-      document.documentElement.classList.remove('light', 'dark')
-    }
   }, [theme])
 
   useEffect(() => {
@@ -138,11 +134,9 @@ export default function CollabRoomPage() {
     if (trimmed) persistGuestDisplayName(trimmed)
   }, [])
 
-  const handleThemeToggle = useCallback((origin?: ThemeToggleOrigin) => {
-    runThemeTransition(() => {
-      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-    }, origin)
-  }, [])
+  const handleThemeToggle = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+  }
 
   const handleRemoteCodeRun = useCallback(
     (payload: { run_id: string; triggered_by?: string }) => {

@@ -85,14 +85,137 @@ class HrWidget extends WidgetType {
 
 const hidden = new HiddenWidget();
 
+function overlapsRange(ranges: [number, number][], start: number, end: number): boolean {
+  return ranges.some(([a, b]) => start < b && end > a);
+}
+
+function applyDelimitedInline(
+  builder: RangeSetBuilder<Decoration>,
+  lineFrom: number,
+  text: string,
+  showSyntax: boolean,
+  re: RegExp,
+  className: string,
+  open: number,
+  close: number,
+  occupied: [number, number][],
+): void {
+  re.lastIndex = 0;
+  let match = re.exec(text);
+  while (match != null) {
+    const relStart = match.index;
+    const relEnd = relStart + match[0].length;
+    if (!overlapsRange(occupied, relStart, relEnd)) {
+      const start = lineFrom + relStart;
+      const end = lineFrom + relEnd;
+      const contentStart = start + open;
+      const contentEnd = end - close;
+      if (showSyntax) {
+        builder.add(contentStart, contentEnd, Decoration.mark({ class: className }));
+      } else {
+        if (open > 0) builder.add(start, start + open, Decoration.replace({ widget: hidden }));
+        builder.add(contentStart, contentEnd, Decoration.mark({ class: className }));
+        if (close > 0) builder.add(end - close, end, Decoration.replace({ widget: hidden }));
+      }
+      occupied.push([relStart, relEnd]);
+    }
+    match = re.exec(text);
+  }
+}
+
+function applyLinkInline(
+  builder: RangeSetBuilder<Decoration>,
+  lineFrom: number,
+  text: string,
+  showSyntax: boolean,
+  occupied: [number, number][],
+): void {
+  const re = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let match = re.exec(text);
+  while (match != null) {
+    const relStart = match.index;
+    const relEnd = relStart + match[0].length;
+    if (!overlapsRange(occupied, relStart, relEnd)) {
+      const labelLen = match[1].length;
+      const start = lineFrom + relStart;
+      const end = lineFrom + relEnd;
+      const contentStart = start + 1;
+      const contentEnd = contentStart + labelLen;
+      if (showSyntax) {
+        builder.add(contentStart, contentEnd, Decoration.mark({ class: 'nordly-md-link' }));
+      } else {
+        builder.add(start, start + 1, Decoration.replace({ widget: hidden }));
+        builder.add(contentStart, contentEnd, Decoration.mark({ class: 'nordly-md-link' }));
+        builder.add(contentEnd, end, Decoration.replace({ widget: hidden }));
+      }
+      occupied.push([relStart, relEnd]);
+    }
+    match = re.exec(text);
+  }
+}
+
+function decorateInlines(
+  builder: RangeSetBuilder<Decoration>,
+  lineFrom: number,
+  text: string,
+  showSyntax: boolean,
+): void {
+  const occupied: [number, number][] = [];
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
+  applyLinkInline(builder, lineFrom, text, showSyntax, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /\*\*([^*\n]+)\*\*/g, 'nordly-md-bold', 2, 2, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /__([^_\n]+)__/g, 'nordly-md-bold', 2, 2, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /~~([^~\n]+)~~/g, 'nordly-md-strike', 2, 2, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /==([^=\n]+)==/g, 'nordly-md-highlight', 2, 2, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /\*([^*\n]+)\*/g, 'nordly-md-italic', 1, 1, occupied);
+  applyDelimitedInline(builder, lineFrom, text, showSyntax, /_([^_\n]+)_/g, 'nordly-md-italic', 1, 1, occupied);
+}
+
+function addCodeBlockLine(
+  builder: RangeSetBuilder<Decoration>,
+  line: { from: number; to: number },
+  showSyntax: boolean,
+  kind: 'fence' | 'body',
+): void {
+  builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-code-block' }));
+  if (kind === 'body') {
+    builder.add(line.from, line.to, Decoration.mark({ class: 'nordly-md-code-block__line' }));
+    return;
+  }
+  if (showSyntax) {
+    builder.add(line.from, line.to, Decoration.mark({ class: 'nordly-md-code-block__fence' }));
+  } else {
+    builder.add(line.from, line.to, Decoration.replace({ widget: hidden, block: true }));
+  }
+}
+
 function buildLivePreview(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
+  let inFence = false;
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const text = line.text;
     const showSyntax = showLineSyntax(view.state, line);
+
+    const fenceOpen = /^(`{3,})([\w-]*)?\s*$/.exec(text);
+    if (!inFence && fenceOpen) {
+      inFence = true;
+      addCodeBlockLine(builder, line, showSyntax, 'fence');
+      continue;
+    }
+
+    if (inFence && /^`{3,}\s*$/.test(text)) {
+      addCodeBlockLine(builder, line, showSyntax, 'fence');
+      inFence = false;
+      continue;
+    }
+
+    if (inFence) {
+      addCodeBlockLine(builder, line, showSyntax, 'body');
+      continue;
+    }
 
     // Heading — style the whole line (including `#`); hide markers only off-line.
     const heading = /^(#{1,6})(\s*)(.*)$/.exec(text);
@@ -109,6 +232,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
           builder.add(prefixEnd, line.to, Decoration.mark({ class: `nordly-md-h${level}` }));
         }
       }
+      decorateInlines(builder, line.from, text, showSyntax);
       continue;
     }
 
@@ -141,6 +265,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
           }),
         );
       }
+      decorateInlines(builder, line.from, text, showSyntax);
       continue;
     }
 
@@ -153,6 +278,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
       if (!showSyntax) {
         builder.add(markerFrom, markerTo, Decoration.replace({ widget: new BulletWidget(), side: 1 }));
       }
+      decorateInlines(builder, line.from, text, showSyntax);
       continue;
     }
 
@@ -163,6 +289,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
       const numTo = numFrom + ordered[2].length;
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
       builder.add(numFrom, numTo, Decoration.mark({ class: 'nordly-md-list-num' }));
+      decorateInlines(builder, line.from, text, showSyntax);
       continue;
     }
 
@@ -175,7 +302,11 @@ function buildLivePreview(view: EditorView): DecorationSet {
       if (!showSyntax) {
         builder.add(markerFrom, markerTo, Decoration.replace({ widget: hidden }));
       }
+      decorateInlines(builder, line.from, text, showSyntax);
+      continue;
     }
+
+    decorateInlines(builder, line.from, text, showSyntax);
   }
 
   return builder.finish();
@@ -228,10 +359,13 @@ export const notesEditorTheme = EditorView.theme({
     backgroundColor: 'rgb(var(--ink-rgb) / 0.18) !important',
   },
   /* Live preview wins over CM markdown token colors */
-  '.cm-header, .tok-heading, .tok-heading1, .tok-heading2, .tok-heading3, .tok-strong, .tok-emphasis': {
+  '.cm-header, .tok-heading, .tok-heading1, .tok-heading2, .tok-heading3, .tok-strong, .tok-emphasis, .tok-monospace, .tok-strikethrough, .tok-link, .tok-url': {
     color: 'inherit',
     fontSize: 'inherit',
     fontWeight: 'inherit',
     fontStyle: 'inherit',
+    fontFamily: 'inherit',
+    background: 'inherit',
+    textDecoration: 'inherit',
   },
 });

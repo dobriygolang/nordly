@@ -8,12 +8,26 @@ NEW_DIR="${NEW_DIR:-/opt/project-nordly}"
 GIT_URL="${GIT_URL:-https://github.com/dobriygolang/nordly.git}"
 BRANCH="${BRANCH:-main}"
 
+echo "==> Stop app containers (keep Postgres for in-place DB rename)"
+cd "$OLD_DIR/deploy"
+docker compose -f docker-compose.prod.yml --env-file .env stop \
+  caddy identity identity-bot billing sandbox rooms tracker notes focus \
+  grafana alloy prometheus redis node_exporter migrate 2>/dev/null || true
+
+terminate_db_connections() {
+  local db="$1"
+  docker exec "$PG" psql -U druzya -d postgres -v ON_ERROR_STOP=1 -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db' AND pid <> pg_backend_pid();" \
+    >/dev/null || true
+}
+
 echo "==> Rename Postgres databases (druzya_* → nordly_*)"
 PG=druzya-prod-postgres-1
 rename_db() {
   local from="$1" to="$2"
-  docker exec "$PG" psql -U druzya -d postgres -v ON_ERROR_STOP=1 -c \
-    "SELECT 1 FROM pg_database WHERE datname = '$from'" | grep -q 1 || return 0
+  docker exec "$PG" psql -U druzya -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$from'" | grep -q 1 || return 0
+  docker exec "$PG" psql -U druzya -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$to'" | grep -q 1 && return 0
+  terminate_db_connections "$from"
   docker exec "$PG" psql -U druzya -d postgres -v ON_ERROR_STOP=1 -c \
     "ALTER DATABASE \"$from\" RENAME TO \"$to\";"
   echo "  $from → $to"

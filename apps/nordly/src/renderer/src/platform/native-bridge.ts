@@ -10,8 +10,6 @@ import {
   type EventPayload,
   type NordlyAPI,
   type PomodoroSnapshot,
-  type TelegramPollResult,
-  type TelegramStart,
 } from '@platform/ipc';
 
 function isTauri(): boolean {
@@ -27,8 +25,6 @@ export function installNativeBridge(): void {
       session: () => invoke<AuthSession | null>('auth_session'),
       persist: (s) => invoke('auth_persist', { session: s }),
       logout: () => invoke('auth_logout'),
-      tgStart: () => invoke<TelegramStart>('auth_tg_start'),
-      tgPoll: (code) => invoke<TelegramPollResult>('auth_tg_poll', { code }),
     },
     pomodoro: {
       load: () => invoke<PomodoroSnapshot | null>('pomodoro_load'),
@@ -40,9 +36,6 @@ export function installNativeBridge(): void {
     window: {
       setTrafficLights: (visible) =>
         invoke('window_traffic_lights_show', { visible }),
-    },
-    tray: {
-      update: (title, tooltip) => invoke('tray_update', { title, tooltip }),
     },
     vault: {
       passLoad: (userId) => invoke<string | null>('vault_pass_load', { userId }),

@@ -64,12 +64,6 @@ export function applyDocumentMeta(input: DocumentMetaInput): void {
   upsertLink('canonical', url)
 }
 
-export function useDocumentMeta(input: DocumentMetaInput): void {
-  useEffect(() => {
-    applyDocumentMeta(input)
-  }, [input.title, input.description, input.path, input.imagePath, input.noIndex, input.keywords])
-}
-
 type RouteMetaKey =
   | 'welcome'
   | 'pricing'

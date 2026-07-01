@@ -5,12 +5,12 @@ function isTauriShell(): boolean {
 }
 
 /** Native HTTP in packaged Tauri; browser fetch in dev (Vite proxy). */
-function useNativeHttp(): boolean {
+function shouldUseNativeHttp(): boolean {
   return isTauriShell() && !import.meta.env.DEV;
 }
 
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (useNativeHttp()) {
+  if (shouldUseNativeHttp()) {
     return tauriFetch(input, init);
   }
   return fetch(input, init);

@@ -22,7 +22,7 @@ import { resolveEntityId, setServerId } from '@shared/sync/idMap';
 import { removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 
-function useE2eePush(): boolean {
+function shouldPushE2ee(): boolean {
   return isVaultEnabledSync() && isVaultUnlocked();
 }
 
@@ -45,7 +45,7 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
   const payload = entry.payload as Record<string, unknown>;
   const title = String(payload.title ?? 'Untitled');
   const bodyMd = String(payload.bodyMd ?? '');
-  const e2ee = useE2eePush();
+  const e2ee = shouldPushE2ee();
 
   if (isVaultEnabledSync() && !isVaultUnlocked()) {
     throw new Error('Vault locked — unlock in Settings to sync encrypted notes');

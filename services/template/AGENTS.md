@@ -9,7 +9,7 @@ Module: `github.com/dobriygolang/project-nordly/services/template`
 ```bash
 NEW=myservice
 cp -R services/template "services/${NEW}"
-# sed template→NEW, druzya_template→druzya_${NEW} in go/proto/make files
+# sed template→NEW, nordly_template→nordly_${NEW} in go/proto/make files
 # mv cmd/template, api/template, internal/app/api/template
 # rename internal/example → your domain
 cd "services/${NEW}" && make gen-proto && make tidy && make lint && make build
@@ -22,7 +22,7 @@ On Linux: `sed -i` without `''`. Pick unique ports — [root AGENTS.md port tabl
 See [.cursor/rules/architecture-standard.mdc](../../.cursor/rules/architecture-standard.mdc). Exemplars:
 
 - Read: `internal/example/usecase/query/get_item/`
-- Write: `services/interview/.../usecase/command/submit_attempt/`
+- Write: add `internal/<domain>/usecase/command/<op>/` following the root architecture standard.
 
 ## Example API
 
@@ -33,7 +33,7 @@ See [.cursor/rules/architecture-standard.mdc](../../.cursor/rules/architecture-s
 
 ## Ports
 
-HTTP `8099` | gRPC `9199` | PG `5439` / `druzya_template`
+HTTP `8099` | gRPC `9199` | PG `5439` / `nordly_template`
 
 ## Commands
 
@@ -42,4 +42,4 @@ cd services/template
 make start | gen-proto | lint | build
 ```
 
-Reference services: **content** (catalog RPCs), **identity** (auth, Redis, custom HTTP).
+Reference services: **identity** (auth, Redis, custom HTTP) and other active services listed in root `AGENTS.md`.

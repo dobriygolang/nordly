@@ -165,5 +165,3 @@ function IconButton({
     </button>
   )
 }
-
-export const LIVE_BOTTOM_BAR_HEIGHT = 48

@@ -1,5 +1,12 @@
 import type { PlanCatalogEntry, PlanEntitlementSpec } from '@/lib/types'
-import { COUNTER_DISPLAY_ORDER } from '@/lib/billingLabels'
+
+const LIMIT_DISPLAY_ORDER = [
+  'cloud_notes_count',
+  'code_runs_per_day',
+  'live_rooms_per_month',
+  'live_rooms_concurrent',
+  'focus_stats_history_days',
+] as const
 
 export function planLimitKeys(plans: PlanCatalogEntry[]): string[] {
   const keys = new Set<string>()
@@ -8,10 +15,10 @@ export function planLimitKeys(plans: PlanCatalogEntry[]): string[] {
       keys.add(key)
     }
   }
-  const order = new Map(COUNTER_DISPLAY_ORDER.map((k, i) => [k, i]))
+  const order = new Map(LIMIT_DISPLAY_ORDER.map((k, i) => [k, i]))
   return [...keys].sort((a, b) => {
-    const ia = order.get(a as (typeof COUNTER_DISPLAY_ORDER)[number]) ?? 999
-    const ib = order.get(b as (typeof COUNTER_DISPLAY_ORDER)[number]) ?? 999
+    const ia = order.get(a as (typeof LIMIT_DISPLAY_ORDER)[number]) ?? 999
+    const ib = order.get(b as (typeof LIMIT_DISPLAY_ORDER)[number]) ?? 999
     if (ia !== ib) return ia - ib
     return a.localeCompare(b)
   })

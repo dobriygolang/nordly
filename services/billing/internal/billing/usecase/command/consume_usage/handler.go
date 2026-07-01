@@ -3,7 +3,6 @@ package consume_usage
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
@@ -47,7 +46,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ConsumeUsageR
 	if err := cmd.Validate(); err != nil {
 		return nil, err
 	}
-	key := normalizeUsageKey(cmd.Key)
+	key := cmd.Key
 
 	plan, err := h.plans.ResolvePlan(ctx, cmd.UserID)
 	if err != nil {
@@ -110,12 +109,4 @@ func (h *Handler) findEntitlement(ctx context.Context, planID, key string) (*mod
 		}
 	}
 	return nil, repository.ErrNotFound
-}
-
-func normalizeUsageKey(key string) string {
-	key = strings.TrimSpace(key)
-	if key == "llm_evaluation" {
-		return "ai_evaluations_per_day"
-	}
-	return key
 }

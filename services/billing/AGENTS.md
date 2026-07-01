@@ -36,7 +36,7 @@ Seeded in `00001_init.sql`. Plans: `free`, `pro_monthly`.
 | Grant/Revoke subscription | admin HTTP | `x-internal-token` |
 | Tribute webhook | `POST /v1/billing/webhooks/tribute` | `trbt-signature` HMAC-SHA256 hex (API key) |
 
-Consumers: **rooms** (live rooms/month + concurrent), **sandbox** (code_runs_per_day), **notes** (cloud_notes_count).
+Consumers: **sandbox** (code_runs_per_day), **notes** (cloud_notes_count).
 
 ## Invariants
 

@@ -1,4 +1,4 @@
-// Centralized custom-event names for Hone renderer.
+// Centralized custom-event names for Nordly renderer.
 
 export const NORDLY_EVENTS = {
   /** Sidebar → App: navigate to home. */

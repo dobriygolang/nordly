@@ -8,11 +8,12 @@ import {
   type ReactNode,
 } from 'react'
 import { readSiteTheme, writeSiteTheme, type SiteTheme } from '@/lib/site/theme'
+import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 
 type SiteThemeContextValue = {
   theme: SiteTheme
   setTheme: (theme: SiteTheme) => void
-  toggleTheme: () => void
+  toggleTheme: (origin?: ThemeToggleOrigin) => void
 }
 
 const SiteThemeContext = createContext<SiteThemeContextValue | null>(null)
@@ -29,9 +30,13 @@ export function SiteThemeProvider({ children }: { children: ReactNode }) {
     setThemeState(next)
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
-  }, [setTheme, theme])
+  const toggleTheme = useCallback(
+    (origin?: ThemeToggleOrigin) => {
+      const next = theme === 'dark' ? 'light' : 'dark'
+      runThemeTransition(() => setTheme(next), origin)
+    },
+    [setTheme, theme],
+  )
 
   const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme, setTheme, toggleTheme])
 

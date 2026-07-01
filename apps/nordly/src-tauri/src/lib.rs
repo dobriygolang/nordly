@@ -3,7 +3,7 @@ mod store;
 mod vault;
 mod window_macos;
 
-use auth::{AuthSession, TelegramPollResult, TelegramStart};
+use auth::AuthSession;
 use store::PomodoroSnapshot;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -39,15 +39,12 @@ pub fn run() {
             auth_session,
             auth_persist,
             auth_logout,
-            auth_tg_start,
-            auth_tg_poll,
             vault_pass_load,
             vault_pass_save,
             vault_pass_clear,
             pomodoro_load,
             pomodoro_save,
             shell_open_external,
-            tray_update,
             window_traffic_lights_show,
         ])
         .run(tauri::generate_context!())
@@ -76,16 +73,6 @@ fn auth_logout(app: AppHandle) -> Result<(), String> {
     auth::clear_session(&app)?;
     let _ = app.emit("auth:changed", Option::<AuthSession>::None);
     Ok(())
-}
-
-#[tauri::command]
-async fn auth_tg_start(app: AppHandle) -> Result<TelegramStart, String> {
-    auth::telegram_start(&app).await
-}
-
-#[tauri::command]
-async fn auth_tg_poll(app: AppHandle, code: String) -> Result<TelegramPollResult, String> {
-    auth::telegram_poll(&app, &code).await
 }
 
 #[tauri::command]
@@ -119,11 +106,6 @@ async fn shell_open_external(app: AppHandle, url: String) -> Result<(), String> 
     app.shell()
         .open(url, None)
         .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-fn tray_update(_title: String, _tooltip: String) -> Result<(), String> {
     Ok(())
 }
 

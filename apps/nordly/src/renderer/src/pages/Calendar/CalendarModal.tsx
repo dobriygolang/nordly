@@ -197,8 +197,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   };
 
   const openTask = (taskId: string) => {
-    onClose();
     window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.navOpenTask, { detail: { taskId } }));
+    onClose();
   };
 
   const viewOptions = useMemo(

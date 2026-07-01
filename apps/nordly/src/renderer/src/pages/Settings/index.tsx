@@ -4,7 +4,6 @@ import { useT, useLocale, type Locale } from '@nordly-i18n';
 
 import { type ThemeId, THEME_IDS } from '@widgets/CanvasBg';
 import { applyTextScale } from '@shared/model/accessibility';
-import { readPomodoroSeconds as readPomodoroSecondsFromPrefs, readStoredTheme as readStoredThemeFromPrefs } from '@shared/model/prefs';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
 import { GoogleCalendarSection } from './sections/GoogleCalendarSection';
@@ -22,9 +21,6 @@ import { SegmentedControl } from './primitives/SegmentedControl';
 import { Slider } from './primitives/Slider';
 import { Toggle } from './primitives/Toggle';
 import { ThemeCard } from './primitives/ThemeCard';
-
-export const readPomodoroSeconds = readPomodoroSecondsFromPrefs;
-export const readStoredTheme = readStoredThemeFromPrefs;
 
 interface SettingsPageProps {
   theme: ThemeId;

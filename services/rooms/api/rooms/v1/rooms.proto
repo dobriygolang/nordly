@@ -53,7 +53,7 @@ service RoomsService {
     };
   }
 
-  // Hone whiteboard live share (JWT). Seeds initial Excalidraw scene on room.
+  // Nordly whiteboard live share (JWT). Seeds initial Excalidraw scene on room.
   rpc ShareWhiteboard(ShareWhiteboardRequest) returns (ShareWhiteboardResponse) {
     option (google.api.http) = {
       post: "/v1/rooms/share-whiteboard"

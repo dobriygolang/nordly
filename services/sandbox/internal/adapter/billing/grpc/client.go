@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	billingv1 "github.com/dobriygolang/project-nordly/services/billing/pkg/api/billing/v1"
+	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -47,20 +47,6 @@ func (c *Client) Close() error {
 
 func (c *Client) authCtx(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, internalTokenHeader, c.token)
-}
-
-func (c *Client) CheckEntitlement(ctx context.Context, userID, key string) error {
-	resp, err := c.client.CheckEntitlement(c.authCtx(ctx), &billingv1.CheckEntitlementRequest{
-		UserId: userID,
-		Key:    key,
-	})
-	if err != nil {
-		return err
-	}
-	if !resp.GetAllowed() {
-		return billingadapter.ErrFeatureDisabled
-	}
-	return nil
 }
 
 func (c *Client) CheckAndConsumeUsage(ctx context.Context, userID, key string, amount int) error {

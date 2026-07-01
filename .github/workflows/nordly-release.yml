@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'nordly-v*'
-      - 'hone-v*'
   workflow_dispatch:
 
 permissions:

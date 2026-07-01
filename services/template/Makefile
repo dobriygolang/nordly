@@ -4,7 +4,7 @@ SHELL := /bin/bash
 SERVICE := template
 HTTP_PORT ?= 8099
 GRPC_PORT ?= 9199
-GOOSE_DSN ?= host=localhost port=5439 user=postgres password=postgres dbname=druzya_template sslmode=disable
+GOOSE_DSN ?= host=localhost port=5439 user=postgres password=postgres dbname=nordly_template sslmode=disable
 MIGRATIONS_DIR := scripts/migrations
 COMPOSE_FILE := scripts/dev/docker-compose.yml
 GOOSE := GOWORK=off go run github.com/pressly/goose/v3/cmd/goose@v3.19.2
@@ -18,7 +18,7 @@ help: ## Show this help
 start-deps: ## Start postgres (Docker)
 	docker compose -f $(COMPOSE_FILE) up -d postgres
 	@echo "  waiting for postgres..."
-	@until docker compose -f $(COMPOSE_FILE) exec -T postgres pg_isready -U postgres -d druzya_template >/dev/null 2>&1; do sleep 1; done
+	@until docker compose -f $(COMPOSE_FILE) exec -T postgres pg_isready -U postgres -d nordly_template >/dev/null 2>&1; do sleep 1; done
 
 .PHONY: migrate-up
 migrate-up: ## Apply pending SQL migrations

@@ -22,33 +22,10 @@ export type CodeRoom = {
   participants: RoomParticipant[]
 }
 
-export type ActiveRoomSummary = {
-  id: string
-  room_type: string
-  language: string
-  created_at?: string
-  expires_at?: string
-  is_guest_created?: boolean
-  ws_url: string
-}
-
-export type MyActiveRooms = {
-  rooms: ActiveRoomSummary[]
-  active_count: number
-  concurrent_limit?: number
-  concurrent_unlimited?: boolean
-}
-
 export type InviteLink = {
   url: string
   token: string
   expires_at?: string
-}
-
-export type CreateRoomPayload = {
-  room_type?: string
-  language?: string
-  session_id?: string
 }
 
 export type GuestJoinResult = {
@@ -81,14 +58,6 @@ export function readGuestToken(roomId: string): string | null {
 export function persistGuestToken(roomId: string, token: string): void {
   try {
     sessionStorage.setItem(guestTokenKey(roomId), token)
-  } catch {
-    /* noop */
-  }
-}
-
-export function clearGuestToken(roomId: string): void {
-  try {
-    sessionStorage.removeItem(guestTokenKey(roomId))
   } catch {
     /* noop */
   }

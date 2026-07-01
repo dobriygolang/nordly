@@ -25,8 +25,6 @@
       "@platform/*": ["./src/renderer/src/platform/*"],
       "@nordly-i18n": ["../shared/i18n"],
       "@nordly-i18n/*": ["../shared/i18n/*"],
-      "@bufbuild/protobuf": ["./node_modules/@bufbuild/protobuf"],
-      "@connectrpc/connect": ["./node_modules/@connectrpc/connect"],
       "react": ["./node_modules/@types/react/index.d.ts"]
     }
   },

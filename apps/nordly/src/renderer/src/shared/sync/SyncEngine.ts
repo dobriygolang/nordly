@@ -8,8 +8,14 @@ import { pullNotes, pushNotesOutbox } from '@shared/sync/domains/notesSync';
 import { pullTasks, pushTasksOutbox } from '@shared/sync/domains/tasksSync';
 import { bumpOutboxAttempts, listOutbox, outboxCount } from '@shared/sync/outbox';
 import { runMigrationForCurrentUser } from '@shared/sync/migrateLocalStorage';
+import { SyncError } from '@shared/sync/errors';
 import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
 import type { OutboxEntry } from '@shared/sync/types';
+
+type SyncOptions = {
+  /** When true, reject if offline instead of silently queueing. */
+  explicit?: boolean;
+};
 
 const DEBOUNCE_MS = 3000;
 const INTERVAL_MS = 60_000;
@@ -42,7 +48,7 @@ async function pullAll(): Promise<void> {
   await pullFocus();
 }
 
-async function syncNow(): Promise<void> {
+async function syncNow(options?: SyncOptions): Promise<void> {
   if (!isSyncEnabled() || !getDbUserId()) return;
   if (running) return;
   running = true;
@@ -51,7 +57,11 @@ async function syncNow(): Promise<void> {
   if (!canReachNetwork()) {
     store.setStatus('offline');
     store.setServerReachable(false);
+    store.setLastError(null);
     running = false;
+    if (options?.explicit) {
+      throw new SyncError('no_network', 'No internet connection');
+    }
     return;
   }
 
@@ -59,7 +69,11 @@ async function syncNow(): Promise<void> {
   store.setServerReachable(reachable);
   if (!reachable) {
     store.setStatus('offline');
+    store.setLastError(null);
     running = false;
+    if (options?.explicit) {
+      throw new SyncError('server_unreachable', 'Cannot reach server');
+    }
     return;
   }
 
@@ -101,21 +115,23 @@ export function scheduleSync(): void {
   }, DEBOUNCE_MS);
 }
 
-export function flushSync(): void {
+export function flushSync(): Promise<void> {
   if (debounceTimer !== null) {
     window.clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  void syncNow();
+  return syncNow({ explicit: true });
 }
 
 function onOnline(): void {
   useSyncStore.getState().setStatus('idle');
-  flushSync();
+  void flushSync().catch(() => {
+    /* retry on next interval or focus */
+  });
 }
 
 function onVisible(): void {
-  if (document.visibilityState === 'visible') flushSync();
+  if (document.visibilityState === 'visible') void syncNow();
 }
 
 function onFocus(): void {

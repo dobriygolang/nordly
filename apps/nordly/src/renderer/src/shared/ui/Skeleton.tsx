@@ -1,4 +1,4 @@
-// Skeleton — loading placeholders в b/w aesthetic Hone'а.
+// Skeleton — loading placeholders in Nordly's b/w aesthetic.
 //
 // Использует `.shimmer` класс из globals.css (linear-gradient через
 // rgba(255,255,255,0.04→0.08→0.04), animation 1.4s ease-in-out infinite).
@@ -59,7 +59,7 @@ const PAGE_SKELETON_CARD_FLEX_STYLE: React.CSSProperties = { flex: 1 };
 
 // PageSkeleton — заполняет всю canvas-area пока lazy chunk грузится. Не
 // imitate'ит конкретную page (TaskBoard vs Notes выглядят по-разному), а
-// показывает generic «что-то грузится» placeholder в стиле Hone — без
+// показывает generic «что-то грузится» placeholder в стиле Nordly — без
 // spinner'а или text «loading…».
 export const PageSkeleton = memo(function PageSkeleton(): React.ReactElement {
   return (

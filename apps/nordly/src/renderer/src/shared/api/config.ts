@@ -8,10 +8,7 @@
 const DEV_API_DEFAULT = '';
 const PROD_API = 'https://trynordly.app';
 
-const envBase = (
-  (import.meta.env.VITE_NORDLY_API_BASE as string | undefined) ??
-  (import.meta.env.VITE_DRUZ9_API_BASE as string | undefined)
-)?.trim();
+const envBase = (import.meta.env.VITE_NORDLY_API_BASE as string | undefined)?.trim();
 
 export const API_BASE_URL =
   envBase && envBase.length > 0
@@ -28,8 +25,4 @@ export const TELEGRAM_BOT_USERNAME =
   (import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined)?.trim() || 'nordly_bot';
 
 export const DEV_BEARER_TOKEN: string | null =
-  (
-    (import.meta.env.VITE_NORDLY_DEV_TOKEN as string | undefined) ??
-    (import.meta.env.VITE_DRUZ9_DEV_TOKEN as string | undefined) ??
-    ''
-  ).trim() || null;
+  ((import.meta.env.VITE_NORDLY_DEV_TOKEN as string | undefined) ?? '').trim() || null;

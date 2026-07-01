@@ -11,10 +11,6 @@ type stubBilling struct {
 	usageErr error
 }
 
-func (s *stubBilling) CheckEntitlement(context.Context, string, string) error {
-	return nil
-}
-
 func (s *stubBilling) CheckAndConsumeUsage(context.Context, string, string, int) error {
 	return s.usageErr
 }

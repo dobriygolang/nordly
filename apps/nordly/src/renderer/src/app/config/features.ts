@@ -12,7 +12,6 @@ function readBoolEnv(raw: string | undefined): boolean | undefined {
  */
 export const LOCAL_ONLY =
   readBoolEnv(import.meta.env.VITE_NORDLY_LOCAL_ONLY) ??
-  readBoolEnv(import.meta.env.VITE_NORDLY_LOCAL_ONLY) ??
   true;
 
 /**
@@ -20,6 +19,5 @@ export const LOCAL_ONLY =
  * Default: on in `vite dev`, off in production builds.
  */
 export const DEV_LOGIN_ENABLED =
-  readBoolEnv(import.meta.env.VITE_NORDLY_DEV_LOGIN) ??
   readBoolEnv(import.meta.env.VITE_NORDLY_DEV_LOGIN) ??
   import.meta.env.DEV;

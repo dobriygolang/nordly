@@ -4,7 +4,7 @@ const CalendarModal = lazy(() =>
   import('@pages/Calendar/CalendarModal').then((m) => ({ default: m.CalendarModal })),
 );
 
-const UNMOUNT_DELAY_MS = 420;
+const UNMOUNT_DELAY_MS = 220;
 
 export const AnimatedCalendarOverlay = memo(function AnimatedCalendarOverlay({
   open,

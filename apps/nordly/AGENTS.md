@@ -69,11 +69,11 @@ Billing is not called from Nordly.
 |--------|------|--------|
 | GET | `/v1/auth/config` | `features/auth/api/auth.ts` via `apiFetch` |
 | POST | `/v1/auth/telegram` | same |
-| HEAD | `/healthz` | `SyncEngine.ts`, `OfflineBanner.tsx` via `apiFetch` |
+| HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
 **Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
 
-**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (keychain session only; legacy poll commands unused):
+**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (keychain session only):
 
 **tracker** — `features/tasks/repository/tasksRemote.ts`, `features/calendar/api/calendarClient.ts`
 
@@ -193,12 +193,9 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_session` | Load session from keychain |
 | `auth_persist` | Save session + emit `auth:changed` |
 | `auth_logout` | Clear session |
-| `auth_tg_start` | Telegram login start (legacy poll flow) |
-| `auth_tg_poll` | Telegram login poll (legacy) |
 | `vault_pass_load/save/clear` | Vault passphrase keychain |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `shell_open_external` | Open URL in browser |
-| `tray_update` | No-op stub |
 | `window_traffic_lights_show` | macOS traffic lights |
 
 Events: `app:deep-link`, `auth:changed`. Deep link schemes: `focus`, `task.open`, `note.open`.
@@ -237,7 +234,6 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 
 | Gap | Status |
 |-----|--------|
-| `VaultUnlockGate` | Implemented; mount when vault enabled |
 | Note folders | Data model only; no folder UI |
 | Task delete in UI | Remote + sync support exists; no TaskRow delete button |
 | Google OAuth callback | Tracker redirects to web `/tasks`; Nordly should handle deep link |

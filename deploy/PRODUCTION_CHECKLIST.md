@@ -23,12 +23,11 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | `NORDLY_CALLBACK_URL` | `nordly://settings` (Google Calendar OAuth → Nordly desktop) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | BotFather |
 | `YANDEX_*` | OAuth app |
-| `GROQ_API_KEY` (or other LLM) | at least one provider |
 | `CADDY_EMAIL` | Let's Encrypt |
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
-Optional: Tribute webhooks, paid LLM keys, Grafana password — see [RUNBOOK.md](./RUNBOOK.md).
+Optional: Tribute webhooks, CI-only `services/ai` LLM keys, Grafana password — see [RUNBOOK.md](./RUNBOOK.md).
 
 ## 3. OAuth redirects
 

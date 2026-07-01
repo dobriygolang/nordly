@@ -1,4 +1,4 @@
-// CanvasBg — медитативный фон Hone'а.
+// CanvasBg — meditative Nordly background.
 //
 // Themes (7):
 //   - drift (light): line-art astronaut drifting near a capsule on white

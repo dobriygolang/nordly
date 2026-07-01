@@ -304,10 +304,6 @@ type fakeIdentity struct {
 	user *identityadapter.User
 }
 
-func (f *fakeIdentity) GetUser(context.Context, string) (*identityadapter.User, error) {
-	return f.user, nil
-}
-
 func (f *fakeIdentity) GetUserByTelegramID(context.Context, int64) (*identityadapter.User, error) {
 	if f.user == nil {
 		return nil, errors.New("not found")

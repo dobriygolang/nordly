@@ -55,7 +55,7 @@ If CI fails on `npm ci` with `Exit handler never called`, ensure `package-lock.j
 
 ```
 apps/nordly/
-├── ARCHITECTURE.md       # layer map + delete guide
+├── AGENTS.md             # architecture, feature, sync, and API map
 ├── src-tauri/            # Rust native shell
 └── src/renderer/src/
     ├── app/              # bootstrap + App shell
@@ -66,4 +66,4 @@ apps/nordly/
     └── platform/         # Tauri IPC bridge
 ```
 
-Backend: project-nordly services (`identity`, `tracker`, `notes`, `focus`, `billing`).
+Backend: project-nordly services (`identity`, `tracker`, `notes`, `focus`, `rooms`).

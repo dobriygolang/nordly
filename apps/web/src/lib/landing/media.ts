@@ -1,7 +1,5 @@
-const HERO_VIDEO =
-  import.meta.env.VITE_NORDLY_HERO_VIDEO ?? import.meta.env.VITE_HONE_HERO_VIDEO ?? ''
-const HERO_POSTER =
-  import.meta.env.VITE_NORDLY_HERO_POSTER ?? import.meta.env.VITE_HONE_HERO_POSTER ?? ''
+const HERO_VIDEO = import.meta.env.VITE_NORDLY_HERO_VIDEO ?? ''
+const HERO_POSTER = import.meta.env.VITE_NORDLY_HERO_POSTER ?? ''
 
 export function heroVideoUrl(): string | null {
   const url = HERO_VIDEO.trim()

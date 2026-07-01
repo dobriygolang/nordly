@@ -19,7 +19,6 @@ const button = cva(
           'rounded-lg border border-border-strong bg-surface-1 text-text-primary hover:bg-surface-2',
         ghost:
           'rounded-lg border border-border bg-transparent text-text-primary hover:bg-surface-2',
-        danger: 'rounded-lg bg-danger text-white hover:brightness-110',
       },
       size: {
         sm: 'h-8 px-3 text-[13px]',

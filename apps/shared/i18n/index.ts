@@ -41,12 +41,10 @@ function lookup(locale: Locale, key: string): string {
   return dict[key] ?? dictionaries.en[key] ?? key.split('.').pop()?.replace(/_/g, ' ') ?? key;
 }
 
-type LocaleState = {
+let localeState: {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-};
-
-let localeState: LocaleState = {
+} = {
   locale: defaultLocale(),
   setLocale: (locale) => {
     localeState = { ...localeState, locale };
@@ -80,21 +78,6 @@ export function getLocale(): Locale {
 export function localeToBcp47(locale: Locale): string {
   return locale === 'ru' ? 'ru-RU' : 'en-US';
 }
-
-/** Zustand-compatible getState for LanguageSection bootstrap. */
-export const useLocaleStore = {
-  getState: (): LocaleState => localeState,
-  subscribe: (listener: (state: LocaleState, prev: LocaleState) => void) => {
-    let prev = localeState;
-    const wrapped = () => {
-      const next = localeState;
-      listener(next, prev);
-      prev = next;
-    };
-    localeListeners.add(wrapped);
-    return () => localeListeners.delete(wrapped);
-  },
-};
 
 export function translate(key: string, params?: Record<string, string | number>): string {
   return interpolate(lookup(localeState.locale, key), params);

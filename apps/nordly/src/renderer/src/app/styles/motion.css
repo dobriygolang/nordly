@@ -1,5 +1,5 @@
 /**
- * Hone motion preset classes — keyframes + utility classes.
+ * Nordly motion preset classes — keyframes + utility classes.
  */
 
 @keyframes motion-page-in {
@@ -36,6 +36,3 @@
   transform: scale(0.98);
 }
 
-.motion-focus-ring-grow {
-  transition: box-shadow var(--motion-dur-small) var(--motion-ease-interactive);
-}

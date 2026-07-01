@@ -5,10 +5,8 @@ import {
   type NordlyReleaseInfo,
 } from '@/lib/landing/nordlyRelease'
 
-const MAC_URL =
-  import.meta.env.VITE_NORDLY_DOWNLOAD_MAC ?? import.meta.env.VITE_HONE_DOWNLOAD_MAC ?? ''
-const WIN_URL =
-  import.meta.env.VITE_NORDLY_DOWNLOAD_WIN ?? import.meta.env.VITE_HONE_DOWNLOAD_WIN ?? ''
+const MAC_URL = import.meta.env.VITE_NORDLY_DOWNLOAD_MAC ?? ''
+const WIN_URL = import.meta.env.VITE_NORDLY_DOWNLOAD_WIN ?? ''
 
 export type DownloadPlatform = 'mac' | 'windows' | 'other'
 
@@ -57,8 +55,4 @@ export async function resolveDownloadUrl(platform: DownloadPlatform): Promise<st
   }
 
   return release.releasePageUrl
-}
-
-export function hasStaticDownloadUrl(): boolean {
-  return Boolean(MAC_URL || WIN_URL)
 }

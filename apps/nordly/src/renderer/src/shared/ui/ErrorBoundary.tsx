@@ -1,5 +1,5 @@
-// Hone. Mirror'ит frontend/src/components/ErrorBoundary.tsx, но стилизован
-// под Hone'овый B/W hairline язык: классы `.data-loader-error*` уже
+// Page-level crash boundary styled for Nordly's B/W hairline language:
+// классы `.data-loader-error*` уже
 // определены в styles/globals.css (см. CI1 stylesheet block 1265).
 //
 // Цель: единичный page-level crash не валит весь app. Pure React semantics

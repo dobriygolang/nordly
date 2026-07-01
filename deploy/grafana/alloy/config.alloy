@@ -1,4 +1,4 @@
-// Grafana Alloy — scrape druzya docker-compose services and remote_write to Grafana Cloud.
+// Grafana Alloy — scrape Nordly docker-compose services and remote_write to Grafana Cloud.
 
 prometheus.remote_write "grafana_cloud" {
   endpoint {

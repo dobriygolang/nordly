@@ -10,7 +10,6 @@
 //
 // Закрытие — Esc / S hotkey (управляется родителем) / клик по ESC button.
 import { useEffect, useMemo, useState } from 'react';
-import { ConnectError, Code } from '@connectrpc/connect';
 
 import { useT, useLocale, type TFunc } from '@nordly-i18n';
 
@@ -21,11 +20,10 @@ import { readDailyGoalMin } from '@shared/model/prefs';
 interface FetchState {
   status: 'loading' | 'ok' | 'error';
   data: NordlyStats | null;
-  errorCode: Code | null;
-  errorMsg: string | null;
+  unauthenticated: boolean;
 }
 
-const INITIAL: FetchState = { status: 'loading', data: null, errorCode: null, errorMsg: null };
+const INITIAL: FetchState = { status: 'loading', data: null, unauthenticated: false };
 
 const BIG_NUMBER_STYLE: React.CSSProperties = {
   fontSize: 20,
@@ -51,16 +49,15 @@ export function StatsOverlayCards({ onClose: _onClose, closing = false }: { onCl
     getStats()
       .then((data) => {
         if (cancelled) return;
-        setState({ status: 'ok', data, errorCode: null, errorMsg: null });
+        setState({ status: 'ok', data, unauthenticated: false });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const ce = ConnectError.from(err);
+        const msg = err instanceof Error ? err.message : String(err);
         setState({
           status: 'error',
           data: null,
-          errorCode: ce.code,
-          errorMsg: ce.rawMessage || ce.message,
+          unauthenticated: msg.toLowerCase().includes('unauthorized'),
         });
       });
     return () => {
@@ -167,7 +164,7 @@ export function StatsOverlayCards({ onClose: _onClose, closing = false }: { onCl
           </BigCard>
         </div>
 
-        {state.status === 'error' && state.errorCode === Code.Unauthenticated && (
+        {state.status === 'error' && state.unauthenticated && (
           <div
             className={`mono nordly-stats-card nordly-stats-notice ${closing ? 'slide-to-right' : 'slide-from-right'}`}
             style={{ animationDelay: closing ? '0ms' : '320ms' }}

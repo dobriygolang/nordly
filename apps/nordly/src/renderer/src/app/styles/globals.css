@@ -1,5 +1,5 @@
 /*
- * Hone — global tokens + primitives, ported from design/hone/index.html.
+ * Nordly global tokens + primitives.
  *
  * Kept as a single file intentionally: the design language is small
  * (one palette, two font families, a handful of animations) and we want
@@ -24,6 +24,7 @@ html.dark {
      `rgb(var(--ink-rgb) / X%)` для overlay'ев. В light-теме переопределяется
      на 15 15 15, и те же call-site'ы сами рендерятся в чёрный с прозрачностью. */
   --ink-rgb: 255 255 255;
+  --nordly-header-h: 40px;
   --ink-90: rgb(var(--ink-rgb) / 0.9);
   --ink-60: rgb(var(--ink-rgb) / 0.6);
   --ink-40: rgb(var(--ink-rgb) / 0.4);
@@ -167,16 +168,6 @@ textarea {
     opacity: 0;
   }
 }
-.caret {
-  display: inline-block;
-  width: 0.5em;
-  height: 1em;
-  background: var(--ink);
-  margin-left: 2px;
-  vertical-align: -0.12em;
-  animation: blink 1s steps(1) infinite;
-}
-
 @keyframes fadein {
   from {
     opacity: 0;
@@ -191,7 +182,7 @@ textarea {
   animation: fadein var(--motion-dur-large) var(--motion-ease-standard) both;
 }
 
-/* Shimmer skeleton — для loading states (Hone cards / list rows).
+/* Shimmer skeleton — for Nordly loading states (cards / list rows).
  * Tailwind config 68-74 определял палитру; эта animation её активирует. */
 @keyframes shimmer {
   0% {
@@ -275,17 +266,6 @@ textarea {
 }
 
 /* Soft glass for overlays — prefer .nordly-panel (no blur). */
-.glass {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
-}
-.scrim {
-  background: rgb(0 0 0 / 0.45);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
 /* Shared opaque surface — palette panel, stats cards (no backdrop-filter). */
 .nordly-stats-card {
   border-radius: 12px;
@@ -329,6 +309,7 @@ html.light .nordly-palette-panel {
 }
 .nordly-calendar-backdrop[data-closing='true'] {
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--motion-dur-large) var(--motion-ease-standard);
 }
 .nordly-calendar-modal {
@@ -639,62 +620,6 @@ button.nordly-calendar-event:hover {
   pointer-events: auto;
 }
 
-.nordly-menu-item {
-  display: block;
-  width: 100%;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6;
-  background: transparent;
-  color: var(--ink-90);
-  font-size: 12;
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.08em;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--t-fast), color var(--t-fast);
-}
-.nordly-menu-item:hover {
-  background: var(--hair);
-  color: var(--ink);
-}
-.nordly-menu-item[data-current='true'] {
-  color: var(--ink);
-}
-
-.nordly-fence-chip {
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.08em;
-  color: var(--ink-40);
-  background: var(--hair);
-  border: 1px solid var(--hair);
-  border-radius: 4px;
-  padding: 2px 6px;
-  cursor: pointer;
-  transition: color var(--t-fast);
-}
-.nordly-fence-chip:hover {
-  color: var(--ink-60);
-}
-
-.nordly-fence-copy {
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.08em;
-  color: var(--ink-40);
-  background: transparent;
-  border: none;
-  padding: 2px 4px;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: opacity var(--t-fast), color var(--t-fast);
-}
-.nordly-fence-copy:hover {
-  opacity: 1;
-  color: var(--ink-60);
-}
-
 .nordly-slash-item {
   display: flex;
   align-items: center;
@@ -725,7 +650,7 @@ button.nordly-calendar-event:hover {
 
 /*
  * Legacy motion aliases — mapped on foundation tokens in _tokens.generated.css.
- * Hone overrides durations/easing below for softer interactive feel.
+ * Nordly overrides durations/easing below for softer interactive feel.
  */
 :root {
   --motion-dur-micro: 120ms;
@@ -1309,6 +1234,7 @@ button.nordly-calendar-event:hover {
 }
 .nordly-palette-scrim[data-closing='true'] {
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--motion-dur-medium) var(--motion-ease-interactive);
 }
 .nordly-palette-panel {
@@ -1321,6 +1247,7 @@ button.nordly-calendar-event:hover {
 }
 .nordly-palette-panel[data-closing='true'] {
   opacity: 0;
+  pointer-events: none;
   transform: scale(0.985) translateY(6px);
   transition:
     opacity var(--motion-dur-medium) var(--motion-ease-interactive),
@@ -1681,9 +1608,23 @@ html.light .nordly-palette-chip {
   color: var(--ink-40);
 }
 
+.nordly-titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nordly-header-h);
+  z-index: 12;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
 .nordly-page-layer {
   position: absolute;
-  inset: 0;
+  top: var(--nordly-header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
   min-height: 0;
   z-index: 1;
   opacity: 1;
@@ -1837,107 +1778,8 @@ body.nordly-task-dragging * {
   margin: 0.75rem 0;
 }
 
-.nordly-notes-editor-shell .nordly-notes-body {
-  flex: 1;
-  min-height: 280px;
-  height: auto;
-  width: 100%;
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--ink-90);
-  resize: none;
-}
-
-.nordly-notes-title {
-  width: 100%;
-  font-size: 1.75rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  min-height: 2.25rem;
-  padding: 0 0 16px;
-  margin: 0;
-  color: var(--ink);
-  background: transparent;
-  border: none;
-  outline: none;
-  box-shadow: none;
-  overflow: visible;
-}
-
 .nordly-notes-title:focus,
 .nordly-notes-title:focus-visible,
-.nordly-notes-body:focus,
-.nordly-notes-body:focus-visible {
-  outline: none;
-  box-shadow: none;
-  border: none;
-}
-
-@keyframes slide-from-bottom {
-  from {
-    opacity: 0;
-    transform: translateY(32px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.slide-from-bottom {
-  animation: slide-from-bottom var(--motion-dur-large) var(--motion-ease-standard) both;
-}
-
-/* ─── Canvas-bg motion: crossing waves + floating stars ──────────────── */
-
-@keyframes wave-drift {
-  0% { transform: translate3d(-3%, 0, 0); }
-  50% { transform: translate3d(3%, 0, 0); }
-  100% { transform: translate3d(-3%, 0, 0); }
-}
-
-@keyframes wave-tilt {
-  0% { transform: translate3d(0, 0, 0) rotate(-0.6deg); }
-  50% { transform: translate3d(2%, 0, 0) rotate(0.6deg); }
-  100% { transform: translate3d(0, 0, 0) rotate(-0.6deg); }
-}
-
-@keyframes star-float {
-  0% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(var(--star-dx, 6px), var(--star-dy, -4px), 0); }
-  100% { transform: translate3d(0, 0, 0); }
-}
-
-@keyframes star-twinkle {
-  0%, 100% { opacity: var(--star-base, 0.5); }
-  50% { opacity: calc(var(--star-base, 0.5) + 0.25); }
-}
-
-@keyframes winter-square-spin {
-  to { transform: rotate(360deg); }
-}
-
-.winter-square {
-  animation: winter-square-spin 90s linear infinite;
-}
-
-.winter-square--offset {
-  animation-delay: -5.5s;
-}
-
-.wave-layer {
-  position: absolute;
-  inset: -10% -10%;
-  will-change: transform;
-}
-
-.star {
-  position: absolute;
-  border-radius: 50%;
-  background: #fff;
-  will-change: transform, opacity;
-}
-
 /* ─── Birthday theme canvas ───────────────────────────────────────── */
 
 .nordly-theme-card__fade {
@@ -1956,95 +1798,6 @@ html.light .nordly-theme-card__fade {
 }
 
 /* ─── Aurora theme ──────────────────────────────────────────────── */
-@keyframes aurora-drift {
-  0% { transform: translate3d(-30%, 0, 0) rotate(-12deg); }
-  50% { transform: translate3d(30%, 4%, 0) rotate(-12deg); }
-  100% { transform: translate3d(-30%, 0, 0) rotate(-12deg); }
-}
-@keyframes aurora-hue {
-  0% { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(360deg); }
-}
-.aurora-stripe {
-  position: absolute;
-  left: -30%;
-  width: 160%;
-  height: 38%;
-  /* B/W rule exception (Sergey 2026-05-05): Aurora — это декоративный
-     canvas-театр (как и Cosmic, Particles, Abyss). Цветные стопы здесь
-     намеренные — без них Aurora превратится в серый туман и название
-     перестанет иметь смысл. Если решим выпиливать decorative themes
-     полностью — снимем сам theme из CanvasBg.tsx, не grayscale-фейкаем. */
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(80, 140, 220, 0.18) 25%,
-    rgba(180, 120, 220, 0.22) 50%,
-    rgba(80, 200, 180, 0.18) 75%,
-    transparent 100%
-  );
-  filter: blur(46px);
-  transform: rotate(-12deg);
-  animation: aurora-drift 22s ease-in-out infinite;
-  will-change: transform;
-}
-.aurora-stripe-2 {
-  /* Aurora exception — см .aurora-stripe-1 выше. */
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(120, 80, 200, 0.18) 30%,
-    rgba(60, 180, 220, 0.22) 60%,
-    transparent 100%
-  );
-}
-.aurora-stripe-3 {
-  /* Aurora exception — см .aurora-stripe-1 выше. */
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(200, 100, 160, 0.16) 25%,
-    rgba(100, 220, 180, 0.2) 70%,
-    transparent 100%
-  );
-}
-@keyframes aurora-shoot {
-  0% { transform: translate(-15vw, 0) rotate(-22deg); opacity: 0; }
-  6% { opacity: 1; }
-  20% { opacity: 0.4; }
-  30%, 100% { transform: translate(120vw, -22vh) rotate(-22deg); opacity: 0; }
-}
-.aurora-shoot {
-  position: absolute;
-  left: 0;
-  width: 120px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(var(--ink-rgb) / 0.85), transparent);
-  animation: aurora-shoot 12s linear infinite;
-  filter: drop-shadow(0 0 4px rgb(var(--ink-rgb) / 0.6));
-  will-change: transform, opacity;
-}
-
-/* ─── Grid Rain theme ───────────────────────────────────────────── */
-@keyframes rain-fall {
-  0% { transform: translateY(-110%); }
-  100% { transform: translateY(110vh); }
-}
-.rain-col {
-  position: absolute;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  font-size: 11px;
-  line-height: 1.15;
-  /* B/W rule exception (Sergey 2026-05-05): GridRain — Matrix-style canvas
-     theme. Если уйдёт зелёный — превратится в обычный белый дождь, теряет
-     identity темы. Снимать decorative theme как целое, не фейкаем grayscale. */
-  color: rgba(190, 240, 200, 0.55);
-  text-shadow: 0 0 6px rgba(120, 240, 160, 0.35);
-  will-change: transform;
-}
-
 /* ─── Particles theme ───────────────────────────────────────────── */
 @keyframes particles-breathe {
   0%, 100% { opacity: 0.6; transform: scale(1); }
@@ -2065,91 +1818,7 @@ html.light .nordly-theme-card__fade {
   50% { transform: scale(1.05); }
 }
 
-/* Markdown rendering для Notes — тихая типография в духе Winter.
- * Заголовки без heavy-weight'ов, code-blocks в чёрной рамке, отступы
- * ритмические (26/18/12 px multiples). */
-.mono-markdown h1,
-.mono-markdown h2,
-.mono-markdown h3 {
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  margin: 26px 0 8px;
-}
-.mono-markdown h1 { font-size: 22px; }
-.mono-markdown h2 { font-size: 17px; color: var(--ink); }
-.mono-markdown h3 { font-size: 14px; color: var(--ink-90); text-transform: uppercase; letter-spacing: 0.08em; }
-.mono-markdown p { margin: 0 0 12px; }
-.mono-markdown ul,
-.mono-markdown ol { margin: 0 0 12px; padding-left: 22px; }
-.mono-markdown li { margin: 2px 0; }
-.mono-markdown a { color: var(--ink); text-decoration: underline; text-decoration-color: rgb(var(--ink-rgb) / 0.25); }
-.mono-markdown a:hover { text-decoration-color: rgb(var(--ink-rgb) / 0.6); }
-.mono-markdown code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgb(var(--ink-rgb) / 0.05);
-  color: var(--ink);
-}
-.mono-markdown pre {
-  margin: 12px 0;
-  padding: 12px 14px;
-  border-radius: 6px;
-  background: rgb(var(--ink-rgb) / 0.03);
-  border: 1px solid rgb(var(--ink-rgb) / 0.06);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
-  overflow-x: auto;
-}
-.mono-markdown pre code {
-  background: transparent;
-  padding: 0;
-  font-size: 12.5px;
-}
-.mono-markdown blockquote {
-  margin: 12px 0;
-  padding-left: 14px;
-  border-left: 2px solid rgb(var(--ink-rgb) / 0.12);
-  color: var(--ink-60);
-}
-.mono-markdown hr {
-  border: 0;
-  border-top: 1px solid rgb(var(--ink-rgb) / 0.08);
-  margin: 20px 0;
-}
-
-/* ── tldraw chrome strip & Hone-palette overrides ─────────────────────────
-   hideUi={true} убирает toolbar/menu, но tldraw всё равно держит свои
-   focus-outline и watermark-кнопку. Эти rule'ы догоняют то, что hideUi
-   не гасит, и подгоняют canvas-bg под наш чёрный фон. */
-.nordly-tldraw-mount .tl-container {
-  background: transparent !important;
-}
-.nordly-tldraw-mount .tlui-debug-panel,
-.nordly-tldraw-mount .tlui-watermark,
-.nordly-tldraw-mount .tl-watermark_SEE-LICENSE {
-  display: none !important;
-}
-.nordly-tldraw-mount .tl-canvas,
-.nordly-tldraw-mount .tl-background {
-  background: var(--bg) !important;
-}
-/* tldraw фокусирует canvas с ring'ом — у нас глобально no-ring style. */
-.nordly-tldraw-mount :focus-visible {
-  outline: none !important;
-}
-
-/* ── Light theme override for embedded tldraw canvas ─────────────────────
-   tldraw имеет собственный dark-режим поверх которого мы накладываем
-   Hone-палитру. В light Hone возвращаем canvas в native light-mode библиотеки. */
-html.light .nordly-tldraw-mount .tl-canvas,
-html.light .nordly-tldraw-mount .tl-background {
-  background: var(--bg) !important;
-}
-
-/* ── Excalidraw — follows Hone theme (light canvas / dark inverted canvas) ─ */
+/* ── Excalidraw — follows Nordly theme (light canvas / dark inverted canvas) ─ */
 .nordly-whiteboard-main {
   display: flex;
   flex-direction: column;
@@ -2173,7 +1842,7 @@ html.light .nordly-tldraw-mount .tl-background {
   --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* Dark Hone themes — Excalidraw dark UI + inverted canvas */
+/* Dark Nordly themes — Excalidraw dark UI + inverted canvas */
 html.dark .nordly-excalidraw-mount .excalidraw {
   /* Native dark-theme filter inverts white canvas to ~#121212 — do not disable. */
   --island-bg-color: var(--surface);
@@ -2302,30 +1971,6 @@ html.light .nordly-excalidraw-mount .App-toolbar-container {
  * Замена Milkdown'а — Obsidian-style: markdown маркеры (# / ** / >) видны
  * как обычный текст, стилизуются HighlightStyle'ом в TS-компоненте.
  * Здесь только: empty-state placeholder + минимальные CM-overrides. */
-.nordly-md-source-mount {
-  position: relative;
-}
-.nordly-md-source-mount[data-empty='true']::before {
-  content: attr(data-placeholder);
-  position: absolute;
-  top: 6px;
-  left: 0;
-  font-size: 15px;
-  color: rgb(var(--ink-rgb) / 0.32);
-  pointer-events: none;
-  font-family: 'Inter', -apple-system, system-ui, sans-serif;
-  letter-spacing: -0.005em;
-}
-.nordly-md-source-mount .cm-editor {
-  background: transparent;
-}
-.nordly-md-source-mount .cm-editor.cm-focused {
-  outline: none;
-}
-.nordly-md-source-mount .cm-gutters {
-  display: none;
-}
-
 /* ── DataLoader (CI1 error pattern) ─────────────────────────────────────
  * Used by components/DataLoader.tsx. B/W rule: red ONLY as 1.5px stripe;
  * retry button is plain text-affordance, no background fill.
@@ -2441,9 +2086,12 @@ html[data-text-scale='xlarge'] {
 
 .nordly-settings-page {
   position: absolute;
-  inset: 0;
+  top: var(--nordly-header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow-y: auto;
-  padding: 40px 28px 96px;
+  padding: 0 28px 96px;
 }
 
 .nordly-settings-page__inner {

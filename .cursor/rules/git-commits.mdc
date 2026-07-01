@@ -1,0 +1,22 @@
+---
+description: Commit message format — no Co-authored-by trailers
+alwaysApply: true
+---
+
+# Git commit messages
+
+When creating commits:
+
+- Write only a **brief summary** (1–2 sentences) focused on *why*, not a changelog.
+- Do **not** append trailers or footers: no `Co-authored-by`, no `Signed-off-by`, no tool attribution.
+- Never add `Co-authored-by: Cursor <cursoragent@cursor.com>` or similar agent/editor credits.
+
+Example:
+
+```bash
+git commit -m "$(cat <<'EOF'
+Fix billing quota release on sandbox timeout.
+
+EOF
+)"
+```

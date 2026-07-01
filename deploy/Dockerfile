@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Build: docker build -f deploy/Dockerfile --build-arg SERVICE=identity -t druzya-identity .
+# Build: docker build -f deploy/Dockerfile --build-arg SERVICE=identity -t nordly-identity .
 ARG SERVICE=identity
 ARG CMD=
 

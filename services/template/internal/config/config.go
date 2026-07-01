@@ -32,7 +32,7 @@ func Load() (*Config, error) {
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
 		HTTPPort:    httpPort,
 		GRPCPort:    grpcPort,
-		PostgresDSN: getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5439/druzya_template?sslmode=disable"),
+		PostgresDSN: getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5439/nordly_template?sslmode=disable"),
 	}, nil
 }
 

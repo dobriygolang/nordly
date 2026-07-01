@@ -7,7 +7,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/dobriygolang/project-nordly/services/billing v0.0.0
 	github.com/dobriygolang/project-nordly/services/identity v0.0.0
 	go.uber.org/zap v1.28.0
 	google.golang.org/grpc v1.81.1
@@ -29,5 +28,3 @@ require (
 )
 
 replace github.com/dobriygolang/project-nordly/services/identity => ../identity
-
-replace github.com/dobriygolang/project-nordly/services/billing => ../billing

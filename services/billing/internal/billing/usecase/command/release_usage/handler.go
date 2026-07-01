@@ -2,7 +2,6 @@ package release_usage
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
@@ -45,7 +44,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ReleaseUsageR
 	if err := cmd.Validate(); err != nil {
 		return nil, err
 	}
-	key := normalizeUsageKey(cmd.Key)
+	key := cmd.Key
 
 	claimed, err := h.repo.MarkUsageReleaseProcessed(ctx, cmd.IdempotencyKey, cmd.UserID, key, cmd.Amount)
 	if err != nil {
@@ -126,12 +125,4 @@ func (h *Handler) findEntitlement(ctx context.Context, planID, key string) (*mod
 		}
 	}
 	return nil, repository.ErrNotFound
-}
-
-func normalizeUsageKey(key string) string {
-	key = strings.TrimSpace(key)
-	if key == "llm_evaluation" {
-		return "ai_evaluations_per_day"
-	}
-	return key
 }

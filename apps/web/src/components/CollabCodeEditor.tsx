@@ -307,22 +307,6 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   )
 })
 
-export function wsStatusLabel(status: string, frozen: boolean): string {
-  if (frozen) return 'FROZEN'
-  switch (status) {
-    case 'open':
-      return 'LIVE'
-    case 'failed':
-      return 'OFFLINE'
-    case 'reconnecting':
-      return 'RECONNECT…'
-    case 'connecting':
-      return 'CONNECT…'
-    default:
-      return status.toUpperCase()
-  }
-}
-
 export function wsStatusColor(status: string, frozen: boolean): string {
   if (frozen) return 'var(--red)'
   if (status === 'open') return 'rgb(var(--ink))'

@@ -5,7 +5,6 @@ import type { NordlyAPI } from '@platform/ipc';
 declare global {
   interface Window {
     nordly: NordlyAPI;
-    __nordlySession?: unknown;
   }
 }
 

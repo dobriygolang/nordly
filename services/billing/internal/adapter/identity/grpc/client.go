@@ -22,7 +22,7 @@ type Client struct {
 }
 
 // NewClient dials identity-service. The internal token authenticates
-// service-to-service RPCs (GetUser, GetUserByTelegramID).
+// service-to-service RPCs.
 func NewClient(ctx context.Context, addr, internalToken string) (*Client, error) {
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -47,14 +47,6 @@ func (c *Client) Close() error {
 		return nil
 	}
 	return c.conn.Close()
-}
-
-func (c *Client) GetUser(ctx context.Context, userID string) (*identityadapter.User, error) {
-	resp, err := c.client.GetUser(ctx, &identityv1.GetUserRequest{Id: userID})
-	if err != nil {
-		return nil, err
-	}
-	return toUser(resp.GetUser()), nil
 }
 
 func (c *Client) GetUserByTelegramID(ctx context.Context, telegramID int64) (*identityadapter.User, error) {

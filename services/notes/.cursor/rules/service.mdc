@@ -1,5 +1,5 @@
 ---
-description: notes service — production Hone backend
+description: notes service — production Nordly backend
 alwaysApply: true
 ---
 
@@ -15,4 +15,4 @@ internal/app/api/notes/       → gRPC/HTTP (one RPC per file)
 internal/notes/model|repository|service/
 ```
 
-HTTP `:8090`, gRPC `:9100`. **Prod service** — Hone notes + vault + publish.
+HTTP `:8090`, gRPC `:9100`. **Prod service** — Nordly notes + vault + publish.

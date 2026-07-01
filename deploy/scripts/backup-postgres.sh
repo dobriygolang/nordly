@@ -21,10 +21,10 @@ for db in "${DB_DATABASES[@]}"; do
   pg_dump -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -Fc "$db" > "$OUT/${db}.dump"
 done
 
-tar -czf "$BACKUP_DIR/druzya_${STAMP}.tar.gz" -C "$BACKUP_DIR" "$STAMP"
+tar -czf "$BACKUP_DIR/nordly_${STAMP}.tar.gz" -C "$BACKUP_DIR" "$STAMP"
 rm -rf "$OUT"
 
-echo "backup: $BACKUP_DIR/druzya_${STAMP}.tar.gz"
+echo "backup: $BACKUP_DIR/nordly_${STAMP}.tar.gz"
 
 # Cron example (daily 03:00 UTC, run from deploy/ with .env loaded):
 # 0 3 * * * cd /opt/project-nordly/deploy && set -a && source .env && set +a && ./scripts/backup-postgres.sh

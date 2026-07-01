@@ -9,21 +9,20 @@ import (
 
 // Config holds application configuration loaded from environment.
 type Config struct {
-	AppEnv           string
-	LogLevel         string
-	HTTPPort         int
-	GRPCPort         int
-	PostgresDSN      string
-	JWTPublicKeyPEM  []byte
-	PublicBaseURL    string
-	RoomTTL          time.Duration
-	GuestRoomTTL     time.Duration
+	AppEnv              string
+	LogLevel            string
+	HTTPPort            int
+	GRPCPort            int
+	PostgresDSN         string
+	JWTPublicKeyPEM     []byte
+	PublicBaseURL       string
+	RoomTTL             time.Duration
+	GuestRoomTTL        time.Duration
 	RoomArchiveInterval time.Duration
-	InviteSecret     []byte
-	InviteTTL        time.Duration
-	IdentityGRPCAddr string
-	BillingGRPCAddr  string
-	InternalAPIToken string
+	InviteSecret        []byte
+	InviteTTL           time.Duration
+	IdentityGRPCAddr    string
+	InternalAPIToken    string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -69,21 +68,20 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		AppEnv:          getEnv("APP_ENV", "development"),
-		LogLevel:        getEnv("LOG_LEVEL", "info"),
-		HTTPPort:        httpPort,
-		GRPCPort:        grpcPort,
-		PostgresDSN:     getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5440/nordly_rooms?sslmode=disable"),
-		JWTPublicKeyPEM: publicKey,
+		AppEnv:              getEnv("APP_ENV", "development"),
+		LogLevel:            getEnv("LOG_LEVEL", "info"),
+		HTTPPort:            httpPort,
+		GRPCPort:            grpcPort,
+		PostgresDSN:         getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5440/nordly_rooms?sslmode=disable"),
+		JWTPublicKeyPEM:     publicKey,
 		PublicBaseURL:       getEnv("PUBLIC_BASE_URL", "http://localhost:5173"),
 		RoomTTL:             roomTTL,
 		GuestRoomTTL:        guestRoomTTL,
 		RoomArchiveInterval: archiveInterval,
 		InviteSecret:        inviteSecret,
 		InviteTTL:           inviteTTL,
-		IdentityGRPCAddr: getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
-		BillingGRPCAddr:  getEnv("BILLING_GRPC_ADDR", ""),
-		InternalAPIToken: os.Getenv("INTERNAL_API_TOKEN"),
+		IdentityGRPCAddr:    getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
+		InternalAPIToken:    os.Getenv("INTERNAL_API_TOKEN"),
 	}, nil
 }
 

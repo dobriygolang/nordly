@@ -3,6 +3,6 @@ out/
 dist/
 src-tauri/target/
 src-tauri/signing.ci.json
-.tauri/hone.key
+.tauri/nordly.key
 *.log
 .DS_Store

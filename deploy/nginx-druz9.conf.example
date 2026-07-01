@@ -1,6 +1,0 @@
-# DEPRECATED — use deploy/nginx-trynordly.conf.example
-#
-# Legacy druz9 nginx config. During cutover, nginx-trynordly.conf.example
-# includes both trynordly.app and druz9.* server names; Caddy redirects legacy → canonical.
-
-See [nginx-trynordly.conf.example](./nginx-trynordly.conf.example).

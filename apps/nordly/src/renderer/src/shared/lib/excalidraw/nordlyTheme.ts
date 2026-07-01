@@ -1,6 +1,6 @@
 import type { ThemeId } from '@widgets/CanvasBg';
 
-/** Excalidraw chrome — follows Hone theme, bottom toolbar only.
+/** Excalidraw chrome — follows Nordly theme, bottom toolbar only.
  *
  * Canvas fill is `appState.viewBackgroundColor` (not the `theme` prop).
  * In dark Excalidraw mode the canvas is inverted via CSS — store white (#fff).
@@ -30,7 +30,7 @@ export const NORDLY_EXCALIDRAW_UI_OPTIONS = {
   },
 } as const;
 
-/** Map Hone canvas theme → Excalidraw UI theme. Light-palette themes use light mode. */
+/** Map Nordly canvas theme → Excalidraw UI theme. Light-palette themes use light mode. */
 const LIGHT_EXCALIDRAW_THEMES: ReadonlyArray<ThemeId> = ['drift', 'visor'];
 
 export function nordlyExcalidrawThemeFor(nordlyTheme: ThemeId): ExcalidrawThemeMode {

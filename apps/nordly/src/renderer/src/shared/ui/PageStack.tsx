@@ -4,7 +4,7 @@ import type { PageId } from '@widgets/Palette';
 
 import { PageSkeleton } from './Skeleton';
 
-const PAGE_FADE_MS = 440;
+const PAGE_FADE_MS = 220;
 
 type LayerStatus = 'active' | 'entering' | 'leaving';
 

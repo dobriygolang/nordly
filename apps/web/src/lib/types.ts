@@ -1,38 +1,3 @@
-export interface User {
-  id: string
-  username: string
-  avatar_url?: string
-  created_at?: string
-  telegram_id?: string
-  timezone?: string
-}
-
-export interface AuthResponse {
-  access_token: string
-  refresh_token: string
-  user: User
-}
-
-export interface BillingMe {
-  user_id: string
-  plan_slug: string
-  plan_name: string
-  features: Record<string, boolean>
-  limits: Record<
-    string,
-    {
-      used: number
-      limit?: number
-      remaining?: number
-      unlimited?: boolean
-    }
-  >
-  is_trialing?: boolean
-  trial_end?: string
-  trial_available?: boolean
-  trial_days?: number
-}
-
 export interface PlanEntitlementSpec {
   type: string
   limit?: number
@@ -45,13 +10,8 @@ export interface PlanCatalogEntry {
   slug: string
   name: string
   tagline: string
-  highlight?: boolean
   highlights: string[]
-  features?: Record<string, boolean>
   limits?: Record<string, PlanEntitlementSpec>
-  checkout_url?: string
-  telegram_checkout_url?: string
-  trial_days?: number
 }
 
 export interface TestResult {

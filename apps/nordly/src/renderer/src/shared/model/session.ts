@@ -125,12 +125,9 @@ export const useSessionStore = create<SessionState>((set) => ({
           refreshToken: persisted.refreshToken,
           expiresAt: persisted.expiresAt,
         });
-        window.__nordlySession = useSessionStore;
         return;
       }
-      const devToken =
-        import.meta.env.VITE_NORDLY_DEV_TOKEN?.trim() ??
-        import.meta.env.VITE_DRUZ9_DEV_TOKEN?.trim();
+      const devToken = import.meta.env.VITE_NORDLY_DEV_TOKEN?.trim();
       if (devToken) {
         setDbUserId('dev-preview-user');
         set({
@@ -142,7 +139,6 @@ export const useSessionStore = create<SessionState>((set) => ({
         });
         return;
       }
-      window.__nordlySession = useSessionStore;
       setDbUserId(null);
       set({ status: 'guest' });
       return;
@@ -150,7 +146,6 @@ export const useSessionStore = create<SessionState>((set) => ({
     try {
       const s = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
       if (s && s.accessToken) {
-        window.__nordlySession = useSessionStore;
         setDbUserId(s.userId);
         set({
           status: 'signed_in',
@@ -166,7 +161,6 @@ export const useSessionStore = create<SessionState>((set) => ({
     }
     const persisted = readBrowserPersist();
     if (persisted) {
-      window.__nordlySession = useSessionStore;
       setDbUserId(persisted.userId);
       set({
         status: 'signed_in',

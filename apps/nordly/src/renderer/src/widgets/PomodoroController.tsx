@@ -10,17 +10,10 @@ function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): n
   return mode === 'pomodoro' ? remain : elapsed;
 }
 
-function formatTrayTime(sec: number): string {
-  const m = Math.floor(Math.max(0, sec) / 60);
-  const s = Math.max(0, sec) % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
 /** Side effects for the dock timer — keeps App shell off the 1 Hz render path. */
 export function PomodoroController(): null {
   const sessionRef = useRef<string | null>(null);
   const lastSavedRef = useRef(0);
-  const lastTraySecondRef = useRef<number | null>(null);
 
   const finishSession = useCallback(async () => {
     const id = sessionRef.current;
@@ -117,16 +110,7 @@ export function PomodoroController(): null {
         });
       }
 
-      if (!state.running) {
-        lastTraySecondRef.current = null;
-        void bridge.tray.update('', 'Nordly');
-        return;
-      }
-      if (lastTraySecondRef.current === value) return;
-      lastTraySecondRef.current = value;
-      const title = formatTrayTime(value);
-        const tooltip = state.pinnedTitle ? `Nordly — ${state.pinnedTitle}` : translate('nordly.app.tray_focus');
-      void bridge.tray.update(title, tooltip);
+      if (!state.running) return;
     });
   }, []);
 

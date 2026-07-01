@@ -525,10 +525,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Hone custom invoke handlers (auth, pomodoro, shell).",
+          "description": "Nordly custom invoke handlers (auth, vault, pomodoro, shell).",
           "type": "string",
           "const": "allow-nordly-commands",
-          "markdownDescription": "Hone custom invoke handlers (auth, pomodoro, shell)."
+          "markdownDescription": "Nordly custom invoke handlers (auth, vault, pomodoro, shell)."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

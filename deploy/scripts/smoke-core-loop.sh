@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test for core platform loop against a running deploy stack.
-# Usage: API_BASE=https://api.druz9.online ./scripts/smoke-core-loop.sh
+# Usage: API_BASE=https://api.trynordly.app ./scripts/smoke-core-loop.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

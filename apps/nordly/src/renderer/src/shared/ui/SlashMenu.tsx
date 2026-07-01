@@ -1,10 +1,9 @@
 // SlashMenu — markdown block-insert menu. Standalone компонент:
 // принимает координаты для absolute-position'а, query-фильтр, и
 // callback'и для выбора / закрытия. Сам не следит за caret'ом —
-// решает intеgrator (RichMarkdownEditor / MarkdownEditor).
+// это решает CodeMirror editor layer.
 //
-// EditorAPI — узкая прослойка для вставки блоков; реализуется по-разному
-// для textarea (RichMarkdown) и CM6 (MarkdownEditor), но контракт один.
+// EditorAPI — узкая прослойка для вставки markdown-блоков.
 //
 // Стиль: winter palette + только existing CSS-токены.
 

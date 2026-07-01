@@ -5,7 +5,7 @@ SERVICE := identity
 HTTP_PORT ?= 8080
 GRPC_PORT ?= 9090
 JWT_DIR := scripts/dev/jwt
-GOOSE_DSN ?= host=localhost port=5432 user=postgres password=postgres dbname=druzya sslmode=disable
+GOOSE_DSN ?= host=localhost port=5432 user=postgres password=postgres dbname=nordly sslmode=disable
 MIGRATIONS_DIR := scripts/migrations
 COMPOSE_FILE := scripts/dev/docker-compose.yml
 GOOSE := GOWORK=off go run github.com/pressly/goose/v3/cmd/goose@v3.19.2
@@ -19,7 +19,7 @@ help: ## Show this help
 start-deps: ## Start postgres + redis (Docker)
 	docker compose -f $(COMPOSE_FILE) up -d postgres redis
 	@echo "  waiting for postgres..."
-	@until docker compose -f $(COMPOSE_FILE) exec -T postgres pg_isready -U postgres -d druzya >/dev/null 2>&1; do sleep 1; done
+	@until docker compose -f $(COMPOSE_FILE) exec -T postgres pg_isready -U postgres -d nordly >/dev/null 2>&1; do sleep 1; done
 
 .PHONY: migrate-up
 migrate-up: ## Apply pending SQL migrations

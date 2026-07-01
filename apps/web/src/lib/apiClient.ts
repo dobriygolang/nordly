@@ -74,11 +74,6 @@ export function readAccessToken(): string | null {
   return memAccessToken
 }
 
-export function hasValidAccessToken(): boolean {
-  const token = readAccessToken()
-  return !!token && isAccessTokenFresh(token)
-}
-
 export function readRefreshToken(): string | null {
   return safeRead(REFRESH_TOKEN_KEY)
 }
@@ -166,13 +161,6 @@ async function performRefresh(): Promise<string | null> {
   } finally {
     safeDelete(REFRESH_LOCK_KEY)
   }
-}
-
-/** Refresh access token when expired or close to expiry (e.g. WebSocket/LSP). */
-export async function ensureFreshAccessToken(): Promise<string | null> {
-  const token = readAccessToken()
-  if (token && isAccessTokenFresh(token)) return token
-  return refreshAccessTokenOnce()
 }
 
 async function refreshAccessTokenOnce(): Promise<string | null> {

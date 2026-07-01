@@ -34,7 +34,6 @@ type I18nContextValue = {
   locale: Locale
   setLocale: (locale: Locale) => void
   t: (key: string, vars?: Record<string, string | number>) => string
-  formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null)
@@ -79,15 +78,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     [locale],
   )
 
-  const formatDate = useCallback(
-    (date: Date, options?: Intl.DateTimeFormatOptions) =>
-      date.toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', options),
-    [locale],
-  )
-
   const value = useMemo(
-    () => ({ locale, setLocale, t, formatDate }),
-    [locale, setLocale, t, formatDate],
+    () => ({ locale, setLocale, t }),
+    [locale, setLocale, t],
   )
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
@@ -97,11 +90,6 @@ export function useI18n(): I18nContextValue {
   const ctx = useContext(I18nContext)
   if (!ctx) throw new Error('useI18n must be used within I18nProvider')
   return ctx
-}
-
-export function useLocale(): [Locale, (locale: Locale) => void] {
-  const { locale, setLocale } = useI18n()
-  return [locale, setLocale]
 }
 
 export function liveWsStatusLabel(

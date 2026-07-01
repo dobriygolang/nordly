@@ -30,7 +30,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 | focus | Pomodoro sessions, stats | nordly |
 | rooms | Live collab, Yjs WS, board publish | web, nordly (share) |
 | sandbox | Code run, format | web (live rooms) |
-| billing | Plans, entitlements | web (pricing), notes/rooms (gates) |
+| billing | Plans, entitlements | web (pricing), notes/sandbox (gates) |
 
 **CI only (not prod):** ai — archived interview-era LLM gateway.
 
@@ -40,9 +40,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 |------|-----|-----|
 | notes | billing | `cloud_notes_count` gate on create |
 | rooms | identity | scoped guest JWT mint |
-| rooms | billing | live room quotas |
 | sandbox | billing | code run quotas |
-| tracker | identity | profile timezone fallback (optional) |
 
 ## Cross-app flows
 
@@ -82,7 +80,7 @@ Legacy docs archived under [docs/archive/](../archive/).
 
 ```bash
 cd apps/nordly && cp .env.example .env && npm install && npm run dev
-# Optional cloud sync: VITE_HONE_LOCAL_ONLY=false + VITE_HONE_LOCAL_API=true
+# Optional cloud sync: VITE_NORDLY_LOCAL_ONLY=false + VITE_NORDLY_LOCAL_API=true
 ```
 
 **Web + live rooms:**

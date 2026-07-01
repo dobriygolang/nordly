@@ -1,4 +1,4 @@
-/** JSON blob persistence in localStorage (Hone local-only mode). */
+/** JSON blob persistence in localStorage (Nordly local-only mode). */
 
 export function readJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -8,14 +8,5 @@ export function readJson<T>(key: string, fallback: T): T {
     return JSON.parse(raw) as T;
   } catch {
     return fallback;
-  }
-}
-
-export function writeJson(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* quota / privacy mode */
   }
 }

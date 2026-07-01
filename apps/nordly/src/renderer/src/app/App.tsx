@@ -3,7 +3,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import { translate } from '@nordly-i18n';
 
 import { CanvasBg, type ThemeId } from '@widgets/CanvasBg';
-import { Wordmark, AppVersionBadge, NORDLY_HEADER_H } from '@widgets/Chrome';
+import { Wordmark, AppVersionBadge } from '@widgets/Chrome';
 import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
 import { LoginScreen } from '@widgets/LoginScreen';
@@ -11,7 +11,6 @@ import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { AnimatedCalendarOverlay } from '@widgets/AnimatedCalendarOverlay';
 import { PomodoroController } from '@widgets/PomodoroController';
 import { type PageId, type PaletteAction } from '@widgets/Palette';
-import { OfflineBanner } from '@widgets/OfflineBanner';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
 import {
@@ -42,9 +41,9 @@ const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
 );
 
-const PALETTE_UNMOUNT_DELAY_MS = 260;
+const PALETTE_UNMOUNT_DELAY_MS = 160;
 
-export type StartFocusArgs = PomodoroStartArgs;
+type StartFocusArgs = PomodoroStartArgs;
 
 const NAV_PAGES = new Set<PageId>(['home', 'today', 'notes', 'whiteboard', 'settings']);
 
@@ -111,10 +110,6 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
-
-  useEffect(() => {
-    void import('@features/focus/audio/ambient-music').then((m) => m.bootstrapAmbient());
-  }, []);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
@@ -229,6 +224,9 @@ export default function App() {
     void import('@pages/Notes');
     void import('@pages/Settings');
     void import('@pages/Whiteboard');
+    void import('@widgets/Palette');
+    void import('@pages/Calendar/CalendarModal');
+    void import('@widgets/StatsOverlayCards');
   }, [status]);
 
   const startFocus = useCallback(
@@ -344,9 +342,7 @@ export default function App() {
       setCalendarOpen(false);
       setStatsOpen(false);
       navigateTo('today');
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openTask, { detail: { taskId } }));
-      }, 40);
+      window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openTask, { detail: { taskId } }));
     };
     window.addEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
     return () => window.removeEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
@@ -420,6 +416,7 @@ export default function App() {
   if (status === 'guest') {
     return (
       <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: 'var(--bg)' }}>
+        <div className="nordly-titlebar-drag" data-tauri-drag-region />
         <CanvasBg mode="full" theme={theme} />
         <div style={{ position: 'relative', zIndex: 2, height: '100%' }}>
           <LoginScreen />
@@ -435,16 +432,8 @@ export default function App() {
       </div>
 
       <div
+        className="nordly-titlebar-drag"
         data-tauri-drag-region
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: NORDLY_HEADER_H,
-          zIndex: 8,
-          WebkitAppRegion: 'drag',
-        }}
       />
 
       <TrafficLightsHover />
@@ -467,8 +456,8 @@ export default function App() {
           <Palette
             onClose={closePalette}
             onOpen={(id) => {
+              openImpl(id);
               closePalette();
-              window.setTimeout(() => openImpl(id), 40);
             }}
             taskDate={paletteTaskDate}
             onCreateTask={handlePaletteCreateTask}
@@ -476,7 +465,6 @@ export default function App() {
           />
         </Suspense>
       )}
-      <OfflineBanner />
     </div>
   );
 

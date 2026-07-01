@@ -72,7 +72,7 @@ For small datasets:
 ## Post-cutover verification
 
 - [ ] `make migrate` exits 0 on all active databases
-- [ ] Hone login (Yandex / Telegram)
+- [ ] Nordly login (Yandex / Telegram)
 - [ ] Live room join + sandbox run (guest JWT)
 - [ ] Published note/board public URLs
 - [ ] Billing limits match expected (`GET /v1/billing/me`)

@@ -19,7 +19,7 @@ type Config struct {
 	GRPCHost           string
 	PostgresDSN        string
 	JWTPublicKeyPEM    []byte
-	BillingGRPCAddr   string
+	BillingGRPCAddr    string
 	InternalAPIToken   string
 	RunnerMode         string
 	MaxOutputBytes     int
@@ -28,7 +28,6 @@ type Config struct {
 	DefaultCPUs        string
 	MaxCodeBytes       int
 	MaxStdinBytes      int
-	MaxTests           int
 	DockerGoImage      string
 	DockerPythonImage  string
 	DockerNodeImage    string
@@ -85,11 +84,6 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid SANDBOX_MAX_STDIN_BYTES: %w", err)
 	}
-	maxTests, err := strconv.Atoi(getEnv("SANDBOX_MAX_TESTS", "50"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid SANDBOX_MAX_TESTS: %w", err)
-	}
-
 	appEnv := getEnv("APP_ENV", "development")
 	runnerMode := getEnv("RUNNER_MODE", "fake")
 	// Untrusted code must never run on the host in production: only the
@@ -115,7 +109,7 @@ func Load() (*Config, error) {
 		GRPCHost:           grpcListenHost(),
 		PostgresDSN:        getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5439/nordly_sandbox?sslmode=disable"),
 		JWTPublicKeyPEM:    publicKey,
-		BillingGRPCAddr:   getEnv("BILLING_GRPC_ADDR", ""),
+		BillingGRPCAddr:    getEnv("BILLING_GRPC_ADDR", ""),
 		InternalAPIToken:   os.Getenv("INTERNAL_API_TOKEN"),
 		RunnerMode:         runnerMode,
 		MaxOutputBytes:     maxOutput,
@@ -124,7 +118,6 @@ func Load() (*Config, error) {
 		DefaultCPUs:        getEnv("SANDBOX_DEFAULT_CPUS", "1.0"),
 		MaxCodeBytes:       maxCodeBytes,
 		MaxStdinBytes:      maxStdinBytes,
-		MaxTests:           maxTests,
 		DockerGoImage:      getEnv("SANDBOX_DOCKER_GO_IMAGE", "golang:1.24-alpine"),
 		DockerPythonImage:  getEnv("SANDBOX_DOCKER_PYTHON_IMAGE", "python:3.12-alpine"),
 		DockerNodeImage:    getEnv("SANDBOX_DOCKER_NODE_IMAGE", "node:22-alpine"),

@@ -128,11 +128,15 @@ Room types in prod UI: `practice`, `system_design` only.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `VITE_API_BASE` | `/v1` | API prefix |
-| `VITE_HONE_DOWNLOAD_MAC` | — | Override landing macOS download URL |
-| `VITE_HONE_DOWNLOAD_WIN` | — | Override landing Windows download URL |
+| `VITE_NORDLY_DOWNLOAD_MAC` | — | Override landing macOS download URL |
+| `VITE_NORDLY_DOWNLOAD_WIN` | — | Override landing Windows download URL |
+| `VITE_NORDLY_HERO_VIDEO` | — | Landing hero video |
+| `VITE_NORDLY_HERO_POSTER` | — | Landing hero poster |
+| `VITE_SITE_ORIGIN` | current origin | Canonical SEO origin |
+| `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
+| `VITE_IDENTITY_URL`, `VITE_BILLING_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
 Landing download: `lib/landing/nordlyRelease.ts` fetches [GitHub latest Nordly release](https://github.com/dobriygolang/project-nordly/releases/latest) (`.dmg` / `-setup.exe`). Cached 15m in `sessionStorage`. Hero + header CTA; short link `/download`.
-| `VITE_HONE_HERO_VIDEO` | — | Landing hero video |
 
 ## Commands
 
@@ -164,7 +168,6 @@ apps/web/src/
 │   ├── api/             # REST clients
 │   ├── ws/              # collab WebSocket
 │   └── collab/          # Excalidraw Yjs helpers
-└── widgets/             # (via components/)
 ```
 
 ## Retired (removed from routing)

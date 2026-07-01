@@ -43,7 +43,7 @@ add() {
 expand() {
   case "$1" in
     identity) add billing; add rooms ;;
-    billing) add sandbox; add rooms ;;
+    billing) add sandbox ;;
     sandbox) add caddy ;;
     rooms) add caddy ;;
     tracker) add caddy ;;

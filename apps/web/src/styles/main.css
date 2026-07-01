@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import './_tokens.generated.css';
 
 @tailwind base;
@@ -19,22 +18,12 @@
     --color-text-secondary: 91 91 91;
     --color-text-muted: 142 142 142;
     --color-accent: 15 15 15;
-    --color-accent-hover: 35 35 35;
     --color-success: 76 179 92;
     --color-danger: 255 59 48;
     --color-warn: 232 181 72;
-    --color-cyan: 15 15 15;
-    --color-pink: 15 15 15;
     --ink: 15 15 15;
-    --ink-90: rgba(15, 15, 15, 0.9);
     --ink-60: rgba(15, 15, 15, 0.6);
-    --ink-40: rgba(15, 15, 15, 0.4);
-    --ink-20: rgba(15, 15, 15, 0.2);
-    --hair: rgba(15, 15, 15, 0.06);
-    --hair-2: rgba(15, 15, 15, 0.12);
     --red: #ff3b30;
-    --dot: #ff3b30;
-    --green: #4cb35c;
   }
 
   /* Optional dark — live editor chrome only */
@@ -50,19 +39,11 @@
     --color-text-secondary: 200 200 200;
     --color-text-muted: 140 140 140;
     --color-accent: 255 255 255;
-    --color-accent-hover: 230 230 230;
     --color-success: 255 255 255;
     --color-danger: 255 59 48;
     --color-warn: 200 200 200;
-    --color-cyan: 255 255 255;
-    --color-pink: 255 255 255;
     --ink: 255 255 255;
-    --ink-90: rgba(255, 255, 255, 0.9);
     --ink-60: rgba(255, 255, 255, 0.6);
-    --ink-40: rgba(255, 255, 255, 0.4);
-    --ink-20: rgba(255, 255, 255, 0.2);
-    --hair: rgba(255, 255, 255, 0.06);
-    --hair-2: rgba(255, 255, 255, 0.12);
     --red: #ff3b30;
   }
 
@@ -80,50 +61,6 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv11', 'ss01';
     overflow-x: hidden;
-  }
-
-  body.v2 {
-    background: rgb(var(--color-bg));
-    color: rgb(var(--color-text-primary));
-  }
-
-  body.v2 ::selection {
-    background: var(--dot);
-    color: #fff;
-  }
-
-  body.v2 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  body.v2 ::-webkit-scrollbar-track {
-    background: rgb(var(--color-bg));
-  }
-  body.v2 ::-webkit-scrollbar-thumb {
-    background: rgb(var(--color-border-strong));
-    border-radius: 5px;
-  }
-  body.v2 ::-webkit-scrollbar-thumb:hover {
-    background: rgb(var(--color-text-muted));
-  }
-
-  body.landing-page {
-    background: #050505;
-    color: #e4e4e7;
-  }
-
-  body.landing-page ::-webkit-scrollbar {
-    width: 8px;
-  }
-  body.landing-page ::-webkit-scrollbar-track {
-    background: #050505;
-  }
-  body.landing-page ::-webkit-scrollbar-thumb {
-    background: #27272a;
-    border-radius: 4px;
-  }
-  body.landing-page ::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
   }
 
   [data-site-theme='dark'] {
@@ -161,51 +98,49 @@
     background: rgb(var(--site-accent) / 0.2);
     color: rgb(var(--site-text));
   }
+
+  /* Fallback theme cross-fade when View Transitions API is unavailable */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition:
+      background-color var(--motion-dur-medium) var(--motion-ease-standard),
+      color var(--motion-dur-medium) var(--motion-ease-standard),
+      border-color var(--motion-dur-medium) var(--motion-ease-standard),
+      fill var(--motion-dur-medium) var(--motion-ease-standard),
+      stroke var(--motion-dur-medium) var(--motion-ease-standard),
+      box-shadow var(--motion-dur-medium) var(--motion-ease-standard) !important;
+  }
 }
 
-@layer components {
-  .sdvg-card {
-    @apply rounded-2xl border border-border bg-surface-1;
-    box-shadow: 0 1px 0 rgba(15, 15, 15, 0.02);
+@supports (view-transition-name: none) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
   }
-  .sdvg-pill {
-    @apply inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-text-secondary;
+
+  ::view-transition-old(root) {
+    z-index: 1;
   }
-  .v2-card {
-    @apply rounded-2xl border border-border bg-surface-1 p-5;
+
+  ::view-transition-new(root) {
+    z-index: 2;
+    animation: theme-circle-in var(--motion-dur-xlarge) var(--motion-ease-emphasized) both;
   }
-  .v2-pill-active {
-    @apply rounded-lg bg-surface-2 px-3.5 py-2 text-sm font-medium text-text-primary;
-  }
-  .v2-pill-idle {
-    @apply rounded-lg px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary;
+
+  @keyframes theme-circle-in {
+    from {
+      clip-path: circle(0 at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+    }
+    to {
+      clip-path: circle(var(--theme-toggle-r, 150vmax) at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+    }
   }
 }
 
 @layer utilities {
-  .mono {
-    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    font-feature-settings: 'zero', 'ss01';
-  }
-  .hair-b {
-    border-bottom: 1px solid var(--hair);
-  }
-  .card-lift {
-    transition:
-      transform var(--motion-dur-small) var(--motion-ease-standard),
-      border-color var(--motion-dur-small) var(--motion-ease-standard),
-      box-shadow var(--motion-dur-small) var(--motion-ease-standard);
-  }
-  .card-lift:hover {
-    transform: translateY(-1px);
-    border-color: var(--hair-2);
-    box-shadow: 0 8px 24px -16px rgba(15, 15, 15, 0.12);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .card-lift:hover {
-      transform: none;
-    }
-  }
   .cm-ySelectionCaret {
     position: relative;
     border-left: 2px solid;

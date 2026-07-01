@@ -1,4 +1,4 @@
-// useGlobalHotkeys — global keyboard listener for Hone hotkeys.
+// useGlobalHotkeys — global keyboard listener for Nordly hotkeys.
 import { useEffect, useRef } from 'react';
 
 import type { PageId } from '@widgets/Palette';

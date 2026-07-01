@@ -4,7 +4,7 @@ const StatsOverlayCards = lazy(() =>
   import('./StatsOverlayCards').then((m) => ({ default: m.StatsOverlayCards })),
 );
 
-const UNMOUNT_DELAY_MS = 420;
+const UNMOUNT_DELAY_MS = 220;
 
 export const AnimatedStatsOverlay = memo(function AnimatedStatsOverlay({
   open,

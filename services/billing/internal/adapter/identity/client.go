@@ -13,6 +13,5 @@ type User struct {
 
 // Client resolves users from identity-service.
 type Client interface {
-	GetUser(ctx context.Context, userID string) (*User, error)
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (*User, error)
 }

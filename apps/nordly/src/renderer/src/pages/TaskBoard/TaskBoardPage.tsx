@@ -291,8 +291,11 @@ export function TaskBoardPage(): JSX.Element {
     <div
       style={{
         position: 'absolute',
-        inset: 0,
-        padding: `${NORDLY_HEADER_H}px 20px 88px`,
+        top: NORDLY_HEADER_H,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        padding: '0 20px 88px',
         display: 'flex',
         gap: 12,
         minHeight: 0,

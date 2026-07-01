@@ -1,4 +1,4 @@
-// notifications.ts — система-нативные уведомления для Hone.
+// notifications.ts — system-native notifications for Nordly.
 //
 // Используется через `notify(title, body)`. Внутри:
 //   1. Проверяем `settings.notifications` (юзер мог отключить в Settings).

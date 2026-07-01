@@ -10,10 +10,6 @@ const LAYERS = {
   '@shared': resolve(__dirname, 'src/renderer/src/shared'),
   '@platform': resolve(__dirname, 'src/renderer/src/platform'),
 };
-const PEER_ALIASES = {
-  '@bufbuild/protobuf': resolve(__dirname, 'node_modules/@bufbuild/protobuf'),
-  '@connectrpc/connect': resolve(__dirname, 'node_modules/@connectrpc/connect'),
-};
 const SHARED_ALIASES = {
   '@nordly-i18n': resolve(__dirname, '../shared/i18n'),
 };
@@ -22,14 +18,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, resolve(__dirname), '');
   const useLocal =
     env.VITE_NORDLY_LOCAL_API === 'true' ||
-    env.VITE_NORDLY_LOCAL_API === '1' ||
-    env.VITE_NORDLY_LOCAL_API === 'true' ||
     env.VITE_NORDLY_LOCAL_API === '1';
-  const prodApi = (
-    env.VITE_NORDLY_API_BASE ||
-    env.VITE_DRUZ9_API_BASE ||
-    'https://trynordly.app'
-  ).replace(/\/$/, '');
+  const prodApi = (env.VITE_NORDLY_API_BASE || 'https://trynordly.app').replace(/\/$/, '');
 
   const proxy = useLocal
     ? {
@@ -76,9 +66,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         ...LAYERS,
         ...SHARED_ALIASES,
-        ...PEER_ALIASES,
       },
-      dedupe: Object.keys(PEER_ALIASES),
     },
   };
 });

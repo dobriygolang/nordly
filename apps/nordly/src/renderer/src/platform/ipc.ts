@@ -1,4 +1,4 @@
-// Shared IPC types — narrow surface for the Hone MVP Tauri shell.
+// Shared IPC types — narrow surface for the Nordly Tauri shell.
 
 export const eventChannels = {
   deepLink: 'app:deep-link',
@@ -10,8 +10,6 @@ export interface NordlyAPI {
     session: () => Promise<AuthSession | null>;
     persist: (s: AuthSession) => Promise<void>;
     logout: () => Promise<void>;
-    tgStart: () => Promise<TelegramStart>;
-    tgPoll: (code: string) => Promise<TelegramPollResult>;
   };
   pomodoro: {
     load: () => Promise<PomodoroSnapshot | null>;
@@ -23,9 +21,6 @@ export interface NordlyAPI {
   window: {
     setTrafficLights: (visible: boolean) => Promise<void>;
   };
-  tray: {
-    update: (title: string, tooltip: string) => Promise<void>;
-  };
   vault?: {
     passLoad: (userId: string) => Promise<string | null>;
     passSave: (userId: string, passphrase: string) => Promise<void>;
@@ -36,19 +31,6 @@ export interface NordlyAPI {
     listener: (payload: EventPayload[K]) => void,
   ) => () => void;
 }
-
-export interface TelegramStart {
-  code: string;
-  deepLink: string;
-  expiresAt: string;
-}
-
-export type TelegramPollResult =
-  | { kind: 'ok'; session: AuthSession; isNewUser: boolean }
-  | { kind: 'pending' }
-  | { kind: 'expired' }
-  | { kind: 'rate_limited'; retryAfter: number }
-  | { kind: 'error'; message: string };
 
 export interface AuthSession {
   userId: string;

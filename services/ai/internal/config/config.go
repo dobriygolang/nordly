@@ -19,33 +19,32 @@ type Config struct {
 	GRPCHost    string
 	PostgresDSN string
 
-	BillingGRPCAddr    string
-	InternalAPIToken   string
-	LLMChainOrder      string
-	LLMFreeChainOrder  string
-	LLMPaidChainOrder  string
-	OpenAIAPIKey       string
-	GroqAPIKey         string
-	GroqPaidAPIKey     string
-	CerebrasAPIKey    string
-	GoogleAPIKey       string
-	MistralAPIKey      string
-	OpenRouterAPIKey   string
-	OpenRouterPaidAPIKey string
-	CloudflareAPIKey       string
-	CloudflareAccountID    string
-	DeepSeekAPIKey         string
-	EvalMaxRetries         int
-	EvalWorkerConcurrency  int
-	WorkerPollInterval     time.Duration
-	LLMCavemanLevel        string
-	LLMPromptCacheEnabled  bool
+	BillingGRPCAddr          string
+	InternalAPIToken         string
+	LLMChainOrder            string
+	LLMFreeChainOrder        string
+	LLMPaidChainOrder        string
+	GroqAPIKey               string
+	GroqPaidAPIKey           string
+	CerebrasAPIKey           string
+	GoogleAPIKey             string
+	MistralAPIKey            string
+	OpenRouterAPIKey         string
+	OpenRouterPaidAPIKey     string
+	CloudflareAPIKey         string
+	CloudflareAccountID      string
+	DeepSeekAPIKey           string
+	EvalMaxRetries           int
+	EvalWorkerConcurrency    int
+	WorkerPollInterval       time.Duration
+	LLMCavemanLevel          string
+	LLMPromptCacheEnabled    bool
 	LLMPromptCacheMaxEntries int
-	LLMPromptCacheTTL      time.Duration
-	RedisAddr              string
-	CORSAllowedOrigins     []string
-	NATSURL                string
-	OutboxPollEnabled      bool
+	LLMPromptCacheTTL        time.Duration
+	RedisAddr                string
+	CORSAllowedOrigins       []string
+	NATSURL                  string
+	OutboxPollEnabled        bool
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -106,31 +105,30 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		AppEnv:             appEnv,
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
-		HTTPPort:           httpPort,
-		GRPCPort:           grpcPort,
-		GRPCHost:           grpcListenHost(),
-		PostgresDSN:        getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5435/nordly_ai?sslmode=disable"),
-		BillingGRPCAddr:    os.Getenv("BILLING_GRPC_ADDR"),
-		InternalAPIToken:   internalToken,
-		LLMChainOrder:         getEnv("LLM_CHAIN_ORDER", "groq,cloudflare,openrouter"),
-		LLMFreeChainOrder:     os.Getenv("LLM_FREE_CHAIN_ORDER"),
-		LLMPaidChainOrder:     getEnv("LLM_PAID_CHAIN_ORDER", "deepseek,groq"),
-		OpenAIAPIKey:          os.Getenv("OPENAI_API_KEY"),
-		GroqAPIKey:            os.Getenv("GROQ_API_KEY"),
-		GroqPaidAPIKey:        os.Getenv("GROQ_PAID_API_KEY"),
-		CerebrasAPIKey:        os.Getenv("CEREBRAS_API_KEY"),
-		GoogleAPIKey:          os.Getenv("GOOGLE_API_KEY"),
-		MistralAPIKey:         os.Getenv("MISTRAL_API_KEY"),
-		OpenRouterAPIKey:      os.Getenv("OPENROUTER_API_KEY"),
-		OpenRouterPaidAPIKey:  os.Getenv("OPENROUTER_PAID_API_KEY"),
-		CloudflareAPIKey:      os.Getenv("CLOUDFLARE_API_KEY"),
-		CloudflareAccountID:   os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
-		DeepSeekAPIKey:        os.Getenv("DEEPSEEK_API_KEY"),
-		EvalMaxRetries:      evalMaxRetries,
-		EvalWorkerConcurrency: evalWorkerConcurrency,
-		WorkerPollInterval:  workerPoll,
+		AppEnv:                   appEnv,
+		LogLevel:                 getEnv("LOG_LEVEL", "info"),
+		HTTPPort:                 httpPort,
+		GRPCPort:                 grpcPort,
+		GRPCHost:                 grpcListenHost(),
+		PostgresDSN:              getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5435/nordly_ai?sslmode=disable"),
+		BillingGRPCAddr:          os.Getenv("BILLING_GRPC_ADDR"),
+		InternalAPIToken:         internalToken,
+		LLMChainOrder:            getEnv("LLM_CHAIN_ORDER", "groq,cloudflare,openrouter"),
+		LLMFreeChainOrder:        os.Getenv("LLM_FREE_CHAIN_ORDER"),
+		LLMPaidChainOrder:        getEnv("LLM_PAID_CHAIN_ORDER", "deepseek,groq"),
+		GroqAPIKey:               os.Getenv("GROQ_API_KEY"),
+		GroqPaidAPIKey:           os.Getenv("GROQ_PAID_API_KEY"),
+		CerebrasAPIKey:           os.Getenv("CEREBRAS_API_KEY"),
+		GoogleAPIKey:             os.Getenv("GOOGLE_API_KEY"),
+		MistralAPIKey:            os.Getenv("MISTRAL_API_KEY"),
+		OpenRouterAPIKey:         os.Getenv("OPENROUTER_API_KEY"),
+		OpenRouterPaidAPIKey:     os.Getenv("OPENROUTER_PAID_API_KEY"),
+		CloudflareAPIKey:         os.Getenv("CLOUDFLARE_API_KEY"),
+		CloudflareAccountID:      os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
+		DeepSeekAPIKey:           os.Getenv("DEEPSEEK_API_KEY"),
+		EvalMaxRetries:           evalMaxRetries,
+		EvalWorkerConcurrency:    evalWorkerConcurrency,
+		WorkerPollInterval:       workerPoll,
 		LLMCavemanLevel:          getEnv("LLM_CAVEMAN", "lite"),
 		LLMPromptCacheEnabled:    parseBoolEnv(getEnv("LLM_PROMPT_CACHE", "on")),
 		LLMPromptCacheMaxEntries: promptCacheMax,

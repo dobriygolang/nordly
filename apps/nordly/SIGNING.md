@@ -1,4 +1,4 @@
-# Hone — code signing (macOS + Windows)
+# Nordly — code signing (macOS + Windows)
 
 Two separate trust chains:
 
@@ -134,7 +134,7 @@ Remember the export password → `WINDOWS_CERTIFICATE_PASSWORD`.
 
 ```powershell
 Import-PfxCertificate -FilePath nordly-codesign.pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString 'YOUR_PASSWORD' -AsPlainText -Force)
-certutil -user -store My | findstr /i hone
+certutil -user -store My | findstr /i nordly
 # Or: certmgr.msc → Personal → Certificates → Details → Thumbprint
 ```
 

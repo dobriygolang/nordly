@@ -1,5 +1,5 @@
 ---
-description: focus service — production Hone backend
+description: focus service — production Nordly backend
 alwaysApply: true
 ---
 
@@ -15,4 +15,4 @@ internal/app/api/focus/       → gRPC/HTTP (one RPC per file)
 internal/focus/model|repository|service/
 ```
 
-HTTP `:8091`, gRPC `:9101`. **Prod service** — Hone pomodoro + stats.
+HTTP `:8091`, gRPC `:9101`. **Prod service** — Nordly pomodoro + stats.

@@ -1,0 +1,41 @@
+/**
+ * Hone motion preset classes — keyframes + utility classes.
+ */
+
+@keyframes motion-page-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes motion-modal-in {
+  from { opacity: 0; transform: scale(0.98) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes motion-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.motion-page-in {
+  animation: motion-page-in var(--motion-dur-large) var(--motion-ease-interactive) both;
+}
+
+.motion-modal-in {
+  animation: motion-modal-in var(--motion-dur-large) var(--motion-ease-interactive) both;
+}
+
+.motion-scrim-in {
+  animation: motion-scrim-in var(--motion-dur-medium) var(--motion-ease-interactive) both;
+}
+
+.motion-press {
+  transition: transform var(--motion-dur-small) var(--motion-ease-interactive);
+}
+.motion-press:active {
+  transform: scale(0.98);
+}
+
+.motion-focus-ring-grow {
+  transition: box-shadow var(--motion-dur-small) var(--motion-ease-interactive);
+}

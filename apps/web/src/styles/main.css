@@ -1,0 +1,296 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import './_tokens.generated.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* sdvg.io light — default app theme */
+  :root,
+  html.light {
+    --color-bg: 250 250 248;
+    --color-surface-1: 255 255 255;
+    --color-surface-2: 247 247 245;
+    --color-surface-3: 240 240 237;
+    --color-border: 232 232 230;
+    --color-border-strong: 215 215 212;
+    --color-text-primary: 15 15 15;
+    --color-text-secondary: 91 91 91;
+    --color-text-muted: 142 142 142;
+    --color-accent: 15 15 15;
+    --color-accent-hover: 35 35 35;
+    --color-success: 76 179 92;
+    --color-danger: 255 59 48;
+    --color-warn: 232 181 72;
+    --color-cyan: 15 15 15;
+    --color-pink: 15 15 15;
+    --ink: 15 15 15;
+    --ink-90: rgba(15, 15, 15, 0.9);
+    --ink-60: rgba(15, 15, 15, 0.6);
+    --ink-40: rgba(15, 15, 15, 0.4);
+    --ink-20: rgba(15, 15, 15, 0.2);
+    --hair: rgba(15, 15, 15, 0.06);
+    --hair-2: rgba(15, 15, 15, 0.12);
+    --red: #ff3b30;
+    --dot: #ff3b30;
+    --green: #4cb35c;
+  }
+
+  /* Optional dark — live editor chrome only */
+  html.dark,
+  .dark {
+    --color-bg: 0 0 0;
+    --color-surface-1: 10 10 10;
+    --color-surface-2: 17 17 17;
+    --color-surface-3: 17 17 17;
+    --color-border: 26 26 26;
+    --color-border-strong: 38 38 38;
+    --color-text-primary: 255 255 255;
+    --color-text-secondary: 200 200 200;
+    --color-text-muted: 140 140 140;
+    --color-accent: 255 255 255;
+    --color-accent-hover: 230 230 230;
+    --color-success: 255 255 255;
+    --color-danger: 255 59 48;
+    --color-warn: 200 200 200;
+    --color-cyan: 255 255 255;
+    --color-pink: 255 255 255;
+    --ink: 255 255 255;
+    --ink-90: rgba(255, 255, 255, 0.9);
+    --ink-60: rgba(255, 255, 255, 0.6);
+    --ink-40: rgba(255, 255, 255, 0.4);
+    --ink-20: rgba(255, 255, 255, 0.2);
+    --hair: rgba(255, 255, 255, 0.06);
+    --hair-2: rgba(255, 255, 255, 0.12);
+    --red: #ff3b30;
+  }
+
+  html {
+    transition:
+      background-color var(--motion-dur-medium) var(--motion-ease-standard),
+      color var(--motion-dur-medium) var(--motion-ease-standard);
+    background: rgb(var(--color-bg));
+    color: rgb(var(--color-text-primary));
+  }
+
+  body {
+    background: rgb(var(--color-bg));
+    color: rgb(var(--color-text-primary));
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    overflow-x: hidden;
+  }
+
+  body.v2 {
+    background: rgb(var(--color-bg));
+    color: rgb(var(--color-text-primary));
+  }
+
+  body.v2 ::selection {
+    background: var(--dot);
+    color: #fff;
+  }
+
+  body.v2 ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  body.v2 ::-webkit-scrollbar-track {
+    background: rgb(var(--color-bg));
+  }
+  body.v2 ::-webkit-scrollbar-thumb {
+    background: rgb(var(--color-border-strong));
+    border-radius: 5px;
+  }
+  body.v2 ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--color-text-muted));
+  }
+
+  body.landing-page {
+    background: #050505;
+    color: #e4e4e7;
+  }
+
+  body.landing-page ::-webkit-scrollbar {
+    width: 8px;
+  }
+  body.landing-page ::-webkit-scrollbar-track {
+    background: #050505;
+  }
+  body.landing-page ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 4px;
+  }
+  body.landing-page ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+
+  [data-site-theme='dark'] {
+    --site-bg: 5 5 5;
+    --site-surface: 8 8 8;
+    --site-card: 15 15 15;
+    --site-border: 39 39 42;
+    --site-text: 228 228 231;
+    --site-muted: 161 161 170;
+    --site-accent: 255 255 255;
+    --site-accent-fg: 0 0 0;
+    --site-glow: 255 255 255;
+    --site-hero-gradient-to: 75 85 99;
+  }
+
+  [data-site-theme='light'] {
+    --site-bg: 250 250 248;
+    --site-surface: 255 255 255;
+    --site-card: 255 255 255;
+    --site-border: 232 232 230;
+    --site-text: 15 15 15;
+    --site-muted: 113 113 122;
+    --site-accent: 15 15 15;
+    --site-accent-fg: 250 250 248;
+    --site-glow: 255 59 48;
+    --site-hero-gradient-to: 142 142 142;
+  }
+
+  body.site-public {
+    background: rgb(var(--site-bg));
+    color: rgb(var(--site-text));
+  }
+
+  body.site-public ::selection {
+    background: rgb(var(--site-accent) / 0.2);
+    color: rgb(var(--site-text));
+  }
+}
+
+@layer components {
+  .sdvg-card {
+    @apply rounded-2xl border border-border bg-surface-1;
+    box-shadow: 0 1px 0 rgba(15, 15, 15, 0.02);
+  }
+  .sdvg-pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-text-secondary;
+  }
+  .v2-card {
+    @apply rounded-2xl border border-border bg-surface-1 p-5;
+  }
+  .v2-pill-active {
+    @apply rounded-lg bg-surface-2 px-3.5 py-2 text-sm font-medium text-text-primary;
+  }
+  .v2-pill-idle {
+    @apply rounded-lg px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary;
+  }
+}
+
+@layer utilities {
+  .mono {
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-feature-settings: 'zero', 'ss01';
+  }
+  .hair-b {
+    border-bottom: 1px solid var(--hair);
+  }
+  .card-lift {
+    transition:
+      transform var(--motion-dur-small) var(--motion-ease-standard),
+      border-color var(--motion-dur-small) var(--motion-ease-standard),
+      box-shadow var(--motion-dur-small) var(--motion-ease-standard);
+  }
+  .card-lift:hover {
+    transform: translateY(-1px);
+    border-color: var(--hair-2);
+    box-shadow: 0 8px 24px -16px rgba(15, 15, 15, 0.12);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-lift:hover {
+      transform: none;
+    }
+  }
+  .cm-ySelectionCaret {
+    position: relative;
+    border-left: 2px solid;
+    border-color: rgb(var(--y-r, 255), var(--y-g, 59), var(--y-b, 48));
+    margin-left: -1px;
+    margin-right: -1px;
+    z-index: 2;
+  }
+  .cm-ySelectionCaret::before {
+    content: attr(data-y-user-name);
+    position: absolute;
+    top: -1.4em;
+    left: -2px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.4;
+    border-radius: 3px 3px 3px 0;
+    color: #fff;
+    background: rgb(var(--y-r, 255), var(--y-g, 59), var(--y-b, 48));
+    white-space: nowrap;
+    pointer-events: none;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    letter-spacing: 0.04em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transition: opacity var(--motion-dur-small) var(--motion-ease-standard);
+  }
+  .cm-line:hover .cm-ySelectionCaret::before,
+  .always-show-cursor-labels .cm-ySelectionCaret::before {
+    opacity: 1;
+  }
+  .cm-ySelection {
+    background-color: rgba(var(--y-r, 255), var(--y-g, 59), var(--y-b, 48), 0.18);
+  }
+  /* y-codemirror.next v0.3 — caret labels + selection on dark editor */
+  .always-show-cursor-labels .cm-ySelectionInfo {
+    opacity: 1 !important;
+    transition-delay: 0s !important;
+  }
+  .always-show-cursor-labels .cm-ySelectionCaretDot {
+    transform: scale(1) !important;
+  }
+  .cm-ySelection.cm-ySelection {
+    border-radius: 2px;
+  }
+}
+
+/* Excalidraw — sdvg.io light theme (Inter, warm surfaces, soft shadows) */
+.druzya-excalidraw .excalidraw {
+  --theme-filter: none;
+  --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --island-bg-color: rgb(var(--color-surface-1));
+  --default-bg-color: rgb(var(--color-surface-1));
+  --input-bg-color: rgb(var(--color-surface-1));
+  --input-border-color: rgb(var(--color-border));
+  --input-hover-bg-color: rgb(var(--color-surface-2));
+  --input-label-color: rgb(var(--color-text-secondary));
+  --default-border-color: rgb(var(--color-border));
+  --popup-secondary-bg-color: rgb(var(--color-surface-2));
+  --popup-text-color: rgb(var(--color-text-primary));
+  --icon-fill-color: rgb(var(--color-text-primary));
+  --link-color: rgb(var(--color-text-primary));
+  --select-highlight-color: rgb(var(--color-text-primary));
+  --focus-highlight-color: rgba(15, 15, 15, 0.1);
+  --button-gray-1: rgb(var(--color-surface-2));
+  --button-gray-2: rgb(var(--color-border));
+  --button-gray-3: rgb(var(--color-border-strong));
+  --button-hover-bg: rgb(var(--color-surface-2));
+  --button-active-bg: rgb(var(--color-surface-3));
+  --shadow-island:
+    0 1px 2px rgba(15, 15, 15, 0.04),
+    0 4px 12px rgba(15, 15, 15, 0.06);
+  --modal-shadow:
+    0 12px 40px rgba(15, 15, 15, 0.08),
+    0 2px 8px rgba(15, 15, 15, 0.04);
+  --sidebar-shadow: var(--shadow-island);
+  --avatar-border-color: rgb(var(--color-border));
+  --keybinding-color: rgb(var(--color-text-muted));
+  --scrollbar-thumb: rgb(var(--color-border));
+  --scrollbar-thumb-hover: rgb(var(--color-border-strong));
+}
+
+.druzya-excalidraw .excalidraw .layer-ui__wrapper__top-right,
+.druzya-excalidraw .excalidraw .scroll-back-to-content,
+.druzya-excalidraw .excalidraw .help-icon {
+  display: none !important;
+}

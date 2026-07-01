@@ -1,0 +1,8 @@
+node_modules/
+out/
+dist/
+src-tauri/target/
+src-tauri/signing.ci.json
+.tauri/hone.key
+*.log
+.DS_Store

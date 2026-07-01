@@ -1,0 +1,100 @@
+{
+	email {$CADDY_EMAIL}
+	# Host nginx keeps :80/:443 (e.g. VPN). TLS terminates in nginx; Caddy is HTTP-only behind it.
+	auto_https off
+}
+
+# Shared API routing (used on api.* and on the SPA host for same-origin /v1).
+(api_v1) {
+	handle /v1/auth* {
+		reverse_proxy identity:8080
+	}
+	handle /v1/me* {
+		reverse_proxy identity:8080
+	}
+	handle /v1/users* {
+		reverse_proxy identity:8080
+	}
+	handle /v1/jwt* {
+		reverse_proxy identity:8080
+	}
+	handle /v1/rooms* {
+		reverse_proxy rooms:8087
+	}
+	handle /v1/sandbox* {
+		reverse_proxy sandbox:8086
+	}
+	handle /v1/billing* {
+		reverse_proxy billing:8085
+	}
+	handle /v1/tracker* {
+		reverse_proxy tracker:8089
+	}
+	handle /v1/notes* {
+		reverse_proxy notes:8090
+	}
+	handle /v1/focus* {
+		reverse_proxy focus:8091
+	}
+	handle /v1/* {
+		header Content-Type application/json
+		respond "{\"error\":\"not found\"}" 404
+	}
+}
+
+(api_ws) {
+	handle /ws/lsp/* {
+		reverse_proxy sandbox:8086
+	}
+	handle /ws/* {
+		reverse_proxy rooms:8087
+	}
+}
+
+# API — primary: api.trynordly.app
+http://api.trynordly.app {
+	encode gzip
+	import api_v1
+	import api_ws
+	handle /healthz {
+		respond "ok" 200
+	}
+	respond "not found" 404
+}
+
+# SPA — canonical: trynordly.app (same-origin /v1 for VITE_API_BASE=/v1)
+http://trynordly.app, http://app.trynordly.app {
+	encode gzip
+	route {
+		import api_v1
+		import api_ws
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			file_server
+		}
+	}
+}
+
+# Legacy druz9 domains → canonical trynordly.app
+http://druz9.online, http://app.druz9.online, http://druz9.ru, http://app.druz9.ru {
+	redir https://trynordly.app{uri} permanent
+}
+
+http://api.druz9.online, http://api.druz9.ru {
+	redir https://api.trynordly.app{uri} permanent
+}
+
+# Grafana — monitoring UI (TLS at host nginx)
+http://grafana.trynordly.app {
+	encode gzip
+	reverse_proxy grafana:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+http://grafana.druz9.online {
+	redir https://grafana.trynordly.app{uri} permanent
+}

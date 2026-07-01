@@ -1,0 +1,490 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+import { useT, useLocale, type Locale } from '@nordly-i18n';
+
+import {
+  listGoogleCalendarEvents,
+  type GoogleCalendarEvent,
+} from '@features/calendar/api/calendarClient';
+import {
+  buildMonthGrid,
+  buildWeekDays,
+  calendarHourLabels,
+  entriesForDay,
+  entriesForWeek,
+  entriesForYear,
+  eventBlockLayout,
+  formatDayHeader,
+  formatHourLabel,
+  formatWeekHeaderMonth,
+  mergeCalendarEntries,
+  startOfWeekMonday,
+  weekRange,
+  yearRange,
+  CALENDAR_GRID_END_HOUR,
+  CALENDAR_GRID_START_HOUR,
+  CALENDAR_HOUR_HEIGHT_PX,
+  type CalendarEntry,
+} from '@features/calendar/lib/events';
+import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
+import { SegmentedControl } from '@pages/Settings/primitives/SegmentedControl';
+import { snapMinutes, toDayKey } from '@pages/TaskBoard/lib/dates';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { formatLocaleDate, formatTimeZoneLabel, getUserTimeZone } from '@shared/lib/localeFormat';
+import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
+import { zIndex } from '@shared/lib/z-index';
+import { Icon } from '@shared/ui/primitives/Icon';
+import { LOCAL_ONLY } from '@app/config/features';
+
+type ViewMode = 'week' | 'year';
+
+/** Top breathing room (label overhang) + bottom slack for the week grid. */
+const WEEK_GRID_RESERVE_PX = 10;
+
+interface CalendarModalProps {
+  onClose: () => void;
+  closing?: boolean;
+}
+
+export function CalendarModal({ onClose, closing = false }: CalendarModalProps): JSX.Element {
+  const t = useT();
+  const [locale] = useLocale();
+  const todayKey = toDayKey(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date(), locale));
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [tasks, setTasks] = useState<TaskCard[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+
+  const refreshTasks = useCallback(async () => {
+    try {
+      setTasks(await listTasks());
+    } catch {
+      /* keep stale */
+    }
+  }, []);
+
+  const refreshGoogle = useCallback(async () => {
+    if (LOCAL_ONLY) {
+      setGoogleEvents([]);
+      setGoogleError(null);
+      return;
+    }
+    const { start, end } =
+      viewMode === 'week' ? weekRange(weekStart) : yearRange(viewYear);
+    const padStart = new Date(start);
+    padStart.setDate(padStart.getDate() - 1);
+    const padEnd = new Date(end);
+    padEnd.setDate(padEnd.getDate() + 1);
+    try {
+      setGoogleEvents(await listGoogleCalendarEvents(padStart, padEnd));
+      setGoogleError(null);
+    } catch {
+      setGoogleError(t('nordly.calendar.google_error'));
+    }
+  }, [viewMode, weekStart, viewYear, t]);
+
+  useEffect(() => {
+    if (viewMode === 'year') setViewYear(weekStart.getFullYear());
+  }, [viewMode, weekStart]);
+
+  useEffect(() => {
+    void refreshTasks();
+  }, [refreshTasks]);
+
+  useEffect(() => {
+    void refreshGoogle();
+  }, [refreshGoogle]);
+
+  useEffect(() => {
+    setWeekStart((prev) => startOfWeekMonday(prev, locale));
+  }, [locale]);
+
+  useEffect(() => {
+    const onTasks = () => void refreshTasks();
+    const onSync = () => {
+      void refreshTasks();
+      void refreshGoogle();
+    };
+    window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
+    window.addEventListener(NORDLY_EVENTS.syncChanged, onSync);
+    return () => {
+      window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
+      window.removeEventListener(NORDLY_EVENTS.syncChanged, onSync);
+    };
+  }, [refreshTasks, refreshGoogle]);
+
+  const entries = useMemo(
+    () => mergeCalendarEntries(tasks, googleEvents),
+    [tasks, googleEvents],
+  );
+
+  const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
+  const weekEntries = useMemo(() => entriesForWeek(entries, weekStart), [entries, weekStart]);
+  const yearEntries = useMemo(() => entriesForYear(entries, viewYear), [entries, viewYear]);
+  const hours = useMemo(() => calendarHourLabels(), []);
+
+  const weekScrollRef = useRef<HTMLDivElement>(null);
+
+  // Fit the hour grid exactly into the scroll container — measure the real
+  // flex slot (not window.innerHeight) and drop the old 60px cap that forced
+  // an 18×60 = 1080px grid taller than the modal.
+  const gridSpan = CALENDAR_GRID_END_HOUR - CALENDAR_GRID_START_HOUR;
+  const [hourHeight, setHourHeight] = useState(CALENDAR_HOUR_HEIGHT_PX);
+  useLayoutEffect(() => {
+    if (viewMode !== 'week') return;
+    const el = weekScrollRef.current;
+    if (!el) return;
+    const recompute = () => {
+      // Reserve the label overhang (translateY(-6px)) + the grid's 1px top
+      // border so the first "6 AM" row isn't clipped and the last row fits.
+      const slot = el.clientHeight - WEEK_GRID_RESERVE_PX;
+      if (slot <= 0) return;
+      const h = Math.floor(slot / gridSpan);
+      setHourHeight(Math.max(1, h));
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [gridSpan, viewMode]);
+  const gridHeight = gridSpan * hourHeight;
+
+  const { dragId, dragTop, start: startDrag } = useVerticalDrag();
+
+  const rescheduleEntry = useCallback(
+    async (entry: CalendarEntry, finalTop: number) => {
+      if (entry.source !== 'task' || !entry.taskId) return;
+      const startH = finalTop / hourHeight + CALENDAR_GRID_START_HOUR;
+      const min = snapMinutes(startH * 60);
+      const next = new Date(entry.start);
+      next.setHours(Math.floor(min / 60), min % 60, 0, 0);
+      const durationMin = Math.max(
+        15,
+        Math.round((entry.end.getTime() - entry.start.getTime()) / 60_000),
+      );
+      try {
+        await scheduleTask(entry.taskId, next, durationMin);
+        window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+      } catch {
+        /* keep current view; next refresh reconciles */
+      }
+    },
+    [hourHeight],
+  );
+
+  const headerLabel =
+    viewMode === 'week'
+      ? formatWeekHeaderMonth(weekStart, locale)
+      : String(viewYear);
+
+  const timeZoneLabel = useMemo(
+    () => formatTimeZoneLabel(getUserTimeZone(), locale),
+    [locale],
+  );
+
+  const shiftPeriod = (delta: number) => {
+    if (viewMode === 'week') {
+      setWeekStart((prev) => {
+        const next = new Date(prev);
+        next.setDate(prev.getDate() + delta * 7);
+        return next;
+      });
+      return;
+    }
+    setViewYear((y) => y + delta);
+  };
+
+  const openTask = (taskId: string) => {
+    onClose();
+    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.navOpenTask, { detail: { taskId } }));
+  };
+
+  const viewOptions = useMemo(
+    () => [
+      { value: 'week' as const, label: t('nordly.calendar.view_week') },
+      { value: 'year' as const, label: t('nordly.calendar.view_year') },
+    ],
+    [t],
+  );
+
+  return (
+    <div
+      className="nordly-calendar-backdrop fadein"
+      data-closing={closing ? 'true' : undefined}
+      style={{ zIndex: zIndex.modal }}
+      onClick={onClose}
+    >
+      <div
+        className={`nordly-calendar-modal motion-modal-in ${closing ? 'slide-to-right' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('nordly.calendar.title')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="nordly-calendar-toolbar">
+          <div className="nordly-calendar-toolbar__left">
+            <h2 className="nordly-calendar-toolbar__title">{headerLabel}</h2>
+            <div className="nordly-calendar-toolbar__nav">
+              <button
+                type="button"
+                className="nordly-calendar-nav-btn focus-ring"
+                onClick={() => shiftPeriod(-1)}
+                aria-label={
+                  viewMode === 'week'
+                    ? t('nordly.calendar.prev_week')
+                    : t('nordly.calendar.prev_year')
+                }
+              >
+                <Icon name="chevron-left" size={14} />
+              </button>
+              <button
+                type="button"
+                className="nordly-calendar-nav-btn focus-ring"
+                onClick={() => shiftPeriod(1)}
+                aria-label={
+                  viewMode === 'week' ? t('nordly.calendar.next_week') : t('nordly.calendar.next_year')
+                }
+              >
+                <Icon name="chevron-right" size={14} />
+              </button>
+            </div>
+          </div>
+          <SegmentedControl
+            ariaLabel={t('nordly.calendar.view_mode')}
+            value={viewMode}
+            options={viewOptions}
+            onChange={setViewMode}
+          />
+        </header>
+
+        {viewMode === 'week' ? (
+          <div className="nordly-calendar-week">
+            <div className="nordly-calendar-week__head">
+              <div className="nordly-calendar-week__gutter" aria-hidden />
+              {weekDays.map(({ date, dayKey }) => (
+                <div
+                  key={dayKey}
+                  className="nordly-calendar-week__dayhead"
+                  data-today={dayKey === todayKey ? 'true' : undefined}
+                >
+                  {formatDayHeader(date, locale)}
+                </div>
+              ))}
+            </div>
+
+            <div ref={weekScrollRef} className="nordly-calendar-week__scroll">
+              <div className="nordly-calendar-week__body" style={{ height: gridHeight }}>
+                <div className="nordly-calendar-week__times" style={{ height: gridHeight }}>
+                  {hours.map((hour) => (
+                    <span
+                      key={hour}
+                      className="nordly-calendar-week__time"
+                      style={{ height: hourHeight }}
+                    >
+                      {formatHourLabel(hour, locale)}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="nordly-calendar-week__grid" style={{ height: gridHeight }}>
+                  {weekDays.map(({ dayKey }) => (
+                    <div key={dayKey} className="nordly-calendar-week__col">
+                      {hours.map((hour) => (
+                        <div
+                          key={hour}
+                          className="nordly-calendar-week__cell"
+                          style={{ height: hourHeight }}
+                        />
+                      ))}
+                      {weekEntries
+                        .filter((e) => toDayKey(e.start) === dayKey)
+                        .map((entry) => {
+                          const layout = eventBlockLayout(entry, hourHeight);
+                          if (!layout) return null;
+                          const maxTop = Math.max(0, gridHeight - layout.height);
+                          const isDragging = dragId === entry.id;
+                          const top = Math.max(
+                            0,
+                            Math.min(isDragging ? dragTop : layout.top, maxTop),
+                          );
+                          const draggable = entry.source === 'task' && Boolean(entry.taskId);
+                          return (
+                            <CalendarEventBlock
+                              key={entry.id}
+                              entry={entry}
+                              top={top}
+                              height={layout.height}
+                              dragging={isDragging}
+                              onPointerDown={
+                                draggable
+                                  ? (e) =>
+                                      startDrag(e, {
+                                        id: entry.id,
+                                        baseTop: layout.top,
+                                        min: 0,
+                                        max: maxTop,
+                                        onCommit: (ft) => void rescheduleEntry(entry, ft),
+                                        onClick: () => entry.taskId && openTask(entry.taskId),
+                                      })
+                                  : undefined
+                              }
+                              onOpenTask={openTask}
+                            />
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <YearGrid
+            year={viewYear}
+            entries={yearEntries}
+            todayKey={todayKey}
+            locale={locale}
+            onPickMonth={(monthIndex) => {
+              setWeekStart(startOfWeekMonday(new Date(viewYear, monthIndex, 1), locale));
+              setViewMode('week');
+            }}
+          />
+        )}
+
+        <p className="nordly-calendar-footnote mono">
+          {t('nordly.calendar.timezone', { zone: timeZoneLabel })}
+        </p>
+        {googleError && !LOCAL_ONLY && (
+          <p className="nordly-calendar-footnote mono">{googleError}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CalendarEventBlock({
+  entry,
+  top,
+  height,
+  dragging,
+  onPointerDown,
+  onOpenTask,
+}: {
+  entry: CalendarEntry;
+  top: number;
+  height: number;
+  dragging?: boolean;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  onOpenTask: (taskId: string) => void;
+}): JSX.Element {
+  const done = entry.taskStatus === 'done';
+  const style: React.CSSProperties = {
+    top,
+    height,
+    zIndex: dragging ? 5 : undefined,
+    boxShadow: dragging ? '0 10px 28px rgb(0 0 0 / 0.5)' : undefined,
+    cursor: onPointerDown ? (dragging ? 'grabbing' : 'grab') : undefined,
+    touchAction: onPointerDown ? 'none' : undefined,
+    userSelect: 'none',
+  };
+
+  if (entry.source === 'task' && entry.taskId) {
+    return (
+      <button
+        type="button"
+        className="nordly-calendar-event focus-ring"
+        data-source="task"
+        data-done={done ? 'true' : undefined}
+        style={style}
+        onPointerDown={onPointerDown}
+        onClick={onPointerDown ? undefined : () => onOpenTask(entry.taskId!)}
+        onKeyDown={
+          onPointerDown
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenTask(entry.taskId!);
+                }
+              }
+            : undefined
+        }
+        title={entry.title}
+      >
+        <span className="nordly-calendar-event__title">{entry.title}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="nordly-calendar-event"
+      data-source="google"
+      style={style}
+      title={entry.title}
+    >
+      <span className="nordly-calendar-event__title">{entry.title}</span>
+    </div>
+  );
+}
+
+function YearGrid({
+  year,
+  entries,
+  todayKey,
+  locale,
+  onPickMonth,
+}: {
+  year: number;
+  entries: CalendarEntry[];
+  todayKey: string;
+  locale: Locale;
+  onPickMonth: (monthIndex: number) => void;
+}): JSX.Element {
+  const months = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, monthIndex) => {
+        const viewMonth = new Date(year, monthIndex, 1);
+        const grid = buildMonthGrid(viewMonth, locale);
+        return { monthIndex, viewMonth, grid };
+      }),
+    [year, locale],
+  );
+
+  return (
+    <div className="nordly-calendar-year">
+      {months.map(({ monthIndex, viewMonth, grid }) => {
+        const label = formatLocaleDate(viewMonth, locale, { month: 'long' });
+        return (
+          <button
+            key={monthIndex}
+            type="button"
+            className="nordly-calendar-year__month focus-ring"
+            onClick={() => onPickMonth(monthIndex)}
+          >
+            <span className="nordly-calendar-year__label">{label}</span>
+            <div className="nordly-calendar-year__grid">
+              {grid.map((cell) => {
+                const dayEntries = entriesForDay(entries, cell.dayKey);
+                const hasTask = dayEntries.some((e) => e.source === 'task');
+                const hasGoogle = dayEntries.some((e) => e.source === 'google');
+                return (
+                  <span
+                    key={cell.dayKey}
+                    className="nordly-calendar-year__cell"
+                    data-outside={cell.inMonth ? undefined : 'true'}
+                    data-today={cell.dayKey === todayKey ? 'true' : undefined}
+                    data-busy={hasTask || hasGoogle ? 'true' : undefined}
+                  >
+                    {cell.inMonth ? cell.date.getDate() : ''}
+                  </span>
+                );
+              })}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

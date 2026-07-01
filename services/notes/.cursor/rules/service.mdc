@@ -1,0 +1,18 @@
+---
+description: notes service — production Hone backend
+alwaysApply: true
+---
+
+# notes service
+
+Module: `github.com/dobriygolang/project-nordly/services/notes`. See [AGENTS.md](../AGENTS.md).
+
+## Layers
+
+```
+cmd/notes/app/run.go          → DI
+internal/app/api/notes/       → gRPC/HTTP (one RPC per file)
+internal/notes/model|repository|service/
+```
+
+HTTP `:8090`, gRPC `:9100`. **Prod service** — Hone notes + vault + publish.

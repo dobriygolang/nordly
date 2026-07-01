@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nordly",
+  "version": "0.0.1",
+  "identifier": "app.trynordly.desktop",
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist"
+    }
+  },
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev:vite",
+    "beforeBuildCommand": "npm run build:vite"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Nordly",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 960,
+        "minHeight": 620,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data: https://esm.sh https://cdn.trynordly.app; img-src 'self' data: https://trynordly.app https://cdn.trynordly.app; media-src 'self' https://trynordly.app https://cdn.trynordly.app blob:; connect-src 'self' https://trynordly.app https://cdn.trynordly.app https://api.trynordly.app https://druz9.online https://cdn.druz9.online https://druz9.ru https://esm.sh https://github.com https://objects.githubusercontent.com http://localhost:8080 http://localhost:5173 http://127.0.0.1:5173 ws: wss: ipc: http://ipc.localhost;"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["nordly", "druz9"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFMkU4NEYwOTAyRTI5NkIKUldScktTNlE4SVF1N3A5WS9RSmZKb09vWFB4N2NhWFdXZWpNbElKSEgyMklLd0IzQUI1T2lralgK",
+      "endpoints": [
+        "https://github.com/dobriygolang/project-nordly/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

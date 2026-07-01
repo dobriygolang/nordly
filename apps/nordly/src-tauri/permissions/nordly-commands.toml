@@ -1,0 +1,15 @@
+[[permission]]
+identifier = "allow-nordly-commands"
+description = "Hone custom invoke handlers (auth, pomodoro, shell)."
+commands.allow = [
+  "auth_session",
+  "auth_persist",
+  "auth_logout",
+  "auth_tg_start",
+  "auth_tg_poll",
+  "pomodoro_load",
+  "pomodoro_save",
+  "shell_open_external",
+  "tray_update",
+  "window_traffic_lights_show",
+]

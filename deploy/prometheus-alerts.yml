@@ -1,0 +1,10 @@
+groups:
+  - name: nordly_platform
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus target down ({{ $labels.job }})"

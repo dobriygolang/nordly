@@ -1,0 +1,432 @@
+name: nordly-prod
+
+x-service-env: &service-env
+  APP_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  GRPC_HOST: ${GRPC_HOST:-0.0.0.0}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+
+x-health-ready: &health-ready
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 45s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=6GB
+      -c effective_cache_size=20GB
+      -c work_mem=16MB
+      -c maintenance_work_mem=512MB
+      -c random_page_cost=1.1
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: nordly
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d nordly"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.migrate
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  identity:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: identity
+    restart: unless-stopped
+    user: "0:0"
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8080
+      GRPC_PORT: 9090
+      POSTGRES_DSN: ${IDENTITY_POSTGRES_DSN}
+      REDIS_ADDR: redis:6379
+      JWT_PRIVATE_KEY_FILE: /run/secrets/jwt/private.pem
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      FRONTEND_URL: ${FRONTEND_URL}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI}
+      AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-60}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      start_period: 90s
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/readyz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  identity-bot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: identity
+        CMD: identity-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_ADDR: redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  sandbox:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: sandbox
+    restart: unless-stopped
+    user: "0:0"
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8086
+      GRPC_PORT: 9096
+      POSTGRES_DSN: ${SANDBOX_POSTGRES_DSN}
+      BILLING_GRPC_ADDR: billing:9095
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      RUNNER_MODE: ${SANDBOX_RUNNER_MODE:-docker}
+      SANDBOX_MAX_OUTPUT_BYTES: ${SANDBOX_MAX_OUTPUT_BYTES:-65536}
+      SANDBOX_DEFAULT_TIMEOUT_MS: ${SANDBOX_DEFAULT_TIMEOUT_MS:-10000}
+      SANDBOX_ASYNC_RUNS: ${SANDBOX_ASYNC_RUNS:-auto}
+      SANDBOX_DOCKER_GO_IMAGE: ${SANDBOX_DOCKER_GO_IMAGE:-golang:1.24-alpine}
+      SANDBOX_DOCKER_PYTHON_IMAGE: ${SANDBOX_DOCKER_PYTHON_IMAGE:-python:3.12-alpine}
+      SANDBOX_DOCKER_NODE_IMAGE: ${SANDBOX_DOCKER_NODE_IMAGE:-node:22-alpine}
+      SANDBOX_DOCKER_WORK_ROOT: /var/lib/sandbox-work
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+      - /var/lib/sandbox-work:/var/lib/sandbox-work
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      <<: *health-ready
+      timeout: 15s
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8086/healthz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      billing:
+        condition: service_healthy
+
+  tracker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: tracker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8089
+      GRPC_PORT: 9099
+      POSTGRES_DSN: ${TRACKER_POSTGRES_DSN}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      NORDLY_CALLBACK_URL: ${NORDLY_CALLBACK_URL:-${HONE_CALLBACK_URL:-nordly://settings}}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8089/healthz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      identity:
+        condition: service_healthy
+
+  billing:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: billing
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8085
+      GRPC_PORT: 9095
+      POSTGRES_DSN: ${BILLING_POSTGRES_DSN}
+      REDIS_ADDR: redis:6379
+      ENTITLEMENTS_CACHE_TTL: ${ENTITLEMENTS_CACHE_TTL:-60s}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      IDENTITY_GRPC_ADDR: identity:9090
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      TRIBUTE_WEBHOOK_SECRET: ${TRIBUTE_WEBHOOK_SECRET:-}
+      TRIBUTE_TIER_MAP: ${TRIBUTE_TIER_MAP:-tribute_pro_monthly:pro_monthly}
+      TRIBUTE_PRO_CHECKOUT_URL: ${TRIBUTE_PRO_CHECKOUT_URL:-}
+      TRIBUTE_PRO_TELEGRAM_CHECKOUT_URL: ${TRIBUTE_PRO_TELEGRAM_CHECKOUT_URL:-}
+      TRIBUTE_CHECKOUT_URLS: ${TRIBUTE_CHECKOUT_URLS:-}
+      TRIBUTE_TELEGRAM_CHECKOUT_URLS: ${TRIBUTE_TELEGRAM_CHECKOUT_URLS:-}
+      PRO_TRIAL_ENABLED: ${PRO_TRIAL_ENABLED:-true}
+      PRO_TRIAL_DAYS: ${PRO_TRIAL_DAYS:-14}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8085/readyz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+
+  rooms:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: rooms
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8087
+      GRPC_PORT: 9097
+      POSTGRES_DSN: ${ROOMS_POSTGRES_DSN}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      ROOM_INVITE_SECRET: ${ROOM_INVITE_SECRET}
+      ROOM_TTL: ${ROOM_TTL:-6h}
+      GUEST_ROOM_TTL: ${GUEST_ROOM_TTL:-1h}
+      ROOM_ARCHIVE_INTERVAL: ${ROOM_ARCHIVE_INTERVAL:-1m}
+      IDENTITY_GRPC_ADDR: identity:9090
+      BILLING_GRPC_ADDR: billing:9095
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8087/healthz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      identity:
+        condition: service_healthy
+      billing:
+        condition: service_healthy
+
+  notes:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: notes
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8090
+      GRPC_PORT: 9100
+      POSTGRES_DSN: ${NOTES_POSTGRES_DSN}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+      BILLING_GRPC_ADDR: billing:9095
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/healthz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      identity:
+        condition: service_healthy
+      billing:
+        condition: service_healthy
+
+  focus:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: focus
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *service-env
+      HTTP_PORT: 8091
+      GRPC_PORT: 9101
+      POSTGRES_DSN: ${FOCUS_POSTGRES_DSN}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    healthcheck:
+      <<: *health-ready
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8091/healthz"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      identity:
+        condition: service_healthy
+
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.caddy
+    restart: unless-stopped
+    # Do not bind host :80/:443 — nginx on the host uses them (e.g. VPN). Proxy trynordly → 127.0.0.1:CADDY_HTTP_PORT.
+    ports:
+      - "127.0.0.1:${CADDY_HTTP_PORT:-18080}:80"
+    environment:
+      CADDY_EMAIL: ${CADDY_EMAIL:-}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      identity:
+        condition: service_healthy
+      billing:
+        condition: service_healthy
+      sandbox:
+        condition: service_healthy
+      rooms:
+        condition: service_healthy
+      tracker:
+        condition: service_healthy
+      notes:
+        condition: service_healthy
+      focus:
+        condition: service_healthy
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9099:9090"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+      identity:
+        condition: service_healthy
+
+  node_exporter:
+    profiles: [monitoring]
+    image: prom/node-exporter:v1.9.0
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "127.0.0.1:9100:9100"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  alloy:
+    profiles: [monitoring]
+    image: grafana/alloy:v1.8.1
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    environment:
+      GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL}
+      GRAFANA_CLOUD_PROMETHEUS_USER: ${GRAFANA_CLOUD_PROMETHEUS_USER}
+      GRAFANA_CLOUD_PROMETHEUS_API_KEY: ${GRAFANA_CLOUD_PROMETHEUS_API_KEY}
+    volumes:
+      - ./grafana/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      identity:
+        condition: service_healthy
+      billing:
+        condition: service_healthy
+      sandbox:
+        condition: service_healthy
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.trynordly.app/}
+      GF_SERVER_DOMAIN: grafana.trynordly.app
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY_MAX_AGE_SECONDS: "31536000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+  prometheus_data:
+  grafana_data:
+  alloy_data:

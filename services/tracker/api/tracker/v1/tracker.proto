@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package tracker.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1;trackerv1";
+
+service TrackerService {
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse) {
+    option (google.api.http) = {get: "/v1/tracker/settings"};
+  }
+
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse) {
+    option (google.api.http) = {
+      patch: "/v1/tracker/settings"
+      body: "*"
+    };
+  }
+
+  rpc GetGoogleCalendarAuthURL(GetGoogleCalendarAuthURLRequest) returns (GetGoogleCalendarAuthURLResponse) {
+    option (google.api.http) = {get: "/v1/tracker/integrations/google/url"};
+  }
+
+  rpc DisconnectGoogleCalendar(DisconnectGoogleCalendarRequest) returns (DisconnectGoogleCalendarResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/integrations/google/disconnect"
+      body: "*"
+    };
+  }
+
+  rpc ListGoogleCalendarEvents(ListGoogleCalendarEventsRequest) returns (ListGoogleCalendarEventsResponse) {
+    option (google.api.http) = {get: "/v1/tracker/integrations/google/events"};
+  }
+
+  rpc ListWorkTasks(ListWorkTasksRequest) returns (ListWorkTasksResponse) {
+    option (google.api.http) = {get: "/v1/tracker/work/tasks"};
+  }
+
+  rpc CreateWorkTask(CreateWorkTaskRequest) returns (CreateWorkTaskResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/tasks"
+      body: "*"
+    };
+  }
+
+  rpc UpdateWorkTaskStatus(UpdateWorkTaskStatusRequest) returns (UpdateWorkTaskStatusResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/tasks/{id}/status"
+      body: "*"
+    };
+  }
+
+  rpc DeleteWorkTask(DeleteWorkTaskRequest) returns (DeleteWorkTaskResponse) {
+    option (google.api.http) = {delete: "/v1/tracker/work/tasks/{id}"};
+  }
+
+  rpc ScheduleWorkTask(ScheduleWorkTaskRequest) returns (ScheduleWorkTaskResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/tasks/{id}/schedule"
+      body: "*"
+    };
+  }
+
+  rpc UnscheduleWorkTask(UnscheduleWorkTaskRequest) returns (UnscheduleWorkTaskResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/tasks/{id}/unschedule"
+      body: "*"
+    };
+  }
+}
+
+message UserSettings {
+  reserved 1;
+  reserved "user_id";
+  bool google_calendar_sync_enabled = 2;
+  bool google_calendar_connected = 3;
+}
+
+message GetSettingsRequest {}
+
+message GetSettingsResponse {
+  UserSettings settings = 1;
+}
+
+message UpdateSettingsRequest {
+  optional bool google_calendar_sync_enabled = 2;
+}
+
+message UpdateSettingsResponse {
+  UserSettings settings = 1;
+}
+
+message GetGoogleCalendarAuthURLRequest {}
+
+message GetGoogleCalendarAuthURLResponse {
+  string url = 1;
+}
+
+message DisconnectGoogleCalendarRequest {}
+
+message DisconnectGoogleCalendarResponse {
+  UserSettings settings = 1;
+}
+
+message ListGoogleCalendarEventsRequest {
+  google.protobuf.Timestamp time_min = 1;
+  google.protobuf.Timestamp time_max = 2;
+}
+
+message GoogleCalendarEvent {
+  string id = 1;
+  string title = 2;
+  google.protobuf.Timestamp start = 3;
+  google.protobuf.Timestamp end = 4;
+  bool all_day = 5;
+}
+
+message ListGoogleCalendarEventsResponse {
+  repeated GoogleCalendarEvent events = 1;
+}
+
+message WorkTask {
+  string id = 1;
+  string status = 2;
+  string kind = 3;
+  string title = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  optional google.protobuf.Timestamp completed_at = 7;
+  optional google.protobuf.Timestamp scheduled_start = 8;
+  optional int32 scheduled_duration_min = 9;
+  optional string google_event_id = 10;
+}
+
+message ListWorkTasksRequest {}
+
+message ListWorkTasksResponse {
+  repeated WorkTask tasks = 1;
+}
+
+message CreateWorkTaskRequest {
+  string kind = 1;
+  string title = 2;
+}
+
+message CreateWorkTaskResponse {
+  WorkTask task = 1;
+}
+
+message UpdateWorkTaskStatusRequest {
+  string id = 1;
+  string status = 2;
+}
+
+message UpdateWorkTaskStatusResponse {
+  WorkTask task = 1;
+}
+
+message DeleteWorkTaskRequest {
+  string id = 1;
+}
+
+message DeleteWorkTaskResponse {}
+
+message ScheduleWorkTaskRequest {
+  string id = 1;
+  string scheduled_start_iso = 2;
+  int32 duration_min = 3;
+}
+
+message ScheduleWorkTaskResponse {
+  WorkTask task = 1;
+}
+
+message UnscheduleWorkTaskRequest {
+  string id = 1;
+}
+
+message UnscheduleWorkTaskResponse {
+  WorkTask task = 1;
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    <!--
+      CSP: Nordly speaks to its backend over HTTPS.
+      `connect-src` whitelists local dev + the prod api host. If/when we
+      start loading images from a CDN or mount external fonts, extend here
+      rather than relaxing the policy globally.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data: https://esm.sh https://cdn.trynordly.app; img-src 'self' data: https://trynordly.app https://cdn.trynordly.app; media-src 'self' https://trynordly.app https://cdn.trynordly.app blob:; connect-src 'self' https://trynordly.app https://cdn.trynordly.app https://api.trynordly.app https://druz9.online https://cdn.druz9.online https://druz9.ru https://esm.sh http://localhost:8080 http://localhost:5173 http://127.0.0.1:5173 ws: wss: ipc: http://ipc.localhost sentry-ipc:;"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Nordly</title>
+  </head>
+  <body data-density="comfortable">
+    <div id="root"></div>
+    <script type="module" src="./src/app/main.tsx"></script>
+  </body>
+</html>

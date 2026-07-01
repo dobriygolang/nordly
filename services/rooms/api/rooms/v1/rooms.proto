@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package rooms.v1;
+
+option go_package = "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1;roomsv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Live coding collab rooms. WebSocket Yjs sync: GET /ws/editor/{room_id}?token=JWT
+// (custom HTTP handler, not grpc-gateway).
+
+service RoomsService {
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{room_id}"
+    };
+  }
+
+  rpc FreezeRoom(FreezeRoomRequest) returns (FreezeRoomResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/freeze"
+      body: "*"
+    };
+  }
+
+  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/invite"
+      body: "*"
+    };
+  }
+
+  rpc GuestJoin(GuestJoinRequest) returns (GuestJoinResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/guest-join"
+      body: "*"
+    };
+  }
+
+  // Public — no auth. Creates a shared room and returns owner scoped JWT + invite link.
+  rpc CreateGuestRoom(CreateGuestRoomRequest) returns (CreateGuestRoomResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/guest-create"
+      body: "*"
+    };
+  }
+
+  rpc CloseRoom(CloseRoomRequest) returns (CloseRoomResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/close"
+      body: "*"
+    };
+  }
+
+  // Hone whiteboard live share (JWT). Seeds initial Excalidraw scene on room.
+  rpc ShareWhiteboard(ShareWhiteboardRequest) returns (ShareWhiteboardResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/share-whiteboard"
+      body: "*"
+    };
+  }
+
+  rpc GetInitialScene(GetInitialSceneRequest) returns (GetInitialSceneResponse) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{room_id}/initial-scene"
+    };
+  }
+
+  rpc PublishWhiteboard(PublishWhiteboardRequest) returns (PublishWhiteboardResponse) {
+    option (google.api.http) = {
+      post: "/v1/rooms/publish-whiteboard"
+      body: "*"
+    };
+  }
+
+  // Public read-only published board snapshot.
+  rpc GetPublishedBoard(GetPublishedBoardRequest) returns (GetPublishedBoardResponse) {
+    option (google.api.http) = {
+      get: "/v1/rooms/boards/public/{slug}"
+    };
+  }
+}
+
+message Participant {
+  string user_id = 1;
+  string role = 2;
+  google.protobuf.Timestamp joined_at = 3;
+}
+
+message Room {
+  string id = 1;
+  string owner_id = 2;
+  string room_type = 3;
+  string language = 4;
+  bool is_frozen = 5;
+  string visibility = 6;
+  string ws_url = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  repeated Participant participants = 9;
+  google.protobuf.Timestamp created_at = 10;
+  bool is_guest_created = 11;
+}
+
+message GetRoomRequest {
+  string room_id = 1;
+}
+
+message GetRoomResponse {
+  Room room = 1;
+}
+
+message FreezeRoomRequest {
+  string room_id = 1;
+  bool frozen = 2;
+}
+
+message FreezeRoomResponse {
+  Room room = 1;
+}
+
+message InviteLink {
+  string url = 1;
+  string token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message CreateInviteRequest {
+  string room_id = 1;
+}
+
+message CreateInviteResponse {
+  InviteLink invite = 1;
+}
+
+message GuestJoinRequest {
+  string room_id = 1;
+  string invite_token = 2;
+  string display_name = 3;
+}
+
+message GuestJoinResponse {
+  string access_token = 1;
+  Room room = 2;
+  int32 expires_in = 3;
+}
+
+message CreateGuestRoomRequest {
+  string display_name = 1;
+  string language = 2;
+  string room_type = 3;
+}
+
+message CreateGuestRoomResponse {
+  string access_token = 1;
+  Room room = 2;
+  int32 expires_in = 3;
+  InviteLink invite = 4;
+}
+
+message CloseRoomRequest {
+  string room_id = 1;
+}
+
+message CloseRoomResponse {}
+
+message ShareWhiteboardRequest {
+  string scene_json = 1;
+  optional string title = 2;
+}
+
+message ShareWhiteboardResponse {
+  string access_token = 1;
+  Room room = 2;
+  int32 expires_in = 3;
+  InviteLink invite = 4;
+}
+
+message GetInitialSceneRequest {
+  string room_id = 1;
+}
+
+message GetInitialSceneResponse {
+  string scene_json = 1;
+}
+
+message PublishWhiteboardRequest {
+  string scene_json = 1;
+  optional string title = 2;
+}
+
+message PublishWhiteboardResponse {
+  string slug = 1;
+  string url = 2;
+  google.protobuf.Timestamp published_at = 3;
+}
+
+message GetPublishedBoardRequest {
+  string slug = 1;
+}
+
+message GetPublishedBoardResponse {
+  string title = 1;
+  string scene_json = 2;
+  google.protobuf.Timestamp published_at = 3;
+}

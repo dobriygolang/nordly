@@ -1,0 +1,23 @@
+package aiapi
+
+import (
+	aiv1 "github.com/dobriygolang/project-nordly/services/ai/pkg/api/ai/v1"
+	"github.com/dobriygolang/project-nordly/services/ai/internal/adapter/llm/llmchain"
+	evaluationrepo "github.com/dobriygolang/project-nordly/services/ai/internal/evaluation/repository"
+	evaluationservice "github.com/dobriygolang/project-nordly/services/ai/internal/evaluation/service"
+	llmconfigservice "github.com/dobriygolang/project-nordly/services/ai/internal/llmconfig/service"
+)
+
+// Implementation implements AiInternalService gRPC handlers.
+type Implementation struct {
+	aiv1.UnimplementedAiInternalServiceServer
+	service   evaluationservice.Service
+	llmConfig llmconfigservice.Service
+	chains    *llmchain.TierChains
+	pg        *evaluationrepo.Pool
+}
+
+// NewImplementation constructs the gRPC transport layer.
+func NewImplementation(svc evaluationservice.Service, llmConfig llmconfigservice.Service, chains *llmchain.TierChains, pg *evaluationrepo.Pool) *Implementation {
+	return &Implementation{service: svc, llmConfig: llmConfig, chains: chains, pg: pg}
+}

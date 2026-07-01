@@ -1,0 +1,9 @@
+---
+description: Go backend conventions for ai service
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go backend — ai
+
+Transport thin; logic in `internal/evaluation/service/`. Mocks via mockery on interfaces.

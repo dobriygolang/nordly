@@ -1,0 +1,18 @@
+---
+description: focus service — production Hone backend
+alwaysApply: true
+---
+
+# focus service
+
+Module: `github.com/dobriygolang/project-nordly/services/focus`. See [AGENTS.md](../AGENTS.md).
+
+## Layers
+
+```
+cmd/focus/app/run.go          → DI
+internal/app/api/focus/       → gRPC/HTTP (one RPC per file)
+internal/focus/model|repository|service/
+```
+
+HTTP `:8091`, gRPC `:9101`. **Prod service** — Hone pomodoro + stats.

@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package ai.v1;
+
+option go_package = "github.com/dobriygolang/project-nordly/services/ai/pkg/api/ai/v1;aiv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service AiInternalService {
+  rpc RunEvaluation(RunEvaluationRequest) returns (RunEvaluationResponse);
+
+  rpc GetEvaluationJob(GetEvaluationJobRequest) returns (EvaluationJob) {
+    option (google.api.http) = {
+      get: "/v1/admin/evaluation-jobs/{id}"
+    };
+  }
+
+  rpc ListEvaluationJobs(ListEvaluationJobsRequest) returns (ListEvaluationJobsResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/evaluation-jobs"
+    };
+  }
+
+  rpc GetLLMConfig(GetLLMConfigRequest) returns (GetLLMConfigResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/llm/config"
+    };
+  }
+
+  rpc UpdateLLMConfig(UpdateLLMConfigRequest) returns (UpdateLLMConfigResponse) {
+    option (google.api.http) = {
+      put: "/v1/admin/llm/config"
+      body: "*"
+    };
+  }
+
+  rpc ProbeLLMProviders(ProbeLLMProvidersRequest) returns (ProbeLLMProvidersResponse);
+}
+
+enum EvaluationJobStatus {
+  EVALUATION_JOB_STATUS_UNSPECIFIED = 0;
+  EVALUATION_JOB_STATUS_PENDING = 1;
+  EVALUATION_JOB_STATUS_RUNNING = 2;
+  EVALUATION_JOB_STATUS_COMPLETED = 3;
+  EVALUATION_JOB_STATUS_FAILED = 4;
+}
+
+message EvaluationJob {
+  string id = 1;
+  string attempt_id = 2;
+  string user_id = 3;
+  string task_id = 4;
+  EvaluationJobStatus status = 5;
+  int32 retry_count = 6;
+  bool retryable = 7;
+  optional string error = 8;
+  optional google.protobuf.Timestamp next_retry_at = 9;
+  optional google.protobuf.Timestamp started_at = 10;
+  optional google.protobuf.Timestamp completed_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message RunEvaluationRequest {
+  string attempt_id = 1;
+}
+
+message RunEvaluationResponse {
+  EvaluationJob job = 1;
+}
+
+message GetEvaluationJobRequest {
+  string id = 1;
+}
+
+message ListEvaluationJobsRequest {
+  optional EvaluationJobStatus status = 1;
+  int32 limit = 2;
+}
+
+message ListEvaluationJobsResponse {
+  repeated EvaluationJob jobs = 1;
+}
+
+message LLMRuntimeConfig {
+  int64 version = 1;
+  repeated string chain_order = 2;
+  string task_map_json = 3;
+  string virtual_chains_json = 4;
+}
+
+message GetLLMConfigRequest {}
+
+message GetLLMConfigResponse {
+  LLMRuntimeConfig config = 1;
+}
+
+message UpdateLLMConfigRequest {
+  int64 expected_version = 1;
+  repeated string chain_order = 2;
+  string task_map_json = 3;
+  string virtual_chains_json = 4;
+}
+
+message UpdateLLMConfigResponse {
+  LLMRuntimeConfig config = 1;
+}
+
+message ProbeLLMProvidersRequest {}
+
+message LLMProviderProbe {
+  string provider = 1;
+  string model = 2;
+  bool registered = 3;
+  bool ok = 4;
+  int64 latency_ms = 5;
+  optional string error = 6;
+}
+
+message ProbeLLMProvidersResponse {
+  repeated LLMProviderProbe probes = 1;
+}

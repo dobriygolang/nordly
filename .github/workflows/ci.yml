@@ -1,0 +1,109 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  registry-check:
+    name: service-registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify service lists are in sync
+        run: bash deploy/scripts/verify-service-registry.sh
+
+  service:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [identity, ai, billing, sandbox, rooms, tracker, notes, focus]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+          cache-dependency-path: services/${{ matrix.service }}/go.sum
+
+      - uses: bufbuild/buf-setup-action@v1.50.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: "1.47.0"
+
+      - name: Cache protoc plugins
+        uses: actions/cache@v4
+        with:
+          path: deploy/.proto-bin
+          key: proto-plugins-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('deploy/scripts/gen-all-proto.sh') }}
+
+      - name: Generate protobuf (all services)
+        working-directory: ${{ github.workspace }}
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+        run: bash deploy/scripts/gen-all-proto.sh
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
+        env:
+          GOWORK: off
+        with:
+          version: v2.6.2
+          working-directory: services/${{ matrix.service }}
+          args: --config=.golangci.yml --timeout=5m
+          verify: false
+
+      - name: Test
+        run: GOWORK=off go test -race -count=1 ./...
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+
+      - name: Build
+        run: GOWORK=off go build ./...
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+
+      - name: Typecheck and build
+        run: npm run build
+        env:
+          VITE_API_BASE: /v1
+
+  caddy-image:
+    name: caddy-image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+
+      - name: Build production Caddy + SPA image
+        run: |
+          cd apps/web && npm ci --no-audit --no-fund && npm run build
+          cd ../.. && docker build -f deploy/Dockerfile.caddy -t nordly-caddy:ci .
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          VITE_API_BASE: /v1

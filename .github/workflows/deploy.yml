@@ -1,0 +1,257 @@
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event != 'pull_request')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+          cache: true
+          cache-dependency-path: |
+            services/identity/go.sum
+            services/ai/go.sum
+            services/billing/go.sum
+            services/sandbox/go.sum
+            services/rooms/go.sum
+            services/tracker/go.sum
+            services/notes/go.sum
+            services/focus/go.sum
+
+      - uses: bufbuild/buf-setup-action@v1.50.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: "1.47.0"
+
+      - name: Cache protoc plugins
+        uses: actions/cache@v4
+        with:
+          path: deploy/.proto-bin
+          key: proto-plugins-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('deploy/scripts/gen-all-proto.sh') }}
+
+      - name: Generate protobuf (CI runner — not on VPS)
+        working-directory: ${{ github.workspace }}
+        run: bash deploy/scripts/gen-all-proto.sh
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+
+      - name: Pack generated API + SPA inputs
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # shellcheck source=deploy/scripts/services.conf.sh
+          source deploy/scripts/services.conf.sh
+          verify_pkg_api "$GITHUB_WORKSPACE"
+          tar czf generated-api.tgz $(pack_pkg_api_paths | tr '\n' ' ')
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build SPA (Caddy image uses prebuilt dist)
+        run: |
+          cd apps/web
+          npm ci
+          npm run build
+        env:
+          VITE_API_BASE: /v1
+
+      - name: Upload generated API tarball
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          source: generated-api.tgz
+          target: /opt/project-nordly/
+          overwrite: true
+
+      - name: Upload SPA to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          source: "apps/web/dist/*"
+          target: "/opt/project-nordly/apps/web/dist"
+          strip_components: 3
+          overwrite: true
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_GIT_TOKEN: ${{ secrets.DEPLOY_GIT_TOKEN }}
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          envs: DEPLOY_GIT_TOKEN
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            REPO_DIR="/opt/project-nordly"
+            BRANCH="main"
+            if [ -n "${{ secrets.DEPLOY_REPO_DIR }}" ]; then REPO_DIR="${{ secrets.DEPLOY_REPO_DIR }}"; fi
+            if [ -n "${{ secrets.DEPLOY_BRANCH }}" ]; then BRANCH="${{ secrets.DEPLOY_BRANCH }}"; fi
+
+            if [ -d "$REPO_DIR/.git" ]; then
+              # Rsync/scp from dev machines can leave uid 501; git refuses as root/deploy user.
+              git config --global --add safe.directory "$REPO_DIR"
+              chown -R "$(whoami):$(id -gn)" "$REPO_DIR"
+            fi
+
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              echo "Bootstrapping $REPO_DIR ..."
+              PARENT="$(dirname "$REPO_DIR")"
+              mkdir -p "$PARENT"
+              CLONE_URL="https://github.com/${{ github.repository }}.git"
+              if [ -n "${DEPLOY_GIT_TOKEN:-}" ]; then
+                CLONE_URL="https://x-access-token:${DEPLOY_GIT_TOKEN}@github.com/${{ github.repository }}.git"
+              fi
+              git clone --branch "$BRANCH" "$CLONE_URL" "$REPO_DIR"
+              if [ ! -f "$REPO_DIR/deploy/.env" ]; then
+                cp "$REPO_DIR/deploy/.env.example" "$REPO_DIR/deploy/.env"
+                echo "ERROR: created deploy/.env from example — fill secrets on the server, then re-run deploy"
+                exit 1
+              fi
+              cd "$REPO_DIR/deploy" && make keys
+            fi
+
+            cd "$REPO_DIR"
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+            # Server hotfixes must live in git — discard tracked drift; keep gitignored .env/secrets.
+            git reset --hard "origin/$BRANCH"
+            # Keep CI-uploaded artifacts (untracked): proto tarball + SPA dist.
+            git clean -fd \
+              --exclude=generated-api.tgz \
+              --exclude=apps/web/dist \
+              --exclude=deploy/.env \
+              --exclude=deploy/secrets \
+              --exclude=deploy/.last-deploy-sha
+
+            if [ -f generated-api.tgz ]; then
+              echo "Clearing stale pkg/api (gitignored on server)..."
+              # shellcheck source=deploy/scripts/services.conf.sh
+              source "$REPO_DIR/deploy/scripts/services.conf.sh"
+              clear_pkg_api "$REPO_DIR"
+              echo "Extracting pre-generated pkg/api from CI..."
+              tar xzf generated-api.tgz
+              rm -f generated-api.tgz
+              verify_pkg_api "$REPO_DIR"
+            else
+              echo "ERROR: missing generated-api.tgz — CI upload step failed"
+              exit 1
+            fi
+
+            if [ ! -f deploy/.env ]; then
+              echo "ERROR: missing deploy/.env — copy deploy/.env.example and fill secrets"
+              exit 1
+            fi
+
+            if [ ! -f apps/web/dist/index.html ]; then
+              echo "ERROR: missing apps/web/dist — SPA upload step failed"
+              exit 1
+            fi
+
+            cd deploy
+            make keys
+            bash scripts/ensure-env-dsns.sh .env
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
+            export BUILDX_NO_DEFAULT_ATTESTATIONS=1
+            export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-4}"
+
+            CUR_SHA="$(git -C "$REPO_DIR" rev-parse HEAD)"
+            PREV_SHA=""
+            if [ -f .last-deploy-sha ]; then PREV_SHA="$(cat .last-deploy-sha)"; fi
+
+            BUILD_TARGETS=""
+            if [ -n "$PREV_SHA" ] && [ "$PREV_SHA" != "$CUR_SHA" ]; then
+              BUILD_TARGETS="$(bash scripts/changed-services.sh "$PREV_SHA" "$CUR_SHA" | xargs || true)"
+            fi
+
+            if [ -z "$PREV_SHA" ]; then
+              echo "Building all images (first deploy)..."
+              bash scripts/build-images.sh
+            elif [ "$PREV_SHA" = "$CUR_SHA" ]; then
+              echo "No image rebuild needed (same commit)."
+            elif [ -n "$BUILD_TARGETS" ]; then
+              echo "Incremental build: $BUILD_TARGETS"
+              if ! bash scripts/build-images.sh $BUILD_TARGETS; then
+                echo "ERROR: docker compose build failed"
+                exit 1
+              fi
+              echo "Image build OK"
+            else
+              echo "No image rebuild needed (no service changes)."
+            fi
+
+            RUN_MIGRATE=0
+            if [ -z "$PREV_SHA" ] || [ "$PREV_SHA" = "$CUR_SHA" ]; then
+              RUN_MIGRATE=1
+            else
+              # shellcheck source=scripts/services.conf.sh
+              source scripts/services.conf.sh
+              if migrations_changed "$PREV_SHA" "$CUR_SHA"; then
+                RUN_MIGRATE=1
+              fi
+            fi
+            if [ "$RUN_MIGRATE" = 1 ]; then
+              echo "Running migrations..."
+              bash scripts/ensure-prod-databases.sh
+              docker compose -f docker-compose.prod.yml --env-file .env run --rm migrate
+            else
+              echo "Skipping migrate (no migration changes)."
+            fi
+
+            echo "Starting containers (compose up --wait)..."
+            if ! docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans --wait --wait-timeout 300; then
+              docker compose -f docker-compose.prod.yml --env-file .env ps
+              docker compose -f docker-compose.prod.yml --env-file .env logs identity --tail 80
+              docker compose -f docker-compose.prod.yml --env-file .env logs billing --tail 40
+              docker compose -f docker-compose.prod.yml --env-file .env logs tracker --tail 40
+              docker compose -f docker-compose.prod.yml --env-file .env logs rooms --tail 40
+              docker compose -f docker-compose.prod.yml --env-file .env logs sandbox --tail 40
+              docker compose -f docker-compose.prod.yml --env-file .env logs caddy --tail 40
+              exit 1
+            fi
+
+            echo "$CUR_SHA" > .last-deploy-sha
+
+            ./scripts/docker-prune.sh
+
+            docker compose -f docker-compose.prod.yml --env-file .env ps
+
+            set -a
+            # shellcheck disable=SC1091
+            source .env
+            set +a
+            curl -sf -H "Host: api.trynordly.app" "http://127.0.0.1:${CADDY_HTTP_PORT:-18080}/healthz"
+            curl -sfI -H "Host: trynordly.app" "http://127.0.0.1:${CADDY_HTTP_PORT:-18080}/" | head -1
+            echo "Deploy completed successfully."

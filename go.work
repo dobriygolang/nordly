@@ -1,0 +1,13 @@
+go 1.25.8
+
+use (
+	./services/ai
+	./services/billing
+	./services/focus
+	./services/identity
+	./services/notes
+	./services/rooms
+	./services/sandbox
+	./services/template
+	./services/tracker
+)

@@ -1,0 +1,33 @@
+package roomsapi
+
+import (
+	"context"
+
+	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	"google.golang.org/grpc"
+)
+
+var protectedMethods = map[string]struct{}{
+	roomsv1.RoomsService_GetRoom_FullMethodName:            {},
+	roomsv1.RoomsService_FreezeRoom_FullMethodName:         {},
+	roomsv1.RoomsService_CreateInvite_FullMethodName:       {},
+	roomsv1.RoomsService_CloseRoom_FullMethodName:          {},
+	roomsv1.RoomsService_ShareWhiteboard_FullMethodName:    {},
+	roomsv1.RoomsService_GetInitialScene_FullMethodName:    {},
+	roomsv1.RoomsService_PublishWhiteboard_FullMethodName:  {},
+}
+
+func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if _, ok := protectedMethods[info.FullMethod]; !ok {
+			return handler(ctx, req)
+		}
+		token := BearerTokenFromContext(ctx)
+		userID, err := v.UserID(token)
+		if err != nil {
+			return nil, unauthorized()
+		}
+		return handler(WithUserID(ctx, userID), req)
+	}
+}

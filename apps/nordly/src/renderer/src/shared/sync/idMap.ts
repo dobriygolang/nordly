@@ -20,6 +20,15 @@ export async function setServerId(
     localId,
     serverId,
   });
+  if (localId !== serverId) {
+    await dbPut('id_map', {
+      key: mapKey(uid, domain, serverId),
+      userId: uid,
+      domain,
+      localId: serverId,
+      serverId,
+    });
+  }
 }
 
 export async function getServerId(
@@ -39,4 +48,12 @@ export async function resolveEntityId(
 ): Promise<string> {
   const serverId = await getServerId(domain, localId, userId);
   return serverId ?? localId;
+}
+
+/** Resolve local or server note id to the server-side id (for delete/publish). */
+export async function resolveNotesServerId(
+  localOrServerId: string,
+  userId?: string,
+): Promise<string> {
+  return resolveEntityId('notes', localOrServerId, userId);
 }

@@ -101,10 +101,15 @@ export async function notesStoreList(userId?: string): Promise<NoteSummary[]> {
 }
 
 export async function notesStoreGet(id: string, userId?: string): Promise<Note | null> {
-  const uid = userId ?? requireUserId();
-  const row = await dbGet<StoredNote>('notes', entityKey(id, uid));
+  const row = await notesStoreGetRow(id, userId);
   if (!row || row.deleted) return null;
   return toNote(await decryptAtRest(row));
+}
+
+/** Raw row for sync — includes soft-deleted tombstones. */
+export async function notesStoreGetRow(id: string, userId?: string): Promise<StoredNote | null> {
+  const uid = userId ?? requireUserId();
+  return dbGet<StoredNote>('notes', entityKey(id, uid));
 }
 
 export async function notesStorePut(note: StoredNote): Promise<void> {
@@ -120,6 +125,9 @@ export async function notesStoreUpsert(
 ): Promise<Note> {
   const userId = requireUserId();
   const existing = await dbGet<StoredNote>('notes', entityKey(id, userId));
+  if (existing?.deleted) {
+    throw new Error(`Cannot update deleted note: ${id}`);
+  }
   const now = new Date().toISOString();
   const row = await encryptAtRest(userId, {
     id,
@@ -147,6 +155,7 @@ export async function notesStoreSoftDelete(id: string): Promise<void> {
 export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
   const userId = requireUserId();
   const local = await dbGet<StoredNote>('notes', entityKey(remote.id, userId));
+  if (local?.deleted) return;
   const rt = new Date(remote.updatedAt).getTime();
   const lt = local ? new Date(local.updatedAt).getTime() : 0;
   if (!local || rt >= lt) {

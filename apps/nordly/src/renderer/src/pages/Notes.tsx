@@ -366,7 +366,16 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const handleDeleteNote = useCallback(
     async (id: string) => {
       try {
-        if (selectedIdRef.current === id) await flushNow();
+        if (saveTimer.current !== null) {
+          window.clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        if (selectedIdRef.current === id) {
+          setActive(null);
+          setDraftTitle('');
+          setDraftBody('');
+          draftRef.current = { title: '', body: '', activeId: '' };
+        }
         await deleteNote(id);
         setList((prev) => {
           const notes = prev.notes.filter((n) => n.id !== id);

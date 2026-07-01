@@ -57,6 +57,20 @@ export async function outboxCount(userId?: string): Promise<number> {
   return rows.length;
 }
 
+export async function cancelOutboxForEntity(
+  domain: SyncDomain,
+  entityId: string,
+  userId?: string,
+): Promise<void> {
+  const uid = userId ?? requireUserId();
+  const rows = await listOutbox(uid);
+  for (const row of rows) {
+    if (row.domain === domain && row.entityId === entityId && row.op !== 'delete') {
+      await removeOutbox(row.id, uid);
+    }
+  }
+}
+
 export async function clearOutbox(userId: string): Promise<void> {
   const rows = await dbGetAllByUser<OutboxRow>('outbox', userId);
   for (const row of rows) await dbDelete('outbox', row.key);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -37,7 +37,7 @@ import {
   type LiveRoomTheme,
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
-import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
+import type { ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 import { cn } from '@/lib/cn'
 
@@ -118,9 +118,9 @@ export default function CollabRoomPage() {
     navigate('/', { replace: true, state: { liveExpired: true } })
   }, [navigate])
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('light', theme === 'light')
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove('light', 'dark')
+    document.documentElement.classList.add(theme === 'light' ? 'light' : 'dark')
     persistLiveRoomTheme(theme)
   }, [theme])
 
@@ -136,10 +136,8 @@ export default function CollabRoomPage() {
     if (trimmed) persistGuestDisplayName(trimmed)
   }, [])
 
-  const handleThemeToggle = useCallback((origin?: ThemeToggleOrigin) => {
-    runThemeTransition(() => {
-      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-    }, origin)
+  const handleThemeToggle = useCallback((_origin?: ThemeToggleOrigin) => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
   }, [])
 
   const handleRemoteCodeRun = useCallback(

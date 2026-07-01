@@ -263,7 +263,12 @@
   display: none !important;
 }
 
-/* Dark board — true #000 canvas (matches Nordly --bg), no Excalidraw invert filter */
+/* Board canvas — no Excalidraw invert filter (true #000 / #fafaf8 backgrounds) */
+.druzya-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark,
+.druzya-excalidraw[data-board-theme='light'] .excalidraw.theme--light {
+  --theme-filter: none;
+}
+
 html.dark .druzya-excalidraw .excalidraw,
 .druzya-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark {
   --theme-filter: none;

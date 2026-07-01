@@ -17,7 +17,7 @@ import {
 import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getServerId } from '@shared/sync/idMap';
-import { enqueueOutbox } from '@shared/sync/outbox';
+import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
 import { ensureNoteServerId } from '@shared/sync/domains/notesSync';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
@@ -98,8 +98,13 @@ async function resolveServerNoteId(localId: string, forceSync = true): Promise<s
   return ensureNoteServerId(localId);
 }
 
+async function mappedServerNoteId(localId: string): Promise<string | null> {
+  if (!isSyncEnabled()) return null;
+  return getServerId('notes', localId);
+}
+
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
-  const serverId = await resolveServerNoteId(noteId, false);
+  const serverId = await mappedServerNoteId(noteId);
   if (!serverId) return { published: false };
   return remoteGetPublishStatus(serverId);
 }
@@ -143,6 +148,7 @@ export async function regeneratePublicLink(noteId: string): Promise<PublishStatu
 export async function deleteNote(id: string): Promise<void> {
   await notesStoreSoftDelete(id);
   if (isSyncEnabled()) {
+    await cancelOutboxForEntity('notes', id);
     await enqueueOutbox('notes', 'delete', id, {});
     scheduleSync();
   }

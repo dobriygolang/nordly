@@ -15,13 +15,13 @@ import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import {
   boardThemeSceneFromCanonical,
   canonicalizeElementsForStorage,
-  remapDisplayElementsForBoardTheme,
 } from '@/lib/collab/excalidrawBoardColors'
 import {
   EXCALIDRAW_MOUNT_CLASS,
   EXCALIDRAW_UI_OPTIONS,
   excalidrawCanvasPatch,
   excalidrawSiteAppState,
+  excalidrawThemeFor,
   type BoardCanvasTheme,
 } from '@/lib/collab/excalidrawTheme'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
@@ -73,11 +73,16 @@ type ExcalidrawApi = {
   getSceneElements: () => readonly unknown[]
 }
 
-/** Excalidraw theme prop is fixed — board light/dark is stroke colors + canvas bg only. */
-const EXCALIDRAW_FIXED_THEME = 'dark' as const
-
 function isTabActive(): boolean {
   return document.visibilityState === 'visible' && document.hasFocus()
+}
+
+function themedElementsFromYjs(ydoc: Y.Doc, theme: BoardCanvasTheme): unknown[] {
+  const scene = readSceneFromYjs(ydoc)
+  return boardThemeSceneFromCanonical(
+    scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+    theme,
+  )
 }
 
 export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
@@ -97,6 +102,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const ydocRef = useRef<Y.Doc | null>(null)
     const awarenessRef = useRef<Awareness | null>(null)
     const apiRef = useRef<ExcalidrawApi | null>(null)
+    const apiInitRef = useRef(false)
     const boardThemeRef = useRef<BoardCanvasTheme>(boardTheme)
     boardThemeRef.current = boardTheme
     const applyingRemoteRef = useRef(false)
@@ -182,27 +188,19 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
     const applyBoardTheme = useCallback((theme: BoardCanvasTheme, isThemeChange: boolean) => {
       const api = apiRef.current
-      if (!api) return
+      const ydoc = ydocRef.current
+      if (!api || !ydoc) return
 
-      const elements = isThemeChange
-        ? remapDisplayElementsForBoardTheme(
-            api.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
-            theme,
-          )
-        : undefined
+      const elements = isThemeChange ? themedElementsFromYjs(ydoc, theme) : undefined
 
       if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current)
       applyingThemeRef.current = true
 
       const patch = () => {
         const current = apiRef.current
-        if (!current) return
-        const nextElements = isThemeChange
-          ? remapDisplayElementsForBoardTheme(
-              current.getSceneElements() as Parameters<typeof remapDisplayElementsForBoardTheme>[0],
-              theme,
-            )
-          : elements
+        const doc = ydocRef.current
+        if (!current || !doc) return
+        const nextElements = isThemeChange ? themedElementsFromYjs(doc, theme) : elements
         current.updateScene({
           elements: nextElements,
           appState: excalidrawCanvasPatch(theme),
@@ -215,7 +213,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
       try {
         patch()
-        // Excalidraw finishes internal scene restore asynchronously — re-apply after paint.
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (isThemeChange) patch()
@@ -255,6 +252,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     useEffect(() => {
       if (!token) return
 
+      apiInitRef.current = false
       canPublishLocalRef.current = false
       gotRemoteRef.current = false
       const ydoc = new Y.Doc()
@@ -395,6 +393,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         ydocRef.current = null
         awarenessRef.current = null
         apiRef.current = null
+        apiInitRef.current = false
         pendingLocalRef.current = null
         canPublishLocalRef.current = false
         prevBoardThemeRef.current = null
@@ -403,7 +402,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
     }, [roomId, token, displayName, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
 
-    // Mount editor after WS is open and we have synced state (snapshot or replayed ops).
     useEffect(() => {
       if (status !== 'open' || !ydocRef.current) return
 
@@ -438,7 +436,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
     }, [status, roomId, token, flushPendingEnvelopes])
 
-    // Frozen at mount — theme changes go through applyBoardTheme, not initialData.
     const excalidrawInitialData = useMemo(() => {
       if (!ready) return null
       const ydoc = ydocRef.current
@@ -539,7 +536,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         {ready && excalidrawInitialData ? (
           <Excalidraw
             key={roomId}
-            theme={EXCALIDRAW_FIXED_THEME}
+            theme={excalidrawThemeFor(boardTheme)}
             initialData={{
               elements: excalidrawInitialData.elements as never[],
               files: excalidrawInitialData.files as never,
@@ -550,8 +547,10 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
             excalidrawAPI={(api) => {
               const typed = api as ExcalidrawApi
               apiRef.current = typed
-              setExcalidrawApi(typed)
-              applyBoardTheme(boardThemeRef.current, false)
+              if (!apiInitRef.current) {
+                apiInitRef.current = true
+                setExcalidrawApi(typed)
+              }
             }}
             UIOptions={EXCALIDRAW_UI_OPTIONS}
           />

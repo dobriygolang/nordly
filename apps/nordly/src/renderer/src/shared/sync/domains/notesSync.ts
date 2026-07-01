@@ -19,7 +19,7 @@ import {
 } from '@features/notes/repository/notesStore';
 import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { getServerId, setServerId } from '@shared/sync/idMap';
+import { getServerId, resolveEntityId, resolveNotesServerId, setServerId } from '@shared/sync/idMap';
 import { removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 
@@ -36,6 +36,10 @@ async function resolveNoteServerId(
 ): Promise<string | null> {
   const mapped = await getServerId('notes', entry.entityId, userId);
   if (mapped) return mapped;
+
+  if (entry.op === 'delete') {
+    return resolveNotesServerId(entry.entityId, userId);
+  }
 
   const local = await notesStoreGet(entry.entityId, userId);
   if (!local) {
@@ -139,6 +143,21 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
     return;
   }
 
+  if (entry.op === 'delete') {
+    const serverId = await resolveNotesServerId(entry.entityId, userId);
+    try {
+      await remoteDeleteNote(serverId);
+    } catch (err) {
+      if (isRemoteNotFound(err)) {
+        await removeOutbox(entry.id, userId);
+        return;
+      }
+      throw err;
+    }
+    await removeOutbox(entry.id, userId);
+    return;
+  }
+
   const serverId = await resolveNoteServerId(entry, userId, title, bodyMd, e2ee);
   if (!serverId) return;
 
@@ -163,19 +182,6 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
     }
     await removeOutbox(entry.id, userId);
     return;
-  }
-
-  if (entry.op === 'delete') {
-    try {
-      await remoteDeleteNote(serverId);
-    } catch (err) {
-      if (isRemoteNotFound(err)) {
-        await removeOutbox(entry.id, userId);
-        return;
-      }
-      throw err;
-    }
-    await removeOutbox(entry.id, userId);
   }
 }
 
@@ -203,13 +209,12 @@ export async function pullNotes(): Promise<void> {
 export async function pushAllNotesEncrypted(): Promise<void> {
   if (!isVaultEnabledSync() || !isVaultUnlocked()) return;
   const { notesStoreAll, decryptAtRest } = await import('@features/notes/repository/notesStore');
-  const { getServerId } = await import('@shared/sync/idMap');
   const userId = requireUserId();
   const rows = await notesStoreAll(userId);
   for (const row of rows) {
     if (row.deleted) continue;
     const plain = await decryptAtRest(row);
-    const serverId = (await getServerId('notes', row.id)) ?? row.id;
+    const serverId = (await resolveEntityId('notes', row.id, userId));
     await pushEncryptedNote(serverId, plain.title, plain.bodyMd);
   }
 }

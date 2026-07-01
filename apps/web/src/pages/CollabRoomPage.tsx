@@ -38,6 +38,7 @@ import {
   type LiveRoomTheme,
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
+import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
@@ -64,7 +65,6 @@ export default function CollabRoomPage() {
   const [copied, setCopied] = useState(false)
   const [wsStatus, setWsStatus] = useState<import('@/lib/ws/collabEditor').EditorWsStatus>('connecting')
   const [guestName, setGuestName] = useState(() => readGuestDisplayName())
-  const [settingsName, setSettingsName] = useState(() => readGuestDisplayName())
   const [guestToken, setGuestToken] = useState(() => readGuestToken(roomId))
   const [guestRoom, setGuestRoom] = useState<import('@/lib/api/rooms').CodeRoom | null>(null)
   const [fontSize, setFontSize] = useState(14)
@@ -132,16 +132,17 @@ export default function CollabRoomPage() {
     return () => window.clearTimeout(id)
   }, [fmt.formatError, fmt.clearFormatError])
 
-  const handleSaveDisplayName = () => {
-    const trimmed = settingsName.trim()
-    if (!trimmed) return
-    setGuestName(trimmed)
-    persistGuestDisplayName(trimmed)
-  }
+  const handleDisplayNameChange = useCallback((name: string) => {
+    setGuestName(name)
+    const trimmed = name.trim()
+    if (trimmed) persistGuestDisplayName(trimmed)
+  }, [])
 
-  const handleThemeToggle = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-  }
+  const handleThemeToggle = useCallback((origin?: ThemeToggleOrigin) => {
+    runThemeTransition(() => {
+      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+    }, origin)
+  }, [])
 
   const handleRemoteCodeRun = useCallback(
     (payload: { run_id: string; triggered_by?: string }) => {
@@ -275,9 +276,8 @@ export default function CollabRoomPage() {
         createdAt={room.created_at}
         expiresAt={room.expires_at}
         onTimerExpired={handleRoomExpired}
-        displayName={settingsName}
-        onDisplayNameChange={setSettingsName}
-        onDisplayNameSave={handleSaveDisplayName}
+        displayName={guestName}
+        onDisplayNameChange={handleDisplayNameChange}
         theme={theme}
         onThemeToggle={handleThemeToggle}
       />

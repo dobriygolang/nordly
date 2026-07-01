@@ -1,16 +1,17 @@
 import { useReducedMotion, type MotionProps, type Transition } from 'framer-motion'
 
-const pageEase = [0.2, 0.7, 0.2, 1] as const
+const pageEase = [0.16, 1, 0.3, 1] as const
 
 export const pageTransition: Transition = {
-  duration: 0.18,
+  duration: 0.28,
   ease: pageEase,
 }
 
-/** Gentle fade-in for routed content — header stays mounted. */
+/** Crossfade + subtle lift — header/footer stay fixed. */
 export const pageTransitionMotion: MotionProps = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -6 },
   transition: pageTransition,
 }
 

@@ -742,7 +742,7 @@ button.nordly-calendar-event:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 12px 10px;
+  padding: 14px 10px 10px;
 }
 .nordly-vault-sidebar__btn {
   width: 28px;
@@ -768,7 +768,7 @@ button.nordly-calendar-event:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 8px 16px;
+  padding: 10px 6px 16px;
   scroll-padding-block: 8px;
 }
 .nordly-vault-main {
@@ -1777,9 +1777,31 @@ body.nordly-task-dragging * {
   margin: 0.75rem 0;
 }
 
+.nordly-notes-title {
+  width: 100%;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  min-height: 2.25rem;
+  padding: 0 0 16px;
+  margin: 0;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
 .nordly-notes-title:focus,
-.nordly-notes-title:focus-visible,
-/* ─── Birthday theme canvas ───────────────────────────────────────── */
+.nordly-notes-title:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: none;
+}
+
+/* ─── Theme preview cards ───────────────────────────────────────── */
 
 .nordly-theme-card__fade {
   position: absolute;

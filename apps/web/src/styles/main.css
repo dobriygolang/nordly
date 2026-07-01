@@ -25,13 +25,15 @@
     --ink-60: rgba(15, 15, 15, 0.6);
     --red: #ff3b30;
     --editor-syntax-keyword: 15 15 15;
-    --editor-syntax-string: 163 70 70;
-    --editor-syntax-number: 76 179 92;
+    --editor-syntax-string: 140 75 75;
+    --editor-syntax-number: 56 130 72;
     --editor-syntax-comment: 142 142 142;
-    --editor-syntax-function: 91 91 91;
-    --editor-syntax-type: 113 113 122;
-    --editor-syntax-constant: 91 91 91;
-    --editor-syntax-operator: 91 91 91;
+    --editor-syntax-function: 75 65 45;
+    --editor-syntax-method: 75 65 45;
+    --editor-syntax-type: 70 95 110;
+    --editor-syntax-variable: 70 85 115;
+    --editor-syntax-constant: 56 110 80;
+    --editor-syntax-operator: 120 120 120;
     --editor-selection: 232 232 230;
   }
 
@@ -54,14 +56,16 @@
     --ink: 255 255 255;
     --ink-60: rgba(255, 255, 255, 0.6);
     --red: #ff3b30;
-    --editor-syntax-keyword: 255 255 255;
-    --editor-syntax-string: 248 180 180;
-    --editor-syntax-number: 134 203 150;
-    --editor-syntax-comment: 140 140 140;
-    --editor-syntax-function: 200 200 200;
-    --editor-syntax-type: 161 161 170;
-    --editor-syntax-constant: 200 200 200;
-    --editor-syntax-operator: 200 200 200;
+    --editor-syntax-keyword: 245 245 245;
+    --editor-syntax-string: 195 160 160;
+    --editor-syntax-number: 130 175 140;
+    --editor-syntax-comment: 115 115 115;
+    --editor-syntax-function: 215 210 195;
+    --editor-syntax-method: 215 210 195;
+    --editor-syntax-type: 165 175 185;
+    --editor-syntax-variable: 175 180 190;
+    --editor-syntax-constant: 130 175 140;
+    --editor-syntax-operator: 130 130 130;
     --editor-selection: 38 38 38;
   }
 

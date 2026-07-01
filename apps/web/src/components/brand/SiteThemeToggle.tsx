@@ -1,22 +1,13 @@
-import type { MouseEvent } from 'react'
 import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 import type { SiteTheme } from '@/lib/site/theme'
-import type { ThemeToggleOrigin } from '@/lib/site/themeTransition'
+import { themeToggleOrigin, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 
 type Props = {
   theme: SiteTheme
   onToggle: (origin?: ThemeToggleOrigin) => void
   compact?: boolean
   className?: string
-}
-
-function toggleOrigin(event: MouseEvent<HTMLButtonElement>): ThemeToggleOrigin {
-  const rect = event.currentTarget.getBoundingClientRect()
-  return {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  }
 }
 
 export function SiteThemeToggle({ theme, onToggle, compact, className }: Props) {
@@ -26,7 +17,7 @@ export function SiteThemeToggle({ theme, onToggle, compact, className }: Props) 
   return (
     <button
       type="button"
-      onClick={(event) => onToggle(toggleOrigin(event))}
+      onClick={(event) => onToggle(themeToggleOrigin(event))}
       aria-label={isDark ? t('public.themeLight') : t('public.themeDark')}
       className={cn(
         'inline-flex items-center justify-center rounded-md border border-site-border bg-site-card text-site-muted transition-colors hover:text-site-text',

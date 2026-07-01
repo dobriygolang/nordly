@@ -388,7 +388,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     [flushNow],
   );
 
-  const SIDEBAR_W = 252;
+  const SIDEBAR_W = 220;
 
   return (
     <div className="nordly-vault" style={{ paddingTop: NORDLY_HEADER_H }}>

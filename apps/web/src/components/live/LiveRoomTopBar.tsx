@@ -3,6 +3,7 @@ import { Code2, Moon, Settings, Sun, UserPlus, X } from 'lucide-react'
 import { RoomSessionTimer } from '@/components/live/RoomSessionTimer'
 import { brand } from '@/lib/brand/tokens'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
+import { themeToggleOrigin, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 
@@ -22,9 +23,8 @@ type Props = {
   onTimerExpired?: () => void
   displayName: string
   onDisplayNameChange: (name: string) => void
-  onDisplayNameSave: () => void
   theme: LiveRoomTheme
-  onThemeToggle: () => void
+  onThemeToggle: (origin?: ThemeToggleOrigin) => void
 }
 
 export function LiveRoomTopBar({
@@ -43,7 +43,6 @@ export function LiveRoomTopBar({
   onTimerExpired,
   displayName,
   onDisplayNameChange,
-  onDisplayNameSave,
   theme,
   onThemeToggle,
 }: Props) {
@@ -138,20 +137,13 @@ export function LiveRoomTopBar({
               className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[13px] text-text-primary outline-none focus:border-border-strong"
               placeholder={t('live.namePlaceholder')}
             />
-            <button
-              type="button"
-              onClick={onDisplayNameSave}
-              className="mt-2 w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-1"
-            >
-              {t('live.saveName')}
-            </button>
 
             <div className="my-3 h-px bg-border" />
 
             <button
               type="button"
-              onClick={onThemeToggle}
-              className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-2"
+              onClick={(event) => onThemeToggle(themeToggleOrigin(event))}
+              className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-1"
             >
               {theme === 'light' ? (
                 <Moon className="h-3.5 w-3.5 shrink-0" />

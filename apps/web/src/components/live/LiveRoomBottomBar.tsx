@@ -1,5 +1,6 @@
 import { Minus, Plus } from 'lucide-react'
 import { LiveRoomParticipants } from '@/components/live/LiveRoomParticipants'
+import { LiveToggle } from '@/components/live/LiveToggle'
 import { LIVE_LANGS } from '@/lib/live/constants'
 import { brand } from '@/lib/brand/tokens'
 import type { CollabPeer } from '@/lib/codemirror/collabPresence'
@@ -95,15 +96,11 @@ export function LiveRoomBottomBar({
         ) : null}
 
         {!isDiagram ? (
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-text-secondary">
-            <input
-              type="checkbox"
-              checked={autocompleteEnabled}
-              onChange={(e) => onAutocompleteChange(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-border accent-text-primary"
-            />
-            <span>{t('live.autocomplete')}</span>
-          </label>
+          <LiveToggle
+            checked={autocompleteEnabled}
+            onChange={onAutocompleteChange}
+            label={t('live.autocomplete')}
+          />
         ) : null}
 
         <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted md:inline-flex">

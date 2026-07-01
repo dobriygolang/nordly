@@ -93,7 +93,7 @@ fi
 
 echo "==> Update nginx (trynordly + legacy druz9 redirect names)"
 NGINX=/etc/nginx/sites-enabled/reality-fallback
-cp "$NGINX" "${NGINX}.bak.$(date +%s)"
+cp "$NGINX" "/root/reality-fallback.bak.$(date +%s)"
 cat > "$NGINX" <<'NGINX_EOF'
 map $http_upgrade $connection_upgrade {
 	default upgrade;
@@ -180,11 +180,15 @@ docker compose -f docker-compose.prod.yml --env-file .env down --remove-orphans 
 
 COMPOSE_FILES="-f docker-compose.prod.yml -f docker-compose.migrate-volumes.yml"
 
-echo "==> Build images + migrate + start nordly stack (may take 15–30 min)"
+echo "==> Build images + start Postgres (reuse druzya volume)"
 cd "$NEW_DIR/deploy"
-bash scripts/ensure-prod-databases.sh
 export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 BUILDX_NO_DEFAULT_ATTESTATIONS=1
 bash scripts/build-images.sh
+docker compose $COMPOSE_FILES --env-file .env up -d postgres redis
+docker compose $COMPOSE_FILES --env-file .env exec -T postgres \
+  pg_isready -U "${POSTGRES_USER:-druzya}" -d nordly -t 60
+
+bash scripts/ensure-prod-databases.sh
 docker compose $COMPOSE_FILES --env-file .env run --rm migrate
 docker compose $COMPOSE_FILES --env-file .env up -d --remove-orphans --wait --wait-timeout 600
 

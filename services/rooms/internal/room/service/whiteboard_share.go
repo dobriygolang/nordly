@@ -76,12 +76,8 @@ func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, ti
 		return nil, fmt.Errorf("ShareWhiteboard seed owner: %w", err)
 	}
 
-	inviteTok, inviteExp, err := model.GenerateInviteToken(created.ID, s.inviteTTL, s.inviteSecret, now)
-	if err != nil {
-		return nil, fmt.Errorf("ShareWhiteboard invite: %w", err)
-	}
-	inviteURL := fmt.Sprintf("%s/live/%s?invite=%s", s.publicBaseURL, created.ID, inviteTok)
-	invite := &model.InviteLink{URL: inviteURL, Token: inviteTok, ExpiresAt: inviteExp}
+	link := model.NewInviteLink(s.publicBaseURL, created.ID, created.ExpiresAt)
+	invite := &link
 
 	_ = userID // reserved for future billing attribution
 

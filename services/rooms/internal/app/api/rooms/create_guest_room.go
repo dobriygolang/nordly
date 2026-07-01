@@ -20,7 +20,6 @@ func (i *Implementation) CreateGuestRoom(ctx context.Context, req *roomsv1.Creat
 	if result.Invite != nil {
 		resp.Invite = &roomsv1.InviteLink{
 			Url:       result.Invite.URL,
-			Token:     result.Invite.Token,
 			ExpiresAt: timestamppb.New(result.Invite.ExpiresAt),
 		}
 	}

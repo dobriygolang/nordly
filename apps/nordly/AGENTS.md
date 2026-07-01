@@ -181,7 +181,7 @@ Local Excalidraw (`@excalidraw/excalidraw`). Single board `DEFAULT_BOARD_ID = 'd
 
 Sharing (requires sign-in + network):
 
-- **Live share** → `POST /v1/rooms/share-whiteboard` → web `/live/{roomId}?invite=...`
+- **Live share** → `POST /v1/rooms/share-whiteboard` → web `/live/{roomId}` (short URL copied client-side)
 - **Publish** → `POST /v1/rooms/publish-whiteboard` → web `/board/{slug}` (read-only)
 
 ## Tauri IPC commands

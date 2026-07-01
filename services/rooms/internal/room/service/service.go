@@ -42,7 +42,6 @@ type GuestCreateResult struct {
 type Service interface {
 	CreateGuestRoom(ctx context.Context, displayName string, roomType model.RoomType, language model.Language) (*GuestCreateResult, error)
 	GetRoom(ctx context.Context, userID, roomID string) (*RoomView, error)
-	CreateInvite(ctx context.Context, userID, roomID string) (*model.InviteLink, error)
 	CloseRoom(ctx context.Context, userID, roomID string) error
 	GuestJoin(ctx context.Context, roomID, inviteToken, displayName string) (*GuestJoinResult, error)
 	ShareWhiteboard(ctx context.Context, userID, sceneJSON, title string) (*GuestCreateResult, error)
@@ -58,7 +57,6 @@ type roomService struct {
 	roomTTL       time.Duration
 	guestRoomTTL  time.Duration
 	inviteSecret  []byte
-	inviteTTL     time.Duration
 	now           func() time.Time
 }
 
@@ -69,17 +67,12 @@ type Deps struct {
 	RoomTTL       time.Duration
 	GuestRoomTTL  time.Duration
 	InviteSecret  []byte
-	InviteTTL     time.Duration
 }
 
 func New(deps Deps) Service {
 	ttl := deps.RoomTTL
 	if ttl <= 0 {
 		ttl = model.DefaultRoomTTL
-	}
-	inviteTTL := deps.InviteTTL
-	if inviteTTL <= 0 {
-		inviteTTL = model.DefaultInviteTTL
 	}
 	guestTTL := deps.GuestRoomTTL
 	if guestTTL <= 0 {
@@ -92,7 +85,6 @@ func New(deps Deps) Service {
 		roomTTL:       ttl,
 		guestRoomTTL:  guestTTL,
 		inviteSecret:  deps.InviteSecret,
-		inviteTTL:     inviteTTL,
 		now:           time.Now,
 	}
 }
@@ -161,12 +153,8 @@ func (s *roomService) CreateGuestRoom(
 		return nil, fmt.Errorf("CreateGuestRoom seed owner: %w", err)
 	}
 
-	inviteTok, inviteExp, err := model.GenerateInviteToken(created.ID, s.inviteTTL, s.inviteSecret, now)
-	if err != nil {
-		return nil, fmt.Errorf("CreateGuestRoom invite: %w", err)
-	}
-	inviteURL := fmt.Sprintf("%s/live/%s?invite=%s", s.publicBaseURL, created.ID, inviteTok)
-	invite := &model.InviteLink{URL: inviteURL, Token: inviteTok, ExpiresAt: inviteExp}
+	link := model.NewInviteLink(s.publicBaseURL, created.ID, created.ExpiresAt)
+	invite := &link
 
 	return &GuestCreateResult{
 		AccessToken: token,
@@ -185,23 +173,6 @@ func (s *roomService) GetRoom(ctx context.Context, userID, roomID string) (*Room
 		return nil, err
 	}
 	return s.view(room, participants), nil
-}
-
-func (s *roomService) CreateInvite(ctx context.Context, userID, roomID string) (*model.InviteLink, error) {
-	uid, rid, room, _, err := s.loadRoom(ctx, userID, roomID)
-	if err != nil {
-		return nil, err
-	}
-	if uid != room.OwnerID {
-		return nil, repository.ErrForbidden
-	}
-
-	tok, expires, err := model.GenerateInviteToken(rid, s.inviteTTL, s.inviteSecret, s.now().UTC())
-	if err != nil {
-		return nil, fmt.Errorf("CreateInvite: %w", err)
-	}
-	url := fmt.Sprintf("%s/live/%s?invite=%s", s.publicBaseURL, rid, tok)
-	return &model.InviteLink{URL: url, Token: tok, ExpiresAt: expires}, nil
 }
 
 func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) error {
@@ -231,7 +202,7 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, inviteToken, displa
 	// Invite token is optional: when present it must be valid and bind to this
 	// room; when absent, anyone with the room URL can join a shared room.
 	if inviteToken != "" {
-		tokenRoom, err := model.ValidateInviteToken(inviteToken, s.inviteSecret, s.now().UTC())
+		tokenRoom, err := model.ValidateLegacyInviteToken(inviteToken, s.inviteSecret, s.now().UTC())
 		if err != nil {
 			return nil, ErrInvalidInvite
 		}
@@ -256,8 +227,13 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, inviteToken, displa
 		return nil, err
 	}
 
+	ttl := room.ExpiresAt.Sub(s.now().UTC())
+	ttlSec := int32(ttl.Seconds())
+	if ttlSec <= 0 {
+		return nil, repository.ErrInvalidState
+	}
+
 	scope := fmt.Sprintf("editor:%s", rid)
-	ttlSec := int32(s.inviteTTL.Seconds())
 	token, guestUserID, err := s.identity.MintScopedAccessToken(ctx, identityjwt.RoleGuest, scope, name, ttlSec)
 	if err != nil {
 		return nil, fmt.Errorf("GuestJoin mint token: %w", err)

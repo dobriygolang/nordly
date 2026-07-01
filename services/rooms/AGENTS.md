@@ -19,7 +19,6 @@ HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
 | RPC | HTTP | Auth |
 |-----|------|------|
 | GetRoom | `GET /v1/rooms/{room_id}` | JWT |
-| CreateInvite | `POST /v1/rooms/{room_id}/invite` | JWT |
 | GuestJoin | `POST /v1/rooms/{room_id}/guest-join` | no |
 | CreateGuestRoom | `POST /v1/rooms/guest-create` | no |
 | CloseRoom | `POST /v1/rooms/{room_id}/close` | JWT |
@@ -34,7 +33,9 @@ WebSocket: `GET /ws/editor/{room_id}?token=JWT`.
 
 Frontend: `/live/new` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. `/live/:roomId` → `CollabRoomPage.tsx` (CodeMirror or Excalidraw by `room_type`).
 
-**Guest join is open:** `GuestJoin` accepts an **optional** `invite_token`. When present it must be valid and bind to the room; when absent, anyone with the room URL can join a **shared** room directly (private rooms remain forbidden). The web frontend never gates on the invite token — a direct visit to `/live/{roomId}` shows a name prompt and joins.
+**Guest join is open:** shared rooms join via `/live/{roomId}` (UUID in path is the capability). `GuestJoin` accepts an **optional** legacy `invite_token` from old `?invite=…` links; when present it must be valid and bind to the room. Private rooms remain forbidden for guests.
+
+**Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{PUBLIC_BASE_URL}/live/{room_id}` (no query token). Frontend copies the same short URL client-side.
 
 Roles: `owner`, `participant`, `viewer`. Legacy DB value `interviewer` may still exist on old rooms.
 
@@ -50,4 +51,4 @@ make start   # JWT_PUBLIC_KEY_FILE=../identity/scripts/dev/jwt/public.pem
 make gen-proto | build
 ```
 
-Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `ROOM_INVITE_SECRET`, `ROOM_TTL` (6h).
+Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `ROOM_INVITE_SECRET` (legacy `?invite=` validation only), `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (1h).

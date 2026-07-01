@@ -27,7 +27,6 @@ func (i *Implementation) ShareWhiteboard(
 	if result.Invite != nil {
 		resp.Invite = &roomsv1.InviteLink{
 			Url:       result.Invite.URL,
-			Token:     result.Invite.Token,
 			ExpiresAt: timestamppb.New(result.Invite.ExpiresAt),
 		}
 	}

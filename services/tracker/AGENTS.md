@@ -56,6 +56,8 @@ Statuses: `todo` | `in_progress` | `in_review` | `done` | `dismissed`. Schedule 
 
 Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (callback path `/v1/tracker/integrations/google/callback`), `TOKEN_ENCRYPTION_KEY`.
 
+OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
+
 **Two-way sync.**
 
 - **Outbound (task → Google):** when `google_calendar_sync_enabled` + refresh token present, scheduled work tasks create/update/delete events via `google_event_id`.

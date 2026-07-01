@@ -23,7 +23,6 @@ export type CodeRoom = {
 
 export type InviteLink = {
   url: string
-  token: string
   expires_at?: string
 }
 
@@ -139,17 +138,6 @@ export async function guestJoin(
     expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),
     room,
   }
-}
-
-export async function createInvite(roomId: string): Promise<InviteLink> {
-  const token = bearerForRoom(roomId)
-  if (!token) throw new Error('not authenticated')
-  const res = await apiWithBearer<{ invite: InviteLink }>(
-    `/rooms/${encodeURIComponent(roomId)}/invite`,
-    { method: 'POST', body: '{}' },
-    token,
-  )
-  return res.invite
 }
 
 export async function closeRoom(roomId: string): Promise<void> {

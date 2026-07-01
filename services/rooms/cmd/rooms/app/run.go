@@ -66,7 +66,6 @@ func New(ctx context.Context) (*App, error) {
 		RoomTTL:       cfg.RoomTTL,
 		GuestRoomTTL:  cfg.GuestRoomTTL,
 		InviteSecret:  cfg.InviteSecret,
-		InviteTTL:     cfg.InviteTTL,
 	})
 
 	return &App{

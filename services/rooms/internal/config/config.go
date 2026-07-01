@@ -20,7 +20,6 @@ type Config struct {
 	GuestRoomTTL        time.Duration
 	RoomArchiveInterval time.Duration
 	InviteSecret        []byte
-	InviteTTL           time.Duration
 	IdentityGRPCAddr    string
 	InternalAPIToken    string
 }
@@ -40,11 +39,6 @@ func Load() (*Config, error) {
 	roomTTL, err := time.ParseDuration(getEnv("ROOM_TTL", "6h"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid ROOM_TTL: %w", err)
-	}
-
-	inviteTTL, err := time.ParseDuration(getEnv("ROOM_INVITE_TTL", "24h"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid ROOM_INVITE_TTL: %w", err)
 	}
 
 	guestRoomTTL, err := time.ParseDuration(getEnv("GUEST_ROOM_TTL", "1h"))
@@ -79,7 +73,6 @@ func Load() (*Config, error) {
 		GuestRoomTTL:        guestRoomTTL,
 		RoomArchiveInterval: archiveInterval,
 		InviteSecret:        inviteSecret,
-		InviteTTL:           inviteTTL,
 		IdentityGRPCAddr:    getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
 		InternalAPIToken:    os.Getenv("INTERNAL_API_TOKEN"),
 	}, nil

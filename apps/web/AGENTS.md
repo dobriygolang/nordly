@@ -66,8 +66,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`.
 |--------|------|---------|
 | POST | `/v1/rooms/guest-create` | `/live/new` |
 | GET | `/v1/rooms/{id}` | `CollabRoomPage` |
-| POST | `/v1/rooms/{id}/guest-join` | invite flow |
-| POST | `/v1/rooms/{id}/invite` | owner controls |
+| POST | `/v1/rooms/{id}/guest-join` | join flow |
 | POST | `/v1/rooms/{id}/close` | owner controls |
 | GET | `/v1/rooms/boards/public/{slug}` | `PublishedBoardPage` |
 
@@ -99,7 +98,9 @@ WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_clo
 1. `/live/new` → `POST /v1/rooms/guest-create` → scoped JWT + room
 2. Token stored: `sessionStorage['nordly_guest_token_{roomId}']`
 3. Room REST + WS use guest token via `readGuestToken(roomId)`
-4. Joining is open: a direct visit to `/live/:roomId` (with or without `?invite=`) shows a name prompt → `POST guest-join` → guest token. The `invite_token` is optional on the backend; shared rooms accept anyone by URL.
+4. Joining is open: `/live/:roomId` shows a name prompt → `POST guest-join` → guest token. Legacy `?invite=` links still work; new shares use `/live/{roomId}` only (`lib/live/liveRoomUrl.ts`).
+
+Share URLs: `publicLiveRoomUrl(roomId)` — client-side short link; Invite button copies without `POST /invite`.
 
 Sandbox run/format should use guest token when in live room (same as room REST).
 
@@ -119,7 +120,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | Feature | Nordly action | Web result |
 |---------|-------------|------------|
 | Note share | `POST /v1/notes/{id}/share-to-web` | `/notes/{slug}` |
-| Whiteboard live share | `POST /v1/rooms/share-whiteboard` | `/live/{roomId}?invite=...` |
+| Whiteboard live share | `POST /v1/rooms/share-whiteboard` | `/live/{roomId}` |
 | Whiteboard publish | `POST /v1/rooms/publish-whiteboard` | `/board/{slug}` |
 
 ## Env

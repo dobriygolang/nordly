@@ -8,7 +8,14 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-const calendarEventsScope = "https://www.googleapis.com/auth/calendar.events"
+const (
+	// calendarEventsScope grants read/write of events on all the user's
+	// calendars (create/update/delete + Events.list for incremental sync).
+	calendarEventsScope = "https://www.googleapis.com/auth/calendar.events"
+	// calendarListReadonlyScope is the least-privilege scope that lets us
+	// enumerate the user's calendars (CalendarList.List) for target selection.
+	calendarListReadonlyScope = "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+)
 
 // Client wraps Google OAuth for Calendar integration.
 type Client struct {
@@ -25,7 +32,7 @@ func NewClient(clientID, clientSecret, redirectURI string) *Client {
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURI,
-			Scopes:       []string{calendarEventsScope},
+			Scopes:       []string{calendarEventsScope, calendarListReadonlyScope},
 			Endpoint:     google.Endpoint,
 		},
 	}

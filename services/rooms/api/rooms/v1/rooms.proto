@@ -17,13 +17,6 @@ service RoomsService {
     };
   }
 
-  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse) {
-    option (google.api.http) = {
-      post: "/v1/rooms/{room_id}/invite"
-      body: "*"
-    };
-  }
-
   rpc GuestJoin(GuestJoinRequest) returns (GuestJoinResponse) {
     option (google.api.http) = {
       post: "/v1/rooms/{room_id}/guest-join"
@@ -103,21 +96,16 @@ message GetRoomResponse {
 }
 
 message InviteLink {
+  // Public guest URL: {PUBLIC_BASE_URL}/live/{room_id}
   string url = 1;
-  string token = 2;
+  // Deprecated — always empty for new rooms; legacy signed tokens may still be sent on guest-join.
+  string token = 2 [deprecated = true];
   google.protobuf.Timestamp expires_at = 3;
-}
-
-message CreateInviteRequest {
-  string room_id = 1;
-}
-
-message CreateInviteResponse {
-  InviteLink invite = 1;
 }
 
 message GuestJoinRequest {
   string room_id = 1;
+  // Optional legacy ?invite= token from old share links.
   string invite_token = 2;
   string display_name = 3;
 }

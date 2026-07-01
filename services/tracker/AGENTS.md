@@ -43,7 +43,7 @@ Custom HTTP (not grpc-gateway):
 | Route | Purpose |
 |-------|---------|
 | `GET /v1/tracker/integrations/google/callback` | Google OAuth callback → redirect to `NORDLY_CALLBACK_URL?google_calendar=…` (default web: `https://trynordly.app/oauth/google-calendar`) |
-| `GET /v1/tracker/integrations/zoom/callback` | Zoom OAuth callback → redirect to `NORDLY_CALLBACK_URL?zoom=…` |
+| `GET /v1/tracker/integrations/zoom/callback` | Zoom OAuth callback → redirect to web `/oauth/zoom?zoom=…` (derived from `NORDLY_CALLBACK_URL` host) or `nordly://settings?zoom=…` |
 
 ## Outbox events
 

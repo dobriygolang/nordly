@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	zoomadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/zoom"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
@@ -79,10 +80,7 @@ func (s *trackerService) handleZoomErr(ctx context.Context, userID string, err e
 }
 
 func (s *trackerService) zoomCallbackRedirect(status, detail string) string {
-	u, err := url.Parse(s.honeCallbackURL)
-	if err != nil || u.Scheme == "" {
-		u, _ = url.Parse("nordly://settings")
-	}
+	u := s.zoomBridgeURL()
 	q := u.Query()
 	q.Set("zoom", status)
 	if detail != "" {
@@ -90,4 +88,25 @@ func (s *trackerService) zoomCallbackRedirect(status, detail string) string {
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// zoomBridgeURL — web: /oauth/zoom on same host as NORDLY_CALLBACK_URL; desktop: nordly://settings.
+func (s *trackerService) zoomBridgeURL() *url.URL {
+	u, err := url.Parse(s.honeCallbackURL)
+	if err != nil || u.Scheme == "" {
+		u, _ = url.Parse("nordly://settings")
+		return u
+	}
+	if u.Scheme == "nordly" {
+		return u
+	}
+	path := strings.TrimSuffix(u.Path, "/")
+	if strings.HasSuffix(path, "/oauth/google-calendar") {
+		path = strings.TrimSuffix(path, "/oauth/google-calendar")
+	}
+	if !strings.HasSuffix(path, "/oauth/zoom") {
+		path = strings.TrimRight(path, "/") + "/oauth/zoom"
+	}
+	u.Path = path
+	return u
 }

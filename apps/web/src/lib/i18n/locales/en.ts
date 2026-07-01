@@ -198,6 +198,16 @@ export const en: Messages = {
       fallbackHint:
         'If the app does not open, switch back to Nordly manually and tap Refresh in Settings → Integrations.',
     },
+    zoom: {
+      missing: 'Missing OAuth status.',
+      successTitle: 'Zoom connected',
+      successBody: 'Return to the Nordly app — settings will refresh automatically.',
+      errorTitle: 'Zoom connection failed',
+      errorBody: 'Sign-in was cancelled or denied.',
+      openApp: 'Open Nordly',
+      fallbackHint:
+        'If the app does not open, switch back to Nordly manually and tap Refresh in Settings → Integrations.',
+    },
   },
   legal: legalEn,
 }

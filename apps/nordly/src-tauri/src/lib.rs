@@ -1,5 +1,6 @@
 mod auth;
 mod store;
+mod tray;
 mod vault;
 mod window_macos;
 
@@ -16,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
             let handle = app.handle().clone();
             #[cfg(desktop)]
@@ -33,6 +35,10 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window_macos::set_traffic_lights(&window, false);
             }
+            #[cfg(desktop)]
+            {
+                tray::setup(app)?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -47,9 +53,14 @@ pub fn run() {
             shell_open_external,
             window_traffic_lights_show,
             deep_link_initial,
+            tray_show_main,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running nordly");
+        .build(tauri::generate_context!())
+        .expect("error while building nordly")
+        .run(|app, event| {
+            #[cfg(desktop)]
+            tray::on_run_event(app, &event);
+        });
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -117,6 +128,12 @@ fn window_traffic_lights_show(window: tauri::WebviewWindow, visible: bool) -> Re
 
 /// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
 /// Warm-start deep links arrive via the `app:deep-link` event instead.
+#[tauri::command]
+#[tauri::command]
+fn tray_show_main(app: AppHandle) -> Result<(), String> {
+    tray::tray_show_main(app)
+}
+
 #[tauri::command]
 fn deep_link_initial(app: AppHandle) -> Result<Option<String>, String> {
     #[cfg(desktop)]

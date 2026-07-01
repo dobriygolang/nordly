@@ -17,6 +17,7 @@ const LegalTermsPage = lazy(() => import('@/pages/LegalTermsPage'))
 const LegalPrivacyPage = lazy(() => import('@/pages/LegalPrivacyPage'))
 const NordlyDownloadPage = lazy(() => import('@/pages/NordlyDownloadPage'))
 const GoogleCalendarOAuthPage = lazy(() => import('@/pages/GoogleCalendarOAuthPage'))
+const ZoomOAuthPage = lazy(() => import('@/pages/ZoomOAuthPage'))
 
 function RetiredRedirect() {
   return <Navigate to="/" replace />
@@ -45,6 +46,7 @@ export function AnimatedRoutes() {
 
           <Route path="/download" element={<NordlyDownloadPage />} />
           <Route path="/oauth/google-calendar" element={<GoogleCalendarOAuthPage />} />
+          <Route path="/oauth/zoom" element={<ZoomOAuthPage />} />
           <Route path="/notes/:slug" element={<PublishedNotePage />} />
           <Route path="/board/:slug" element={<PublishedBoardPage />} />
           <Route path="/n/:slug" element={<LegacyNoteSlugRedirect />} />

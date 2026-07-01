@@ -87,7 +87,9 @@ Billing is not called from Nordly.
 | GET/PATCH | `/v1/tracker/settings` |
 | GET | `/v1/tracker/integrations/google/url` |
 | POST | `/v1/tracker/integrations/google/disconnect` |
-| GET | `/v1/tracker/integrations/google/events` |
+| GET | `/v1/tracker/work/epics` |
+| PATCH | `/v1/tracker/work/tasks/{id}` (epic_id, clear_epic, clear_conference) |
+| POST | `/v1/tracker/work/tasks/{id}/conference` |
 
 **notes** — `features/notes/repository/notesRemote.ts`, `publishRemote.ts`, `vaultRemote.ts`, `shared/crypto/vault.ts`
 
@@ -145,11 +147,13 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
-Task fields **device-only** (preserved on pull/replace): `order`, `epicColor` (hex accent from fixed palette; server epic sync TBD).
+Task fields **device-only** (preserved on pull/replace): `order`.
+
+Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
 
 Conflict: LWW by `updatedAt`. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
 
-Not synced: whiteboards (local + share/publish via rooms), vault prefs, Google Calendar reads, publish status (direct API on user action), task epic colors.
+Not synced: whiteboards (local + share/publish via rooms), vault prefs, Google Calendar reads, publish status (direct API on user action).
 
 ## Vault (E2EE)
 

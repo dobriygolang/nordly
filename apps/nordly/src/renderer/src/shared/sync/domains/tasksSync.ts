@@ -1,5 +1,8 @@
 import { requireUserId } from '@shared/db/nordlyDb';
 import type { TaskKind, TaskStatus } from '@features/tasks/api/tasks';
+import { isOfflineEpicId } from '@features/tasks/api/epics';
+import { findEpicByColor } from '@features/tasks/lib/epicColor';
+import { pullEpicsCache } from '@features/tasks/lib/useTaskEpics';
 import {
   remoteCreateTask,
   remoteDeleteTask,
@@ -63,15 +66,31 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   }
 
   if (entry.op === 'patch') {
-    const updated = await remotePatchTask(serverId, {
-      clearConference: payload.clearConference === true,
-    });
+    const patch: Parameters<typeof remotePatchTask>[1] = {};
+    if (payload.clearEpic === true) patch.clearEpic = true;
+    if (payload.clearConference === true) patch.clearConference = true;
+    if (payload.epicId) {
+      patch.epicId = String(payload.epicId);
+    } else if (payload.epicColor) {
+      const epics = await pullEpicsCache();
+      const match = findEpicByColor(epics, String(payload.epicColor));
+      if (!match || isOfflineEpicId(match.id)) {
+        throw new Error('epic_color_unresolved');
+      }
+      patch.epicId = match.id;
+    }
+    const updated = await remotePatchTask(serverId, patch);
     await tasksStoreMergeRemote(updated);
     await removeOutbox(entry.id, userId);
   }
 }
 
 export async function pullTasks(): Promise<void> {
+  try {
+    await pullEpicsCache();
+  } catch {
+    /* keep cached epics for offline color resolution */
+  }
   const remote = await remoteListTasks();
   for (const task of remote) {
     await tasksStoreMergeRemote(task);

@@ -4,8 +4,11 @@ export {
   TASK_EPIC_PALETTE,
   epicEntrySurface,
   epicTimelineSurfaceStyle,
+  isEpicActive,
   isTaskEpicColor,
+  resolveTaskEpicColor,
   taskEpicColor,
+  taskHasEpic,
   type TaskEpicColor,
 } from '@features/tasks/lib/epicColor';
 

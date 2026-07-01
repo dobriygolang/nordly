@@ -39,7 +39,9 @@ import {
 import { listTasks, createTask, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
 import { SegmentedControl } from '@pages/Settings/primitives/SegmentedControl';
 import { snapMinutes, toDayKey } from '@pages/TaskBoard/lib/dates';
-import { epicEntrySurface } from '@features/tasks/lib/epicColor';
+import { epicEntrySurface, resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
+import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
+import type { TaskEpic } from '@features/tasks/api/epics';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { formatLocaleDate, formatLocaleTime, formatTimeZoneLabel, getUserTimeZone } from '@shared/lib/localeFormat';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
@@ -622,10 +624,15 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
 function calendarEpicSurface(
   entry: CalendarEntry,
+  epics: TaskEpic[],
   opts?: { dragging?: boolean },
 ): Record<string, string> | null {
   if (entry.source !== 'task') return null;
-  return epicEntrySurface(entry.epicColor, {
+  const color = resolveTaskEpicColor(
+    { epicId: entry.epicId, epicColor: entry.epicColor },
+    epics,
+  );
+  return epicEntrySurface(color, {
     done: entry.taskStatus === 'done',
     dragging: opts?.dragging,
   });
@@ -638,8 +645,9 @@ function AllDayEventChip({
   entry: CalendarEntry;
   onActivate: () => void;
 }): JSX.Element {
+  const { epics } = useTaskEpics();
   const isGoogle = entry.source === 'google';
-  const epicSurface = calendarEpicSurface(entry);
+  const epicSurface = calendarEpicSurface(entry, epics);
   return (
     <button
       type="button"
@@ -675,10 +683,11 @@ function CalendarEventBlock({
   onPointerDown?: (e: React.PointerEvent) => void;
   onActivate: () => void;
 }): JSX.Element {
+  const { epics } = useTaskEpics();
   const done = entry.taskStatus === 'done';
   const isGoogle = entry.source === 'google';
   const interactive = Boolean(onPointerDown) || isGoogle || Boolean(entry.taskId);
-  const epicSurface = calendarEpicSurface(entry, { dragging });
+  const epicSurface = calendarEpicSurface(entry, epics, { dragging });
   const style = {
     top,
     height,
@@ -846,6 +855,7 @@ function MonthGrid({
   onCreateDay?: (day: Date) => void;
   onEntryClick: (entry: CalendarEntry) => void;
 }): JSX.Element {
+  const { epics } = useTaskEpics();
   const cells = useMemo(() => buildMonthGrid(monthDate, locale), [monthDate, locale]);
   const month = monthDate.getMonth();
   return (
@@ -864,7 +874,7 @@ function MonthGrid({
             <span className="nordly-calendar-month__date">{cell.date.getDate()}</span>
             <div className="nordly-calendar-month__events">
               {dayEntries.map((entry) => {
-                const epicSurface = calendarEpicSurface(entry);
+                const epicSurface = calendarEpicSurface(entry, epics);
                 return (
                   <button
                     key={entry.id}

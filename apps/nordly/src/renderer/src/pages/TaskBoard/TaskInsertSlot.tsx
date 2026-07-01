@@ -1,16 +1,18 @@
 import type { CSSProperties } from 'react';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskEpic } from '@features/tasks/api/epics';
 import { defaultDurationMin, formatDurationShort } from './lib/dates';
-import { taskEpicColor } from './lib/taskUi';
+import { resolveTaskEpicColor } from './lib/taskUi';
 
 interface TaskInsertSlotProps {
   task: TaskCard;
+  epics: TaskEpic[];
 }
 
 /** Drop preview — shows where the dragged task will land between siblings. */
-export function TaskInsertSlot({ task }: TaskInsertSlotProps): JSX.Element {
-  const epicColor = taskEpicColor(task);
+export function TaskInsertSlot({ task, epics }: TaskInsertSlotProps): JSX.Element {
+  const epicColor = resolveTaskEpicColor(task, epics);
 
   return (
     <div

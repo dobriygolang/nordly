@@ -1,8 +1,8 @@
-/** Local-first epic accent colors — device-only until server epic sync ships. */
+/** Epic color resolution — server epicId + offline epicColor fallback. */
 
+import type { TaskEpic } from '../api/epics';
 import type { TaskCard } from '../api/tasks';
 
-/** Fixed palette — no names, no backend. */
 export const TASK_EPIC_PALETTE = [
   '#5b8def',
   '#4cb35c',
@@ -12,20 +12,42 @@ export const TASK_EPIC_PALETTE = [
 
 export type TaskEpicColor = (typeof TASK_EPIC_PALETTE)[number];
 
-const PALETTE_SET = new Set<string>(TASK_EPIC_PALETTE);
+const PALETTE_SET = new Set<string>(TASK_EPIC_PALETTE.map(normalizeHex));
 
-export function isTaskEpicColor(color: string): color is TaskEpicColor {
-  return PALETTE_SET.has(color);
+export function normalizeHex(hex: string): string {
+  const raw = hex.trim().toLowerCase();
+  return raw.startsWith('#') ? raw : `#${raw}`;
 }
 
-export function taskEpicColor(task: Pick<TaskCard, 'epicColor'>): string | null {
-  const color = task.epicColor;
-  if (!color) return null;
-  return isTaskEpicColor(color) ? color : null;
+export function isTaskEpicColor(color: string): boolean {
+  return PALETTE_SET.has(normalizeHex(color));
+}
+
+export function findEpicByColor(epics: TaskEpic[], color: string): TaskEpic | undefined {
+  const want = normalizeHex(color);
+  return epics.find((e) => normalizeHex(e.color) === want);
+}
+
+/** Display color: epicId → cached epic, else offline epicColor. */
+export function resolveTaskEpicColor(
+  task: Pick<TaskCard, 'epicId' | 'epicColor'>,
+  epics: TaskEpic[] = [],
+): string | null {
+  if (task.epicId) {
+    const epic = epics.find((e) => e.id === task.epicId);
+    if (epic) return normalizeHex(epic.color);
+  }
+  if (task.epicColor) return normalizeHex(task.epicColor);
+  return null;
+}
+
+/** @deprecated Use resolveTaskEpicColor(task, epics) */
+export function taskEpicColor(task: Pick<TaskCard, 'epicId' | 'epicColor'>, epics: TaskEpic[] = []): string | null {
+  return resolveTaskEpicColor(task, epics);
 }
 
 function parseHexColor(hex: string): { r: number; g: number; b: number } | null {
-  const raw = hex.trim().replace('#', '');
+  const raw = normalizeHex(hex).slice(1);
   if (!/^[0-9a-f]{6}$/i.test(raw)) return null;
   return {
     r: Number.parseInt(raw.slice(0, 2), 16),
@@ -34,7 +56,6 @@ function parseHexColor(hex: string): { r: number; g: number; b: number } | null 
   };
 }
 
-/** Inline epic tint for calendar/timeline blocks — avoids color-mix gaps in WKWebView. */
 export function epicTimelineSurfaceStyle(
   color: string,
   opts?: { done?: boolean; dragging?: boolean },
@@ -58,11 +79,20 @@ export function epicTimelineSurfaceStyle(
   };
 }
 
-/** Calendar entry chip/block styling from a task epic color. */
 export function epicEntrySurface(
   epicColor: string | null | undefined,
   opts?: { done?: boolean; dragging?: boolean },
 ): Record<string, string> | null {
   if (!epicColor) return null;
   return epicTimelineSurfaceStyle(epicColor, opts);
+}
+
+export function isEpicActive(task: Pick<TaskCard, 'epicId' | 'epicColor'>, epic: TaskEpic): boolean {
+  if (task.epicId) return task.epicId === epic.id;
+  if (task.epicColor) return normalizeHex(task.epicColor) === normalizeHex(epic.color);
+  return false;
+}
+
+export function taskHasEpic(task: Pick<TaskCard, 'epicId' | 'epicColor'>): boolean {
+  return Boolean(task.epicId || task.epicColor);
 }

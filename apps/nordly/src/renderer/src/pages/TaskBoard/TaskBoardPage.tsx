@@ -9,14 +9,16 @@ import {
   renameTask,
   reorderTasks,
   patchTaskDetails,
-  patchTaskEpicColor,
+  patchTaskEpic,
   createTaskConference,
   type TaskCard,
+  type TaskEpicSelection,
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { LOCAL_ONLY } from '@app/config/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayColumn } from './DayColumn';
 import { useDayTaskDrag } from './useDayTaskDrag';
 import { useHorizontalPanScroll } from './useHorizontalPanScroll';
@@ -41,6 +43,7 @@ export function TaskBoardPage(): JSX.Element {
   const todayKey = toDayKey(today);
   const { days, scrollRef, showBackToToday, scrollToToday, ensureDayVisible, expandRangeForDayKeys } =
     useInfiniteDayScroll(today);
+  const { epics } = useTaskEpics();
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [selectedDay, setSelectedDay] = useState(() => todayKey);
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
@@ -239,17 +242,27 @@ export function TaskBoardPage(): JSX.Element {
     setDetailTaskId(null);
   }, []);
 
-  const handleEpicColorChange = useCallback(
-    async (task: TaskCard, epicColor: string | null) => {
+  const handleEpicChange = useCallback(
+    async (task: TaskCard, selection: TaskEpicSelection) => {
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id
-            ? { ...t, epicColor: epicColor ?? undefined, updatedAt: new Date().toISOString() }
+            ? {
+                ...t,
+                epicId: selection && 'epicId' in selection ? selection.epicId : undefined,
+                epicColor:
+                  selection === null
+                    ? undefined
+                    : 'color' in selection
+                      ? selection.color
+                      : undefined,
+                updatedAt: new Date().toISOString(),
+              }
             : t,
         ),
       );
       try {
-        const updated = await patchTaskEpicColor(task.id, epicColor);
+        const updated = await patchTaskEpic(task.id, selection);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
       } catch {
         void refresh();
@@ -462,6 +475,7 @@ export function TaskBoardPage(): JSX.Element {
               dropHighlight={dropDay === d.key && draggingId !== null}
               dropInsertBeforeId={dropDay === d.key ? dropInsertBeforeId : null}
               detailTaskId={detailTaskId}
+              epics={epics}
               settings={trackerSettings}
               editRequest={editRequest}
               durationTasks={columnDurationTasks(d.key)}
@@ -474,7 +488,7 @@ export function TaskBoardPage(): JSX.Element {
               onTitleChange={(task, title) => void handleTitleChange(task, title)}
               onOpenDetail={handleOpenDetail}
               onCloseDetail={handleCloseDetail}
-              onEpicColorChange={(task, color) => void handleEpicColorChange(task, color)}
+              onEpicChange={(task, selection) => void handleEpicChange(task, selection)}
               onCreateConference={handleCreateConference}
               onClearConference={(task) => void handleClearConference(task)}
               onPointerDragStart={onPointerDragStart}
@@ -486,6 +500,7 @@ export function TaskBoardPage(): JSX.Element {
       <DayTimeline
         date={selectedDate}
         tasks={tasks}
+        epics={epics}
         onReschedule={(task, start) => void handleReschedule(task, start)}
       />
 

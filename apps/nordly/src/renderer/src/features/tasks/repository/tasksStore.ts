@@ -15,19 +15,21 @@ export interface StoredTask extends TaskCard {
   deleted?: boolean;
 }
 
-/** Fields stored on-device only — never overwritten by tracker pull/push responses. */
-export type LocalOnlyTaskField = 'order' | 'epicColor';
+/** Device-only fields preserved when merging a newer remote task row. */
+export type LocalOnlyTaskField = 'order' | 'epicColor' | 'epicId';
 
 function rowFrom(userId: string, task: TaskCard, deleted = false): StoredTask {
   return { ...task, userId, key: entityKey(task.id, userId), deleted };
 }
 
-/** Keep manual column order and epic tint when applying a remote task snapshot. */
+/** Keep column order and pending epic assignment when applying a remote snapshot. */
 export function preserveLocalOnlyTaskFields(local: TaskCard, remote: TaskCard): TaskCard {
+  const epicId = remote.epicId ?? local.epicId;
   return {
     ...remote,
     order: local.order ?? remote.order,
-    epicColor: local.epicColor ?? remote.epicColor,
+    epicId,
+    epicColor: epicId ? undefined : local.epicColor,
   };
 }
 

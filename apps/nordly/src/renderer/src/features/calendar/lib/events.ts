@@ -17,7 +17,6 @@ import {
   taskScheduleStart,
   toDayKey,
 } from '@pages/TaskBoard/lib/dates';
-import { taskEpicColor } from '@features/tasks/lib/epicColor';
 
 export type CalendarEntrySource = 'task' | 'google';
 
@@ -30,7 +29,8 @@ export interface CalendarEntry {
   allDay: boolean;
   taskId?: string;
   taskStatus?: TaskCard['status'];
-  /** Local epic tint copied from task — calendar UI only. */
+  epicId?: string;
+  /** Resolved display tint — epicId lookup or offline epicColor. */
   epicColor?: string;
   googleEventId?: string;
   googleCalendarId?: string;
@@ -84,7 +84,8 @@ function taskEntry(task: TaskCard, start: Date): CalendarEntry {
     allDay: false,
     taskId: task.id,
     taskStatus: task.status,
-    epicColor: taskEpicColor(task) ?? undefined,
+    epicId: task.epicId,
+    epicColor: task.epicColor,
     googleEventId: task.googleEventId,
   };
 }

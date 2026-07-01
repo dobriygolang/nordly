@@ -3,8 +3,10 @@ import { apiFetch } from '@shared/api/http';
 import { useSessionStore } from '@shared/model/session';
 
 import type { TaskCard, TaskKind, TaskStatus, ConferenceProvider } from '../api/tasks';
+import type { TaskEpic } from '../api/epics';
 
 const BASE = `${API_BASE_URL}/v1/tracker/work/tasks`;
+const EPICS_BASE = `${API_BASE_URL}/v1/tracker/work/epics`;
 
 function authHeaders(): Record<string, string> {
   const token = useSessionStore.getState().accessToken ?? DEV_BEARER_TOKEN;
@@ -50,6 +52,7 @@ function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
     scheduledStart: pickTs(raw, 'scheduledStart', 'scheduled_start'),
     scheduledDurationMin: pickNum(raw, 'scheduledDurationMin', 'scheduled_duration_min'),
     googleEventId: pickStr(raw, 'googleEventId', 'google_event_id') || undefined,
+    epicId: pickStr(raw, 'epicId', 'epic_id') || undefined,
     conferenceUrl: pickStr(raw, 'conferenceUrl', 'conference_url') || undefined,
     conferenceProvider: (pickStr(raw, 'conferenceProvider', 'conference_provider') ||
       undefined) as TaskCard['conferenceProvider'],
@@ -131,9 +134,11 @@ export async function remoteUnscheduleTask(taskId: string): Promise<TaskCard> {
 
 export async function remotePatchTask(
   taskId: string,
-  patch: { clearConference?: boolean },
+  patch: { epicId?: string; clearEpic?: boolean; clearConference?: boolean },
 ): Promise<TaskCard> {
   const body: Record<string, unknown> = { id: taskId };
+  if (patch.clearEpic) body.clear_epic = true;
+  else if (patch.epicId) body.epic_id = patch.epicId;
   if (patch.clearConference) body.clear_conference = true;
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
@@ -162,4 +167,15 @@ export async function remoteCreateTaskConference(
     throw new Error(`createTaskConference: ${resp.status}`);
   }
   return unwrapTaskResponse(await resp.json());
+}
+
+export async function remoteListEpics(): Promise<TaskEpic[]> {
+  const resp = await apiFetch(EPICS_BASE, { headers: authHeaders() });
+  if (!resp.ok) throw new Error(`listEpics: ${resp.status}`);
+  const j = (await resp.json()) as { epics?: Record<string, unknown>[] };
+  return (j.epics ?? []).map((raw) => ({
+    id: pickStr(raw, 'id', 'id'),
+    name: pickStr(raw, 'name', 'name'),
+    color: pickStr(raw, 'color', 'color'),
+  }));
 }

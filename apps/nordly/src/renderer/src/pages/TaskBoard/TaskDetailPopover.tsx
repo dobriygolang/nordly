@@ -2,21 +2,24 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import type { TaskCard, ConferenceProvider } from '@features/tasks/api/tasks';
+import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
+import type { TaskEpic } from '@features/tasks/api/epics';
+import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { LOCAL_ONLY } from '@app/config/features';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
 import {
   conferenceDisplay,
   conferenceProvider,
-  TASK_EPIC_PALETTE,
 } from './lib/taskUi';
 
 interface TaskDetailPopoverProps {
   task: TaskCard;
+  epics: TaskEpic[];
   settings: TrackerSettings | null;
   anchorRef: RefObject<HTMLElement | null>;
   closing?: boolean;
-  onEpicColorChange: (color: string | null) => void;
+  onEpicChange: (selection: TaskEpicSelection) => void;
   onCreateConference: (provider: ConferenceProvider) => Promise<void>;
   onClearConference: () => void;
   onClose: () => void;
@@ -25,10 +28,11 @@ interface TaskDetailPopoverProps {
 /** Compact row-attached popover — epic + meeting integrations. */
 export function TaskDetailPopover({
   task,
+  epics,
   settings,
   anchorRef,
   closing = false,
-  onEpicColorChange,
+  onEpicChange,
   onCreateConference,
   onClearConference,
   onClose,
@@ -91,6 +95,19 @@ export function TaskDetailPopover({
     }
   };
 
+  const handleEpicPick = (epic: TaskEpic): void => {
+    const active = isEpicActive(task, epic);
+    if (active) {
+      onEpicChange(null);
+      return;
+    }
+    if (isOfflineEpicId(epic.id)) {
+      onEpicChange({ color: epic.color });
+      return;
+    }
+    onEpicChange({ epicId: epic.id });
+  };
+
   return (
     <div
       ref={rootRef}
@@ -106,24 +123,25 @@ export function TaskDetailPopover({
           <button
             type="button"
             role="option"
-            aria-selected={!task.epicColor}
+            aria-selected={!taskHasEpic(task)}
             title={t('nordly.taskboard.detail_epic_none')}
-            className={`nordly-task-detail-pop__epic-dot-btn${!task.epicColor ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
-            onClick={() => onEpicColorChange(null)}
+            className={`nordly-task-detail-pop__epic-dot-btn${!taskHasEpic(task) ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
+            onClick={() => onEpicChange(null)}
           >
             <span className="nordly-task-detail-pop__epic-dot nordly-task-detail-pop__epic-dot--none" />
           </button>
-          {TASK_EPIC_PALETTE.map((color) => {
-            const active = task.epicColor === color;
+          {epics.map((epic) => {
+            const active = isEpicActive(task, epic);
             return (
               <button
-                key={color}
+                key={epic.id}
                 type="button"
                 role="option"
                 aria-selected={active}
+                title={epic.name || epic.color}
                 className={`nordly-task-detail-pop__epic-dot-btn${active ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
-                style={{ '--epic-color': color } as React.CSSProperties}
-                onClick={() => onEpicColorChange(active ? null : color)}
+                style={{ '--epic-color': epic.color } as React.CSSProperties}
+                onClick={() => handleEpicPick(epic)}
               >
                 <span className="nordly-task-detail-pop__epic-dot" aria-hidden />
               </button>

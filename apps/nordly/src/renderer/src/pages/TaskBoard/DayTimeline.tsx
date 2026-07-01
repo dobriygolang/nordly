@@ -12,6 +12,7 @@ import {
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
 import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskEpic } from '@features/tasks/api/epics';
 import { LOCAL_ONLY } from '@app/config/features';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
 import {
@@ -22,7 +23,7 @@ import {
   startOfLocalDay,
   toDayKey,
 } from './lib/dates';
-import { epicTimelineSurfaceStyle, taskEpicColor } from './lib/taskUi';
+import { epicTimelineSurfaceStyle, resolveTaskEpicColor } from './lib/taskUi';
 
 const HOUR_START = 6;
 const HOUR_END = 23;
@@ -35,6 +36,7 @@ const GRID_PAD_BOTTOM = 24;
 interface DayTimelineProps {
   date: Date;
   tasks: TaskCard[];
+  epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
 }
 
@@ -42,7 +44,7 @@ function hourLabel(h: number, locale: 'en' | 'ru'): string {
   return formatTimeShort(new Date(2000, 0, 1, h, 0), locale);
 }
 
-export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
+export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelineProps) {
   const t = useT();
   const [locale] = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -262,7 +264,7 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
             const top = Math.max(minTop, Math.min(isDragging ? dragTop : baseTop, maxTop));
             const done = task.status === 'done';
             const canDrag = Boolean(onReschedule);
-            const epicColor = taskEpicColor(task);
+            const epicColor = resolveTaskEpicColor(task, epics);
             const epicSurface = epicColor
               ? epicTimelineSurfaceStyle(epicColor, { done, dragging: isDragging })
               : null;

@@ -30,6 +30,9 @@ export interface CalendarEntry {
   taskId?: string;
   taskStatus?: TaskCard['status'];
   googleEventId?: string;
+  googleCalendarId?: string;
+  googleEditable?: boolean;
+  googleHtmlLink?: string;
 }
 
 export const CALENDAR_GRID_START_HOUR = 6;
@@ -166,6 +169,9 @@ export function googleToCalendarEntries(
       end: Number.isNaN(end.getTime()) ? new Date(start.getTime() + 60 * 60_000) : end,
       allDay: ev.allDay,
       googleEventId: ev.id,
+      googleCalendarId: ev.calendarId,
+      googleEditable: ev.editable,
+      googleHtmlLink: ev.htmlLink,
     });
   }
   return out;

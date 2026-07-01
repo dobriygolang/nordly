@@ -235,10 +235,7 @@ func calendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEven
 	if title == "" {
 		title = "(No title)"
 	}
-	editable := true
-	if item.Organizer != nil && !item.Organizer.Self && !item.GuestsCanModify {
-		editable = false
-	}
+	editable := item.Organizer == nil || item.Organizer.Self || item.GuestsCanModify
 	base := CalendarEvent{
 		ID:         item.Id,
 		CalendarID: calendarID,

@@ -26,15 +26,21 @@ import {
   mergePersistedAppState,
   sanitizeAppStateForPersistence,
 } from '@shared/lib/excalidraw/excalidrawPersist';
+import {
+  elementsForBoardTheme,
+  elementsToCanonicalStorage,
+} from '@shared/lib/excalidraw/excalidrawBoardColors';
 
 const SAVE_DEBOUNCE_MS = 1500;
 
 type ExcalidrawApi = {
   updateScene: (scene: {
+    elements?: readonly unknown[];
     appState?: Record<string, unknown>;
     captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction];
   }) => void;
   getAppState: () => { viewBackgroundColor?: string; isLoading?: boolean };
+  getSceneElements: () => readonly unknown[];
 };
 
 export type BoardCanvasHandle = {
@@ -54,8 +60,12 @@ interface BoardCanvasProps {
 
 function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
   const parsed = parseSceneJson(sceneJson);
+  const rawElements = parsed?.elements ?? [];
   return {
-    elements: parsed?.elements ?? [],
+    elements: elementsForBoardTheme(
+      rawElements as Parameters<typeof elementsForBoardTheme>[0],
+      boardTheme,
+    ),
     files: parsed?.files ?? {},
     appState: mergePersistedAppState(
       nordlyExcalidrawInitialAppState(boardTheme),
@@ -76,6 +86,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawApi | null>(null);
   const onSavedRef = useRef(onSaved);
   const onSaveErrorRef = useRef(onSaveError);
+  const boardThemeRef = useRef(boardTheme);
+  boardThemeRef.current = boardTheme;
   onSavedRef.current = onSaved;
   onSaveErrorRef.current = onSaveError;
 
@@ -121,8 +133,18 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   );
 
   const applyCanvasBackground = useCallback(
-    (api: ExcalidrawApi, theme: BoardCanvasTheme) => {
+    (api: ExcalidrawApi, theme: BoardCanvasTheme, prevTheme: BoardCanvasTheme | null) => {
+      let elements: unknown[] | undefined;
+      if (prevTheme !== null && prevTheme !== theme) {
+        const canonical = elementsToCanonicalStorage(
+          api.getSceneElements() as Parameters<typeof elementsToCanonicalStorage>[0],
+          prevTheme,
+        );
+        elements = elementsForBoardTheme(canonical, theme);
+      }
+
       api.updateScene({
+        elements,
         appState: nordlyExcalidrawCanvasPatch(theme),
         captureUpdate: CaptureUpdateAction.NEVER,
       });
@@ -130,9 +152,12 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     [],
   );
 
+  const prevBoardThemeRef = useRef<BoardCanvasTheme | null>(null);
+
   useEffect(() => {
     skipSaveRef.current = true;
     setExcalidrawApi(null);
+    prevBoardThemeRef.current = null;
     sceneRef.current = {
       elements: initialData.elements,
       files: initialData.files,
@@ -154,7 +179,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     let cancelled = false;
     const patch = () => {
       if (cancelled) return;
-      applyCanvasBackground(excalidrawApi, boardTheme);
+      applyCanvasBackground(excalidrawApi, boardTheme, prevBoardThemeRef.current);
+      prevBoardThemeRef.current = boardTheme;
     };
 
     patch();
@@ -186,7 +212,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         boardTheme,
       ) ?? nordlyExcalidrawInitialAppState(boardTheme);
       sceneRef.current = {
-        elements: [...elements],
+        elements: elementsToCanonicalStorage(
+          elements as Parameters<typeof elementsToCanonicalStorage>[0],
+          boardThemeRef.current,
+        ),
         files: (files as Record<string, unknown>) ?? {},
         appState: appStateRef.current,
       };

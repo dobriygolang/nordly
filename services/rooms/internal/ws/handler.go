@@ -152,6 +152,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		payload, _ := json.Marshal(opPayload{Payload: snap})
 		env, _ := json.Marshal(Envelope{Kind: KindSnapshot, Data: payload})
 		c.enqueue(env)
+	} else {
+		h.Hub.replayOpsToClient(roomID, c)
 	}
 
 	h.Hub.readLoop(r.Context(), c)

@@ -17,6 +17,32 @@
   to   { opacity: 1; }
 }
 
+/*
+ * Entrance presets used for on-mount animations (modals, popovers, page
+ * layers). Kept fill-less on purpose: after the animation ends the element
+ * falls back to its base CSS state so the separate `[data-closing]` transition
+ * can drive the exit without a fighting `forwards` fill.
+ */
+@keyframes nordly-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes nordly-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes nordly-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nordly-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .motion-page-in {
   animation: motion-page-in var(--motion-dur-large) var(--motion-ease-interactive) both;
 }

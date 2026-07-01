@@ -5,6 +5,7 @@ import { getBillingPlans } from '@/lib/api/billing'
 import { useBillingLabels } from '@/lib/billingLabels'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { PageContent } from '@/components/PageContent'
+import { Reveal, RevealItem } from '@/components/motion/Reveal'
 import { formatApiError } from '@/lib/apiClient'
 import { useI18n } from '@/lib/i18n'
 
@@ -22,24 +23,27 @@ export default function PricingPage() {
 
   return (
     <PageContent>
-        <header className="text-center">
+      <Reveal className="flex flex-col gap-6">
+        <RevealItem as="header" className="text-center">
           <Eyebrow className="text-site-muted">{t('pricing.eyebrow')}</Eyebrow>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-site-text sm:text-4xl">
             {t('pricing.title')}
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-site-muted">{t('pricing.subtitle')}</p>
-        </header>
+        </RevealItem>
 
         {plansQ.isError ? (
-          <ErrorMessage message={formatApiError(plansQ.error)} onRetry={() => void plansQ.refetch()} />
+          <RevealItem>
+            <ErrorMessage message={formatApiError(plansQ.error)} onRetry={() => void plansQ.refetch()} />
+          </RevealItem>
         ) : null}
 
         {plansQ.isLoading ? (
-          <div className="h-64 animate-pulse rounded-2xl border border-site-border bg-site-surface" />
+          <RevealItem className="h-64 animate-pulse rounded-2xl border border-site-border bg-site-surface" />
         ) : null}
 
         {!plansQ.isLoading && plans.length > 0 ? (
-          <div className="overflow-x-auto rounded-2xl border border-site-border bg-site-card">
+          <RevealItem className="overflow-x-auto rounded-2xl border border-site-border bg-site-card">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-site-border">
@@ -69,10 +73,13 @@ export default function PricingPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </RevealItem>
         ) : null}
 
-        <p className="text-center text-sm text-site-muted">{t('pricing.desktopNote')}</p>
-      </PageContent>
+        <RevealItem as="div">
+          <p className="text-center text-sm text-site-muted">{t('pricing.desktopNote')}</p>
+        </RevealItem>
+      </Reveal>
+    </PageContent>
   )
 }

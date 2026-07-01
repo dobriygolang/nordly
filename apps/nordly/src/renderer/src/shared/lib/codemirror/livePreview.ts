@@ -15,16 +15,23 @@ function rangeTouches(from: number, to: number, start: number, end: number): boo
   return from < end && to > start;
 }
 
-/** Raw markdown syntax is visible only while the caret or a selection is on this line. */
-function showLineSyntax(state: EditorState, line: { from: number; to: number }): boolean {
+/** Raw markdown syntax is visible only while the caret touches that token range. */
+function showRangeSyntax(state: EditorState, from: number, to: number): boolean {
   for (const range of state.selection.ranges) {
-    if (range.head >= line.from && range.head <= line.to) return true;
-    if (range.from !== range.to && rangeTouches(range.from, range.to, line.from, line.to)) {
+    if (range.head >= from && range.head <= to) return true;
+    if (range.from !== range.to && rangeTouches(range.from, range.to, from, to)) {
       return true;
     }
   }
   return false;
 }
+
+/** Block widgets (HR) — reveal source for the whole line while the caret is on it. */
+function showLineSyntax(state: EditorState, line: { from: number; to: number }): boolean {
+  return showRangeSyntax(state, line.from, line.to);
+}
+
+const SYNTAX_HIDDEN = 'nordly-md-syntax-hidden';
 
 class HiddenWidget extends WidgetType {
   toDOM(): HTMLElement {
@@ -137,9 +144,9 @@ function overlapsRange(ranges: [number, number][], start: number, end: number): 
 
 function applyDelimitedInline(
   builder: RangeSetBuilder<Decoration>,
+  state: EditorState,
   lineFrom: number,
   text: string,
-  showSyntax: boolean,
   re: RegExp,
   className: string,
   open: number,
@@ -156,12 +163,13 @@ function applyDelimitedInline(
       const end = lineFrom + relEnd;
       const contentStart = start + open;
       const contentEnd = end - close;
+      const showSyntax = showRangeSyntax(state, start, end);
       if (showSyntax) {
         addMark(builder, contentStart, contentEnd, { class: className });
       } else {
-        if (open > 0) builder.add(start, start + open, Decoration.replace({ widget: hidden }));
+        if (open > 0) addMark(builder, start, start + open, { class: SYNTAX_HIDDEN });
         addMark(builder, contentStart, contentEnd, { class: className });
-        if (close > 0) builder.add(end - close, end, Decoration.replace({ widget: hidden }));
+        if (close > 0) addMark(builder, end - close, end, { class: SYNTAX_HIDDEN });
       }
       occupied.push([relStart, relEnd]);
     }
@@ -171,9 +179,9 @@ function applyDelimitedInline(
 
 function applyLinkInline(
   builder: RangeSetBuilder<Decoration>,
+  state: EditorState,
   lineFrom: number,
   text: string,
-  showSyntax: boolean,
   occupied: [number, number][],
 ): void {
   const re = /\[([^\]]+)\]\(([^)\s]+)\)/g;
@@ -187,12 +195,13 @@ function applyLinkInline(
       const end = lineFrom + relEnd;
       const contentStart = start + 1;
       const contentEnd = contentStart + labelLen;
+      const showSyntax = showRangeSyntax(state, start, end);
       if (showSyntax) {
         addMark(builder, contentStart, contentEnd, { class: 'nordly-md-link' });
       } else {
-        builder.add(start, start + 1, Decoration.replace({ widget: hidden }));
+        addMark(builder, start, start + 1, { class: SYNTAX_HIDDEN });
         addMark(builder, contentStart, contentEnd, { class: 'nordly-md-link' });
-        builder.add(contentEnd, end, Decoration.replace({ widget: hidden }));
+        addMark(builder, contentEnd, end, { class: SYNTAX_HIDDEN });
       }
       occupied.push([relStart, relEnd]);
     }
@@ -202,19 +211,19 @@ function applyLinkInline(
 
 function decorateInlines(
   builder: RangeSetBuilder<Decoration>,
+  state: EditorState,
   lineFrom: number,
   text: string,
-  showSyntax: boolean,
 ): void {
   const occupied: [number, number][] = [];
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
-  applyLinkInline(builder, lineFrom, text, showSyntax, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /\*\*([^*\n]+)\*\*/g, 'nordly-md-bold', 2, 2, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /__([^_\n]+)__/g, 'nordly-md-bold', 2, 2, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /~~([^~\n]+)~~/g, 'nordly-md-strike', 2, 2, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /==([^=\n]+)==/g, 'nordly-md-highlight', 2, 2, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /\*([^*\n]+)\*/g, 'nordly-md-italic', 1, 1, occupied);
-  applyDelimitedInline(builder, lineFrom, text, showSyntax, /_([^_\n]+)_/g, 'nordly-md-italic', 1, 1, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
+  applyLinkInline(builder, state, lineFrom, text, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /\*\*([^*\n]+)\*\*/g, 'nordly-md-bold', 2, 2, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /__([^_\n]+)__/g, 'nordly-md-bold', 2, 2, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /~~([^~\n]+)~~/g, 'nordly-md-strike', 2, 2, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /==([^=\n]+)==/g, 'nordly-md-highlight', 2, 2, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /\*([^*\n]+)\*/g, 'nordly-md-italic', 1, 1, occupied);
+  applyDelimitedInline(builder, state, lineFrom, text, /_([^_\n]+)_/g, 'nordly-md-italic', 1, 1, occupied);
 }
 
 function lineInFencedCode(state: EditorState, line: { from: number; to: number }): boolean {
@@ -246,21 +255,22 @@ function buildCodeBlockDecorations(state: EditorState): DecorationSet {
         const isOpenFence = lineNum === openLine.number;
         const isCloseFence = lineNum === closeLine.number;
 
-        decorations.push(Decoration.line({ class: 'nordly-md-code-block' }).range(line.from));
+        const lineClass =
+          isOpenFence && !showFence && langLabel
+            ? 'nordly-md-code-block nordly-md-code-block--lang'
+            : 'nordly-md-code-block';
+        decorations.push(Decoration.line({ class: lineClass }).range(line.from));
 
         if (isOpenFence || isCloseFence) {
           if (showFence) {
             pushMark(decorations, line.from, line.to, { class: 'nordly-md-code-block__fence' });
           } else if (isOpenFence && langLabel) {
+            pushMark(decorations, line.from, line.to, { class: SYNTAX_HIDDEN });
             decorations.push(
-              Decoration.replace({
-                widget: new CodeLangBadgeWidget(langLabel),
-                block: true,
-                inclusiveEnd: true,
-              }).range(line.from, line.to),
+              Decoration.widget({ widget: new CodeLangBadgeWidget(langLabel), side: 1 }).range(line.to),
             );
           } else if (line.from < line.to) {
-            decorations.push(Decoration.replace({ widget: hidden }).range(line.from, line.to));
+            pushMark(decorations, line.from, line.to, { class: SYNTAX_HIDDEN });
           }
         }
       }
@@ -268,6 +278,21 @@ function buildCodeBlockDecorations(state: EditorState): DecorationSet {
   });
 
   return Decoration.set(decorations.sort((a, b) => a.from - b.from), true);
+}
+
+function isAtomicDecoration(deco: Decoration): boolean {
+  if (deco.spec.class === SYNTAX_HIDDEN) return true;
+  if (!deco.spec.replace) return false;
+  const widget = deco.spec.widget;
+  return widget instanceof HiddenWidget || widget instanceof BulletWidget || widget instanceof CheckboxWidget;
+}
+
+function atomicRangesFromSet(deco: DecorationSet, docLength: number): DecorationSet {
+  const ranges: Range<Decoration>[] = [];
+  deco.between(0, docLength, (from, to, d) => {
+    if (isAtomicDecoration(d)) ranges.push(Decoration.mark({}).range(from, to));
+  });
+  return Decoration.set(ranges, true);
 }
 
 export const codeBlockField = StateField.define<DecorationSet>({
@@ -280,40 +305,43 @@ export const codeBlockField = StateField.define<DecorationSet>({
     }
     return deco;
   },
-  provide: (field) => EditorView.decorations.from(field),
+  provide: (field) => [
+    EditorView.decorations.from(field),
+    EditorView.atomicRanges.of((view) => atomicRangesFromSet(view.state.field(field), view.state.doc.length)),
+  ],
 });
 
-function buildLivePreview(view: EditorView): DecorationSet {
+function buildLivePreview(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const doc = view.state.doc;
+  const doc = state.doc;
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const text = line.text;
-    const showSyntax = showLineSyntax(view.state, line);
 
-    if (lineInFencedCode(view.state, line)) continue;
+    if (lineInFencedCode(state, line)) continue;
 
     // Heading — style the whole line (including `#`); hide markers only off-line.
     const heading = /^(#{1,6})(\s*)(.*)$/.exec(text);
     if (heading) {
       const level = heading[1].length;
       const prefixEnd = line.from + heading[1].length + heading[2].length;
-      if (showSyntax) {
+      const showPrefix = showRangeSyntax(state, line.from, prefixEnd);
+      if (showPrefix) {
         addMark(builder, line.from, line.to, { class: `nordly-md-h${level}` });
       } else {
         if (prefixEnd > line.from) {
-          builder.add(line.from, prefixEnd, Decoration.replace({ widget: hidden }));
+          addMark(builder, line.from, prefixEnd, { class: SYNTAX_HIDDEN });
         }
         addMark(builder, prefixEnd, line.to, { class: `nordly-md-h${level}` });
       }
-      decorateInlines(builder, line.from, text, showSyntax);
+      decorateInlines(builder, state, line.from, text);
       continue;
     }
 
     // Horizontal rule — rendered preview unless line is active.
     if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(text)) {
-      if (!showSyntax) {
+      if (!showLineSyntax(state, line)) {
         builder.add(line.from, line.to, Decoration.replace({ widget: new HrWidget(), block: true }));
       }
       continue;
@@ -326,11 +354,12 @@ function buildLivePreview(view: EditorView): DecorationSet {
       const listMarkerLen = todo[2].length;
       const checkboxFrom = line.from + indentLen + listMarkerLen;
       const markerFrom = line.from + indentLen;
-      const markerTo = checkboxFrom;
+      const markerTo = checkboxFrom + 3;
+      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
 
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      if (!showSyntax) {
-        builder.add(markerFrom, markerTo, Decoration.replace({ widget: hidden }));
+      if (!showMarker) {
+        builder.add(markerFrom, checkboxFrom, Decoration.replace({ widget: hidden }));
         builder.add(
           checkboxFrom,
           checkboxFrom + 3,
@@ -340,7 +369,7 @@ function buildLivePreview(view: EditorView): DecorationSet {
           }),
         );
       }
-      decorateInlines(builder, line.from, text, showSyntax);
+      decorateInlines(builder, state, line.from, text);
       continue;
     }
 
@@ -349,11 +378,12 @@ function buildLivePreview(view: EditorView): DecorationSet {
     if (bullet) {
       const markerFrom = line.from + bullet[1].length;
       const markerTo = markerFrom + bullet[2].length + bullet[3].length;
+      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      if (!showSyntax) {
+      if (!showMarker) {
         builder.add(markerFrom, markerTo, Decoration.replace({ widget: new BulletWidget(), side: 1 }));
       }
-      decorateInlines(builder, line.from, text, showSyntax);
+      decorateInlines(builder, state, line.from, text);
       continue;
     }
 
@@ -362,26 +392,32 @@ function buildLivePreview(view: EditorView): DecorationSet {
     if (ordered) {
       const numFrom = line.from + ordered[1].length;
       const numTo = numFrom + ordered[2].length;
+      const showMarker = showRangeSyntax(state, numFrom, numTo);
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      addMark(builder, numFrom, numTo, { class: 'nordly-md-list-num' });
-      decorateInlines(builder, line.from, text, showSyntax);
+      if (showMarker) {
+        addMark(builder, numFrom, numTo, { class: 'nordly-md-list-num' });
+      } else {
+        addMark(builder, numFrom, numTo, { class: SYNTAX_HIDDEN });
+      }
+      decorateInlines(builder, state, line.from, text);
       continue;
     }
 
-    // Blockquote — hide `> ` when line inactive; always style line.
+    // Blockquote — hide `> ` when marker inactive; always style line.
     const quote = /^(\s*)(>\s+)(.*)$/.exec(text);
     if (quote) {
       const markerFrom = line.from + quote[1].length;
       const markerTo = markerFrom + quote[2].length;
+      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
       builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-quote' }));
-      if (!showSyntax) {
-        builder.add(markerFrom, markerTo, Decoration.replace({ widget: hidden }));
+      if (!showMarker) {
+        addMark(builder, markerFrom, markerTo, { class: SYNTAX_HIDDEN });
       }
-      decorateInlines(builder, line.from, text, showSyntax);
+      decorateInlines(builder, state, line.from, text);
       continue;
     }
 
-    decorateInlines(builder, line.from, text, showSyntax);
+    decorateInlines(builder, state, line.from, text);
   }
 
   return builder.finish();
@@ -392,16 +428,23 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
     decorations: DecorationSet;
 
     constructor(view: EditorView) {
-      this.decorations = buildLivePreview(view);
+      this.decorations = buildLivePreview(view.state);
     }
 
     update(update: ViewUpdate): void {
       if (update.docChanged || update.selectionSet || update.viewportChanged) {
-        this.decorations = buildLivePreview(update.view);
+        this.decorations = buildLivePreview(update.state);
       }
     }
   },
-  { decorations: (v) => v.decorations },
+  {
+    decorations: (v) => v.decorations,
+    provide: (plugin) =>
+      EditorView.atomicRanges.of((view) => {
+        const set = view.plugin(plugin)?.decorations ?? Decoration.none;
+        return atomicRangesFromSet(set, view.state.doc.length);
+      }),
+  },
 );
 
 export const notesEditorTheme = EditorView.theme({

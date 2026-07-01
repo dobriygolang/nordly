@@ -244,6 +244,40 @@ func (h *Hub) SnapshotOf(roomID uuid.UUID) []byte {
 	return out
 }
 
+// replayOpsToClient sends buffered Yjs ops to a newly connected client when no snapshot exists yet.
+func (h *Hub) replayOpsToClient(roomID uuid.UUID, c *wsConn) {
+	h.mu.RLock()
+	rh := h.rooms[roomID]
+	h.mu.RUnlock()
+	if rh == nil {
+		return
+	}
+	rh.mu.RLock()
+	defer rh.mu.RUnlock()
+	if rh.bufLen == 0 {
+		return
+	}
+	start := (rh.bufHead - rh.bufLen + replayBufferCap) % replayBufferCap
+	for i := 0; i < rh.bufLen; i++ {
+		idx := (start + i) % replayBufferCap
+		entry := rh.buffer[idx]
+		if entry.Kind != KindOp || len(entry.Payload) == 0 {
+			continue
+		}
+		data, err := json.Marshal(map[string]any{
+			"seq": entry.Seq, "user_id": entry.UserID, "payload": entry.Payload,
+		})
+		if err != nil {
+			continue
+		}
+		env, err := json.Marshal(Envelope{Kind: KindOp, Data: data})
+		if err != nil {
+			continue
+		}
+		c.enqueue(env)
+	}
+}
+
 func (h *Hub) CloseAll() {
 	h.mu.RLock()
 	rooms := make([]*roomHub, 0, len(h.rooms))
@@ -416,7 +450,9 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 			}
 			rh := h.room(c.roomID)
 			rh.mu.Lock()
-			rh.lastSnapshot = p.Payload
+			if len(rh.lastSnapshot) == 0 || len(p.Payload) >= len(rh.lastSnapshot) {
+				rh.lastSnapshot = p.Payload
+			}
 			rh.mu.Unlock()
 		}
 	}

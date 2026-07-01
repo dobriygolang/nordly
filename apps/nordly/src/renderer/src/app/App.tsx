@@ -27,6 +27,7 @@ import { applyTheme } from '@shared/lib/applyTheme';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { useSessionStore } from '@shared/model/session';
 import { PageStack } from '@shared/ui/PageStack';
+import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
 import { LOCAL_ONLY } from '@app/config/features';
 import { migrateLocalStorageIfNeeded } from '@shared/sync/migrateLocalStorage';
@@ -44,8 +45,8 @@ const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
 );
 
-/** Must match palette close transition in globals.css (`--motion-dur-small`). */
-const PALETTE_CLOSE_MS = 220;
+/** Must match palette close transition in globals.css (`--motion-dur-medium`). */
+const PALETTE_CLOSE_MS = 320;
 
 function preloadPalettePages(): void {
   void import('@pages/TaskBoard');
@@ -431,62 +432,68 @@ export default function App() {
     [theme, boardCanvas],
   );
 
-  if (status === 'unknown') {
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', color: 'var(--ink-40)', display: 'grid', placeItems: 'center', fontSize: 13 }}>
-        {translate('nordly.app.loading')}
-      </div>
-    );
-  }
-
-  if (status === 'guest') {
-    return (
-      <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: 'var(--bg)' }}>
-        <TitlebarDrag />
-        <CanvasBg mode="full" theme={theme} />
-        <div style={{ position: 'relative', zIndex: 2, height: '100%' }}>
-          <LoginScreen />
+  const renderScreen = (screenId: string): JSX.Element => {
+    if (screenId === 'loading') {
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', color: 'var(--ink-40)', display: 'grid', placeItems: 'center', fontSize: 13 }}>
+          {translate('nordly.app.loading')}
         </div>
+      );
+    }
+
+    if (screenId === 'guest') {
+      return (
+        <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: 'var(--bg)' }}>
+          <TitlebarDrag />
+          <CanvasBg mode="full" theme={theme} />
+          <div style={{ position: 'relative', zIndex: 2, height: '100%' }}>
+            <LoginScreen />
+          </div>
+        </div>
+      );
+    }
+
+    const signedInShell = (
+      <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
+        <div className="nordly-canvas-shell" data-visible={page === 'home' ? 'true' : 'false'}>
+          <CanvasBg mode={page === 'home' ? 'full' : 'void'} theme={theme} />
+        </div>
+
+        <TitlebarDrag />
+
+        <TrafficLightsHover />
+        <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>
+          <Wordmark />
+          <AppVersionBadge />
+        </div>
+
+        <PageStack page={page}>{renderPage}</PageStack>
+
+        {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
+        <AnimatedCalendarOverlay open={calendarOpen} onClose={closeCalendar} />
+
+        <PomodoroController />
+
+        <Dock onMenu={() => openPalette()} />
+
+        {paletteMounted && (
+          <Suspense fallback={null}>
+            <Palette
+              onClose={closePalette}
+              onOpen={handlePaletteSelect}
+              taskDate={paletteTaskDate}
+              onCreateTask={handlePaletteCreateTask}
+              closing={paletteClosing}
+            />
+          </Suspense>
+        )}
       </div>
     );
-  }
 
-  const signedInShell = (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
-      <div className="nordly-canvas-shell" data-visible={page === 'home' ? 'true' : 'false'}>
-        <CanvasBg mode={page === 'home' ? 'full' : 'void'} theme={theme} />
-      </div>
+    return vaultGateActive ? <VaultUnlockGate>{signedInShell}</VaultUnlockGate> : signedInShell;
+  };
 
-      <TitlebarDrag />
+  const screen = status === 'unknown' ? 'loading' : status === 'guest' ? 'guest' : 'app';
 
-      <TrafficLightsHover />
-      <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>
-        <Wordmark />
-        <AppVersionBadge />
-      </div>
-
-      <PageStack page={page}>{renderPage}</PageStack>
-
-      {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
-      <AnimatedCalendarOverlay open={calendarOpen} onClose={closeCalendar} />
-
-      <PomodoroController />
-
-      <Dock onMenu={() => openPalette()} />
-
-      {paletteMounted && (
-        <Suspense fallback={null}>
-          <Palette
-            onClose={closePalette}
-            onOpen={handlePaletteSelect}
-            taskDate={paletteTaskDate}
-            onCreateTask={handlePaletteCreateTask}
-            closing={paletteClosing}
-          />
-        </Suspense>
-      )}
-    </div>
-  );
-
-  return vaultGateActive ? <VaultUnlockGate>{signedInShell}</VaultUnlockGate> : signedInShell;
+  return <ScreenFade screen={screen}>{renderScreen}</ScreenFade>;
 }

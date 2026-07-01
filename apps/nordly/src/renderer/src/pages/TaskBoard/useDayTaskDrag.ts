@@ -30,11 +30,28 @@ function createGhost(fromEl: HTMLElement): HTMLElement {
   ghost.style.zIndex = '9999';
   ghost.style.pointerEvents = 'none';
   ghost.style.width = `${fromEl.offsetWidth}px`;
-  ghost.style.opacity = '0.88';
+  ghost.style.opacity = '0.92';
   ghost.style.background = 'rgb(22 22 22 / 0.96)';
   ghost.style.borderRadius = '12px';
+  ghost.style.boxShadow = '0 16px 40px -10px rgb(0 0 0 / 0.5)';
+  ghost.style.transformOrigin = 'center';
+  ghost.style.willChange = 'transform';
+  // Tactile pickup: start slightly shrunk, then lift + tilt on the next frame.
+  ghost.style.transform = 'scale(0.97)';
+  ghost.style.transition = 'transform 150ms cubic-bezier(0.2, 0.7, 0.2, 1)';
   document.body.appendChild(ghost);
+  requestAnimationFrame(() => {
+    ghost.style.transform = 'scale(1.03) rotate(1.5deg)';
+  });
   return ghost;
+}
+
+/** Soft settle: fade + shrink the ghost before removing so the drop reads gently. */
+function dismissGhost(ghost: HTMLElement): void {
+  ghost.style.transition = 'transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 160ms cubic-bezier(0.2, 0.7, 0.2, 1)';
+  ghost.style.transform = 'scale(0.98) rotate(0deg)';
+  ghost.style.opacity = '0';
+  window.setTimeout(() => ghost.remove(), 170);
 }
 
 function moveGhost(ghost: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void {
@@ -78,7 +95,7 @@ export function useDayTaskDrag(
         /* capture may already be released */
       }
     }
-    if (s?.ghost) s.ghost.remove();
+    if (s?.ghost) dismissGhost(s.ghost);
     sessionRef.current = null;
     setDraggingId(null);
     setDropDay(null);

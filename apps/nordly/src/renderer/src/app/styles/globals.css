@@ -330,10 +330,13 @@ html.light .nordly-palette-panel {
   padding: 12px 16px 16px;
   background: rgb(0 0 0 / 0.72);
 }
+.nordly-calendar-backdrop:not([data-closing='true']) {
+  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+}
 .nordly-calendar-backdrop[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--motion-dur-large) var(--motion-ease-standard);
+  transition: opacity var(--motion-dur-medium) var(--motion-ease-emphasized);
 }
 .nordly-calendar-modal {
   width: 100%;
@@ -608,6 +611,8 @@ button.nordly-calendar-event:hover {
   background: rgba(22, 22, 24, 0.96);
   border: 1px solid var(--ink-tint-08);
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+  transform-origin: top;
+  animation: nordly-menu-in var(--motion-dur-small) var(--motion-ease-emphasized) backwards;
 }
 
 .nordly-pill-btn {
@@ -940,6 +945,7 @@ button.nordly-calendar-event:hover {
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.4),
     0 24px 64px rgb(0 0 0 / 0.65);
+  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
 }
 .nordly-vault-modal__title {
   margin: 0 0 8px;
@@ -1135,7 +1141,8 @@ button.nordly-calendar-event:hover {
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.4),
     0 16px 40px rgb(0 0 0 / 0.65);
-  animation-duration: 140ms;
+  transform-origin: top;
+  animation: nordly-menu-in var(--motion-dur-small) var(--motion-ease-emphasized) backwards;
 }
 .nordly-note-menu__label {
   flex-shrink: 0;
@@ -1255,7 +1262,10 @@ button.nordly-calendar-event:hover {
   justify-content: center;
   background: rgb(0 0 0 / 0.78);
   opacity: 1;
-  transition: opacity var(--motion-dur-small) var(--motion-ease-interactive);
+  transition: opacity var(--motion-dur-medium) var(--motion-ease-emphasized);
+}
+.nordly-palette-scrim:not([data-closing='true']) {
+  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
 }
 .nordly-palette-scrim[data-closing='true'] {
   opacity: 0;
@@ -1271,13 +1281,16 @@ button.nordly-calendar-event:hover {
   opacity: 1;
   transform: translateY(0) scale(1);
   transition:
-    opacity var(--motion-dur-small) var(--motion-ease-interactive),
-    transform var(--motion-dur-small) var(--motion-ease-interactive);
+    opacity var(--motion-dur-medium) var(--motion-ease-emphasized),
+    transform var(--motion-dur-medium) var(--motion-ease-emphasized);
+}
+.nordly-palette-scrim:not([data-closing='true']) .nordly-palette-panel {
+  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
 }
 .nordly-palette-panel[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.985) translateY(4px);
+  transform: scale(0.98) translateY(8px);
 }
 .nordly-palette-search {
   display: flex;
@@ -1335,6 +1348,8 @@ button.nordly-calendar-event:hover {
   border: 1px solid rgb(255 255 255 / 0.08);
   background: #000000;
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.65);
+  transform-origin: top;
+  animation: nordly-menu-in var(--motion-dur-small) var(--motion-ease-emphasized) backwards;
 }
 .nordly-palette-list {
   flex: 0 1 auto;
@@ -1646,6 +1661,40 @@ html.light .nordly-palette-chip {
   app-region: drag;
 }
 
+/* Full-screen crossfade between top-level screens (loading / login / app). */
+.nordly-screen-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--motion-dur-large) var(--motion-ease-emphasized),
+    transform var(--motion-dur-large) var(--motion-ease-emphasized);
+  will-change: opacity, transform;
+}
+.nordly-screen-layer[data-status='entering'] {
+  opacity: 0;
+  transform: scale(1.008);
+  z-index: 2;
+}
+.nordly-screen-layer[data-status='leaving'] {
+  opacity: 0;
+  transform: scale(0.994);
+  z-index: 1;
+  pointer-events: none;
+}
+.nordly-screen-layer[data-status='active'] {
+  opacity: 1;
+  transform: none;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nordly-screen-layer {
+    transition: none !important;
+  }
+}
+
 .nordly-page-layer {
   position: absolute;
   top: var(--nordly-header-h);
@@ -1655,22 +1704,29 @@ html.light .nordly-palette-chip {
   min-height: 0;
   z-index: 1;
   opacity: 1;
-  transition: opacity var(--motion-dur-small) var(--motion-ease-interactive);
+  transform: translateY(0);
+  transition:
+    opacity var(--motion-dur-medium) var(--motion-ease-emphasized),
+    transform var(--motion-dur-medium) var(--motion-ease-emphasized);
   contain: layout style paint;
+  will-change: opacity, transform;
   pointer-events: auto;
 }
 .nordly-page-layer[data-status='leaving'] {
   opacity: 0;
+  transform: translateY(-6px);
   pointer-events: none;
   z-index: 1;
 }
 .nordly-page-layer[data-status='entering'] {
   opacity: 0;
+  transform: translateY(10px);
   pointer-events: none;
   z-index: 2;
 }
 .nordly-page-layer[data-status='active'] {
   opacity: 1;
+  transform: translateY(0);
   pointer-events: auto;
   z-index: 2;
 }
@@ -1834,6 +1890,19 @@ body.nordly-task-dragging * {
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
 }
 
+/* Hidden markdown tokens — zero width, skipped atomically by arrow keys */
+.nordly-md-syntax-hidden {
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 0;
+  line-height: 0;
+  vertical-align: baseline;
+  pointer-events: none;
+  user-select: none;
+}
+
 .cm-line.nordly-md-code-block {
   background: rgb(var(--ink-rgb) / 0.09);
   padding: 0 1rem;
@@ -1842,6 +1911,10 @@ body.nordly-task-dragging * {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.875em;
   line-height: 1.55;
+}
+
+.cm-line.nordly-md-code-block--lang {
+  position: relative;
 }
 
 .nordly-live-md .cm-line.nordly-md-code-block:not(.nordly-md-code-block + .nordly-md-code-block) {
@@ -1865,11 +1938,13 @@ body.nordly-task-dragging * {
 }
 
 .nordly-md-code-block__lang-bar {
+  position: absolute;
+  right: 1rem;
+  top: 0;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   min-height: 0;
-  margin: -0.15rem 0 0.1rem;
   pointer-events: none;
   user-select: none;
 }
@@ -2242,6 +2317,9 @@ html[data-text-scale='xlarge'] {
 .nordly-day-column {
   content-visibility: auto;
   contain-intrinsic-size: 254px 480px;
+  transition:
+    background-color var(--motion-dur-small) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-small) var(--motion-ease-standard);
 }
 
 /* Completion checkbox: hidden until the row is hovered/focused; always shown

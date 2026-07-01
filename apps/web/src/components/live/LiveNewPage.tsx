@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Reveal, RevealItem } from '@/components/motion/Reveal'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { formatApiError } from '@/lib/apiClient'
 import { LIVE_LANGS, LIVE_ROOM_MODES, type LiveRoomModeId } from '@/lib/live/constants'
@@ -27,8 +28,8 @@ export function LiveNewPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-20 pt-12 sm:px-8 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
-        <div className="flex-1 lg:max-w-md">
+    <Reveal className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-20 pt-12 sm:px-8 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
+        <RevealItem className="flex-1 lg:max-w-md">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-site-muted">{t('live.newEyebrow')}</p>
           <h1 className="mt-3 text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-site-text">
             {t('live.newTitle')}
@@ -48,9 +49,9 @@ export function LiveNewPage() {
               {t('live.newBulletRun')}
             </li>
           </ul>
-        </div>
+        </RevealItem>
 
-        <div className="w-full max-w-md shrink-0">
+        <RevealItem className="w-full max-w-md shrink-0">
           <div className="rounded-2xl border border-site-border bg-site-card p-6 sm:p-7">
             <h2 className="text-base font-semibold text-site-text">{t('live.newCardTitle')}</h2>
             <p className="mt-1 text-sm text-site-muted">{t('live.newCardGuest')}</p>
@@ -124,7 +125,7 @@ export function LiveNewPage() {
           </div>
 
           <p className="mt-4 text-center text-[11px] leading-relaxed text-site-muted">{t('live.ttlNote')}</p>
-        </div>
-    </main>
+        </RevealItem>
+    </Reveal>
   )
 }

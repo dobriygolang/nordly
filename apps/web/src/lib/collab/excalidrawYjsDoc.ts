@@ -84,8 +84,14 @@ export function writeSceneToYjs(
   files: Record<string, unknown>,
   origin?: unknown,
 ): void {
+  const { elementsMap } = bindExcalidrawYjsDoc(ydoc)
+  // Incidental empty Excalidraw onChange (e.g. before WS sync) must not wipe the room.
+  if (elements.length === 0 && elementsMap.size > 0 && origin !== 'clear') {
+    return
+  }
+
   ydoc.transact(() => {
-    const { elementsMap, elementIds, filesMap } = bindExcalidrawYjsDoc(ydoc)
+    const { elementIds, filesMap } = bindExcalidrawYjsDoc(ydoc)
     const nextIds = new Set<string>()
 
     for (const el of elements) {

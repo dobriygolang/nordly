@@ -1,14 +1,12 @@
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { PageId } from '@widgets/Palette';
-
-/** Matches page-layer opacity/transform transition (`--motion-dur-medium`). */
-const PAGE_FADE_MS = 320;
+/** Matches the full-screen layer transition (`--motion-dur-large`) in globals.css. */
+const SCREEN_FADE_MS = 440;
 
 type LayerStatus = 'active' | 'entering' | 'leaving';
 
 interface Layer {
-  id: PageId;
+  id: string;
   status: LayerStatus;
 }
 
@@ -19,23 +17,28 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function PageStack({
-  page,
+/**
+ * Top-level crossfade between whole app screens (loading / login / signed-in
+ * shell). Mirrors PageStack but uses fixed full-screen layers so the login →
+ * app handoff settles instead of hard-swapping.
+ */
+export function ScreenFade({
+  screen,
   children,
 }: {
-  page: PageId;
-  children: (id: PageId) => ReactNode;
+  screen: string;
+  children: (id: string) => ReactNode;
 }): JSX.Element {
-  const [layers, setLayers] = useState<Layer[]>([{ id: page, status: 'active' }]);
+  const [layers, setLayers] = useState<Layer[]>([{ id: screen, status: 'active' }]);
   const timerRef = useRef<number>();
-  const activeRef = useRef(page);
+  const activeRef = useRef(screen);
 
   useEffect(() => {
-    if (activeRef.current === page) return;
-    activeRef.current = page;
+    if (activeRef.current === screen) return;
+    activeRef.current = screen;
 
     if (prefersReducedMotion()) {
-      setLayers([{ id: page, status: 'active' }]);
+      setLayers([{ id: screen, status: 'active' }]);
       return;
     }
 
@@ -45,7 +48,7 @@ export function PageStack({
           ? { ...l, status: 'leaving' as const }
           : l,
       ),
-      { id: page, status: 'entering' as const },
+      { id: screen, status: 'entering' as const },
     ]);
 
     const enterRaf = requestAnimationFrame(() => {
@@ -57,24 +60,24 @@ export function PageStack({
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       setLayers((prev) => prev.filter((l) => l.status !== 'leaving'));
-    }, PAGE_FADE_MS);
+    }, SCREEN_FADE_MS);
 
     return () => {
       cancelAnimationFrame(enterRaf);
       window.clearTimeout(timerRef.current);
     };
-  }, [page]);
+  }, [screen]);
 
   return (
     <>
       {layers.map((layer) => (
         <div
           key={layer.id}
-          className="nordly-page-layer"
+          className="nordly-screen-layer"
           data-status={layer.status}
           aria-hidden={layer.status === 'leaving' ? true : undefined}
         >
-          <Suspense fallback={null}>{children(layer.id)}</Suspense>
+          {children(layer.id)}
         </div>
       ))}
     </>

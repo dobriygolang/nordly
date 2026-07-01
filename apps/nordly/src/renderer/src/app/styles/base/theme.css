@@ -1,0 +1,129 @@
+:root,
+html.dark {
+  --ink: #ffffff;
+  /* Space-separated RGB triplet — потребляется через modern syntax
+     `rgb(var(--ink-rgb) / X%)` для overlay'ев. В light-теме переопределяется
+     на 15 15 15, и те же call-site'ы сами рендерятся в чёрный с прозрачностью. */
+  --ink-rgb: 255 255 255;
+  --nordly-header-h: 40px;
+  /* Draggable strip: overlay titlebar + wordmark row on home. */
+  --nordly-drag-h: 72px;
+  --ink-90: rgb(var(--ink-rgb) / 0.9);
+  --ink-60: rgb(var(--ink-rgb) / 0.6);
+  --ink-40: rgb(var(--ink-rgb) / 0.4);
+  --ink-20: rgb(var(--ink-rgb) / 0.2);
+  --hair: rgb(var(--ink-rgb) / 0.08);
+  --hair-2: rgb(var(--ink-rgb) / 0.12);
+  --red: #ff3b30;
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  /* Tinted-on-ink helper для overlay'ев, которые раньше зашивались
+     hardcoded'ом `rgba(255,255,255,...)`. В light-теме переопределяется
+     на тёмный ink, чтобы те же `var(--ink-tint-XX)` слои читались на
+     белом фоне. */
+  --ink-tint-02: rgb(var(--ink-rgb) / 0.02);
+  --ink-tint-04: rgb(var(--ink-rgb) / 0.04);
+  --ink-tint-06: rgb(var(--ink-rgb) / 0.06);
+  --ink-tint-08: rgb(var(--ink-rgb) / 0.08);
+  --ink-tint-12: rgb(var(--ink-rgb) / 0.12);
+  --ink-tint-16: rgb(var(--ink-rgb) / 0.16);
+  /* Theme preview cards in Settings — framed so they read against the page. */
+  --theme-card-bg: var(--bg);
+  --theme-card-border: var(--ink-tint-08);
+  --theme-card-border-active: rgb(var(--ink-rgb) / 0.55);
+  --theme-card-ring: var(--ink-tint-08);
+  --theme-card-shadow: 0 4px 12px -8px rgba(0, 0, 0, 0.6);
+  --theme-card-shadow-active:
+    0 0 0 3px var(--ink-tint-08), 0 8px 22px -10px rgb(var(--ink-rgb) / 0.18);
+  /* Code block syntax — mirrors live-coding palette (apps/web) */
+  --editor-syntax-keyword: 245 245 245;
+  --editor-syntax-string: 195 160 160;
+  --editor-syntax-number: 130 175 140;
+  --editor-syntax-comment: 115 115 115;
+  --editor-syntax-function: 215 210 195;
+  --editor-syntax-method: 215 210 195;
+  --editor-syntax-type: 165 175 185;
+  --editor-syntax-variable: 175 180 190;
+  --editor-syntax-constant: 130 175 140;
+  --editor-syntax-operator: 130 130 130;
+}
+
+/* LIGHT theme — sdvg.io palette (matches apps/web/src/styles/main.css). */
+html.light {
+  --ink: #0f0f0f;
+  --ink-rgb: 15 15 15;
+  --ink-90: rgba(15, 15, 15, 0.9);
+  --ink-60: rgba(15, 15, 15, 0.6);
+  --ink-40: rgba(15, 15, 15, 0.4);
+  --ink-20: rgba(15, 15, 15, 0.2);
+  --hair: rgba(15, 15, 15, 0.06);
+  --hair-2: rgba(15, 15, 15, 0.12);
+  --red: #ff3b30;
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --surface-2: #f7f7f5;
+  --ink-tint-02: rgba(15, 15, 15, 0.02);
+  --ink-tint-04: rgba(15, 15, 15, 0.04);
+  --ink-tint-06: rgba(15, 15, 15, 0.06);
+  --ink-tint-08: rgba(15, 15, 15, 0.08);
+  --ink-tint-12: rgba(15, 15, 15, 0.12);
+  --ink-tint-16: rgba(15, 15, 15, 0.16);
+  /* Light theme: white cards on a light-grey page need a real border + shadow
+     or they wash out. Surface = #fff sits on --bg = #fafaf8. */
+  --theme-card-bg: #ffffff;
+  --theme-card-border: var(--hair-2);
+  --theme-card-border-active: rgba(15, 15, 15, 0.55);
+  --theme-card-ring: rgba(15, 15, 15, 0.1);
+  --theme-card-shadow:
+    0 1px 1px rgba(15, 15, 15, 0.04), 0 6px 14px -8px rgba(15, 15, 15, 0.16);
+  --theme-card-shadow-active:
+    0 0 0 3px rgba(15, 15, 15, 0.1), 0 8px 20px -10px rgba(15, 15, 15, 0.22);
+  --editor-syntax-keyword: 15 15 15;
+  --editor-syntax-string: 140 75 75;
+  --editor-syntax-number: 56 130 72;
+  --editor-syntax-comment: 142 142 142;
+  --editor-syntax-function: 75 65 45;
+  --editor-syntax-method: 75 65 45;
+  --editor-syntax-type: 70 95 110;
+  --editor-syntax-variable: 70 85 115;
+  --editor-syntax-constant: 56 110 80;
+  --editor-syntax-operator: 120 120 120;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-feature-settings: 'zero', 'ss01';
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  outline: 0;
+  padding: 0;
+}
+

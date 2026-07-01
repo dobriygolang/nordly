@@ -6,27 +6,29 @@ import {
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
   getGoogleCalendarAuthURL,
-  getTrackerSettings,
-  listGoogleCalendarEvents,
   openExternalUrl,
   updateGoogleCalendarEvent,
   GoogleReauthError,
-  type GoogleCalendarEvent,
 } from '@features/calendar/api/calendarClient';
+import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
+import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import {
   buildMonthGrid,
   buildWeekDays,
   calendarHourLabels,
+  allDayEntriesForDay,
   entriesForDay,
   entriesForWeek,
   entriesForYear,
-  eventBlockLayout,
   formatDayHeader,
+  formatEntryTime,
   formatHourLabel,
   formatWeekHeaderMonth,
+  layoutTimedEntriesForDay,
   mergeCalendarEntries,
   monthRange,
   startOfWeekMonday,
+  timedEntriesForDay,
   weekRange,
   yearRange,
   CALENDAR_GRID_END_HOUR,
@@ -34,12 +36,14 @@ import {
   CALENDAR_HOUR_HEIGHT_PX,
   type CalendarEntry,
 } from '@features/calendar/lib/events';
-import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
+import { listTasks, createTask, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
 import { SegmentedControl } from '@pages/Settings/primitives/SegmentedControl';
 import { snapMinutes, toDayKey } from '@pages/TaskBoard/lib/dates';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { formatLocaleDate, formatLocaleTime, formatTimeZoneLabel, getUserTimeZone } from '@shared/lib/localeFormat';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
+import { useCalendarRangeSelect } from '@features/calendar/lib/useCalendarRangeSelect';
+import { refreshGoogleCalendarCache } from '@features/calendar/lib/googleCalendarSyncWorker';
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { LOCAL_ONLY } from '@app/config/features';
@@ -48,11 +52,12 @@ type ViewMode = 'week' | 'month' | 'year';
 
 /** Top breathing room (label overhang) + bottom slack for the week grid. */
 const WEEK_GRID_RESERVE_PX = 10;
-/** Background refresh cadence so edits made in Google appear without reopening. */
-const GOOGLE_AUTO_REFRESH_MS = 60_000;
+/** Height of one all-day chip row in the week header strip. */
+const ALL_DAY_CHIP_HEIGHT_PX = 22;
+const ALL_DAY_CHIP_GAP_PX = 3;
 
 type EditorState =
-  | { mode: 'create'; start: Date; end: Date; title: string; calendarId?: string }
+  | { mode: 'create'; kind: 'google' | 'task'; start: Date; end: Date; title: string }
   | { mode: 'edit'; entry: CalendarEntry; title: string };
 
 interface CalendarModalProps {
@@ -69,62 +74,50 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [tasks, setTasks] = useState<TaskCard[]>([]);
-  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
-  const [googleError, setGoogleError] = useState<string | null>(null);
-  const [reauthNeeded, setReauthNeeded] = useState(false);
-  const [connected, setConnected] = useState(false);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
+
+  const {
+    connected,
+    reauthRequired: connectionReauth,
+    ready: connectionReady,
+  } = useGoogleCalendarConnection();
 
   const refreshTasks = useCallback(async () => {
     try {
       setTasks(await listTasks());
     } catch {
-      /* keep stale */
+      /* keep stale list */
+    } finally {
+      setTasksLoaded(true);
     }
   }, []);
 
-  const currentRange = useCallback((): { start: Date; end: Date } => {
-    if (viewMode === 'week') return weekRange(weekStart);
-    if (viewMode === 'month') return monthRange(monthDate);
-    return yearRange(viewYear);
-  }, [viewMode, weekStart, monthDate, viewYear]);
-
-  const refreshGoogle = useCallback(async () => {
-    if (LOCAL_ONLY) {
-      setGoogleEvents([]);
-      setGoogleError(null);
-      return;
-    }
-    const { start, end } = currentRange();
+  const googleRange = useMemo(() => {
+    let start: Date;
+    let end: Date;
+    if (viewMode === 'week') ({ start, end } = weekRange(weekStart));
+    else if (viewMode === 'month') ({ start, end } = monthRange(monthDate));
+    else ({ start, end } = yearRange(viewYear));
     const padStart = new Date(start);
     padStart.setDate(padStart.getDate() - 7);
     const padEnd = new Date(end);
     padEnd.setDate(padEnd.getDate() + 7);
-    try {
-      setGoogleEvents(await listGoogleCalendarEvents(padStart, padEnd));
-      setGoogleError(null);
-      setReauthNeeded(false);
-    } catch (err) {
-      if (err instanceof GoogleReauthError) {
-        setReauthNeeded(true);
-        setGoogleError(t('nordly.calendar.google_reauth'));
-      } else {
-        setGoogleError(t('nordly.calendar.google_error'));
-      }
-    }
-  }, [currentRange, t]);
+    return { padStart, padEnd };
+  }, [viewMode, weekStart, monthDate, viewYear]);
 
-  const refreshConnection = useCallback(async () => {
-    if (LOCAL_ONLY) return;
-    try {
-      const s = await getTrackerSettings();
-      setConnected(s.googleCalendarConnected);
-      setReauthNeeded(s.googleReauthRequired);
-    } catch {
-      /* leave prior state */
-    }
-  }, []);
+  const googleEnabled = !LOCAL_ONLY && connected && connectionReady;
+  const {
+    events: googleEvents,
+    error: googleFetchError,
+    reauthRequired: fetchReauth,
+  } = useGoogleCalendarEvents(googleRange.padStart, googleRange.padEnd, googleEnabled);
+
+  const reauthNeeded = connectionReauth || fetchReauth;
+  const googleError =
+    googleFetchError === 'fetch' && !reauthNeeded ? t('nordly.calendar.google_error') : null;
+  const showGridLoading = !tasksLoaded;
 
   useEffect(() => {
     if (viewMode === 'year') setViewYear(weekStart.getFullYear());
@@ -132,49 +125,30 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   useEffect(() => {
     void refreshTasks();
-    void refreshConnection();
-  }, [refreshTasks, refreshConnection]);
-
-  useEffect(() => {
-    void refreshGoogle();
-  }, [refreshGoogle]);
+  }, [refreshTasks]);
 
   useEffect(() => {
     setWeekStart((prev) => startOfWeekMonday(prev, locale));
   }, [locale]);
 
-  // Auto-refresh (inbound): poll + refresh on window focus so Google-side edits
-  // land without reopening the calendar.
-  useEffect(() => {
-    if (LOCAL_ONLY) return;
-    const tick = () => void refreshGoogle();
-    const id = window.setInterval(tick, GOOGLE_AUTO_REFRESH_MS);
-    const onFocus = () => void refreshGoogle();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [refreshGoogle]);
-
   useEffect(() => {
     const onTasks = () => void refreshTasks();
-    const onSync = () => {
-      void refreshTasks();
-      void refreshGoogle();
-    };
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
-    window.addEventListener(NORDLY_EVENTS.syncChanged, onSync);
-    return () => {
-      window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
-      window.removeEventListener(NORDLY_EVENTS.syncChanged, onSync);
-    };
-  }, [refreshTasks, refreshGoogle]);
+    return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
+  }, [refreshTasks]);
 
   const entries = useMemo(() => mergeCalendarEntries(tasks, googleEvents), [tasks, googleEvents]);
 
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
   const weekEntries = useMemo(() => entriesForWeek(entries, weekStart), [entries, weekStart]);
+  const weekAllDayByDay = useMemo(
+    () => weekDays.map(({ dayKey }) => allDayEntriesForDay(weekEntries, dayKey)),
+    [weekDays, weekEntries],
+  );
+  const weekAllDayMax = useMemo(
+    () => weekAllDayByDay.reduce((max, day) => Math.max(max, day.length), 0),
+    [weekAllDayByDay],
+  );
   const yearEntries = useMemo(() => entriesForYear(entries, viewYear), [entries, viewYear]);
   const hours = useMemo(() => calendarHourLabels(), []);
 
@@ -199,18 +173,23 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   }, [gridSpan, viewMode]);
   const gridHeight = gridSpan * hourHeight;
 
+  const weekTimedLayouts = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof layoutTimedEntriesForDay>>();
+    for (const { dayKey } of weekDays) {
+      map.set(dayKey, layoutTimedEntriesForDay(timedEntriesForDay(weekEntries, dayKey), hourHeight));
+    }
+    return map;
+  }, [weekDays, weekEntries, hourHeight]);
+
   const { dragId, dragTop, start: startDrag } = useVerticalDrag();
 
   const handleGoogleWriteError = useCallback(
     (err: unknown) => {
       if (err instanceof GoogleReauthError) {
-        setReauthNeeded(true);
-        setGoogleError(t('nordly.calendar.google_reauth'));
-      } else {
-        setGoogleError(t('nordly.calendar.google_error'));
+        void refreshGoogleCalendarCache();
       }
     },
-    [t],
+    [],
   );
 
   const reconnect = useCallback(async () => {
@@ -218,9 +197,9 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
       const url = await getGoogleCalendarAuthURL();
       openExternalUrl(url);
     } catch {
-      setGoogleError(t('nordly.calendar.google_error'));
+      /* settings banner stays */
     }
-  }, [t]);
+  }, []);
 
   const commitDrag = useCallback(
     async (entry: CalendarEntry, finalTop: number) => {
@@ -251,34 +230,39 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
             allDay: false,
             calendarId: entry.googleCalendarId,
           });
-          await refreshGoogle();
+          await refreshGoogleCalendarCache();
         } catch (err) {
           handleGoogleWriteError(err);
         }
       }
     },
-    [hourHeight, refreshGoogle, handleGoogleWriteError],
+    [hourHeight, handleGoogleWriteError],
   );
 
   const openEditorForEntry = useCallback((entry: CalendarEntry) => {
     setEditor({ mode: 'edit', entry, title: entry.title });
   }, []);
 
-  const openCreateAt = useCallback((start: Date, durationMin = 60) => {
-    const end = new Date(start.getTime() + durationMin * 60_000);
-    setEditor({ mode: 'create', start, end, title: '' });
+  const openCreateTaskRange = useCallback((start: Date, end: Date) => {
+    setEditor({ mode: 'create', kind: 'task', start, end, title: '' });
   }, []);
 
-  const createFromWeekSlot = useCallback(
+  const { selection: rangeSelection, onColumnPointerDown } = useCalendarRangeSelect({
+    hourHeight,
+    gridHeight,
+    onCommit: ({ start, end }) => openCreateTaskRange(start, end),
+  });
+
+  const createTaskFromWeekSlot = useCallback(
     (dayKey: string, offsetTop: number) => {
-      if (!connected || reauthNeeded) return;
       const [y, m, d] = dayKey.split('-').map(Number);
       const startH = offsetTop / hourHeight + CALENDAR_GRID_START_HOUR;
       const min = snapMinutes(startH * 60);
       const start = new Date(y, m - 1, d, Math.floor(min / 60), min % 60, 0, 0);
-      openCreateAt(start);
+      const end = new Date(start.getTime() + 30 * 60_000);
+      openCreateTaskRange(start, end);
     },
-    [connected, reauthNeeded, hourHeight, openCreateAt],
+    [hourHeight, openCreateTaskRange],
   );
 
   const saveEditor = useCallback(async () => {
@@ -287,13 +271,25 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     if (!title) return;
     setSavingEvent(true);
     try {
-      if (editor.mode === 'create') {
+      if (editor.mode === 'create' && editor.kind === 'task') {
+        const durationMin = Math.max(
+          15,
+          Math.round((editor.end.getTime() - editor.start.getTime()) / 60_000),
+        );
+        const task = await createTask({ title });
+        await scheduleTask(task.id, editor.start, durationMin);
+        window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+        setEditor(null);
+        await refreshTasks();
+      } else if (editor.mode === 'create') {
         await createGoogleCalendarEvent({
           title,
           start: editor.start,
           end: editor.end,
           allDay: false,
         });
+        setEditor(null);
+        await refreshGoogleCalendarCache();
       } else if (editor.entry.googleEventId) {
         await updateGoogleCalendarEvent(editor.entry.googleEventId, {
           title,
@@ -302,15 +298,19 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           allDay: editor.entry.allDay,
           calendarId: editor.entry.googleCalendarId,
         });
+        setEditor(null);
+        await refreshGoogleCalendarCache();
       }
-      setEditor(null);
-      await refreshGoogle();
     } catch (err) {
-      handleGoogleWriteError(err);
+      if (editor.mode === 'create' && editor.kind === 'task') {
+        /* local task create rarely fails */
+      } else {
+        handleGoogleWriteError(err);
+      }
     } finally {
       setSavingEvent(false);
     }
-  }, [editor, refreshGoogle, handleGoogleWriteError]);
+  }, [editor, refreshTasks, handleGoogleWriteError]);
 
   const deleteEditorEvent = useCallback(async () => {
     if (!editor || editor.mode !== 'edit' || !editor.entry.googleEventId) return;
@@ -318,13 +318,13 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     try {
       await deleteGoogleCalendarEvent(editor.entry.googleEventId, editor.entry.googleCalendarId);
       setEditor(null);
-      await refreshGoogle();
+      await refreshGoogleCalendarCache();
     } catch (err) {
       handleGoogleWriteError(err);
     } finally {
       setSavingEvent(false);
     }
-  }, [editor, refreshGoogle, handleGoogleWriteError]);
+  }, [editor, handleGoogleWriteError]);
 
   const headerLabel =
     viewMode === 'week'
@@ -382,8 +382,6 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     [t],
   );
 
-  const canCreate = connected && !reauthNeeded && !LOCAL_ONLY;
-
   return (
     <div
       className="nordly-calendar-backdrop fadein"
@@ -437,6 +435,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           </div>
         )}
 
+        <div className="nordly-calendar-body" data-loading={showGridLoading ? 'true' : undefined}>
         {viewMode === 'week' ? (
           <div className="nordly-calendar-week">
             <div className="nordly-calendar-week__head">
@@ -451,6 +450,34 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                 </div>
               ))}
             </div>
+
+            {weekAllDayMax > 0 && (
+              <div className="nordly-calendar-week__allday">
+                <div className="nordly-calendar-week__allday-label mono">
+                  {t('nordly.calendar.all_day')}
+                </div>
+                <div
+                  className="nordly-calendar-week__allday-grid"
+                  style={{
+                    minHeight:
+                      weekAllDayMax * ALL_DAY_CHIP_HEIGHT_PX +
+                      Math.max(0, weekAllDayMax - 1) * ALL_DAY_CHIP_GAP_PX,
+                  }}
+                >
+                  {weekDays.map(({ dayKey }, i) => (
+                    <div key={dayKey} className="nordly-calendar-week__allday-col">
+                      {weekAllDayByDay[i].map((entry) => (
+                        <AllDayEventChip
+                          key={entry.id}
+                          entry={entry}
+                          onActivate={() => onEntryClick(entry)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div ref={weekScrollRef} className="nordly-calendar-week__scroll">
               <div className="nordly-calendar-week__body" style={{ height: gridHeight }}>
@@ -471,14 +498,11 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                     <div
                       key={dayKey}
                       className="nordly-calendar-week__col"
-                      onDoubleClick={
-                        canCreate
-                          ? (e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              createFromWeekSlot(dayKey, e.clientY - rect.top);
-                            }
-                          : undefined
-                      }
+                      onPointerDown={(e) => onColumnPointerDown(dayKey, e)}
+                      onDoubleClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        createTaskFromWeekSlot(dayKey, e.clientY - rect.top);
+                      }}
                     >
                       {hours.map((hour) => (
                         <div
@@ -487,16 +511,19 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                           style={{ height: hourHeight }}
                         />
                       ))}
-                      {weekEntries
-                        .filter((e) => toDayKey(e.start) === dayKey)
-                        .map((entry) => {
-                          const layout = eventBlockLayout(entry, hourHeight);
-                          if (!layout) return null;
-                          const maxTop = Math.max(0, gridHeight - layout.height);
+                      {rangeSelection?.dayKey === dayKey && (
+                        <div
+                          className="nordly-calendar-selection"
+                          style={{ top: rangeSelection.top, height: rangeSelection.height }}
+                          aria-hidden
+                        />
+                      )}
+                      {weekTimedLayouts.get(dayKey)?.map(({ entry, top: layoutTop, height, column, columnCount }) => {
+                          const maxTop = Math.max(0, gridHeight - height);
                           const isDragging = dragId === entry.id;
                           const top = Math.max(
                             0,
-                            Math.min(isDragging ? dragTop : layout.top, maxTop),
+                            Math.min(isDragging ? dragTop : layoutTop, maxTop),
                           );
                           const draggable =
                             (entry.source === 'task' && Boolean(entry.taskId)) ||
@@ -508,14 +535,16 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                               key={entry.id}
                               entry={entry}
                               top={top}
-                              height={layout.height}
+                              height={height}
+                              column={column}
+                              columnCount={columnCount}
                               dragging={isDragging}
                               onPointerDown={
                                 draggable
                                   ? (e) =>
                                       startDrag(e, {
                                         id: entry.id,
-                                        baseTop: layout.top,
+                                        baseTop: layoutTop,
                                         min: 0,
                                         max: maxTop,
                                         onCommit: (ft) => void commitDrag(entry, ft),
@@ -543,15 +572,12 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
               setWeekStart(startOfWeekMonday(day, locale));
               setViewMode('week');
             }}
-            onCreateDay={
-              canCreate
-                ? (day) => {
-                    const start = new Date(day);
-                    start.setHours(9, 0, 0, 0);
-                    openCreateAt(start);
-                  }
-                : undefined
-            }
+            onCreateDay={(day) => {
+              const start = new Date(day);
+              start.setHours(9, 0, 0, 0);
+              const end = new Date(start.getTime() + 30 * 60_000);
+              openCreateTaskRange(start, end);
+            }}
             onEntryClick={onEntryClick}
           />
         ) : (
@@ -566,10 +592,12 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
             }}
           />
         )}
+        </div>
 
         <p className="nordly-calendar-footnote mono">
           {t('nordly.calendar.timezone', { zone: timeZoneLabel })}
-          {canCreate ? ` · ${t('nordly.calendar.create_hint')}` : ''}
+          {` · ${t('nordly.calendar.create_task_hint')}`}
+          {` · ${t('nordly.calendar.create_dblclick_hint')}`}
         </p>
         {googleError && !LOCAL_ONLY && !reauthNeeded && (
           <p className="nordly-calendar-footnote mono">{googleError}</p>
@@ -591,10 +619,34 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   );
 }
 
+function AllDayEventChip({
+  entry,
+  onActivate,
+}: {
+  entry: CalendarEntry;
+  onActivate: () => void;
+}): JSX.Element {
+  const isGoogle = entry.source === 'google';
+  return (
+    <button
+      type="button"
+      className="nordly-calendar-allday-chip focus-ring"
+      data-source={isGoogle ? 'google' : 'task'}
+      data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
+      onClick={onActivate}
+      title={entry.title}
+    >
+      {entry.title}
+    </button>
+  );
+}
+
 function CalendarEventBlock({
   entry,
   top,
   height,
+  column,
+  columnCount,
   dragging,
   onPointerDown,
   onActivate,
@@ -602,6 +654,8 @@ function CalendarEventBlock({
   entry: CalendarEntry;
   top: number;
   height: number;
+  column: number;
+  columnCount: number;
   dragging?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
   onActivate: () => void;
@@ -609,15 +663,17 @@ function CalendarEventBlock({
   const done = entry.taskStatus === 'done';
   const isGoogle = entry.source === 'google';
   const interactive = Boolean(onPointerDown) || isGoogle || Boolean(entry.taskId);
-  const style: React.CSSProperties = {
+  const style = {
     top,
     height,
-    zIndex: dragging ? 5 : undefined,
+    '--cal-col': column,
+    '--cal-cols': columnCount,
+    zIndex: dragging ? 5 : column + 1,
     boxShadow: dragging ? '0 10px 28px rgb(0 0 0 / 0.5)' : undefined,
     cursor: onPointerDown ? (dragging ? 'grabbing' : 'grab') : interactive ? 'pointer' : undefined,
     touchAction: onPointerDown ? 'none' : undefined,
     userSelect: 'none',
-  };
+  } as React.CSSProperties;
 
   return (
     <button
@@ -627,7 +683,10 @@ function CalendarEventBlock({
       data-done={done ? 'true' : undefined}
       data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
       style={style}
-      onPointerDown={onPointerDown}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onPointerDown?.(e);
+      }}
       onClick={onPointerDown ? undefined : onActivate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -667,11 +726,23 @@ function EventEditor({
   }, []);
 
   const isEdit = editor.mode === 'edit';
+  const isTaskCreate = editor.mode === 'create' && editor.kind === 'task';
   const entry = isEdit ? editor.entry : null;
   const readOnly = isEdit && entry ? entry.googleEditable === false : false;
   const start = isEdit ? entry!.start : editor.start;
   const end = isEdit ? entry!.end : editor.end;
-  const when = `${formatLocaleDate(start, locale, { weekday: 'short', day: 'numeric', month: 'short' })} · ${formatLocaleTime(start, locale)}–${formatLocaleTime(end, locale)}`;
+  const when = entry?.allDay
+    ? `${formatLocaleDate(start, locale, { weekday: 'short', day: 'numeric', month: 'short' })} · ${formatEntryTime(entry, locale)}`
+    : `${formatLocaleDate(start, locale, { weekday: 'short', day: 'numeric', month: 'short' })} · ${formatLocaleTime(start, locale)}–${formatLocaleTime(end, locale)}`;
+
+  const heading = isEdit
+    ? t('nordly.calendar.editor.edit_title')
+    : isTaskCreate
+      ? t('nordly.calendar.editor.create_task_title')
+      : t('nordly.calendar.editor.create_title');
+  const placeholder = isTaskCreate
+    ? t('nordly.calendar.editor.task_title_placeholder')
+    : t('nordly.calendar.editor.title_placeholder');
 
   return (
     <div className="nordly-calendar-editor-scrim" style={{ zIndex: zIndex.modal + 1 }} onClick={onClose}>
@@ -679,17 +750,15 @@ function EventEditor({
         className="nordly-calendar-editor motion-pop-in"
         role="dialog"
         aria-modal="true"
-        aria-label={isEdit ? t('nordly.calendar.editor.edit_title') : t('nordly.calendar.editor.create_title')}
+        aria-label={heading}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="nordly-calendar-editor__heading">
-          {isEdit ? t('nordly.calendar.editor.edit_title') : t('nordly.calendar.editor.create_title')}
-        </h3>
+        <h3 className="nordly-calendar-editor__heading">{heading}</h3>
         <input
           ref={inputRef}
           className="nordly-calendar-editor__input focus-ring"
           value={editor.title}
-          placeholder={t('nordly.calendar.editor.title_placeholder')}
+          placeholder={placeholder}
           disabled={readOnly || saving}
           onChange={(e) => onTitleChange(e.target.value)}
           onKeyDown={(e) => {

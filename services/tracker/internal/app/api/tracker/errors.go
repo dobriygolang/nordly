@@ -40,6 +40,12 @@ func mapServiceError(err error) error {
 	if errors.Is(err, model.ErrGoogleNotConnected) {
 		return status.Error(codes.FailedPrecondition, "google_not_connected")
 	}
+	if errors.Is(err, model.ErrZoomReauthRequired) {
+		return status.Error(codes.FailedPrecondition, "zoom_reauth_required")
+	}
+	if errors.Is(err, model.ErrZoomNotConnected) {
+		return status.Error(codes.FailedPrecondition, "zoom_not_connected")
+	}
 	return status.Errorf(codes.Internal, "internal error: %v", err)
 }
 

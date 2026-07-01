@@ -1,0 +1,217 @@
+/* ── Settings page ── */
+
+.nordly-settings-page {
+  position: absolute;
+  top: var(--nordly-header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  padding: 0 28px 96px;
+}
+
+.nordly-settings-page__inner {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.nordly-settings-page__eyebrow {
+  margin: 0 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-40);
+}
+
+.nordly-settings-page__title {
+  margin: 0 0 36px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.nordly-settings-group {
+  margin-bottom: 36px;
+}
+
+.nordly-settings-group__title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-90);
+}
+
+.nordly-settings-group__body {
+  border: 1px solid var(--ink-tint-08);
+  border-radius: 14px;
+  background: rgb(var(--ink-rgb) / 0.03);
+  overflow: hidden;
+}
+/* Light theme: lift the settings panel to a white card with a real border +
+   shadow so it (and the theme cards inside) reads against the light-grey page. */
+html.light .nordly-settings-group__body {
+  background: var(--surface);
+  border-color: var(--hair-2);
+  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 12px 28px -20px rgba(15, 15, 15, 0.16);
+}
+
+.nordly-setting-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--ink-tint-06);
+}
+
+.nordly-setting-row:first-child {
+  border-top: none;
+}
+
+.nordly-setting-row__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.nordly-setting-row__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-90);
+  line-height: 1.35;
+}
+
+.nordly-setting-row__hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-40);
+}
+
+.nordly-setting-row__control {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nordly-segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--ink-tint-06);
+}
+
+.nordly-segmented-btn {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-60);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nordly-segmented-btn--active {
+  background: rgb(var(--ink-rgb) / 0.12);
+  color: var(--ink);
+}
+
+.nordly-settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+}
+@media (min-width: 560px) {
+  .nordly-settings-theme-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.nordly-setting-row:has(.nordly-settings-theme-grid) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.nordly-setting-row:has(.nordly-settings-theme-grid) .nordly-setting-row__control {
+  width: 100%;
+}
+
+.nordly-settings-account {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.nordly-settings-account__id {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-40);
+}
+
+.nordly-settings-sign-out {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nordly-settings-sign-out:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.nordly-settings-update {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.nordly-settings-update__btn {
+  padding: 8px 16px;
+  border: 1px solid var(--ink-20);
+  border-radius: 8px;
+  background: var(--ink-10);
+  color: var(--ink-90);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nordly-settings-update__btn:hover:not(:disabled) {
+  background: var(--ink-15);
+}
+
+.nordly-settings-update__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.nordly-settings-update__status {
+  margin: 0;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-60);
+  text-align: right;
+}
+
+.nordly-settings-signed-out {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--ink-60);
+}
+

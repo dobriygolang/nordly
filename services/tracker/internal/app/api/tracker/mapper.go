@@ -16,6 +16,8 @@ func userSettingsToProto(s *model.UserSettingsView) *trackerv1.UserSettings {
 		GoogleCalendarConnected:   s.GoogleCalendarConnected,
 		GoogleReauthRequired:      s.GoogleReauthRequired,
 		GoogleCalendarId:          s.GoogleCalendarID,
+		ZoomConnected:             s.ZoomConnected,
+		ZoomReauthRequired:        s.ZoomReauthRequired,
 	}
 }
 

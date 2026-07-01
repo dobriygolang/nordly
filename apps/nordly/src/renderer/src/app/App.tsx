@@ -32,6 +32,10 @@ import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
 import { LOCAL_ONLY } from '@app/config/features';
 import { migrateLocalStorageIfNeeded } from '@shared/sync/migrateLocalStorage';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
+import {
+  startGoogleCalendarSyncWorker,
+  stopGoogleCalendarSyncWorker,
+} from '@features/calendar/lib/googleCalendarSyncWorker';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
@@ -191,6 +195,14 @@ export default function App() {
               }),
             );
           }
+          const zoomStatus = u.searchParams.get('zoom');
+          if (zoomStatus) {
+            window.dispatchEvent(
+              new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
+                detail: { status: zoomStatus, detail: u.searchParams.get('detail') },
+              }),
+            );
+          }
           navigateTo('settings');
         }
       } catch {
@@ -216,6 +228,7 @@ export default function App() {
   useEffect(() => {
     if (status !== 'signed_in' || !userId) {
       stopSyncEngine();
+      stopGoogleCalendarSyncWorker();
       return;
     }
     let cancelled = false;
@@ -224,11 +237,15 @@ export default function App() {
       await loadVaultPrefs(userId);
       if (cancelled) return;
       setVaultGateActive(!LOCAL_ONLY && isVaultEnabledSync());
-      if (!LOCAL_ONLY) startSyncEngine();
+      if (!LOCAL_ONLY) {
+        startSyncEngine();
+        startGoogleCalendarSyncWorker();
+      }
     })();
     return () => {
       cancelled = true;
       stopSyncEngine();
+      stopGoogleCalendarSyncWorker();
     };
   }, [status, userId]);
 

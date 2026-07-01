@@ -1,0 +1,160 @@
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--ink-rgb) / 0.10);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--ink-rgb) / 0.22);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes redpulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 59, 48, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+  }
+}
+.red-pulse {
+  animation: redpulse 1.8s ease-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fadein {
+  animation: fadein var(--motion-dur-large) var(--motion-ease-standard) both;
+}
+
+/* Shimmer skeleton — for Nordly loading states (cards / list rows).
+ * Tailwind config 68-74 определял палитру; эта animation её активирует. */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--ink-rgb) / 0.04) 0%,
+    rgb(var(--ink-rgb) / 0.08) 50%,
+    rgb(var(--ink-rgb) / 0.04) 100%
+  );
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Reduced motion — disable stagger / shimmer / view-transitions для
+ * пользователей с prefers-reduced-motion (accessibility / focus mode). */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer,
+  .fadein {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .nordly-page-layer,
+  .nordly-canvas-shell,
+  .nordly-chrome-shell {
+    transition: none !important;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--hair-2);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-60);
+  background: rgb(var(--ink-rgb) / 0.04);
+  line-height: 1;
+}
+.kbd-lg {
+  min-width: 22px;
+  height: 22px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  font-size: 11px;
+  color: var(--ink-60);
+  background: var(--ink-tint-02);
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+  outline: 1px solid var(--ink-40);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Text scale (accessibility) — zoom on html scales the entire UI. */
+html[data-text-scale='large'] {
+  zoom: 1.125;
+}
+html[data-text-scale='xlarge'] {
+  zoom: 1.24;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-text-scale='large'] {
+    zoom: 1;
+    font-size: 112.5%;
+  }
+  html[data-text-scale='xlarge'] {
+    zoom: 1;
+    font-size: 124%;
+  }
+}
+

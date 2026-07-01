@@ -12,7 +12,8 @@ import (
 )
 
 const workTaskSelectCols = `id, user_id, status, kind, title, created_at, updated_at, completed_at,
-	scheduled_start, scheduled_duration_min, google_event_id, archived_at`
+	scheduled_start, scheduled_duration_min, google_event_id, epic_id, conference_url,
+	conference_provider, zoom_meeting_id, archived_at`
 
 type WorkTaskPatch struct {
 	Title                *string
@@ -22,8 +23,14 @@ type WorkTaskPatch struct {
 	ScheduledStart       *time.Time
 	ScheduledDurationMin *int
 	GoogleEventID        *string
+	EpicID               *string
+	ConferenceURL        *string
+	ConferenceProvider   *string
+	ZoomMeetingID        *string
 	ClearSchedule        bool
 	ClearGoogleEventID   bool
+	ClearEpic            bool
+	ClearConference      bool
 	Archived             bool
 }
 
@@ -157,6 +164,32 @@ func (r *Repository) PatchWorkTask(ctx context.Context, taskID, userID string, p
 		googleEventID = patch.GoogleEventID
 	}
 
+	epicID := current.EpicID
+	if patch.ClearEpic {
+		epicID = nil
+	}
+	if patch.EpicID != nil {
+		epicID = patch.EpicID
+	}
+
+	conferenceURL := current.ConferenceURL
+	conferenceProvider := current.ConferenceProvider
+	zoomMeetingID := current.ZoomMeetingID
+	if patch.ClearConference {
+		conferenceURL = nil
+		conferenceProvider = nil
+		zoomMeetingID = nil
+	}
+	if patch.ConferenceURL != nil {
+		conferenceURL = patch.ConferenceURL
+	}
+	if patch.ConferenceProvider != nil {
+		conferenceProvider = patch.ConferenceProvider
+	}
+	if patch.ZoomMeetingID != nil {
+		zoomMeetingID = patch.ZoomMeetingID
+	}
+
 	var archivedAt *time.Time
 	if patch.Archived {
 		now := time.Now().UTC()
@@ -170,10 +203,12 @@ func (r *Repository) PatchWorkTask(ctx context.Context, taskID, userID string, p
 		UPDATE work_tasks
 		SET title = $2, status = $3, kind = $4, completed_at = $5,
 		    scheduled_start = $6, scheduled_duration_min = $7, google_event_id = $8,
-		    archived_at = $9, updated_at = now()
+		    epic_id = $9, conference_url = $10, conference_provider = $11,
+		    zoom_meeting_id = $12, archived_at = $13, updated_at = now()
 		WHERE id = $1
 		RETURNING `+workTaskSelectCols+`
-	`, tid, title, status, kind, completedAt, scheduledStart, scheduledDur, googleEventID, archivedAt)
+	`, tid, title, status, kind, completedAt, scheduledStart, scheduledDur, googleEventID,
+		epicID, conferenceURL, conferenceProvider, zoomMeetingID, archivedAt)
 	task, err := scanWorkTask(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -239,15 +274,18 @@ func scanWorkTask(row pgx.Row) (*model.WorkTask, error) {
 	var t model.WorkTask
 	var uid uuid.UUID
 	var googleEventID *string
+	var epicID *string
 	err := row.Scan(
 		&t.ID, &uid, &t.Status, &t.Kind, &t.Title,
 		&t.CreatedAt, &t.UpdatedAt, &t.CompletedAt,
-		&t.ScheduledStart, &t.ScheduledDurationMin, &googleEventID, &t.ArchivedAt,
+		&t.ScheduledStart, &t.ScheduledDurationMin, &googleEventID,
+		&epicID, &t.ConferenceURL, &t.ConferenceProvider, &t.ZoomMeetingID, &t.ArchivedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 	t.UserID = uid.String()
 	t.GoogleEventID = googleEventID
+	t.EpicID = epicID
 	return &t, nil
 }

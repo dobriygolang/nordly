@@ -1,0 +1,32 @@
+/* Soft glass for overlays — prefer .nordly-panel (no blur). */
+/* Shared opaque surface — palette panel, stats cards (no backdrop-filter). */
+.nordly-stats-card {
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.nordly-stats-card,
+.nordly-palette-panel {
+  background: #000000;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.4),
+    0 24px 48px -12px rgb(0 0 0 / 0.8);
+}
+
+html.light .nordly-stats-card,
+html.light .nordly-palette-panel {
+  background: var(--surface);
+  border: 1px solid var(--hair-2);
+  box-shadow: 0 8px 28px -12px rgb(var(--ink-rgb) / 0.12);
+}
+
+.nordly-stats-notice {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-40);
+  text-align: center;
+}
+

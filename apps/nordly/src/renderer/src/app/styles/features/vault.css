@@ -1,0 +1,285 @@
+/* Vault — Obsidian-minimal notes layout */
+.nordly-vault {
+  position: absolute;
+  inset: 0;
+  padding-bottom: 80px;
+  display: flex;
+  min-height: 0;
+}
+.nordly-vault-sidebar-wrap {
+  flex-shrink: 0;
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition:
+    width var(--motion-dur-medium) var(--motion-ease-standard),
+    opacity var(--motion-dur-small) var(--motion-ease-standard);
+}
+.nordly-vault-sidebar-wrap[data-collapsed='true'] {
+  opacity: 0;
+}
+.nordly-vault-sidebar-wrap__inner {
+  height: 100%;
+}
+.nordly-vault-sidebar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: transparent;
+}
+.nordly-vault-sidebar__toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 10px;
+}
+.nordly-vault-sidebar__btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+.nordly-vault-sidebar__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nordly-vault-sidebar__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 6px 16px;
+  scroll-padding-block: 8px;
+}
+.nordly-vault-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.nordly-vault-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.nordly-vault-editor__inner {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 28px 24px 56px;
+  min-height: 0;
+}
+.nordly-vault-editor__meta {
+  position: absolute;
+  right: 20px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.6875rem;
+  color: var(--ink-40);
+  pointer-events: none;
+}
+.nordly-vault-editor__error {
+  position: absolute;
+  left: 24px;
+  bottom: 12px;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ink-80);
+}
+.nordly-vault-empty {
+  width: 100%;
+  max-width: 42rem;
+  margin: auto 0;
+  padding: 32px 0;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-40);
+  line-height: 1.6;
+}
+.nordly-vault-empty[data-dim='true'] {
+  opacity: 0.55;
+}
+.nordly-vault-empty__cta {
+  margin-top: 14px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.1);
+  background: transparent;
+  color: var(--ink-60);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
+}
+.nordly-vault-empty__cta:hover {
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink-80);
+  border-color: rgb(var(--ink-rgb) / 0.16);
+}
+
+.nordly-vault-gate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  background: var(--bg);
+}
+.nordly-vault-gate--center {
+  color: var(--ink-40);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nordly-vault-pass-input {
+  padding: 12px 14px;
+  font-size: 13px;
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid rgb(var(--ink-rgb) / 0.1);
+  border-radius: 8px;
+  color: var(--ink);
+  outline: none;
+  font-family: var(--font-mono, monospace);
+  width: 100%;
+}
+.nordly-vault-gen-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-60);
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--ink-tint-08);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.nordly-settings-vault-btn {
+  padding: 8px 14px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink-90);
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+.nordly-settings-vault-btn:hover {
+  background: rgb(var(--ink-rgb) / 0.1);
+}
+
+.nordly-vault-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.72);
+}
+.nordly-vault-modal {
+  width: min(420px, 100%);
+  max-height: min(90vh, 560px);
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: #000000;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.4),
+    0 24px 64px rgb(0 0 0 / 0.65);
+  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+}
+.nordly-vault-modal__title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.nordly-vault-modal__body {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-60);
+}
+.nordly-vault-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nordly-vault-modal__phrase {
+  margin: 0 0 12px;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--ink-tint-08);
+  color: var(--ink-90);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.nordly-vault-modal__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ink-60);
+  cursor: pointer;
+}
+.nordly-vault-modal__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.05);
+  color: var(--ink);
+  resize: vertical;
+}
+.nordly-vault-modal__error {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--red);
+}
+.nordly-vault-modal__primary {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nordly-vault-modal__primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+

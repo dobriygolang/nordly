@@ -1,8 +1,13 @@
+import { Fragment } from 'react';
 import { useT, useLocale } from '@nordly-i18n';
 
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard, ConferenceProvider } from '@features/tasks/api/tasks';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from './lib/dates';
+import type { TaskEpic } from './lib/taskUi';
+import { TaskInsertSlot } from './TaskInsertSlot';
 import { TaskRow } from './TaskRow';
+import { useFlipList } from './useFlipList';
 
 const COL_W = 254;
 
@@ -11,9 +16,14 @@ interface DayColumnProps {
   date: Date;
   today: Date;
   tasks: TaskCard[];
+  durationTasks: TaskCard[];
   draggingId: string | null;
+  draggingTask: TaskCard | null;
   dropHighlight: boolean;
-  dropTaskId: string | null;
+  dropInsertBeforeId: string | null;
+  detailTaskId: string | null;
+  epics: TaskEpic[];
+  settings: TrackerSettings | null;
   editRequest: { taskId: string; key: number } | null;
   selected: boolean;
   onSelect: () => void;
@@ -21,6 +31,11 @@ interface DayColumnProps {
   onToggleDone: (task: TaskCard) => void;
   onDurationChange: (task: TaskCard, minutes: number) => void;
   onTitleChange: (task: TaskCard, title: string) => void;
+  onOpenDetail: (task: TaskCard) => void;
+  onCloseDetail: () => void;
+  onEpicChange: (task: TaskCard, epicId: string | null) => void;
+  onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<void>;
+  onClearConference: (task: TaskCard) => void;
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
 }
 
@@ -29,9 +44,14 @@ export function DayColumn({
   date,
   today,
   tasks,
+  durationTasks,
   draggingId,
+  draggingTask,
   dropHighlight,
-  dropTaskId,
+  dropInsertBeforeId,
+  detailTaskId,
+  epics,
+  settings,
   editRequest,
   selected,
   onSelect,
@@ -39,12 +59,29 @@ export function DayColumn({
   onToggleDone,
   onDurationChange,
   onTitleChange,
+  onOpenDetail,
+  onCloseDetail,
+  onEpicChange,
+  onCreateConference,
+  onClearConference,
   onPointerDragStart,
 }: DayColumnProps): JSX.Element {
   const t = useT();
   const [locale] = useLocale();
   const { weekday, label, isToday } = formatColumnHeader(date, today, locale);
-  const total = formatDuration(sumDurationMin(tasks.filter((t) => t.status !== 'done')));
+  const total = formatDuration(sumDurationMin(durationTasks));
+
+  const showInsertPreview = draggingId !== null && dropHighlight && draggingTask !== null;
+  const listTasks =
+    draggingId !== null && tasks.some((task) => task.id === draggingId)
+      ? tasks.filter((task) => task.id !== draggingId)
+      : tasks;
+
+  const layoutSig = showInsertPreview ? (dropInsertBeforeId ?? '__end__') : '';
+  const tasksRef = useFlipList(
+    listTasks.map((task) => task.id),
+    layoutSig,
+  );
 
   return (
     <section
@@ -56,65 +93,66 @@ export function DayColumn({
         width: COL_W,
         height: '100%',
         minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        borderRadius: 14,
-        background: dropHighlight ? 'rgb(var(--ink-rgb) / 0.06)' : 'transparent',
-        boxShadow: dropHighlight ? 'inset 0 0 0 1px rgb(var(--ink-rgb) / 0.2)' : 'none',
       }}
     >
-      <header style={{ flexShrink: 0, pointerEvents: draggingId ? 'none' : 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '0 10px' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: selected ? 'var(--ink)' : 'var(--ink-90)' }}>
+      <div className={`nordly-day-column__body${dropHighlight ? ' nordly-day-column__body--drop' : ''}`}>
+        <header className="nordly-day-column__header">
+          <div className="nordly-day-column__header-main">
+            <div
+              className="nordly-day-column__weekday"
+              data-selected={selected ? 'true' : 'false'}
+            >
               {weekday}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-40)', marginTop: 2 }}>
+            <div className="nordly-day-column__date">
               {label}
               {isToday ? ` · ${t('nordly.taskboard.today')}` : ''}
             </div>
           </div>
-          <span className="mono" style={{ fontSize: 10, color: 'var(--ink-40)' }}>
-            {total}
-          </span>
+          <span className="mono nordly-day-column__total">{total}</span>
+        </header>
+
+        <button
+          type="button"
+          className="nordly-day-add-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddClick();
+          }}
+          style={{ pointerEvents: draggingId ? 'none' : 'auto' }}
+        >
+          {t('nordly.taskboard.add_task')}
+        </button>
+
+        <div className="nordly-day-column__tasks" ref={tasksRef}>
+          {listTasks.map((task) => (
+            <Fragment key={task.id}>
+              {showInsertPreview && dropInsertBeforeId === task.id && (
+                <TaskInsertSlot task={draggingTask} epics={epics} />
+              )}
+              <TaskRow
+                task={task}
+                epics={epics}
+                settings={settings}
+                dragging={draggingId === task.id}
+                detailOpen={detailTaskId === task.id}
+                editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
+                onToggleDone={onToggleDone}
+                onDurationChange={onDurationChange}
+                onTitleChange={onTitleChange}
+                onOpenDetail={onOpenDetail}
+                onCloseDetail={onCloseDetail}
+                onEpicChange={onEpicChange}
+                onCreateConference={onCreateConference}
+                onClearConference={onClearConference}
+                onPointerDragStart={onPointerDragStart}
+              />
+            </Fragment>
+          ))}
+          {showInsertPreview && dropInsertBeforeId === null && (
+            <TaskInsertSlot task={draggingTask} epics={epics} />
+          )}
         </div>
-      </header>
-
-      <button
-        type="button"
-        className="nordly-day-add-btn"
-        onClick={(e) => {
-          e.stopPropagation();
-          onAddClick();
-        }}
-        style={{ pointerEvents: draggingId ? 'none' : 'auto' }}
-      >
-        {t('nordly.taskboard.add_task')}
-      </button>
-
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-        {tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            dragging={draggingId === task.id}
-            dropTarget={dropTaskId === task.id && draggingId !== null}
-            editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
-            onToggleDone={onToggleDone}
-            onDurationChange={onDurationChange}
-            onTitleChange={onTitleChange}
-            onPointerDragStart={onPointerDragStart}
-          />
-        ))}
       </div>
     </section>
   );

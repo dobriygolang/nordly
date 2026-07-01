@@ -91,6 +91,42 @@ service TrackerService {
       body: "*"
     };
   }
+
+  rpc PatchWorkTask(PatchWorkTaskRequest) returns (PatchWorkTaskResponse) {
+    option (google.api.http) = {
+      patch: "/v1/tracker/work/tasks/{id}"
+      body: "*"
+    };
+  }
+
+  rpc CreateWorkTaskConference(CreateWorkTaskConferenceRequest) returns (CreateWorkTaskConferenceResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/tasks/{id}/conference"
+      body: "*"
+    };
+  }
+
+  rpc ListEpics(ListEpicsRequest) returns (ListEpicsResponse) {
+    option (google.api.http) = {get: "/v1/tracker/work/epics"};
+  }
+
+  rpc CreateEpic(CreateEpicRequest) returns (CreateEpicResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/work/epics"
+      body: "*"
+    };
+  }
+
+  rpc GetZoomAuthURL(GetZoomAuthURLRequest) returns (GetZoomAuthURLResponse) {
+    option (google.api.http) = {get: "/v1/tracker/integrations/zoom/url"};
+  }
+
+  rpc DisconnectZoom(DisconnectZoomRequest) returns (DisconnectZoomResponse) {
+    option (google.api.http) = {
+      post: "/v1/tracker/integrations/zoom/disconnect"
+      body: "*"
+    };
+  }
 }
 
 message UserSettings {
@@ -102,6 +138,8 @@ message UserSettings {
   bool google_reauth_required = 4;
   // Calendar used for reads and outbound task sync (defaults to "primary").
   string google_calendar_id = 5;
+  bool zoom_connected = 6;
+  bool zoom_reauth_required = 7;
 }
 
 message GetSettingsRequest {}
@@ -128,6 +166,18 @@ message GetGoogleCalendarAuthURLResponse {
 message DisconnectGoogleCalendarRequest {}
 
 message DisconnectGoogleCalendarResponse {
+  UserSettings settings = 1;
+}
+
+message GetZoomAuthURLRequest {}
+
+message GetZoomAuthURLResponse {
+  string url = 1;
+}
+
+message DisconnectZoomRequest {}
+
+message DisconnectZoomResponse {
   UserSettings settings = 1;
 }
 
@@ -197,6 +247,27 @@ message ListGoogleCalendarsResponse {
   repeated GoogleCalendarListEntry calendars = 1;
 }
 
+message Epic {
+  string id = 1;
+  string name = 2;
+  string color = 3;
+}
+
+message ListEpicsRequest {}
+
+message ListEpicsResponse {
+  repeated Epic epics = 1;
+}
+
+message CreateEpicRequest {
+  string name = 1;
+  string color = 2;
+}
+
+message CreateEpicResponse {
+  Epic epic = 1;
+}
+
 message WorkTask {
   string id = 1;
   string status = 2;
@@ -208,6 +279,9 @@ message WorkTask {
   optional google.protobuf.Timestamp scheduled_start = 8;
   optional int32 scheduled_duration_min = 9;
   optional string google_event_id = 10;
+  optional string epic_id = 11;
+  optional string conference_url = 12;
+  optional string conference_provider = 13;
 }
 
 message ListWorkTasksRequest {}
@@ -255,5 +329,26 @@ message UnscheduleWorkTaskRequest {
 }
 
 message UnscheduleWorkTaskResponse {
+  WorkTask task = 1;
+}
+
+message PatchWorkTaskRequest {
+  string id = 1;
+  optional string epic_id = 2;
+  optional bool clear_epic = 3;
+  optional bool clear_conference = 4;
+}
+
+message PatchWorkTaskResponse {
+  WorkTask task = 1;
+}
+
+message CreateWorkTaskConferenceRequest {
+  string id = 1;
+  // "meet" or "zoom"
+  string provider = 2;
+}
+
+message CreateWorkTaskConferenceResponse {
   WorkTask task = 1;
 }

@@ -8,12 +8,19 @@ import {
   scheduleTask,
   renameTask,
   reorderTasks,
+  patchTaskDetails,
+  createTaskConference,
   type TaskCard,
+  type ConferenceProvider,
 } from '@features/tasks/api/tasks';
-import { NORDLY_HEADER_H } from '@widgets/Chrome';
+import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
+import { remoteListEpics } from '@features/tasks/repository/tasksRemote';
+import { LOCAL_ONLY } from '@app/config/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { DayColumn } from './DayColumn';
 import { useDayTaskDrag } from './useDayTaskDrag';
+import type { TaskEpic } from './lib/taskUi';
+import { useHorizontalPanScroll } from './useHorizontalPanScroll';
 import { useInfiniteDayScroll } from './useInfiniteDayScroll';
 import { DayTimeline } from './DayTimeline';
 import {
@@ -38,6 +45,9 @@ export function TaskBoardPage(): JSX.Element {
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [selectedDay, setSelectedDay] = useState(() => todayKey);
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [epics, setEpics] = useState<TaskEpic[]>([]);
+  const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
   const didExpandTasksRef = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -48,9 +58,29 @@ export function TaskBoardPage(): JSX.Element {
     }
   }, []);
 
+  const loadEpics = useCallback(async () => {
+    if (LOCAL_ONLY) return;
+    try {
+      setEpics(await remoteListEpics());
+    } catch {
+      setEpics([]);
+    }
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    if (LOCAL_ONLY) return;
+    try {
+      setTrackerSettings(await getTrackerSettings());
+    } catch {
+      setTrackerSettings(null);
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void loadEpics();
+    void loadSettings();
+  }, [refresh, loadEpics, loadSettings]);
 
   useEffect(() => {
     const onTasksChanged = () => void refresh();
@@ -109,8 +139,54 @@ export function TaskBoardPage(): JSX.Element {
     [tasksByDay],
   );
 
+  const applyInsertOrder = useCallback(
+    async (taskId: string, dayKey: string, insertBeforeTaskId: string | null) => {
+      let reordered: TaskCard[] = [];
+
+      setTasks((prev) => {
+        const list = prev
+          .filter((t) => VISIBLE.has(t.status))
+          .filter((t) => (t.scheduledStart ? taskDayKey(t) : todayKey) === dayKey)
+          .sort((a, b) => {
+            const aDone = a.status === 'done' ? 1 : 0;
+            const bDone = b.status === 'done' ? 1 : 0;
+            if (aDone !== bDone) return aDone - bDone;
+            const aOrder = a.order ?? taskScheduleStart(a)?.getTime() ?? new Date(a.createdAt).getTime();
+            const bOrder = b.order ?? taskScheduleStart(b)?.getTime() ?? new Date(b.createdAt).getTime();
+            return aOrder - bOrder;
+          });
+
+        const moved = list.find((t) => t.id === taskId);
+        if (!moved) return prev;
+
+        const without = list.filter((t) => t.id !== taskId);
+        const toIdx = insertBeforeTaskId
+          ? without.findIndex((t) => t.id === insertBeforeTaskId)
+          : without.length;
+        if (insertBeforeTaskId && toIdx === -1) return prev;
+
+        const next = without.slice();
+        next.splice(toIdx, 0, moved);
+        reordered = next.map((t, i) => ({ ...t, order: i }));
+
+        return prev.map((t) => {
+          const r = reordered.find((w) => w.id === t.id);
+          return r ? { ...t, order: r.order } : t;
+        });
+      });
+
+      if (reordered.length === 0) return;
+      try {
+        await reorderTasks(reordered);
+      } catch {
+        void refresh();
+      }
+    },
+    [todayKey, refresh],
+  );
+
   const handleMoveToDay = useCallback(
-    async (taskId: string, dayKey: string) => {
+    async (taskId: string, dayKey: string, insertBeforeTaskId: string | null = null) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const sourceKey = findTaskColumnKey(taskId);
@@ -136,51 +212,29 @@ export function TaskBoardPage(): JSX.Element {
       try {
         const updated = await scheduleTask(task.id, resolved, duration);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+        await applyInsertOrder(taskId, dayKey, insertBeforeTaskId);
       } catch {
         void refresh();
       }
     },
-    [tasks, findTaskColumnKey, refresh],
+    [tasks, findTaskColumnKey, refresh, applyInsertOrder],
   );
 
   const handleReorder = useCallback(
-    async (taskId: string, targetTaskId: string) => {
-      const sourceKey = findTaskColumnKey(taskId);
-      if (!sourceKey) return;
-      const list = tasksByDay.get(sourceKey);
-      if (!list) return;
-      const fromIdx = list.findIndex((t) => t.id === taskId);
-      const toIdx = list.findIndex((t) => t.id === targetTaskId);
-      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
-
-      const next = list.slice();
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, moved);
-      const reordered = next.map((t, i) => ({ ...t, order: i }));
-
-      setTasks((prev) =>
-        prev.map((t) => {
-          const r = reordered.find((w) => w.id === t.id);
-          return r ? { ...t, order: r.order } : t;
-        }),
-      );
-      try {
-        await reorderTasks(reordered);
-      } catch {
-        void refresh();
-      }
+    async (taskId: string, dayKey: string, insertBeforeTaskId: string | null) => {
+      await applyInsertOrder(taskId, dayKey, insertBeforeTaskId);
     },
-    [findTaskColumnKey, tasksByDay, refresh],
+    [applyInsertOrder],
   );
 
   const handleDrop = useCallback(
-    (taskId: string, dayKey: string, targetTaskId: string | null) => {
+    (taskId: string, dayKey: string, insertBeforeTaskId: string | null) => {
       const sourceKey = findTaskColumnKey(taskId);
-      if (targetTaskId && targetTaskId !== taskId && sourceKey === dayKey) {
-        void handleReorder(taskId, targetTaskId);
+      if (sourceKey === dayKey) {
+        void handleReorder(taskId, dayKey, insertBeforeTaskId);
         return;
       }
-      void handleMoveToDay(taskId, dayKey);
+      void handleMoveToDay(taskId, dayKey, insertBeforeTaskId);
     },
     [findTaskColumnKey, handleReorder, handleMoveToDay],
   );
@@ -189,9 +243,92 @@ export function TaskBoardPage(): JSX.Element {
     setEditRequest((prev) => ({ taskId, key: (prev?.key ?? 0) + 1 }));
   }, []);
 
-  const { draggingId, dropDay, dropTaskId, onPointerDragStart } = useDayTaskDrag(
-    handleDrop,
-    handleTaskTap,
+  const handleOpenDetail = useCallback((task: TaskCard) => {
+    setDetailTaskId((prev) => (prev === task.id ? null : task.id));
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailTaskId(null);
+  }, []);
+
+  const handleEpicChange = useCallback(
+    async (task: TaskCard, epicId: string | null) => {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, epicId: epicId ?? undefined, updatedAt: new Date().toISOString() } : t,
+        ),
+      );
+      try {
+        const updated = await patchTaskDetails(task.id, { epicId });
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      } catch {
+        void refresh();
+      }
+    },
+    [refresh],
+  );
+
+  const handleCreateConference = useCallback(
+    async (task: TaskCard, provider: ConferenceProvider) => {
+      const updated = await createTaskConference(task.id, provider);
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+    },
+    [],
+  );
+
+  const handleClearConference = useCallback(
+    async (task: TaskCard) => {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                conferenceUrl: undefined,
+                conferenceProvider: undefined,
+                updatedAt: new Date().toISOString(),
+              }
+            : t,
+        ),
+      );
+      try {
+        const updated = await patchTaskDetails(task.id, { clearConference: true });
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      } catch {
+        void refresh();
+      }
+    },
+    [refresh],
+  );
+
+  const { draggingId, dragSourceDay, dropDay, dropInsertBeforeId, onPointerDragStart } =
+    useDayTaskDrag(handleDrop, handleTaskTap);
+
+  const draggingTask = useMemo(
+    () => (draggingId ? tasks.find((t) => t.id === draggingId) ?? null : null),
+    [tasks, draggingId],
+  );
+
+  useHorizontalPanScroll(scrollRef, draggingId === null);
+
+  const columnDurationTasks = useCallback(
+    (dayKey: string): TaskCard[] => {
+      const base = tasksByDay.get(dayKey) ?? [];
+      if (!draggingId) return base;
+
+      const task = tasks.find((t) => t.id === draggingId);
+      if (!task) return base;
+
+      const sourceKey = dragSourceDay ?? findTaskColumnKey(draggingId);
+
+      if (sourceKey === dayKey && (dropDay === null || dropDay !== sourceKey)) {
+        return base.filter((t) => t.id !== draggingId);
+      }
+      if (dropDay === dayKey && sourceKey !== dayKey && !base.some((t) => t.id === draggingId)) {
+        return [...base, task];
+      }
+      return base;
+    },
+    [tasksByDay, draggingId, dragSourceDay, dropDay, tasks, findTaskColumnKey],
   );
 
   const openAddTask = useCallback((dayKey: string) => {
@@ -291,7 +428,7 @@ export function TaskBoardPage(): JSX.Element {
     <div
       style={{
         position: 'absolute',
-        top: NORDLY_HEADER_H,
+        top: 0,
         left: 0,
         right: 0,
         bottom: 0,
@@ -303,6 +440,7 @@ export function TaskBoardPage(): JSX.Element {
       }}
     >
       <div
+        className="nordly-task-board-board"
         style={{
           flex: 1,
           minWidth: 0,
@@ -317,7 +455,6 @@ export function TaskBoardPage(): JSX.Element {
             height: '100%',
             minHeight: 0,
             overflowX: 'auto',
-            overflowY: 'hidden',
             display: 'flex',
             alignItems: 'stretch',
             gap: 10,
@@ -331,9 +468,14 @@ export function TaskBoardPage(): JSX.Element {
               date={d.date}
               today={today}
               draggingId={draggingId}
+              draggingTask={draggingTask}
               dropHighlight={dropDay === d.key && draggingId !== null}
-              dropTaskId={dropDay === d.key ? dropTaskId : null}
+              dropInsertBeforeId={dropDay === d.key ? dropInsertBeforeId : null}
+              detailTaskId={detailTaskId}
+              epics={epics}
+              settings={trackerSettings}
               editRequest={editRequest}
+              durationTasks={columnDurationTasks(d.key)}
               tasks={tasksByDay.get(d.key) ?? []}
               selected={selectedDay === d.key}
               onSelect={() => setSelectedDay(d.key)}
@@ -341,6 +483,11 @@ export function TaskBoardPage(): JSX.Element {
               onToggleDone={(task) => void handleToggleDone(task)}
               onDurationChange={(task, min) => void handleDurationChange(task, min, d.date)}
               onTitleChange={(task, title) => void handleTitleChange(task, title)}
+              onOpenDetail={handleOpenDetail}
+              onCloseDetail={handleCloseDetail}
+              onEpicChange={(task, epicId) => void handleEpicChange(task, epicId)}
+              onCreateConference={handleCreateConference}
+              onClearConference={(task) => void handleClearConference(task)}
               onPointerDragStart={onPointerDragStart}
             />
           ))}
@@ -350,6 +497,7 @@ export function TaskBoardPage(): JSX.Element {
       <DayTimeline
         date={selectedDate}
         tasks={tasks}
+        epics={epics}
         onReschedule={(task, start) => void handleReschedule(task, start)}
       />
 

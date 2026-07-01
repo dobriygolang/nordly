@@ -1,40 +1,78 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard, ConferenceProvider } from '@features/tasks/api/tasks';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import { Icon } from '@shared/ui/primitives/Icon';
 import { defaultDurationMin } from './lib/dates';
+import { epicById, type TaskEpic } from './lib/taskUi';
 import { DurationPicker } from './DurationPicker';
+import { TaskDetailPopover } from './TaskDetailPopover';
 
-const COL_W = 254;
+const DETAIL_POP_CLOSE_MS = 140;
 
 interface TaskRowProps {
   task: TaskCard;
+  epics: TaskEpic[];
+  settings: TrackerSettings | null;
   dragging: boolean;
-  dropTarget: boolean;
+  detailOpen: boolean;
   editRequestKey?: number;
   onToggleDone: (task: TaskCard) => void;
   onDurationChange: (task: TaskCard, minutes: number) => void;
   onTitleChange: (task: TaskCard, title: string) => void;
+  onOpenDetail: (task: TaskCard) => void;
+  onCloseDetail: () => void;
+  onEpicChange: (task: TaskCard, epicId: string | null) => void;
+  onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<void>;
+  onClearConference: (task: TaskCard) => void;
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
 }
 
 export function TaskRow({
   task,
+  epics,
+  settings,
   dragging,
-  dropTarget,
+  detailOpen,
   editRequestKey = 0,
   onToggleDone,
   onDurationChange,
   onTitleChange,
+  onOpenDetail,
+  onCloseDetail,
+  onEpicChange,
+  onCreateConference,
+  onClearConference,
   onPointerDragStart,
 }: TaskRowProps): JSX.Element {
   const t = useT();
   const done = task.status === 'done';
+  const epic = epicById(epics, task.epicId);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const detailBtnRef = useRef<HTMLButtonElement>(null);
+  const [detailMounted, setDetailMounted] = useState(false);
+  const [detailClosing, setDetailClosing] = useState(false);
+  const detailVisible = detailOpen || detailMounted;
+
+  useEffect(() => {
+    if (detailOpen) {
+      setDetailMounted(true);
+      setDetailClosing(false);
+      return;
+    }
+    if (!detailMounted) return;
+    setDetailClosing(true);
+    const timer = window.setTimeout(() => {
+      setDetailMounted(false);
+      setDetailClosing(false);
+    }, DETAIL_POP_CLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [detailOpen, detailMounted]);
 
   useEffect(() => {
     if (!editing) setDraft(task.title);
@@ -79,31 +117,24 @@ export function TaskRow({
     <article
       data-task-row
       data-task-id={task.id}
+      data-flip-key={task.id}
       data-done={done ? 'true' : 'false'}
+      data-dragging={dragging ? 'true' : 'false'}
+      data-detail-open={detailVisible ? 'true' : 'false'}
+      data-epic={epic ? 'true' : 'false'}
       className="nordly-task-row"
+      style={
+        epic
+          ? ({ '--task-epic-color': epic.color } as CSSProperties)
+          : undefined
+      }
       onPointerDown={(e) => {
         if (editing) return;
         const target = e.target as HTMLElement;
-        if (target.closest('button, textarea, [data-no-drag]')) return;
+        if (target.closest('button, textarea, a, [data-no-drag]')) return;
         onPointerDragStart(task.id, e);
       }}
       onClick={(e) => e.stopPropagation()}
-      style={{
-        boxSizing: 'border-box',
-        width: COL_W,
-        padding: '10px 12px',
-        borderRadius: 12,
-        background: 'rgb(var(--ink-rgb) / 0.05)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 8,
-        opacity: dragging ? 0.4 : 1,
-        cursor: editing ? 'text' : dragging ? 'grabbing' : 'grab',
-        touchAction: 'none',
-        userSelect: editing ? 'text' : 'none',
-        outline: dropTarget ? '2px solid rgb(var(--ink-rgb) / 0.55)' : 'none',
-        outlineOffset: dropTarget ? 1 : 0,
-      }}
     >
       <button
         type="button"
@@ -114,27 +145,11 @@ export function TaskRow({
           e.stopPropagation();
           onToggleDone(task);
         }}
-        style={{
-          marginTop: 1,
-          width: 16,
-          height: 16,
-          borderRadius: 99,
-          border: done ? 'none' : '1.5px solid var(--ink-60)',
-          background: done ? '#4CB35C' : 'rgb(var(--ink-rgb) / 0.04)',
-          flexShrink: 0,
-          cursor: 'pointer',
-          display: 'grid',
-          placeItems: 'center',
-          color: done ? '#0a0a0a' : 'transparent',
-          fontSize: 10,
-          lineHeight: 1,
-          padding: 0,
-        }}
       >
         {done ? '✓' : ''}
       </button>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="nordly-task-row__body">
         {editing ? (
           <textarea
             ref={textareaRef}
@@ -167,7 +182,7 @@ export function TaskRow({
               margin: 0,
               font: 'inherit',
               fontSize: 13,
-              lineHeight: '16px',
+              lineHeight: '15px',
               color: 'var(--ink-90)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
@@ -191,7 +206,7 @@ export function TaskRow({
             }}
             style={{
               fontSize: 13,
-              lineHeight: '16px',
+              lineHeight: '15px',
               color: done ? 'var(--ink-40)' : 'var(--ink-90)',
               textDecoration: done ? 'line-through' : 'none',
               whiteSpace: 'pre-wrap',
@@ -204,12 +219,56 @@ export function TaskRow({
         )}
       </div>
 
-      <div data-no-drag style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 1 }}>
+      {task.conferenceUrl && (
+        <a
+          href={task.conferenceUrl}
+          data-no-drag
+          className="nordly-task-row__meet"
+          aria-label={t('nordly.taskboard.join_meeting')}
+          title={t('nordly.taskboard.join_meeting')}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Icon name="video" size={12} stroke="var(--ink-40)" />
+        </a>
+      )}
+
+      <button
+        type="button"
+        data-no-drag
+        ref={detailBtnRef}
+        className="nordly-task-row__detail"
+        aria-label={t('nordly.taskboard.open_details')}
+        aria-expanded={detailVisible}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenDetail(task);
+        }}
+      >
+        <Icon name="more" size={14} stroke="var(--ink-40)" />
+      </button>
+
+      <div className="nordly-task-row__duration" data-no-drag>
         <DurationPicker
           valueMin={defaultDurationMin(task)}
           onChange={(min) => onDurationChange(task, min)}
         />
       </div>
+
+      {detailMounted && (
+        <TaskDetailPopover
+          task={task}
+          epics={epics}
+          settings={settings}
+          anchorRef={detailBtnRef}
+          closing={detailClosing}
+          onEpicChange={(epicId) => onEpicChange(task, epicId)}
+          onCreateConference={(provider) => onCreateConference(task, provider)}
+          onClearConference={() => onClearConference(task)}
+          onClose={onCloseDetail}
+        />
+      )}
     </article>
   );
 }

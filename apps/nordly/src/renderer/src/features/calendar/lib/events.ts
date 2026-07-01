@@ -194,9 +194,37 @@ export function entriesForDay(entries: CalendarEntry[], dayKey: string): Calenda
   return entries.filter((e) => toDayKey(e.start) === dayKey);
 }
 
+/** Whether an all-day entry occupies a given calendar day (supports multi-day spans). */
+export function allDayEntryOnDay(entry: CalendarEntry, dayKey: string): boolean {
+  if (!entry.allDay) return false;
+  const dayStart = parseDayKey(dayKey).getTime();
+  const dayEnd = dayStart + 86_400_000;
+  const evStart = parseDayKey(toDayKey(entry.start)).getTime();
+  const evEnd = entry.end.getTime();
+  return evStart < dayEnd && evEnd > dayStart;
+}
+
+export function allDayEntriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {
+  return entries.filter((e) => allDayEntryOnDay(e, dayKey));
+}
+
+export function timedEntriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {
+  return entries.filter((e) => !e.allDay && toDayKey(e.start) === dayKey);
+}
+
 export function entriesForWeek(entries: CalendarEntry[], weekStart: Date): CalendarEntry[] {
-  const keys = new Set(buildWeekDays(weekStart).map((d) => d.dayKey));
-  return entries.filter((e) => keys.has(toDayKey(e.start)));
+  const days = buildWeekDays(weekStart);
+  const keys = new Set(days.map((d) => d.dayKey));
+  const weekStartMs = parseDayKey(days[0].dayKey).getTime();
+  const weekEndMs = parseDayKey(days[6].dayKey).getTime() + 86_400_000;
+
+  return entries.filter((e) => {
+    if (e.allDay) {
+      const evStart = parseDayKey(toDayKey(e.start)).getTime();
+      return evStart < weekEndMs && e.end.getTime() > weekStartMs;
+    }
+    return keys.has(toDayKey(e.start));
+  });
 }
 
 export function entriesForYear(entries: CalendarEntry[], year: number): CalendarEntry[] {
@@ -207,7 +235,7 @@ export function eventBlockLayout(
   entry: CalendarEntry,
   hourHeight = CALENDAR_HOUR_HEIGHT_PX,
 ): { top: number; height: number } | null {
-  if (entry.allDay) return { top: 0, height: hourHeight * 0.75 };
+  if (entry.allDay) return null;
 
   const startH = entry.start.getHours() + entry.start.getMinutes() / 60;
   let endH = entry.end.getHours() + entry.end.getMinutes() / 60;
@@ -232,6 +260,109 @@ export function eventBlockLayout(
   }
 
   return { top, height };
+}
+
+export interface TimedEventLayout {
+  entry: CalendarEntry;
+  top: number;
+  height: number;
+  column: number;
+  columnCount: number;
+}
+
+function entryTimeRangeMs(entry: CalendarEntry): { start: number; end: number } {
+  const start = entry.start.getTime();
+  let end = entry.end.getTime();
+  if (end <= start) end = start + 30 * 60_000;
+  return { start, end };
+}
+
+function timedEventsOverlap(a: CalendarEntry, b: CalendarEntry): boolean {
+  const ar = entryTimeRangeMs(a);
+  const br = entryTimeRangeMs(b);
+  return ar.start < br.end && br.start < ar.end;
+}
+
+/** Side-by-side column layout for overlapping timed events on one day. */
+export function layoutTimedEntriesForDay(
+  entries: CalendarEntry[],
+  hourHeight = CALENDAR_HOUR_HEIGHT_PX,
+): TimedEventLayout[] {
+  const timed = entries.filter((e) => !e.allDay);
+  if (timed.length === 0) return [];
+
+  const sorted = [...timed].sort((a, b) => {
+    const diff = a.start.getTime() - b.start.getTime();
+    if (diff !== 0) return diff;
+    const aDur = entryTimeRangeMs(a).end - entryTimeRangeMs(a).start;
+    const bDur = entryTimeRangeMs(b).end - entryTimeRangeMs(b).start;
+    return bDur - aDur;
+  });
+
+  const n = sorted.length;
+  const parent = sorted.map((_, i) => i);
+  const find = (i: number): number => {
+    let root = i;
+    while (parent[root] !== root) root = parent[root];
+    let cur = i;
+    while (parent[cur] !== cur) {
+      const next = parent[cur];
+      parent[cur] = root;
+      cur = next;
+    }
+    return root;
+  };
+  const union = (i: number, j: number) => {
+    parent[find(i)] = find(j);
+  };
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (timedEventsOverlap(sorted[i], sorted[j])) union(i, j);
+    }
+  }
+
+  const groups = new Map<number, CalendarEntry[]>();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    const list = groups.get(root);
+    if (list) list.push(sorted[i]);
+    else groups.set(root, [sorted[i]]);
+  }
+
+  const out: TimedEventLayout[] = [];
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    const columnEnds: number[] = [];
+    const columnById = new Map<string, number>();
+
+    for (const entry of group) {
+      const { start, end } = entryTimeRangeMs(entry);
+      let col = columnEnds.findIndex((colEnd) => colEnd <= start);
+      if (col === -1) {
+        col = columnEnds.length;
+        columnEnds.push(end);
+      } else {
+        columnEnds[col] = end;
+      }
+      columnById.set(entry.id, col);
+    }
+
+    const columnCount = Math.max(1, columnEnds.length);
+    for (const entry of group) {
+      const block = eventBlockLayout(entry, hourHeight);
+      if (!block) continue;
+      out.push({
+        entry,
+        top: block.top,
+        height: block.height,
+        column: columnById.get(entry.id) ?? 0,
+        columnCount,
+      });
+    }
+  }
+
+  return out.sort((a, b) => a.top - b.top || a.column - b.column);
 }
 
 export function calendarHourLabels(): number[] {

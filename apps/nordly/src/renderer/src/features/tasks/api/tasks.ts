@@ -1,5 +1,10 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
+import { LOCAL_ONLY } from '@app/config/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete } from '@features/tasks/repository/tasksStore';
+import {
+  remoteCreateTaskConference,
+  remotePatchTask,
+} from '@features/tasks/repository/tasksRemote';
 import { getServerId } from '@shared/sync/idMap';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
@@ -8,6 +13,7 @@ import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'dismissed';
 export type TaskKind = 'algo' | 'sysdesign' | 'quiz' | 'reflection' | 'reading' | 'ml' | 'custom';
+export type ConferenceProvider = 'meet' | 'zoom';
 
 export interface TaskCard {
   id: string;
@@ -20,6 +26,9 @@ export interface TaskCard {
   scheduledStart?: string;
   scheduledDurationMin?: number;
   googleEventId?: string;
+  epicId?: string;
+  conferenceUrl?: string;
+  conferenceProvider?: ConferenceProvider;
   /** Manual order within a day column. Undefined → derived from schedule/createdAt. */
   order?: number;
 }
@@ -143,4 +152,45 @@ export async function deleteTask(taskId: string): Promise<void> {
 export async function reorderTasks(updated: TaskCard[]): Promise<void> {
   for (const t of updated) await tasksStorePut(t);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+}
+
+export async function patchTaskDetails(
+  taskId: string,
+  patch: { epicId?: string | null; clearConference?: boolean },
+): Promise<TaskCard> {
+  const prev = await resolveTask(taskId);
+  if (!prev) throw new Error(`Task not found: ${taskId}`);
+  const now = new Date().toISOString();
+  const task: TaskCard = {
+    ...prev,
+    updatedAt: now,
+    epicId: patch.epicId === null ? undefined : patch.epicId ?? prev.epicId,
+    conferenceUrl: patch.clearConference ? undefined : prev.conferenceUrl,
+    conferenceProvider: patch.clearConference ? undefined : prev.conferenceProvider,
+  };
+  await tasksStorePut(task);
+  if (isSyncEnabled()) {
+    await enqueueOutbox('tasks', 'patch', taskId, {
+      epicId: patch.epicId,
+      clearEpic: patch.epicId === null,
+      clearConference: patch.clearConference ?? false,
+    });
+    scheduleSync();
+  }
+  return task;
+}
+
+export async function createTaskConference(
+  taskId: string,
+  provider: ConferenceProvider,
+): Promise<TaskCard> {
+  if (LOCAL_ONLY) {
+    throw new Error('integrations require cloud account');
+  }
+  const prev = await resolveTask(taskId);
+  if (!prev) throw new Error(`Task not found: ${taskId}`);
+  const updated = await remoteCreateTaskConference(taskId, provider);
+  await tasksStorePut(updated);
+  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  return updated;
 }

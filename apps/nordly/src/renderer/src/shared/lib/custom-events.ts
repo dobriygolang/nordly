@@ -21,4 +21,9 @@ export const NORDLY_EVENTS = {
   navOpenTask: 'nordly:nav-open-task',
   /** OAuth callback → Settings: Google Calendar connected/error. */
   googleCalendarOAuth: 'nordly:google-calendar-oauth',
+  zoomOAuth: 'nordly:zoom-oauth',
+  /** Background worker → calendar views: Google events cache updated. */
+  googleCalendarChanged: 'nordly:google-calendar-changed',
+  /** Local app settings persisted (poll interval, etc.). */
+  settingsChanged: 'nordly:settings-changed',
 } as const;

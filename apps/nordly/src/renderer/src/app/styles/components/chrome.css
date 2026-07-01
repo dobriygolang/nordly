@@ -1,0 +1,97 @@
+/* Back-to-today — fixed above dock (dock: bottom 36px, ~48px tall). */
+.nordly-back-to-today-anchor {
+  position: fixed;
+  left: 50%;
+  bottom: 94px;
+  transform: translateX(-50%);
+  z-index: 9;
+  pointer-events: none;
+}
+.nordly-back-to-today-anchor .nordly-pill-btn {
+  pointer-events: auto;
+}
+
+.nordly-slash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px 8px 8px;
+  margin-left: 0;
+  border-radius: 6;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-90);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.nordly-slash-item:hover,
+.nordly-slash-item[aria-selected='true'] {
+  border-left-color: rgb(var(--ink-rgb) / 0.3);
+  background: var(--ink-tint-06);
+  color: var(--ink);
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * Legacy motion aliases — mapped on foundation tokens in _tokens.generated.css.
+ * Nordly overrides durations/easing below for softer interactive feel.
+ */
+:root {
+  --motion-dur-micro: 120ms;
+  --motion-dur-small: 220ms;
+  --motion-dur-medium: 320ms;
+  --motion-dur-large: 440ms;
+  --motion-ease-interactive: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: var(--motion-dur-small) var(--motion-ease-interactive);
+  --t-base: var(--motion-dur-medium) var(--motion-ease-interactive);
+  --t-slow: var(--motion-dur-large) var(--motion-ease-interactive);
+}
+
+/* Apply to any interactive surface — buttons, list rows, inputs. */
+.surface {
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-base),
+    opacity var(--t-fast),
+    box-shadow var(--t-fast);
+}
+
+.lift:hover {
+  transform: translateY(-1px);
+}
+.lift:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* Plain row hover — palette and lists */
+.row {
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+/* Icon button — sidebar chrome, toolbars */
+.nordly-icon-btn {
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-60);
+  transition: background-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+.nordly-icon-btn:hover {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink);
+}
+.nordly-icon-btn:active {
+  transform: scale(0.97);
+}
+

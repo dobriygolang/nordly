@@ -13,6 +13,7 @@ import (
 const userSettingsColumns = `user_id, google_calendar_sync_enabled,
 	google_refresh_token, google_oauth_state, google_calendar_id,
 	google_reauth_required, google_sync_token, google_synced_at,
+	zoom_refresh_token, zoom_oauth_state, zoom_reauth_required,
 	created_at, updated_at`
 
 // UserSettingsPatch describes optional updates to user settings.
@@ -198,9 +199,86 @@ func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {
 	if err := row.Scan(&uid, &s.GoogleCalendarSyncEnabled,
 		&s.GoogleRefreshToken, &s.GoogleOAuthState, &s.GoogleCalendarID,
 		&s.GoogleReauthRequired, &s.GoogleSyncToken, &s.GoogleSyncedAt,
+		&s.ZoomRefreshToken, &s.ZoomOAuthState, &s.ZoomReauthRequired,
 		&s.CreatedAt, &s.UpdatedAt); err != nil {
 		return nil, err
 	}
 	s.UserID = uid.String()
 	return &s, nil
+}
+
+func (r *Repository) SaveZoomOAuthState(ctx context.Context, userID, state string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		INSERT INTO user_settings (user_id, zoom_oauth_state)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET zoom_oauth_state = $2, updated_at = now()
+	`, uid, state)
+	return err
+}
+
+func (r *Repository) ConsumeZoomOAuthState(ctx context.Context, state string) (string, error) {
+	row := r.conn(ctx).QueryRow(ctx, `
+		UPDATE user_settings SET zoom_oauth_state = NULL, updated_at = now()
+		WHERE zoom_oauth_state = $1
+		RETURNING user_id
+	`, state)
+	var uid uuid.UUID
+	if err := row.Scan(&uid); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return uid.String(), nil
+}
+
+func (r *Repository) SaveZoomRefreshToken(ctx context.Context, userID, refreshToken string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		INSERT INTO user_settings (user_id, zoom_refresh_token, zoom_reauth_required)
+		VALUES ($1, $2, false)
+		ON CONFLICT (user_id) DO UPDATE SET
+			zoom_refresh_token = $2,
+			zoom_reauth_required = false,
+			updated_at = now()
+	`, uid, refreshToken)
+	return err
+}
+
+func (r *Repository) MarkZoomReauthRequired(ctx context.Context, userID string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		UPDATE user_settings SET
+			zoom_refresh_token = NULL,
+			zoom_reauth_required = true,
+			updated_at = now()
+		WHERE user_id = $1
+	`, uid)
+	return err
+}
+
+func (r *Repository) ClearZoomConnection(ctx context.Context, userID string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id: %w", err)
+	}
+	_, err = r.conn(ctx).Exec(ctx, `
+		UPDATE user_settings SET
+			zoom_refresh_token = NULL,
+			zoom_oauth_state = NULL,
+			zoom_reauth_required = false,
+			updated_at = now()
+		WHERE user_id = $1
+	`, uid)
+	return err
 }

@@ -21,6 +21,9 @@ type WorkTask struct {
 	ScheduledStart       *time.Time
 	ScheduledDurationMin *int
 	GoogleEventID        string
+	EpicID               string
+	ConferenceURL        string
+	ConferenceProvider   string
 }
 
 type CreateWorkTaskParams struct {
@@ -135,6 +138,18 @@ func workTaskFromModel(t *model.WorkTask) WorkTask {
 	if t.GoogleEventID != nil {
 		googleEventID = *t.GoogleEventID
 	}
+	epicID := ""
+	if t.EpicID != nil {
+		epicID = *t.EpicID
+	}
+	conferenceURL := ""
+	if t.ConferenceURL != nil {
+		conferenceURL = *t.ConferenceURL
+	}
+	conferenceProvider := ""
+	if t.ConferenceProvider != nil {
+		conferenceProvider = *t.ConferenceProvider
+	}
 	return WorkTask{
 		ID:                   t.ID,
 		Status:               t.Status,
@@ -146,6 +161,9 @@ func workTaskFromModel(t *model.WorkTask) WorkTask {
 		ScheduledStart:       t.ScheduledStart,
 		ScheduledDurationMin: t.ScheduledDurationMin,
 		GoogleEventID:        googleEventID,
+		EpicID:               epicID,
+		ConferenceURL:        conferenceURL,
+		ConferenceProvider:   conferenceProvider,
 	}
 }
 

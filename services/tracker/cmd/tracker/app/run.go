@@ -9,6 +9,7 @@ import (
 
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
+	zoomadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/zoom"
 	trackerapi "github.com/dobriygolang/project-nordly/services/tracker/internal/app/api/tracker"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/config"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/logger"
@@ -46,6 +47,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 	repo := trackerrepo.New(pg)
 	googleClient := googleadapter.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURI)
+	zoomClient := zoomadapter.NewClient(cfg.ZoomClientID, cfg.ZoomClientSecret, cfg.ZoomRedirectURI)
 	cipher, err := secretbox.New(cfg.TokenEncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("init token cipher: %w", err)
@@ -56,6 +58,7 @@ func New(ctx context.Context) (*App, error) {
 	svc := trackerservice.New(trackerservice.Deps{
 		Repo:            repo,
 		Google:          googleClient,
+		Zoom:            zoomClient,
 		Cipher:          cipher,
 		HoneCallbackURL: cfg.HoneCallbackURL,
 	})
@@ -94,6 +97,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", trackerapi.HealthzHTTP())
 	httpMux.HandleFunc("/v1/tracker/integrations/google/callback", impl.GoogleCallbackHTTP())
+	httpMux.HandleFunc("/v1/tracker/integrations/zoom/callback", impl.ZoomCallbackHTTP())
 	if err := trackerapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()
 		return fmt.Errorf("register gateway: %w", err)

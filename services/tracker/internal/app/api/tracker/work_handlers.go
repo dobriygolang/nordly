@@ -103,5 +103,14 @@ func workTaskToProto(t trackerservice.WorkTask) *trackerv1.WorkTask {
 	if t.GoogleEventID != "" {
 		out.GoogleEventId = &t.GoogleEventID
 	}
+	if t.EpicID != "" {
+		out.EpicId = &t.EpicID
+	}
+	if t.ConferenceURL != "" {
+		out.ConferenceUrl = &t.ConferenceURL
+	}
+	if t.ConferenceProvider != "" {
+		out.ConferenceProvider = &t.ConferenceProvider
+	}
 	return out
 }

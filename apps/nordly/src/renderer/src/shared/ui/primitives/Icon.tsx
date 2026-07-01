@@ -30,7 +30,8 @@ export type IconName =
   | 'plus'
   | 'file'
   | 'more'
-  | 'copy';
+  | 'copy'
+  | 'video';
 
 interface IconProps {
   name: IconName;
@@ -217,6 +218,13 @@ export function Icon({ name, size = 14, stroke = 'currentColor', strokeWidth = 1
         <svg {...p}>
           <rect x="9" y="9" width="11" height="11" rx="2" />
           <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+        </svg>
+      );
+    case 'video':
+      return (
+        <svg {...p}>
+          <rect x="3" y="7" width="13" height="10" rx="2" />
+          <path d="M16 10l5-3v10l-5-3" />
         </svg>
       );
   }

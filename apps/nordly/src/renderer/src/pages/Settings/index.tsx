@@ -8,7 +8,9 @@ import { applyTextScale } from '@shared/model/accessibility';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
 import { GoogleCalendarSection } from './sections/GoogleCalendarSection';
+import { ZoomSection } from './sections/ZoomSection';
 import { VaultSection } from './sections/VaultSection';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
   readSettings,
   SETTINGS_KEY,
@@ -47,6 +49,7 @@ export function SettingsPage({
   useEffect(() => {
     try {
       window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      window.dispatchEvent(new Event(NORDLY_EVENTS.settingsChanged));
     } catch {
       /* ignore */
     }
@@ -186,7 +189,13 @@ export function SettingsPage({
         </SettingsGroup>
 
         <SettingsGroup title={t('nordly.settings.section.integrations')}>
-          <GoogleCalendarSection />
+          <GoogleCalendarSection
+            pollMinutes={settings.googleCalendarPollMinutes}
+            onPollMinutesChange={(googleCalendarPollMinutes) =>
+              setSettings((s) => ({ ...s, googleCalendarPollMinutes }))
+            }
+          />
+          <ZoomSection />
         </SettingsGroup>
 
         <VaultSection />

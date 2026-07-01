@@ -7,6 +7,8 @@ import {
   remoteMoveTaskStatus,
   remoteScheduleTask,
   remoteUnscheduleTask,
+  remotePatchTask,
+  remoteCreateTaskConference,
 } from '@features/tasks/repository/tasksRemote';
 import { tasksStoreMergeRemote, tasksStoreReplaceId } from '@features/tasks/repository/tasksStore';
 import { resolveEntityId, setServerId } from '@shared/sync/idMap';
@@ -57,6 +59,17 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
 
   if (entry.op === 'delete') {
     await remoteDeleteTask(serverId);
+    await removeOutbox(entry.id, userId);
+    return;
+  }
+
+  if (entry.op === 'patch') {
+    const updated = await remotePatchTask(serverId, {
+      epicId: payload.epicId as string | null | undefined,
+      clearEpic: payload.clearEpic === true,
+      clearConference: payload.clearConference === true,
+    });
+    await tasksStoreMergeRemote(updated);
     await removeOutbox(entry.id, userId);
   }
 }

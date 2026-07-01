@@ -2,8 +2,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocale, useT } from '@nordly-i18n';
 
-import { tasksPlannedForDay } from '@features/calendar/lib/events';
+import { openExternalUrl } from '@features/calendar/api/calendarClient';
+import {
+  allDayEntriesForDay,
+  googleToCalendarEntries,
+  layoutTimedEntriesForDay,
+  tasksPlannedForDay,
+} from '@features/calendar/lib/events';
+import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
+import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import type { TaskCard } from '@features/tasks/api/tasks';
+import { LOCAL_ONLY } from '@app/config/features';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
 import {
   defaultDurationMin,
@@ -13,6 +22,7 @@ import {
   startOfLocalDay,
   toDayKey,
 } from './lib/dates';
+import { epicById, epicTimelineSurfaceStyle, type TaskEpic } from './lib/taskUi';
 
 const HOUR_START = 6;
 const HOUR_END = 23;
@@ -25,6 +35,7 @@ const GRID_PAD_BOTTOM = 24;
 interface DayTimelineProps {
   date: Date;
   tasks: TaskCard[];
+  epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
 }
 
@@ -32,7 +43,7 @@ function hourLabel(h: number, locale: 'en' | 'ru'): string {
   return formatTimeShort(new Date(2000, 0, 1, h, 0), locale);
 }
 
-export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
+export function DayTimeline({ date, tasks, epics, onReschedule }: DayTimelineProps) {
   const t = useT();
   const [locale] = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,10 +52,38 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
   const showNow = toDayKey(now) === dayKey;
   const { dragId, dragTop, start: startDrag } = useVerticalDrag();
 
+  const dayStart = useMemo(() => startOfLocalDay(date), [date]);
+  const dayEnd = useMemo(() => {
+    const end = startOfLocalDay(date);
+    end.setDate(end.getDate() + 1);
+    return end;
+  }, [date]);
+
+  const { connected, ready: connectionReady } = useGoogleCalendarConnection();
+  const googleEnabled = !LOCAL_ONLY && connected && connectionReady;
+  const {
+    events: googleEvents,
+  } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
+
+  const linkedGoogleIds = useMemo(
+    () =>
+      new Set(
+        tasks.map((task) => task.googleEventId).filter((id): id is string => Boolean(id)),
+      ),
+    [tasks],
+  );
+
+  const googleEntries = useMemo(
+    () => googleToCalendarEntries(googleEvents, linkedGoogleIds),
+    [googleEvents, linkedGoogleIds],
+  );
+  const allDayGoogle = useMemo(
+    () => allDayEntriesForDay(googleEntries, dayKey),
+    [googleEntries, dayKey],
+  );
   const planned = useMemo(() => tasksPlannedForDay(dayKey, tasks), [dayKey, tasks]);
 
-  // Fit all hours into the available height; fall back to scrolling only when
-  // the panel gets too short to keep rows legible.
+  // Fit all hours into the available height
   const [hourPx, setHourPx] = useState(HOUR_PX_DEFAULT);
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -60,6 +99,15 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
     return () => ro.disconnect();
   }, []);
 
+  const timedGoogleLayout = useMemo(
+    () =>
+      layoutTimedEntriesForDay(
+        googleEntries.filter((e) => !e.allDay && toDayKey(e.start) === dayKey),
+        hourPx,
+      ),
+    [googleEntries, dayKey, hourPx],
+  );
+
   const hoursHeight = HOUR_COUNT * hourPx;
   const gridHeight = hoursHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM;
 
@@ -68,6 +116,8 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
     if (!el) return;
     el.scrollTop = 0;
   }, [dayKey]);
+
+  const hasBlocks = planned.length > 0 || timedGoogleLayout.length > 0 || allDayGoogle.length > 0;
 
   return (
     <aside
@@ -84,6 +134,24 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
       <header style={{ padding: '0 8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--ink-80)' }}>
         {formatTimelineHeader(date, locale)}
       </header>
+
+      {allDayGoogle.length > 0 && (
+        <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {allDayGoogle.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              className="nordly-calendar-allday-chip focus-ring"
+              data-source="google"
+              style={{ width: '100%' }}
+              title={entry.title}
+              onClick={() => entry.googleHtmlLink && openExternalUrl(entry.googleHtmlLink)}
+            >
+              {entry.title}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         ref={scrollRef}
@@ -163,6 +231,28 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
             </div>
           )}
 
+          {timedGoogleLayout.map(({ entry, top, height, column, columnCount }) => (
+            <button
+              key={entry.id}
+              type="button"
+              className="nordly-calendar-event focus-ring"
+              data-source="google"
+              data-readonly={entry.googleEditable === false ? 'true' : undefined}
+              title={entry.title}
+              onClick={() => entry.googleHtmlLink && openExternalUrl(entry.googleHtmlLink)}
+              style={{
+                top: GRID_PAD_TOP + top,
+                height,
+                '--cal-col': column,
+                '--cal-cols': columnCount,
+                zIndex: column + 1,
+                cursor: entry.googleHtmlLink ? 'pointer' : 'default',
+              } as React.CSSProperties}
+            >
+              <span className="nordly-calendar-event__title">{entry.title}</span>
+            </button>
+          ))}
+
           {planned.map(({ task, start }) => {
             const startMin = start.getHours() * 60 + start.getMinutes();
             const baseTop = GRID_PAD_TOP + (startMin / 60 - HOUR_START) * hourPx;
@@ -173,6 +263,10 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
             const top = Math.max(minTop, Math.min(isDragging ? dragTop : baseTop, maxTop));
             const done = task.status === 'done';
             const canDrag = Boolean(onReschedule);
+            const epic = epicById(epics, task.epicId);
+            const epicSurface = epic
+              ? epicTimelineSurfaceStyle(epic.color, { done, dragging: isDragging })
+              : null;
 
             const commit = (finalTop: number) => {
               const min = snapMinutes(((finalTop - GRID_PAD_TOP) / hourPx + HOUR_START) * 60);
@@ -184,17 +278,22 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
             return (
               <div
                 key={task.id}
+                className="nordly-timeline-task"
+                data-done={done ? 'true' : 'false'}
+                data-epic={epic ? 'true' : 'false'}
                 title={task.title}
                 onPointerDown={
                   canDrag
-                    ? (e) =>
+                    ? (e) => {
+                        e.stopPropagation();
                         startDrag(e, {
                           id: task.id,
                           baseTop,
                           min: minTop,
                           max: maxTop,
                           onCommit: commit,
-                        })
+                        });
+                      }
                     : undefined
                 }
                 style={{
@@ -203,24 +302,15 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
                   left: 4,
                   right: 4,
                   height,
-                  borderRadius: 8,
-                  padding: '6px 8px',
-                  background: done
-                    ? 'rgb(var(--ink-rgb) / 0.08)'
-                    : 'rgb(180 120 60 / 0.35)',
-                  border: done
-                    ? '1px solid var(--ink-tint-08)'
-                    : '1px solid rgb(180 120 60 / 0.5)',
-                  fontSize: 11,
-                  color: done ? 'var(--ink-40)' : 'var(--ink-90)',
-                  overflow: 'hidden',
-                  zIndex: isDragging ? 3 : 1,
-                  textDecoration: done ? 'line-through' : 'none',
+                  zIndex: isDragging ? 4 : 2,
                   cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'default',
                   touchAction: 'none',
-                  boxShadow: isDragging ? '0 8px 24px rgb(0 0 0 / 0.45)' : 'none',
                   userSelect: 'none',
-                }}
+                  ...(epicSurface ?? {}),
+                  ...(isDragging && !epic
+                    ? { boxShadow: '0 8px 24px rgb(0 0 0 / 0.5)' }
+                    : {}),
+                } as React.CSSProperties}
               >
                 {task.title}
               </div>
@@ -228,7 +318,7 @@ export function DayTimeline({ date, tasks, onReschedule }: DayTimelineProps) {
           })}
         </div>
 
-        {planned.length === 0 && (
+        {!hasBlocks && (
           <p style={{ fontSize: 11, color: 'var(--ink-40)', padding: '8px 8px 24px' }}>
             {t('nordly.taskboard.timeline_empty')}
           </p>

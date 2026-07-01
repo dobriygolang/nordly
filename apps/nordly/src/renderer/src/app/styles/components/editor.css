@@ -1,0 +1,62 @@
+/* ── MarkdownSourceEditor (CodeMirror 6 source-mode) ──────────────────────
+ * Замена Milkdown'а — Obsidian-style: markdown маркеры (# / ** / >) видны
+ * как обычный текст, стилизуются HighlightStyle'ом в TS-компоненте.
+ * Здесь только: empty-state placeholder + минимальные CM-overrides. */
+/* ── DataLoader (CI1 error pattern) ─────────────────────────────────────
+ * Used by components/DataLoader.tsx. B/W rule: red ONLY as 1.5px stripe;
+ * retry button is plain text-affordance, no background fill.
+ */
+.data-loader-error {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 12px;
+  background: rgb(var(--ink-rgb) / 0.02);
+  border-radius: 8px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.06);
+}
+.data-loader-error-stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  background: #FF3B30;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.data-loader-error-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.data-loader-error-label {
+  color: rgb(var(--ink-rgb) / 0.9);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+.data-loader-error-detail {
+  color: rgb(var(--ink-rgb) / 0.42);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, SF Mono, Menlo, monospace;
+  word-break: break-word;
+}
+.data-loader-error-retry {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  color: rgb(var(--ink-rgb) / 0.7);
+  font-family: 'JetBrains Mono', ui-monospace, SF Mono, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+.data-loader-error-retry:hover {
+  color: var(--ink);
+}
+

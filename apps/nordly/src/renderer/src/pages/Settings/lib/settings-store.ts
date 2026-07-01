@@ -1,13 +1,19 @@
 import { PREFS_KEYS, clampInt } from '@shared/model/prefs';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 
 export type TextScale = 'normal' | 'large' | 'xlarge';
+
+/** How often the desktop app refetches Google events in the background. */
+export const GOOGLE_CALENDAR_POLL_MINUTES = [1, 5, 15, 30] as const;
+export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[number];
 
 export interface NordlySettings {
   pomodoroMinutes: number;
   notifications: boolean;
   textScale: TextScale;
   boardCanvas: BoardCanvasTheme;
+  googleCalendarPollMinutes: GoogleCalendarPollMinutes;
 }
 
 export const SETTINGS_KEY = PREFS_KEYS.SETTINGS_KEY;
@@ -20,6 +26,7 @@ export const DEFAULTS: NordlySettings = {
   notifications: true,
   textScale: 'normal',
   boardCanvas: 'dark',
+  googleCalendarPollMinutes: 5,
 };
 
 function parseTextScale(v: unknown): TextScale {
@@ -29,6 +36,14 @@ function parseTextScale(v: unknown): TextScale {
 
 function parseBoardCanvas(v: unknown): BoardCanvasTheme {
   return v === 'light' ? 'light' : 'dark';
+}
+
+function parsePollMinutes(v: unknown): GoogleCalendarPollMinutes {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (GOOGLE_CALENDAR_POLL_MINUTES.includes(n as GoogleCalendarPollMinutes)) {
+    return n as GoogleCalendarPollMinutes;
+  }
+  return DEFAULTS.googleCalendarPollMinutes;
 }
 
 export function readSettings(): NordlySettings {
@@ -42,10 +57,31 @@ export function readSettings(): NordlySettings {
       notifications: typeof parsed?.notifications === 'boolean' ? parsed.notifications : DEFAULTS.notifications,
       textScale: parseTextScale(parsed?.textScale),
       boardCanvas: parseBoardCanvas(parsed?.boardCanvas),
+      googleCalendarPollMinutes: parsePollMinutes(parsed?.googleCalendarPollMinutes),
     };
   } catch {
     return DEFAULTS;
   }
+}
+
+export function persistSettings(next: NordlySettings): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event(NORDLY_EVENTS.settingsChanged));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function patchSettings(patch: Partial<NordlySettings>): NordlySettings {
+  const next = { ...readSettings(), ...patch };
+  persistSettings(next);
+  return next;
+}
+
+export function googleCalendarPollIntervalMs(): number {
+  return readSettings().googleCalendarPollMinutes * 60_000;
 }
 
 export { clampInt };

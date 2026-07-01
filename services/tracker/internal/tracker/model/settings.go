@@ -15,6 +15,9 @@ type UserSettings struct {
 	GoogleReauthRequired      bool
 	GoogleSyncToken           *string
 	GoogleSyncedAt            *time.Time
+	ZoomRefreshToken          *string
+	ZoomOAuthState            *string
+	ZoomReauthRequired        bool
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time
 }
@@ -22,6 +25,11 @@ type UserSettings struct {
 // Connected reports whether a usable refresh token is stored.
 func (s *UserSettings) Connected() bool {
 	return s.GoogleRefreshToken != nil && *s.GoogleRefreshToken != ""
+}
+
+// ZoomConnected reports whether a usable Zoom refresh token is stored.
+func (s *UserSettings) ZoomConnected() bool {
+	return s.ZoomRefreshToken != nil && *s.ZoomRefreshToken != ""
 }
 
 // CalendarID returns the selected calendar, defaulting to the primary calendar.
@@ -38,15 +46,19 @@ type UserSettingsView struct {
 	GoogleCalendarConnected   bool
 	GoogleCalendarID          string
 	GoogleReauthRequired      bool
+	ZoomConnected             bool
+	ZoomReauthRequired        bool
 }
 
 func (s *UserSettings) View() UserSettingsView {
 	connected := s.Connected()
+	zoomConnected := s.ZoomConnected()
 	return UserSettingsView{
 		GoogleCalendarSyncEnabled: s.GoogleCalendarSyncEnabled,
 		GoogleCalendarConnected:   connected,
 		GoogleCalendarID:          s.CalendarID(),
-		// Re-auth only matters while a (now-broken) connection is expected.
-		GoogleReauthRequired: connected && s.GoogleReauthRequired,
+		GoogleReauthRequired:      connected && s.GoogleReauthRequired,
+		ZoomConnected:             zoomConnected,
+		ZoomReauthRequired:        zoomConnected && s.ZoomReauthRequired,
 	}
 }

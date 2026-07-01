@@ -20,6 +20,12 @@ var protectedMethods = map[string]struct{}{
 	trackerv1.TrackerService_DeleteWorkTask_FullMethodName:           {},
 	trackerv1.TrackerService_ScheduleWorkTask_FullMethodName:         {},
 	trackerv1.TrackerService_UnscheduleWorkTask_FullMethodName:       {},
+	trackerv1.TrackerService_PatchWorkTask_FullMethodName:            {},
+	trackerv1.TrackerService_CreateWorkTaskConference_FullMethodName: {},
+	trackerv1.TrackerService_ListEpics_FullMethodName:                {},
+	trackerv1.TrackerService_CreateEpic_FullMethodName:               {},
+	trackerv1.TrackerService_GetZoomAuthURL_FullMethodName:           {},
+	trackerv1.TrackerService_DisconnectZoom_FullMethodName:           {},
 }
 
 func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {

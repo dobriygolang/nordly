@@ -1,0 +1,137 @@
+/* ── Excalidraw — follows Nordly theme (light canvas / dark inverted canvas) ─ */
+.nordly-whiteboard-main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.nordly-whiteboard-canvas {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.nordly-excalidraw-mount,
+.nordly-excalidraw-mount .excalidraw {
+  height: 100%;
+  width: 100%;
+}
+
+.nordly-excalidraw-mount .excalidraw {
+  background-color: var(--bg) !important;
+  --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Dark Nordly themes — Excalidraw dark UI; canvas is true #000 (no invert). */
+html.dark .nordly-excalidraw-mount .excalidraw,
+.nordly-excalidraw-mount[data-board-theme='dark'] .excalidraw.theme--dark {
+  --theme-filter: none;
+}
+
+html.dark .nordly-excalidraw-mount .excalidraw {
+  --island-bg-color: var(--surface);
+  --default-bg-color: var(--bg) !important;
+  --input-bg-color: var(--surface-2);
+  --input-border-color: var(--hair-2);
+  --input-hover-bg-color: var(--surface-2);
+  --input-label-color: var(--ink-60);
+  --default-border-color: var(--hair);
+  --popup-secondary-bg-color: var(--surface-2);
+  --popup-text-color: var(--ink);
+  --icon-fill-color: var(--ink);
+  --link-color: var(--ink);
+  --select-highlight-color: var(--ink);
+  --focus-highlight-color: var(--ink-tint-12);
+  --button-gray-1: var(--surface-2);
+  --button-gray-2: var(--ink-tint-12);
+  --button-gray-3: var(--ink-tint-16);
+  --button-hover-bg: var(--surface-2);
+  --button-active-bg: var(--surface);
+  --shadow-island: 0 4px 20px rgb(0 0 0 / 0.55);
+  --modal-shadow: 0 12px 40px rgb(0 0 0 / 0.65);
+  --sidebar-shadow: var(--shadow-island);
+  --avatar-border-color: var(--hair-2);
+  --keybinding-color: var(--ink-40);
+  --scrollbar-thumb: var(--ink-tint-12);
+  --scrollbar-thumb-hover: var(--ink-tint-16);
+}
+
+html.light .nordly-excalidraw-mount .excalidraw {
+  --island-bg-color: var(--surface);
+  --default-bg-color: var(--bg) !important;
+  --input-bg-color: var(--surface-2);
+  --input-border-color: var(--hair);
+  --input-hover-bg-color: var(--surface-2);
+  --icon-fill-color: var(--ink);
+  --popup-text-color: var(--ink);
+  --shadow-island: 0 4px 20px rgb(0 0 0 / 0.08);
+}
+
+.nordly-excalidraw-mount .excalidraw.theme--dark,
+.nordly-excalidraw-mount .excalidraw.excalidraw--mobile {
+  color-scheme: dark;
+}
+
+html.light .nordly-excalidraw-mount .excalidraw.theme--light {
+  color-scheme: light;
+}
+
+.nordly-excalidraw-mount .excalidraw.excalidraw-container {
+  background-color: var(--bg) !important;
+}
+
+.nordly-excalidraw-mount :focus-visible {
+  outline: none !important;
+}
+
+/* Minimal chrome — shape toolbar at bottom; tools live in App-menu_top in v0.18 */
+.nordly-excalidraw-mount .App-menu_top__left,
+.nordly-excalidraw-mount .layer-ui__wrapper__top-right,
+.nordly-excalidraw-mount .main-menu,
+.nordly-excalidraw-mount .App-menu__left,
+.nordly-excalidraw-mount .App-menu_left,
+.nordly-excalidraw-mount .App-menu_right,
+.nordly-excalidraw-mount .color-picker-container,
+.nordly-excalidraw-mount .zoom-actions,
+.nordly-excalidraw-mount .layer-ui__wrapper__footer-left,
+.nordly-excalidraw-mount [class*='welcome-screen'],
+.nordly-excalidraw-mount .HintViewer,
+.nordly-excalidraw-mount .App-mobile-menu,
+.nordly-excalidraw-mount .scroll-back-to-content,
+.nordly-excalidraw-mount .layer-ui__wrapper__footer,
+.nordly-excalidraw-mount .exc-stats,
+.nordly-excalidraw-mount .disable-zen-mode,
+.nordly-excalidraw-mount .App-toolbar__extra-tools-trigger,
+.nordly-excalidraw-mount .App-toolbar__extra-tools-dropdown {
+  display: none !important;
+}
+
+.nordly-excalidraw-mount .FixedSideContainer_side_top {
+  top: auto !important;
+  bottom: 1.25rem !important;
+  left: 0 !important;
+  right: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.nordly-excalidraw-mount .App-menu_top {
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  width: max-content !important;
+  max-width: calc(100% - 2rem);
+}
+
+.nordly-excalidraw-mount .shapes-section {
+  display: flex;
+  justify-content: center;
+}
+
+.nordly-excalidraw-mount .App-toolbar-container {
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.55);
+}
+
+html.light .nordly-excalidraw-mount .App-toolbar-container {
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.08);
+}
+

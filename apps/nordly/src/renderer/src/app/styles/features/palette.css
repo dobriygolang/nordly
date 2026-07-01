@@ -1,0 +1,259 @@
+/* Palette command modal — main menu (⌘K) */
+.nordly-palette-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.78);
+  opacity: 1;
+  transition: opacity var(--motion-dur-medium) var(--motion-ease-emphasized);
+}
+.nordly-palette-scrim:not([data-closing='true']) {
+  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+}
+.nordly-palette-scrim[data-closing='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+.nordly-palette-panel {
+  width: min(540px, 92vw);
+  max-height: min(680px, 82vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity var(--motion-dur-medium) var(--motion-ease-emphasized),
+    transform var(--motion-dur-medium) var(--motion-ease-emphasized);
+}
+.nordly-palette-scrim:not([data-closing='true']) .nordly-palette-panel {
+  animation: nordly-pop-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+}
+.nordly-palette-panel[data-closing='true'] {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.98) translateY(8px);
+}
+.nordly-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+}
+.nordly-palette-search__icon {
+  display: flex;
+  flex-shrink: 0;
+  color: rgb(255 255 255 / 0.35);
+}
+.nordly-palette-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.nordly-palette-search__input::placeholder {
+  color: rgb(255 255 255 / 0.35);
+}
+.nordly-palette-when-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.nordly-palette-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.06);
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.7);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nordly-palette-when[data-open='true'] {
+  background: rgb(255 255 255 / 0.1);
+}
+.nordly-palette-when-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 210;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: #000000;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.65);
+  transform-origin: top;
+  animation: nordly-menu-in var(--motion-dur-small) var(--motion-ease-emphasized) backwards;
+}
+.nordly-palette-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(360px, 52vh);
+  overflow-y: auto;
+  padding: 8px 8px 6px;
+  scroll-padding-block: 8px;
+}
+.nordly-palette-row {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--t-fast);
+}
+.nordly-palette-row[data-active='true'] {
+  background: rgb(255 255 255 / 0.05);
+}
+.nordly-palette-row__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.03);
+  color: rgb(255 255 255 / 0.45);
+  transition: color var(--t-fast);
+}
+.nordly-palette-row[data-active='true'] .nordly-palette-row__icon {
+  color: rgb(255 255 255 / 0.85);
+}
+.nordly-palette-row__label {
+  min-width: 0;
+}
+.nordly-palette-row__title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: rgb(255 255 255 / 0.72);
+  transition: color var(--t-fast);
+}
+.nordly-palette-row[data-active='true'] .nordly-palette-row__title {
+  color: rgb(255 255 255 / 0.95);
+}
+.nordly-palette-row__sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: rgb(255 255 255 / 0.35);
+}
+.nordly-palette-row__shortcuts {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.nordly-palette-row__shortcut-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.nordly-palette-row__dot {
+  color: rgb(255 255 255 / 0.3);
+  font-size: 7px;
+  opacity: 0.6;
+}
+.nordly-palette-empty {
+  padding: 14px 12px;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.35);
+}
+.nordly-palette-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.05);
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.35);
+}
+.nordly-palette-footer__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.nordly-palette-footer__spacer {
+  flex: 1;
+}
+.nordly-palette-chip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: rgb(255 255 255 / 0.45);
+  background: rgb(255 255 255 / 0.03);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 5px;
+}
+.nordly-palette-option {
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+.nordly-palette-option[aria-selected='true'] {
+  background: rgb(255 255 255 / 0.06);
+}
+
+html.light .nordly-palette-scrim {
+  background: rgb(var(--ink-rgb) / 0.28);
+}
+html.light .nordly-palette-search {
+  border-bottom-color: var(--hair);
+}
+html.light .nordly-palette-search__icon {
+  color: var(--ink-40);
+}
+html.light .nordly-palette-search__input::placeholder {
+  color: var(--ink-40);
+}
+html.light .nordly-palette-row[data-active='true'] {
+  background: var(--ink-tint-06);
+}
+html.light .nordly-palette-row__icon {
+  background: var(--ink-tint-04);
+  color: var(--ink-40);
+}
+html.light .nordly-palette-row[data-active='true'] .nordly-palette-row__icon {
+  color: var(--ink-90);
+}
+html.light .nordly-palette-row__title {
+  color: var(--ink-60);
+}
+html.light .nordly-palette-row[data-active='true'] .nordly-palette-row__title {
+  color: var(--ink);
+}
+html.light .nordly-palette-row__sub,
+html.light .nordly-palette-empty,
+html.light .nordly-palette-footer {
+  color: var(--ink-40);
+}
+html.light .nordly-palette-footer {
+  border-top-color: var(--hair);
+}
+html.light .nordly-palette-chip {
+  color: var(--ink-40);
+  background: var(--ink-tint-04);
+  border-color: var(--hair-2);
+}
+

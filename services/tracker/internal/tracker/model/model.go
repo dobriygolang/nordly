@@ -15,6 +15,12 @@ var (
 	// ErrGoogleReauthRequired is returned when the stored Google token was
 	// revoked/expired; the user must reconnect.
 	ErrGoogleReauthRequired = errors.New("google calendar reauthentication required")
+	// ErrZoomNotConnected is returned when a Zoom operation is attempted without
+	// a stored refresh token.
+	ErrZoomNotConnected = errors.New("zoom not connected")
+	// ErrZoomReauthRequired is returned when the stored Zoom token was
+	// revoked/expired; the user must reconnect.
+	ErrZoomReauthRequired = errors.New("zoom reauthentication required")
 )
 
 type WorkTask struct {
@@ -29,5 +35,9 @@ type WorkTask struct {
 	ScheduledStart       *time.Time
 	ScheduledDurationMin *int
 	GoogleEventID        *string
+	EpicID               *string
+	ConferenceURL        *string
+	ConferenceProvider   *string
+	ZoomMeetingID        *string
 	ArchivedAt           *time.Time
 }

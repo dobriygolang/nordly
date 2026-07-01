@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -79,6 +80,91 @@ func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime) {
 	}
 	return &calendar.EventDateTime{DateTime: in.Start.UTC().Format(time.RFC3339), TimeZone: "UTC"},
 		&calendar.EventDateTime{DateTime: endTime.UTC().Format(time.RFC3339), TimeZone: "UTC"}
+}
+
+// EventWithMeet is a calendar event plus an auto-generated Meet join URL.
+type EventWithMeet struct {
+	Event   CalendarEvent
+	MeetURL string
+}
+
+func meetURLFromEvent(ev *calendar.Event) string {
+	if ev == nil {
+		return ""
+	}
+	if ev.HangoutLink != "" {
+		return ev.HangoutLink
+	}
+	if ev.ConferenceData == nil {
+		return ""
+	}
+	for _, ep := range ev.ConferenceData.EntryPoints {
+		if ep != nil && ep.EntryPointType == "video" && ep.Uri != "" {
+			return ep.Uri
+		}
+	}
+	return ""
+}
+
+func conferenceCreateRequest() *calendar.CreateConferenceRequest {
+	return &calendar.CreateConferenceRequest{
+		RequestId: uuid.NewString(),
+		ConferenceSolutionKey: &calendar.ConferenceSolutionKey{
+			Type: "hangoutsMeet",
+		},
+	}
+}
+
+// CreateEventWithMeet inserts an event and requests a Google Meet link.
+func (c *Client) CreateEventWithMeet(ctx context.Context, refreshToken, calendarID string, in EventInput) (EventWithMeet, error) {
+	if !c.Configured() {
+		return EventWithMeet{}, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
+	cid := normalizeCalendarID(calendarID)
+	start, end := toEventDateTimes(in)
+	created, err := svc.Events.Insert(cid, &calendar.Event{
+		Summary: in.Title,
+		Start:   start,
+		End:     end,
+		ConferenceData: &calendar.ConferenceData{
+			CreateRequest: conferenceCreateRequest(),
+		},
+	}).ConferenceDataVersion(1).Context(ctx).Do()
+	if err != nil {
+		return EventWithMeet{}, classifyErr(fmt.Errorf("create calendar event with meet: %w", err))
+	}
+	ev, _ := calendarEventFromAPI(created, cid)
+	return EventWithMeet{Event: ev, MeetURL: meetURLFromEvent(created)}, nil
+}
+
+// PatchEventWithMeet adds or refreshes a Google Meet link on an existing event.
+func (c *Client) PatchEventWithMeet(ctx context.Context, refreshToken, calendarID, eventID string, in EventInput) (EventWithMeet, error) {
+	if !c.Configured() {
+		return EventWithMeet{}, fmt.Errorf("google calendar not configured")
+	}
+	svc, err := c.service(ctx, refreshToken)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
+	cid := normalizeCalendarID(calendarID)
+	start, end := toEventDateTimes(in)
+	updated, err := svc.Events.Patch(cid, eventID, &calendar.Event{
+		Summary: in.Title,
+		Start:   start,
+		End:     end,
+		ConferenceData: &calendar.ConferenceData{
+			CreateRequest: conferenceCreateRequest(),
+		},
+	}).ConferenceDataVersion(1).Context(ctx).Do()
+	if err != nil {
+		return EventWithMeet{}, classifyErr(fmt.Errorf("patch calendar event with meet: %w", err))
+	}
+	ev, _ := calendarEventFromAPI(updated, cid)
+	return EventWithMeet{Event: ev, MeetURL: meetURLFromEvent(updated)}, nil
 }
 
 // CreateEvent inserts a new event and returns the normalized result.

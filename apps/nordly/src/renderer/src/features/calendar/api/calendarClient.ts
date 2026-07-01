@@ -67,6 +67,8 @@ export interface TrackerSettings {
   googleCalendarConnected: boolean;
   googleReauthRequired: boolean;
   googleCalendarId: string;
+  zoomConnected: boolean;
+  zoomReauthRequired: boolean;
 }
 
 export interface GoogleCalendarListEntry {
@@ -123,6 +125,8 @@ function unwrapSettings(raw: Record<string, unknown>): TrackerSettings {
     googleCalendarConnected: pickBool(raw, 'googleCalendarConnected', 'google_calendar_connected'),
     googleReauthRequired: pickBool(raw, 'googleReauthRequired', 'google_reauth_required'),
     googleCalendarId: pickStr(raw, 'googleCalendarId', 'google_calendar_id') || 'primary',
+    zoomConnected: pickBool(raw, 'zoomConnected', 'zoom_connected'),
+    zoomReauthRequired: pickBool(raw, 'zoomReauthRequired', 'zoom_reauth_required'),
   };
 }
 
@@ -250,6 +254,27 @@ export async function disconnectGoogleCalendar(): Promise<TrackerSettings> {
     body: '{}',
   });
   if (!resp.ok) throw new Error(`disconnectGoogleCalendar: ${resp.status}`);
+  const j = (await resp.json()) as { settings?: Record<string, unknown> };
+  return unwrapSettings(j.settings ?? {});
+}
+
+const ZOOM_URL_BASE = `${API_BASE_URL}/v1/tracker/integrations/zoom`;
+
+export async function getZoomAuthURL(): Promise<string> {
+  const resp = await apiFetch(`${ZOOM_URL_BASE}/url`, { headers: authHeaders() });
+  if (!resp.ok) throw new Error(`getZoomAuthURL: ${resp.status}`);
+  const j = (await resp.json()) as { url?: string };
+  if (!j.url) throw new Error('getZoomAuthURL: empty url');
+  return j.url;
+}
+
+export async function disconnectZoom(): Promise<TrackerSettings> {
+  const resp = await apiFetch(`${ZOOM_URL_BASE}/disconnect`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: '{}',
+  });
+  if (!resp.ok) throw new Error(`disconnectZoom: ${resp.status}`);
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
   return unwrapSettings(j.settings ?? {});
 }

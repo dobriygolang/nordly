@@ -14,6 +14,11 @@ import {
 } from '@features/calendar/api/calendarClient';
 import { LOCAL_ONLY } from '@app/config/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { invalidateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
+import {
+  GOOGLE_CALENDAR_POLL_MINUTES,
+  type GoogleCalendarPollMinutes,
+} from '../lib/settings-store';
 import { SettingRow } from '../primitives/SettingRow';
 import { Toggle } from '../primitives/Toggle';
 
@@ -24,7 +29,13 @@ function InlineSpinner(): JSX.Element {
   return <span className="nordly-inline-spinner" aria-hidden />;
 }
 
-export function GoogleCalendarSection(): JSX.Element | null {
+export function GoogleCalendarSection({
+  pollMinutes,
+  onPollMinutesChange,
+}: {
+  pollMinutes: GoogleCalendarPollMinutes;
+  onPollMinutesChange: (minutes: GoogleCalendarPollMinutes) => void;
+}): JSX.Element | null {
   const t = useT();
   const [settings, setSettings] = useState<TrackerSettings | null>(null);
   const [calendars, setCalendars] = useState<GoogleCalendarListEntry[]>([]);
@@ -172,6 +183,8 @@ export function GoogleCalendarSection(): JSX.Element | null {
     setError(null);
     try {
       setSettings(await disconnectGoogleCalendar());
+      invalidateGoogleCalendarCache();
+      window.dispatchEvent(new Event(NORDLY_EVENTS.googleCalendarChanged));
     } catch {
       setError(t('nordly.settings.google.error_disconnect'));
     } finally {
@@ -198,6 +211,24 @@ export function GoogleCalendarSection(): JSX.Element | null {
           label={syncEnabled ? t('nordly.settings.google.sync_on') : t('nordly.settings.google.sync_off')}
           disabled={controlsDisabled}
         />
+      </SettingRow>
+
+      <SettingRow
+        label={t('nordly.settings.google.poll_label')}
+        hint={t('nordly.settings.google.poll_hint')}
+      >
+        <select
+          className="nordly-settings-select focus-ring"
+          value={pollMinutes}
+          disabled={controlsDisabled}
+          onChange={(e) => onPollMinutesChange(Number(e.target.value) as GoogleCalendarPollMinutes)}
+        >
+          {GOOGLE_CALENDAR_POLL_MINUTES.map((m) => (
+            <option key={m} value={m}>
+              {t('nordly.settings.google.poll_option', { minutes: m })}
+            </option>
+          ))}
+        </select>
       </SettingRow>
 
       <SettingRow label={t('nordly.settings.google.account_label')} hint={t('nordly.settings.google.account_hint')}>
@@ -239,21 +270,6 @@ export function GoogleCalendarSection(): JSX.Element | null {
               )}
             </button>
           )}
-          <button
-            type="button"
-            className="nordly-settings-vault-btn"
-            disabled={controlsDisabled}
-            onClick={() => void load()}
-          >
-            {loading ? (
-              <>
-                <InlineSpinner />
-                {t('nordly.settings.google.loading')}
-              </>
-            ) : (
-              t('nordly.settings.google.refresh')
-            )}
-          </button>
         </div>
       </SettingRow>
 

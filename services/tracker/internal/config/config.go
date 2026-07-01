@@ -19,6 +19,9 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURI  string
+	ZoomClientID       string
+	ZoomClientSecret   string
+	ZoomRedirectURI    string
 	HoneCallbackURL    string
 	TokenEncryptionKey string
 }
@@ -52,6 +55,9 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURI:  os.Getenv("GOOGLE_REDIRECT_URI"),
+		ZoomClientID:       os.Getenv("ZOOM_CLIENT_ID"),
+		ZoomClientSecret:   os.Getenv("ZOOM_CLIENT_SECRET"),
+		ZoomRedirectURI:    os.Getenv("ZOOM_REDIRECT_URI"),
 		HoneCallbackURL:    getEnv("NORDLY_CALLBACK_URL", getEnv("HONE_CALLBACK_URL", "nordly://settings")),
 		TokenEncryptionKey: os.Getenv("TOKEN_ENCRYPTION_KEY"),
 	}, nil

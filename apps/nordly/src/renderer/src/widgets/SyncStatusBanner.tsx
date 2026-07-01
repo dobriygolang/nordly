@@ -7,7 +7,7 @@ import { useOnlineStatus } from '@shared/hooks/useOnlineStatus';
 import { useSyncStore } from '@shared/model/sync';
 import { flushSync } from '@shared/sync/SyncEngine';
 
-type BannerKind = 'offline' | 'unreachable' | 'error' | 'recovering' | 'reauth' | null;
+type BannerKind = 'offline' | 'unreachable' | 'error' | 'reauth' | null;
 
 export function SyncStatusBanner(): JSX.Element | null {
   const t = useT();
@@ -16,7 +16,6 @@ export function SyncStatusBanner(): JSX.Element | null {
   const lastError = useSyncStore((s) => s.lastError);
   const serverReachable = useSyncStore((s) => s.serverReachable);
   const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
-  const pendingCount = useSyncStore((s) => s.pendingCount);
 
   const kind = useMemo((): BannerKind => {
     if (LOCAL_ONLY) return null;
@@ -24,9 +23,8 @@ export function SyncStatusBanner(): JSX.Element | null {
     if (!online || status === 'offline') return 'offline';
     if (!serverReachable) return 'unreachable';
     if (status === 'error' && lastError) return 'error';
-    if (status === 'syncing' && pendingCount > 0) return 'recovering';
     return null;
-  }, [online, status, lastError, serverReachable, sessionReauthRequired, pendingCount]);
+  }, [online, status, lastError, serverReachable, sessionReauthRequired]);
 
   if (!kind) return null;
 
@@ -37,9 +35,7 @@ export function SyncStatusBanner(): JSX.Element | null {
         ? t('nordly.sync.banner_offline')
         : kind === 'unreachable'
           ? t('nordly.sync.banner_unreachable')
-          : kind === 'error'
-            ? t('nordly.sync.banner_error')
-            : t('nordly.sync.banner_recovering');
+          : t('nordly.sync.banner_error');
 
   const showRetry = kind === 'error' || kind === 'unreachable';
 

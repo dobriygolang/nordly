@@ -19,7 +19,7 @@ import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
-import { ensureNoteServerId } from '@shared/sync/domains/notesSync';
+import { ensureNoteServerId } from '@features/notes/sync/notesSync';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 
 export type { PublishStatus };
@@ -47,13 +47,9 @@ export function isNoteVaultLocked(note: Pick<NoteSummary, 'vaultLocked'>): boole
   return note.vaultLocked === true;
 }
 
-export async function listNotes(_args: {
-  limit?: number;
-  cursor?: string;
-} = {}): Promise<{ notes: NoteSummary[]; nextCursor: string }> {
-  void _args;
+export async function listNotes(): Promise<{ notes: NoteSummary[] }> {
   const notes = await notesStoreList();
-  return { notes, nextCursor: '' };
+  return { notes };
 }
 
 async function resolveNote(id: string): Promise<Note | null> {
@@ -105,7 +101,7 @@ async function mappedServerNoteId(localId: string): Promise<string | null> {
 
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
   const serverId = await mappedServerNoteId(noteId);
-  if (!serverId) return { published: false };
+  if (!serverId) throw new Error('Cloud sync required to read publish status');
   return remoteGetPublishStatus(serverId);
 }
 

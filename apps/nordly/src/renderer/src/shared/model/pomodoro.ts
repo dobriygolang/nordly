@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { readPomodoroSeconds } from '@shared/model/prefs';
+import { readPomodoroSeconds } from '@shared/model/settings';
 
 export type FocusTimerMode = 'pomodoro' | 'stopwatch';
 
@@ -45,10 +45,16 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
     if (get().mode === mode) return;
     set((s) => ({
       mode,
-      running: false,
-      remain: s.durationSec,
-      elapsed: 0,
-      resetToken: s.resetToken + 1,
+      remain:
+        mode === 'pomodoro'
+          ? Math.max(0, s.durationSec - (s.mode === 'stopwatch' ? s.elapsed : s.durationSec - s.remain))
+          : s.remain,
+      elapsed:
+        mode === 'stopwatch'
+          ? s.mode === 'pomodoro'
+            ? Math.max(0, s.durationSec - s.remain)
+            : s.elapsed
+          : s.elapsed,
     }));
   },
 

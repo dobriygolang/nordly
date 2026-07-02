@@ -16,14 +16,14 @@ import {
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayColumn } from './DayColumn';
-import { useDayTaskDrag } from './useDayTaskDrag';
+import { useDayTaskDrag } from '@features/tasks/lib/useDayTaskDrag';
 import { useHorizontalPanScroll } from './useHorizontalPanScroll';
 import { useInfiniteDayScroll } from './useInfiniteDayScroll';
-import { DayTimeline } from './DayTimeline';
+import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
   applyTimeFromDay,
   buildDefaultScheduleDate,
@@ -33,7 +33,7 @@ import {
   taskDayKey,
   taskScheduleStart,
   toDayKey,
-} from './lib/dates';
+} from '@shared/lib/dates';
 
 const VISIBLE = new Set(['todo', 'in_progress', 'in_review', 'done']);
 
@@ -49,33 +49,35 @@ export function TaskBoardPage(): JSX.Element {
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const didExpandTasksRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    try {
-      setTasks(await listTasks());
-    } catch {
-      /* keep stale list */
-    }
+    setTasks(await listTasks());
+    setLoadError(null);
   }, []);
 
+  const failTaskAction = useCallback(
+    (err: unknown) => {
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
+      void refresh();
+    },
+    [refresh],
+  );
+
   const loadSettings = useCallback(async () => {
-    if (LOCAL_ONLY) return;
-    try {
-      setTrackerSettings(await getTrackerSettings());
-    } catch {
-      setTrackerSettings(null);
-    }
+    if (!isCloudEnabled()) return;
+    setTrackerSettings(await getTrackerSettings());
   }, []);
 
   useEffect(() => {
-    void refresh();
-    void loadSettings();
+    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    void loadSettings().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
   }, [refresh, loadSettings]);
 
   useEffect(() => {
-    const onTasksChanged = () => void refresh();
-    const onSync = () => void refresh();
+    const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    const onSync = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
     window.addEventListener(NORDLY_EVENTS.syncChanged, onSync);
     return () => {
@@ -114,11 +116,6 @@ export function TaskBoardPage(): JSX.Element {
     }
     return map;
   }, [tasks, days, todayKey]);
-
-  const selectedDate = useMemo(
-    () => days.find((d) => d.key === selectedDay)?.date ?? today,
-    [days, selectedDay, today],
-  );
 
   const findTaskColumnKey = useCallback(
     (taskId: string): string | null => {
@@ -169,11 +166,11 @@ export function TaskBoardPage(): JSX.Element {
       if (reordered.length === 0) return;
       try {
         await reorderTasks(reordered);
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
-    [todayKey, refresh],
+    [todayKey, refresh, failTaskAction],
   );
 
   const handleMoveToDay = useCallback(
@@ -198,14 +195,13 @@ export function TaskBoardPage(): JSX.Element {
             : t,
         ),
       );
-      setSelectedDay(dayKey);
 
       try {
         const updated = await scheduleTask(task.id, resolved, duration);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
         await applyInsertOrder(taskId, dayKey, insertBeforeTaskId);
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [tasks, findTaskColumnKey, refresh, applyInsertOrder],
@@ -264,8 +260,8 @@ export function TaskBoardPage(): JSX.Element {
       try {
         const updated = await patchTaskEpic(task.id, selection);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [refresh],
@@ -273,10 +269,14 @@ export function TaskBoardPage(): JSX.Element {
 
   const handleCreateConference = useCallback(
     async (task: TaskCard, provider: ConferenceProvider) => {
-      const updated = await createTaskConference(task.id, provider);
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      try {
+        const updated = await createTaskConference(task.id, provider);
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      } catch (err) {
+        failTaskAction(err);
+      }
     },
-    [],
+    [failTaskAction],
   );
 
   const handleClearConference = useCallback(
@@ -296,8 +296,8 @@ export function TaskBoardPage(): JSX.Element {
       try {
         const updated = await patchTaskDetails(task.id, { clearConference: true });
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [refresh],
@@ -346,8 +346,8 @@ export function TaskBoardPage(): JSX.Element {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)));
       try {
         await moveTaskStatus(task.id, next);
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [refresh],
@@ -361,8 +361,8 @@ export function TaskBoardPage(): JSX.Element {
       try {
         const updated = await renameTask(task.id, next);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [refresh],
@@ -380,8 +380,8 @@ export function TaskBoardPage(): JSX.Element {
         const resolved = resolveScheduleStart(dayKey, tasks, start, task.id);
         const updated = await scheduleTask(task.id, resolved, clamped);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [tasks, refresh],
@@ -401,11 +401,18 @@ export function TaskBoardPage(): JSX.Element {
       try {
         const updated = await scheduleTask(task.id, start, duration);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-      } catch {
-        void refresh();
+      } catch (err) {
+        failTaskAction(err);
       }
     },
     [refresh],
+  );
+
+  const handleTimelineReschedule = useCallback(
+    (task: TaskCard, start: Date) => {
+      void handleReschedule(task, start);
+    },
+    [handleReschedule],
   );
 
   const handleBackToToday = useCallback(() => {
@@ -426,6 +433,8 @@ export function TaskBoardPage(): JSX.Element {
     window.addEventListener(NORDLY_EVENTS.openTask, onOpen);
     return () => window.removeEventListener(NORDLY_EVENTS.openTask, onOpen);
   }, [tasks, ensureDayVisible]);
+
+  if (loadError) throw loadError;
 
   return (
     <div
@@ -498,10 +507,10 @@ export function TaskBoardPage(): JSX.Element {
       </div>
 
       <DayTimeline
-        date={selectedDate}
+        date={today}
         tasks={tasks}
         epics={epics}
-        onReschedule={(task, start) => void handleReschedule(task, start)}
+        onReschedule={handleTimelineReschedule}
       />
 
       {showBackToToday && (

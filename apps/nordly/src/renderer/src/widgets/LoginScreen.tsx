@@ -5,7 +5,7 @@ import { useT } from '@nordly-i18n';
 import { authTelegram, getAuthConfig } from '@features/auth/api/auth';
 import { API_BASE_URL, TELEGRAM_BOT_USERNAME } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
-import { DEV_LOGIN_ENABLED } from '@app/config/features';
+import { DEV_LOGIN_ENABLED } from '@shared/model/features';
 import { useSessionStore } from '@shared/model/session';
 
 function TelegramIcon(): JSX.Element {
@@ -57,10 +57,12 @@ export function LoginScreen(): JSX.Element {
   useEffect(() => {
     getAuthConfig()
       .then((cfg) => {
-        if (cfg.telegram_bot_username) setBotUsername(cfg.telegram_bot_username);
+        setBotUsername(cfg.telegram_bot_username);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err: unknown) => {
+        setError(formatLoginError(err, t));
+      });
+  }, [t]);
 
   const botLink = botUsername ? `https://t.me/${botUsername}?start=login` : null;
 

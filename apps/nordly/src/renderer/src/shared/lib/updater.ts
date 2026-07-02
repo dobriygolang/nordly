@@ -2,9 +2,9 @@ import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type DownloadEvent } from '@tauri-apps/plugin-updater';
 
-export function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isTauriRuntime } from '@platform/runtime';
+
+export { isTauriRuntime };
 
 export async function readAppVersion(): Promise<string> {
   if (!isTauriRuntime()) return 'dev';

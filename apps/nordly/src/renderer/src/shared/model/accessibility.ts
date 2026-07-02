@@ -1,4 +1,4 @@
-import { readSettings, type TextScale } from '@pages/Settings/lib/settings-store';
+import { readSettings, type TextScale } from '@shared/model/settings';
 
 export type { TextScale };
 

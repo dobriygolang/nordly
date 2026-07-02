@@ -1,21 +1,13 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 import { handleUnauthorized, isSessionExpired, refreshAccessToken } from '@shared/api/authSession';
+import { isNativeHttpInTauri } from '@platform/runtime';
 import { useSessionStore } from '@shared/model/session';
 
 type ApiFetchOptions = {
   /** Internal — prevents infinite retry on persistent 401. */
   _retried?: boolean;
 };
-
-function isTauriShell(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-/** Native HTTP in packaged Tauri; browser fetch in dev (Vite proxy). */
-function shouldUseNativeHttp(): boolean {
-  return isTauriShell() && !import.meta.env.DEV;
-}
 
 function requestHadAuth(init?: RequestInit): boolean {
   if (!init?.headers) return false;
@@ -35,7 +27,7 @@ function withFreshBearer(init?: RequestInit): RequestInit | undefined {
 }
 
 async function coreFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return shouldUseNativeHttp() ? tauriFetch(input, init) : fetch(input, init);
+  return isNativeHttpInTauri() ? tauriFetch(input, init) : fetch(input, init);
 }
 
 export async function apiFetch(

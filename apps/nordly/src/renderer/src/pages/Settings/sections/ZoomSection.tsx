@@ -9,7 +9,7 @@ import {
   openExternalUrl,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { SettingRow } from '../primitives/SettingRow';
 
@@ -29,7 +29,7 @@ export function ZoomSection(): JSX.Element | null {
   const [oauthPending, setOauthPending] = useState(false);
 
   const load = useCallback(async () => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     setLoading(true);
     setError(null);
     try {
@@ -101,7 +101,7 @@ export function ZoomSection(): JSX.Element | null {
     };
   }, [oauthPending]);
 
-  if (LOCAL_ONLY) return null;
+  if (!isCloudEnabled()) return null;
 
   const connected = settings?.zoomConnected ?? false;
   const reauthNeeded = settings?.zoomReauthRequired ?? false;

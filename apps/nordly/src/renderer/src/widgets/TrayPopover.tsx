@@ -3,17 +3,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+import { useT } from '@nordly-i18n';
 import {
   initPomodoroFollower,
   sendPomodoroCommand,
 } from '@features/focus/lib/pomodoroCrossWindow';
-import { readStoredTheme } from '@shared/model/prefs';
+import { applyTheme } from '@shared/lib/applyTheme';
+import { readStoredTheme } from '@shared/model/theme';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { themePosterSrc, type ThemeId } from '@widgets/CanvasBg';
+import { themePosterSrc, type ThemeId } from '@shared/model/theme';
 
 function readTheme(): ThemeId {
-  return readStoredTheme();
+  const theme = readStoredTheme();
+  applyTheme(theme);
+  return theme;
 }
 
 /** Duplicated strip — second 0–9 allows a seamless full revolution. */
@@ -40,6 +44,7 @@ function OdometerColumn({
 }): JSX.Element {
   const rollDown = columnIndex % 2 === 0;
   const stripRef = useRef<HTMLSpanElement>(null);
+  const initialDigitRef = useRef(digit);
   const prevDigitRef = useRef(digit);
   const prevOpenRef = useRef(openRollKey);
   const openAnimCleanupRef = useRef<(() => void) | null>(null);
@@ -54,8 +59,8 @@ function OdometerColumn({
   }, []);
 
   useLayoutEffect(() => {
-    moveTo(-digit, false);
-    prevDigitRef.current = digit;
+    moveTo(-initialDigitRef.current, false);
+    prevDigitRef.current = initialDigitRef.current;
   }, [moveTo]);
 
   useEffect(() => {
@@ -165,13 +170,17 @@ function TrayTimer({
 }
 
 export function TrayPopoverApp(): JSX.Element {
+  const t = useT();
   const [openRollKey, setOpenRollKey] = useState(0);
   const [theme, setTheme] = useState<ThemeId>(() => readTheme());
   const mode = usePomodoroStore((s) => s.mode);
   const remain = usePomodoroStore((s) => s.remain);
   const elapsed = usePomodoroStore((s) => s.elapsed);
   const running = usePomodoroStore((s) => s.running);
+  const pinnedTitle = usePomodoroStore((s) => s.pinnedTitle);
   const displaySec = mode === 'pomodoro' ? remain : elapsed;
+  const taskTitle = pinnedTitle?.trim();
+  const focusLabel = taskTitle || t(running ? 'nordly.tray.focus_session' : 'nordly.tray.ready');
 
   useEffect(() => initPomodoroFollower(), []);
 
@@ -194,6 +203,7 @@ export function TrayPopoverApp(): JSX.Element {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void listen<ThemeId>('theme:sync', ({ payload }) => {
+      applyTheme(payload);
       setTheme(payload);
     }).then((off) => {
       unlisten = off;
@@ -231,18 +241,26 @@ export function TrayPopoverApp(): JSX.Element {
         <div className="nordly-tray-popover__controls">
           <TrayTimer totalSec={displaySec} running={running} openRollKey={openRollKey} />
 
-          <button
-            type="button"
-            className={`nordly-tray-popover__play motion-press focus-ring${running ? ' is-running' : ''}`}
-            onClick={toggleTimer}
-            aria-label={running ? 'Pause timer' : 'Start timer'}
-            aria-pressed={running}
-            title={running ? 'Pause' : 'Play'}
-          >
-            <span className="nordly-tray-popover__play-icon">
-              <Icon name={running ? 'pause' : 'play'} size={10} />
+          <div className="nordly-tray-popover__focus-row">
+            <button
+              type="button"
+              className={`nordly-tray-popover__play motion-press focus-ring${running ? ' is-running' : ''}`}
+              onClick={toggleTimer}
+              aria-label={running ? 'Pause timer' : 'Start timer'}
+              aria-pressed={running}
+              title={running ? 'Pause' : 'Play'}
+            >
+              <span className="nordly-tray-popover__play-icon">
+                <Icon name={running ? 'pause' : 'play'} size={10} />
+              </span>
+            </button>
+            <span className="nordly-tray-popover__focus-copy" title={focusLabel}>
+              <span className="nordly-tray-popover__focus-kicker mono">
+                {taskTitle ? t('nordly.tray.current_task') : t('nordly.tray.timer_label')}
+              </span>
+              <span className="nordly-tray-popover__focus-title">{focusLabel}</span>
             </span>
-          </button>
+          </div>
         </div>
       </div>
     </div>

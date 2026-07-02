@@ -16,17 +16,8 @@ export async function encryptNoteFields(
 export async function decryptNoteFields(
   titleCipher: string,
   bodyCipher: string,
-  titleLikelyEncrypted = true,
 ): Promise<{ title: string; bodyMd: string }> {
-  const bodyMd = await decryptText(bodyCipher);
-  let title = titleCipher;
-  if (titleLikelyEncrypted) {
-    try {
-      title = await decryptText(titleCipher);
-    } catch {
-      /* legacy: title was plaintext on server */
-    }
-  }
+  const [title, bodyMd] = await Promise.all([decryptText(titleCipher), decryptText(bodyCipher)]);
   return { title, bodyMd };
 }
 
@@ -34,7 +25,7 @@ export async function decryptNoteFromRemote(note: WireNote): Promise<Note> {
   if (!note.encrypted) {
     return note;
   }
-  const { title, bodyMd } = await decryptNoteFields(note.title, note.bodyMd, true);
+  const { title, bodyMd } = await decryptNoteFields(note.title, note.bodyMd);
   return {
     ...note,
     title,

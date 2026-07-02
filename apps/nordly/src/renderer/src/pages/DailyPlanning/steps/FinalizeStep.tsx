@@ -6,7 +6,7 @@ import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 
-import { durationLabel } from '../lib/planningTasks';
+import { durationLabel } from '@features/planning/lib/planningTasks';
 
 interface FinalizeStepProps {
   todayTasks: TaskCard[];

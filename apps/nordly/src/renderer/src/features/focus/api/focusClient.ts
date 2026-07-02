@@ -10,7 +10,7 @@ import {
   type QueueStats,
 } from '@features/focus/repository/focusRemote';
 import { focusStoreList } from '@features/focus/repository/focusStore';
-import { addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
+import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
@@ -167,9 +167,6 @@ function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): Stats
   };
 }
 
-function isRemoteStatsEmpty(remote: StatsCore): boolean {
-  return remote.totalFocusedSeconds === 0 && remote.heatmap.every((d) => d.seconds === 0);
-}
 
 async function buildQueueStats(): Promise<QueueStats> {
   const tasks = await listTasks();
@@ -200,44 +197,37 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
   const local = await buildLocalStats(upToDate);
   if (!isSyncEnabled() || !canReachNetwork()) return local;
 
-  try {
-    const remote = await remoteGetStats(upToDate);
-    const remoteCore: StatsCore = {
-      currentStreakDays: remote.currentStreakDays,
-      longestStreakDays: remote.longestStreakDays,
-      totalFocusedSeconds: remote.totalFocusedSeconds,
-      heatmap: remote.heatmap,
-      lastSevenDays: remote.lastSevenDays,
+  const remote = await remoteGetStats(upToDate);
+  const remoteCore: StatsCore = {
+    currentStreakDays: remote.currentStreakDays,
+    longestStreakDays: remote.longestStreakDays,
+    totalFocusedSeconds: remote.totalFocusedSeconds,
+    heatmap: remote.heatmap,
+    lastSevenDays: remote.lastSevenDays,
+  };
+
+  const rows = await focusStoreList();
+  const unsynced = rows.filter((s) => s.endedAt && !s.synced) as StoredSession[];
+  const queue = await buildQueueStats();
+
+  if (unsynced.length === 0) {
+    const mergedHeatmap = mergeFocusDaysMax(remoteCore.heatmap, local.heatmap);
+    const merged = statsFromHeatmap(mergedHeatmap, upToDate);
+    return {
+      ...merged,
+      longestStreakDays: Math.max(
+        merged.longestStreakDays,
+        remoteCore.longestStreakDays,
+        local.longestStreakDays,
+      ),
+      queue,
     };
-
-    const rows = await focusStoreList();
-    const unsynced = rows.filter((s) => s.endedAt && !s.synced) as StoredSession[];
-    const queue = await buildQueueStats();
-
-    if (unsynced.length === 0) {
-      if (isRemoteStatsEmpty(remoteCore) && local.totalFocusedSeconds > 0) return local;
-      const mergedHeatmap = mergeFocusDaysMax(remoteCore.heatmap, local.heatmap);
-      const merged = statsFromHeatmap(mergedHeatmap, upToDate);
-      return {
-        ...merged,
-        longestStreakDays: Math.max(
-          merged.longestStreakDays,
-          remoteCore.longestStreakDays,
-          local.longestStreakDays,
-        ),
-        queue,
-      };
-    }
-
-    const pending = statsFromSessions(unsynced, upToDate);
-    const merged = isRemoteStatsEmpty(remoteCore)
-      ? pending
-      : mergeStats(remoteCore, pending, upToDate);
-
-    return { ...merged, queue };
-  } catch {
-    return local;
   }
+
+  const pending = statsFromSessions(unsynced, upToDate);
+  const merged = mergeStats(remoteCore, pending, upToDate);
+
+  return { ...merged, queue };
 }
 
 export async function startFocusSession(args: {

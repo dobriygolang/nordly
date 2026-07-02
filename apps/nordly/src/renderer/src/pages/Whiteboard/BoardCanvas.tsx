@@ -63,14 +63,14 @@ interface BoardCanvasProps {
 function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
   const parsed = parseSceneJson(sceneJson);
   const canonical = canonicalizeElementsForStorage(
-    (parsed?.elements ?? []) as Parameters<typeof canonicalizeElementsForStorage>[0],
+    parsed.elements as Parameters<typeof canonicalizeElementsForStorage>[0],
   );
   return {
     elements: boardThemeSceneFromCanonical(canonical, boardTheme),
-    files: parsed?.files ?? {},
+    files: parsed.files,
     appState: mergePersistedAppState(
       nordlyExcalidrawInitialAppState(boardTheme),
-      parsed?.appState,
+      parsed.appState,
       boardTheme,
     ),
     canonicalElements: canonical,

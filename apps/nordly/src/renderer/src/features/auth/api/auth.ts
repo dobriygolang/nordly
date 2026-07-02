@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@shared/api/config';
+import { requireJsonObject, requireJsonString } from '@shared/api/json';
 import { apiFetch } from '@shared/api/http';
 
 export type AuthConfig = {
@@ -15,9 +16,9 @@ export async function getAuthConfig(): Promise<AuthConfig> {
   if (!res.ok) {
     throw new Error(`auth config ${res.status}`);
   }
-  const body = (await res.json()) as AuthConfig & { telegramBotUsername?: string };
+  const body = (await res.json()) as Record<string, unknown>;
   return {
-    telegram_bot_username: body.telegram_bot_username || body.telegramBotUsername || '',
+    telegram_bot_username: requireJsonString(body, 'telegram_bot_username'),
   };
 }
 
@@ -29,15 +30,11 @@ export type AuthTelegramResult = {
 };
 
 function readJwtExpMs(token: string): number {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return 0;
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
-    if (typeof json.exp === 'number') return json.exp * 1000;
-  } catch {
-    /* ignore */
-  }
-  return 0;
+  const payload = token.split('.')[1];
+  if (!payload) throw new Error('invalid auth token: missing payload');
+  const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+  if (typeof json.exp !== 'number') throw new Error('invalid auth token: missing exp');
+  return json.exp * 1000;
 }
 
 export async function authTelegram(code: string): Promise<AuthTelegramResult> {
@@ -47,20 +44,16 @@ export async function authTelegram(code: string): Promise<AuthTelegramResult> {
     body: JSON.stringify({ code: code.trim() }),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await res.text();
     throw new Error(text || `telegram auth ${res.status}`);
   }
 
   const body = (await res.json()) as Record<string, unknown>;
-  const accessToken = String(body.accessToken ?? body.access_token ?? '');
-  const refreshToken = String(body.refreshToken ?? body.refresh_token ?? '');
-  const user = (body.user ?? {}) as Record<string, unknown>;
-  const userId = String(user.id ?? '');
+  const accessToken = requireJsonString(body, 'accessToken');
+  const refreshToken = requireJsonString(body, 'refreshToken');
+  const user = requireJsonObject(body, 'user');
+  const userId = requireJsonString(user, 'id');
 
-  if (!accessToken || !userId) {
-    throw new Error('invalid auth response');
-  }
-
-  const expiresAt = readJwtExpMs(accessToken) || Date.now() + 15 * 60 * 1000;
+  const expiresAt = readJwtExpMs(accessToken);
   return { accessToken, refreshToken, userId, expiresAt };
 }

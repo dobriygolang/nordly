@@ -1,21 +1,23 @@
 .nordly-planning-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: flex;
   align-items: stretch;
   justify-content: center;
   padding: 0;
-  background: rgb(0 0 0 / 0.72);
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .nordly-planning-backdrop:not([data-closing='true']) {
-  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-emphasized) backwards;
+  animation: nordly-fade-in var(--motion-dur-medium) var(--motion-ease-interactive) backwards;
 }
 
 .nordly-planning-backdrop[data-closing='true'] {
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--motion-dur-medium) var(--motion-ease-emphasized);
+  transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
 }
 
 .nordly-planning-modal {
@@ -28,9 +30,9 @@
   gap: 0;
   border-radius: 0;
   border: none;
-  background: var(--bg);
+  background: transparent;
   overflow: hidden;
-  --planning-inset-top: 32px;
+  --planning-inset-top: 0;
 }
 
 .nordly-planning-modal[data-step='defer'] {
@@ -113,6 +115,37 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transition:
+    background-color 200ms var(--motion-ease-standard),
+    transform var(--motion-dur-small) var(--motion-ease-interactive),
+    box-shadow var(--motion-dur-small) var(--motion-ease-standard),
+    filter var(--motion-dur-small) var(--motion-ease-standard);
+}
+
+.nordly-planning-rail__continue:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 14px rgb(0 0 0 / 0.16),
+    0 0 0 1px rgb(var(--ink-rgb) / 0.1);
+}
+
+.nordly-planning-rail__continue:active {
+  transform: translateY(0);
+  filter: brightness(0.94);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-planning-rail__continue {
+    transition-duration: 0.01ms;
+  }
+
+  .nordly-planning-rail__continue:hover,
+  .nordly-planning-rail__continue:active {
+    transform: none;
+  }
 }
 
 .nordly-planning-main {

@@ -4,22 +4,22 @@ import { useT } from '@nordly-i18n';
 
 import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
-import { DayTimeline } from '@pages/TaskBoard/DayTimeline';
+import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
   defaultDurationMin,
   startOfLocalDay,
   sumDurationMin,
   toDayKey,
-} from '@pages/TaskBoard/lib/dates';
+} from '@shared/lib/dates';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { zIndex } from '@shared/lib/z-index';
 
-import { finalizeDailyPlan, loadDailyPlan, saveDailyPlanObstacles } from './lib/dailyPlanStore';
-import { tasksForToday, totalDurationLabel } from './lib/planningTasks';
-import { usePlanningTaskBoard } from './lib/usePlanningTaskBoard';
+import { finalizeDailyPlan, loadDailyPlan, saveDailyPlanObstacles } from '@features/planning/repository/dailyPlanStore';
+import { tasksForToday, totalDurationLabel } from '@features/planning/lib/planningTasks';
+import { usePlanningTaskBoard } from '@features/planning/hooks/usePlanningTaskBoard';
 import { PickStep } from './steps/PickStep';
 import { DeferStep } from './steps/DeferStep';
 import { FinalizeStep } from './steps/FinalizeStep';
@@ -45,34 +45,40 @@ export function DailyPlanningModal({
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [obstacles, setObstacles] = useState('');
   const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
   const refresh = useCallback(async () => {
-    try {
-      setTasks(await listTasks());
-    } catch {
-      /* keep stale */
-    }
+    setTasks(await listTasks());
+    setLoadError(null);
   }, []);
 
   useEffect(() => {
-    void refresh();
-    void loadDailyPlan(todayKey).then((rec) => setObstacles(rec.obstacles ?? ''));
+    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    void loadDailyPlan(todayKey)
+      .then((rec) => setObstacles(rec.obstacles ?? ''))
+      .catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
   }, [refresh, todayKey]);
 
   useEffect(() => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     void getTrackerSettings()
       .then(setTrackerSettings)
-      .catch(() => setTrackerSettings(null));
+      .catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
   }, []);
 
   useEffect(() => {
-    const onTasksChanged = () => void refresh();
+    const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
   }, [refresh]);
 
-  const board = usePlanningTaskBoard({ todayKey, tasks, setTasks, refresh });
+  const board = usePlanningTaskBoard({
+    todayKey,
+    tasks,
+    setTasks,
+    refresh,
+    onActionError: (err) => setLoadError(err instanceof Error ? err : new Error(String(err))),
+  });
 
   const todayTasks = useMemo(() => tasksForToday(tasks, todayKey), [tasks, todayKey]);
   const activeTodayTasks = useMemo(
@@ -128,6 +134,8 @@ export function DailyPlanningModal({
       showBack: true,
     };
   }, [step, t, handleFinalize]);
+
+  if (loadError) throw loadError;
 
   return (
     <div

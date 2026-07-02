@@ -1,18 +1,18 @@
-import { API_BASE_URL, DEV_BEARER_TOKEN } from '@shared/api/config';
+import { API_BASE_URL } from '@shared/api/config';
+import {
+  jsonBoolTrue,
+  optionalJsonString,
+  requireJsonString,
+} from '@shared/api/json';
+import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
-import { useSessionStore } from '@shared/model/session';
 
 const EVENTS_BASE = `${API_BASE_URL}/v1/tracker/integrations/google/events`;
 const SETTINGS_BASE = `${API_BASE_URL}/v1/tracker/settings`;
 const GOOGLE_URL_BASE = `${API_BASE_URL}/v1/tracker/integrations/google`;
 
-function authHeaders(): Record<string, string> {
-  const token = useSessionStore.getState().accessToken ?? DEV_BEARER_TOKEN;
-  return token ? { authorization: `Bearer ${token}` } : {};
-}
-
 function jsonHeaders(): Record<string, string> {
-  return { ...authHeaders(), 'content-type': 'application/json' };
+  return syncAuthHeaders({ 'content-type': 'application/json' });
 }
 
 /** Thrown when the stored Google token was revoked and the user must reconnect. */
@@ -32,20 +32,19 @@ export class GoogleNotConnectedError extends Error {
 }
 
 async function readError(resp: Response): Promise<string> {
-  try {
-    const body = (await resp.clone().json()) as { message?: string; error?: string };
-    return body.message ?? body.error ?? '';
-  } catch {
-    try {
-      return await resp.clone().text();
-    } catch {
-      return '';
-    }
-  }
+  const body = (await resp.clone().json()) as { message?: string; error?: string };
+  if (typeof body.message === 'string' && body.message) return body.message;
+  if (typeof body.error === 'string' && body.error) return body.error;
+  return resp.statusText;
 }
 
 async function throwForStatus(resp: Response, label: string): Promise<never> {
-  const msg = await readError(resp);
+  let msg = '';
+  try {
+    msg = await readError(resp);
+  } catch {
+    msg = resp.statusText;
+  }
   if (msg.includes('google_reauth_required')) throw new GoogleReauthError();
   if (msg.includes('google_not_connected')) throw new GoogleNotConnectedError();
   throw new Error(`${label}: ${resp.status}${msg ? ` ${msg}` : ''}`);
@@ -87,56 +86,51 @@ export interface GoogleEventInput {
   calendarId?: string;
 }
 
-function pickBool(obj: Record<string, unknown>, camel: string, snake: string): boolean {
-  const v = obj[camel] ?? obj[snake];
-  return v === true;
-}
-
-function pickStr(obj: Record<string, unknown>, camel: string, snake: string): string {
-  const v = obj[camel] ?? obj[snake];
-  return typeof v === 'string' ? v : '';
+function eventTimeIso(raw: unknown, field: string): string {
+  if (typeof raw === 'string' && raw.length > 0) return raw;
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (typeof o.dateTime === 'string' && o.dateTime.length > 0) return o.dateTime;
+    if (typeof o.date === 'string' && o.date.length > 0) return o.date;
+    const sec = o.seconds;
+    if (typeof sec === 'number' && Number.isFinite(sec)) {
+      return new Date(sec * 1000).toISOString();
+    }
+  }
+  throw new Error(`Invalid calendar event response: missing ${field}`);
 }
 
 function unwrapGoogleEvent(raw: Record<string, unknown>): GoogleCalendarEvent {
-  const startRaw = raw.start ?? raw.startTime;
-  const endRaw = raw.end ?? raw.endTime;
-  const asIso = (val: unknown): string =>
-    typeof val === 'string'
-      ? val
-      : val && typeof val === 'object'
-        ? pickStr(val as Record<string, unknown>, 'dateTime', 'date_time') ||
-          pickStr(val as Record<string, unknown>, 'date', 'date')
-        : '';
   return {
-    id: pickStr(raw, 'id', 'id'),
-    title: pickStr(raw, 'title', 'title') || pickStr(raw, 'summary', 'summary') || '(No title)',
-    start: asIso(startRaw),
-    end: asIso(endRaw),
-    allDay: pickBool(raw, 'allDay', 'all_day'),
-    calendarId: pickStr(raw, 'calendarId', 'calendar_id') || 'primary',
-    htmlLink: pickStr(raw, 'htmlLink', 'html_link'),
+    id: requireJsonString(raw, 'id'),
+    title: requireJsonString(raw, 'title'),
+    start: eventTimeIso(raw.start, 'start'),
+    end: eventTimeIso(raw.end, 'end'),
+    allDay: jsonBoolTrue(raw, 'allDay'),
+    calendarId: requireJsonString(raw, 'calendarId'),
+    htmlLink: optionalJsonString(raw, 'htmlLink') ?? '',
     editable: raw.editable !== false,
   };
 }
 
 function unwrapSettings(raw: Record<string, unknown>): TrackerSettings {
   return {
-    googleCalendarSyncEnabled: pickBool(raw, 'googleCalendarSyncEnabled', 'google_calendar_sync_enabled'),
-    googleCalendarConnected: pickBool(raw, 'googleCalendarConnected', 'google_calendar_connected'),
-    googleReauthRequired: pickBool(raw, 'googleReauthRequired', 'google_reauth_required'),
-    googleCalendarId: pickStr(raw, 'googleCalendarId', 'google_calendar_id') || 'primary',
-    zoomConnected: pickBool(raw, 'zoomConnected', 'zoom_connected'),
-    zoomReauthRequired: pickBool(raw, 'zoomReauthRequired', 'zoom_reauth_required'),
+    googleCalendarSyncEnabled: jsonBoolTrue(raw, 'googleCalendarSyncEnabled'),
+    googleCalendarConnected: jsonBoolTrue(raw, 'googleCalendarConnected'),
+    googleReauthRequired: jsonBoolTrue(raw, 'googleReauthRequired'),
+    googleCalendarId: requireJsonString(raw, 'googleCalendarId'),
+    zoomConnected: jsonBoolTrue(raw, 'zoomConnected'),
+    zoomReauthRequired: jsonBoolTrue(raw, 'zoomReauthRequired'),
   };
 }
 
 function unwrapCalendar(raw: Record<string, unknown>): GoogleCalendarListEntry {
   return {
-    id: pickStr(raw, 'id', 'id'),
-    summary: pickStr(raw, 'summary', 'summary'),
-    primary: pickBool(raw, 'primary', 'primary'),
-    writable: pickBool(raw, 'writable', 'writable'),
-    backgroundColor: pickStr(raw, 'backgroundColor', 'background_color'),
+    id: requireJsonString(raw, 'id'),
+    summary: requireJsonString(raw, 'summary'),
+    primary: jsonBoolTrue(raw, 'primary'),
+    writable: jsonBoolTrue(raw, 'writable'),
+    backgroundColor: requireJsonString(raw, 'backgroundColor'),
   };
 }
 
@@ -145,9 +139,9 @@ function eventBody(input: GoogleEventInput): Record<string, unknown> {
     title: input.title,
     start: input.start.toISOString(),
     end: input.end.toISOString(),
-    all_day: input.allDay ?? false,
+    allDay: input.allDay ?? false,
   };
-  if (input.calendarId) body.calendar_id = input.calendarId;
+  if (input.calendarId) body.calendarId = input.calendarId;
   return body;
 }
 
@@ -159,11 +153,11 @@ export async function listGoogleCalendarEvents(
     time_min: timeMin.toISOString(),
     time_max: timeMax.toISOString(),
   });
-  const resp = await apiFetch(`${EVENTS_BASE}?${params}`, { headers: authHeaders() });
-  if (resp.status === 401) return [];
+  const resp = await apiFetch(`${EVENTS_BASE}?${params}`, { headers: syncAuthHeaders() });
   if (!resp.ok) await throwForStatus(resp, 'listGoogleCalendarEvents');
   const j = (await resp.json()) as { events?: Record<string, unknown>[] };
-  return (j.events ?? []).map(unwrapGoogleEvent).filter((e) => e.start);
+  if (!Array.isArray(j.events)) throw new Error('Invalid calendar response: missing events');
+  return j.events.map(unwrapGoogleEvent);
 }
 
 export async function createGoogleCalendarEvent(
@@ -176,7 +170,8 @@ export async function createGoogleCalendarEvent(
   });
   if (!resp.ok) await throwForStatus(resp, 'createGoogleCalendarEvent');
   const j = (await resp.json()) as { event?: Record<string, unknown> };
-  return unwrapGoogleEvent(j.event ?? {});
+  if (!j.event) throw new Error('Invalid calendar response: missing event');
+  return unwrapGoogleEvent(j.event);
 }
 
 export async function updateGoogleCalendarEvent(
@@ -190,7 +185,8 @@ export async function updateGoogleCalendarEvent(
   });
   if (!resp.ok) await throwForStatus(resp, 'updateGoogleCalendarEvent');
   const j = (await resp.json()) as { event?: Record<string, unknown> };
-  return unwrapGoogleEvent(j.event ?? {});
+  if (!j.event) throw new Error('Invalid calendar response: missing event');
+  return unwrapGoogleEvent(j.event);
 }
 
 export async function deleteGoogleCalendarEvent(
@@ -200,23 +196,25 @@ export async function deleteGoogleCalendarEvent(
   const params = calendarId ? `?calendar_id=${encodeURIComponent(calendarId)}` : '';
   const resp = await apiFetch(`${EVENTS_BASE}/${encodeURIComponent(eventId)}${params}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: syncAuthHeaders(),
   });
   if (!resp.ok) await throwForStatus(resp, 'deleteGoogleCalendarEvent');
 }
 
 export async function listGoogleCalendars(): Promise<GoogleCalendarListEntry[]> {
-  const resp = await apiFetch(`${GOOGLE_URL_BASE}/calendars`, { headers: authHeaders() });
+  const resp = await apiFetch(`${GOOGLE_URL_BASE}/calendars`, { headers: syncAuthHeaders() });
   if (!resp.ok) await throwForStatus(resp, 'listGoogleCalendars');
   const j = (await resp.json()) as { calendars?: Record<string, unknown>[] };
-  return (j.calendars ?? []).map(unwrapCalendar);
+  if (!Array.isArray(j.calendars)) throw new Error('Invalid calendar response: missing calendars');
+  return j.calendars.map(unwrapCalendar);
 }
 
 export async function getTrackerSettings(): Promise<TrackerSettings> {
-  const resp = await apiFetch(SETTINGS_BASE, { headers: authHeaders() });
+  const resp = await apiFetch(SETTINGS_BASE, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`getTrackerSettings: ${resp.status}`);
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
-  return unwrapSettings(j.settings ?? {});
+  if (!j.settings) throw new Error('Invalid tracker settings response: missing settings');
+  return unwrapSettings(j.settings);
 }
 
 export async function updateTrackerSettings(
@@ -224,10 +222,10 @@ export async function updateTrackerSettings(
 ): Promise<TrackerSettings> {
   const body: Record<string, unknown> = {};
   if (patch.googleCalendarSyncEnabled !== undefined) {
-    body.google_calendar_sync_enabled = patch.googleCalendarSyncEnabled;
+    body.googleCalendarSyncEnabled = patch.googleCalendarSyncEnabled;
   }
   if (patch.googleCalendarId !== undefined) {
-    body.google_calendar_id = patch.googleCalendarId;
+    body.googleCalendarId = patch.googleCalendarId;
   }
   const resp = await apiFetch(SETTINGS_BASE, {
     method: 'PATCH',
@@ -236,11 +234,12 @@ export async function updateTrackerSettings(
   });
   if (!resp.ok) throw new Error(`updateTrackerSettings: ${resp.status}`);
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
-  return unwrapSettings(j.settings ?? {});
+  if (!j.settings) throw new Error('Invalid tracker settings response: missing settings');
+  return unwrapSettings(j.settings);
 }
 
 export async function getGoogleCalendarAuthURL(): Promise<string> {
-  const resp = await apiFetch(`${GOOGLE_URL_BASE}/url`, { headers: authHeaders() });
+  const resp = await apiFetch(`${GOOGLE_URL_BASE}/url`, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`getGoogleCalendarAuthURL: ${resp.status}`);
   const j = (await resp.json()) as { url?: string };
   if (!j.url) throw new Error('getGoogleCalendarAuthURL: empty url');
@@ -255,13 +254,14 @@ export async function disconnectGoogleCalendar(): Promise<TrackerSettings> {
   });
   if (!resp.ok) throw new Error(`disconnectGoogleCalendar: ${resp.status}`);
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
-  return unwrapSettings(j.settings ?? {});
+  if (!j.settings) throw new Error('Invalid tracker settings response: missing settings');
+  return unwrapSettings(j.settings);
 }
 
 const ZOOM_URL_BASE = `${API_BASE_URL}/v1/tracker/integrations/zoom`;
 
 export async function getZoomAuthURL(): Promise<string> {
-  const resp = await apiFetch(`${ZOOM_URL_BASE}/url`, { headers: authHeaders() });
+  const resp = await apiFetch(`${ZOOM_URL_BASE}/url`, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`getZoomAuthURL: ${resp.status}`);
   const j = (await resp.json()) as { url?: string };
   if (!j.url) throw new Error('getZoomAuthURL: empty url');
@@ -276,7 +276,8 @@ export async function disconnectZoom(): Promise<TrackerSettings> {
   });
   if (!resp.ok) throw new Error(`disconnectZoom: ${resp.status}`);
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
-  return unwrapSettings(j.settings ?? {});
+  if (!j.settings) throw new Error('Invalid tracker settings response: missing settings');
+  return unwrapSettings(j.settings);
 }
 
 export function openExternalUrl(url: string): void {

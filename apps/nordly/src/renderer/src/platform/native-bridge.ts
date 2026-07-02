@@ -12,12 +12,10 @@ import {
   type PomodoroSnapshot,
 } from '@platform/ipc';
 
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isTauriRuntime } from '@platform/runtime';
 
 export function installNativeBridge(): void {
-  if (!isTauri() || typeof window === 'undefined') return;
+  if (!isTauriRuntime() || typeof window === 'undefined') return;
   if (window.nordly) return;
 
   const api: NordlyAPI = {

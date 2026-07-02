@@ -5,16 +5,19 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 // deliberately do NOT `import React` here (an unused import in strict
 // mode breaks the build).
 import App from '@app/App';
+import { installSyncRegistry } from '@app/syncRegistry';
 import { ErrorBoundary } from '@shared/ui/ErrorBoundary';
 import { installNativeBridge } from '@platform/native-bridge';
+import { isTauriRuntime } from '@platform/runtime';
 import { applyTextScale, readTextScale } from '@shared/model/accessibility';
-import { readStoredTheme } from '@shared/model/prefs';
+import { readStoredTheme } from '@shared/model/theme';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { NotificationOverlayApp } from '@widgets/NotificationOverlay';
 import { TrayPopoverApp } from '@widgets/TrayPopover';
 import './styles/globals.css';
 
 installNativeBridge();
+installSyncRegistry();
 applyTextScale(readTextScale());
 applyTheme(readStoredTheme());
 
@@ -23,7 +26,7 @@ type NordlyView = 'main' | 'tray' | 'notification';
 function resolveView(): NordlyView {
   if (typeof window === 'undefined') return 'main';
   try {
-    if ('__TAURI_INTERNALS__' in window) {
+    if (isTauriRuntime()) {
       const label = getCurrentWebviewWindow().label;
       if (label === 'tray-popover') return 'tray';
       if (label === 'notification') return 'notification';

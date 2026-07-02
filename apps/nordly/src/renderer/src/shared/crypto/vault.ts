@@ -2,11 +2,11 @@
  * E2EE vault — PBKDF2-SHA256 (200k) + AES-256-GCM.
  * Derived key lives in module memory only; cleared on lock / logout.
  */
-import { LOCAL_ONLY } from '@app/config/features';
-import { API_BASE_URL, DEV_BEARER_TOKEN } from '@shared/api/config';
+import { isCloudEnabled } from '@shared/model/features';
+import { API_BASE_URL } from '@shared/api/config';
+import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
-import { useSessionStore } from '@shared/model/session';
 
 let derivedKey: CryptoKey | null = null;
 let cachedSalt: Uint8Array | null = null;
@@ -21,11 +21,7 @@ export function subscribeVault(fn: Listener): () => void {
 
 function notify(unlocked: boolean): void {
   for (const fn of listeners) {
-    try {
-      fn(unlocked);
-    } catch {
-      /* ignore */
-    }
+    fn(unlocked);
   }
 }
 
@@ -33,40 +29,34 @@ export function isVaultUnlocked(): boolean {
   return derivedKey !== null;
 }
 
-function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const token = useSessionStore.getState().accessToken ?? DEV_BEARER_TOKEN;
-  const h: Record<string, string> = { ...extra };
-  if (token) h.authorization = `Bearer ${token}`;
-  return h;
-}
-
 interface SaltResponse {
   saltB64?: string;
-  salt_b64?: string;
   initialized?: boolean;
 }
 
-function readSalt(j: SaltResponse): string {
-  return j.saltB64 ?? j.salt_b64 ?? '';
+function requireSaltB64(j: SaltResponse): string {
+  if (typeof j.saltB64 !== 'string' || j.saltB64.length === 0) {
+    throw new Error('vault response missing saltB64');
+  }
+  return j.saltB64;
 }
 
 export async function initVault(): Promise<{ saltB64: string; isNewVault: boolean }> {
-  try {
-    const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/init`, {
-      method: 'POST',
-      headers: authHeaders({ 'content-type': 'application/json' }),
-      body: '{}',
-    });
-    if (!resp.ok) throw new Error(`vault init: ${resp.status}`);
-    const j = (await resp.json()) as SaltResponse;
-    const saltB64 = readSalt(j);
-    await cacheLocalSalt(saltB64);
-    return { saltB64, isNewVault: !j.initialized };
-  } catch (err) {
-    if (!LOCAL_ONLY) throw err;
+  if (!isCloudEnabled()) {
     const { saltB64, isNew } = await initLocalVaultSalt();
     return { saltB64, isNewVault: isNew };
   }
+
+  const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/init`, {
+    method: 'POST',
+    headers: syncAuthHeaders({ 'content-type': 'application/json' }),
+    body: '{}',
+  });
+  if (!resp.ok) throw new Error(`vault init: ${resp.status}`);
+  const j = (await resp.json()) as SaltResponse;
+  const saltB64 = requireSaltB64(j);
+  await cacheLocalSalt(saltB64);
+  return { saltB64, isNewVault: !j.initialized };
 }
 
 function localSaltKey(userId: string): string {
@@ -90,25 +80,18 @@ async function initLocalVaultSalt(): Promise<{ saltB64: string; isNew: boolean }
 }
 
 export async function fetchVaultSalt(): Promise<string | null> {
-  try {
-    const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: authHeaders() });
-    if (resp.status === 404) {
-      if (LOCAL_ONLY) {
-        const local = await dbGet<{ saltB64: string }>('meta', localSaltKey(requireUserId()));
-        return local?.saltB64 ?? null;
-      }
-      return null;
-    }
-    if (!resp.ok) throw new Error(`vault salt: ${resp.status}`);
-    const j = (await resp.json()) as SaltResponse;
-    const saltB64 = readSalt(j);
-    await cacheLocalSalt(saltB64);
-    return saltB64;
-  } catch {
-    if (!LOCAL_ONLY) throw new Error('Vault unreachable');
+  if (!isCloudEnabled()) {
     const local = await dbGet<{ saltB64: string }>('meta', localSaltKey(requireUserId()));
     return local?.saltB64 ?? null;
   }
+
+  const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: syncAuthHeaders() });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`vault salt: ${resp.status}`);
+  const j = (await resp.json()) as SaltResponse;
+  const saltB64 = requireSaltB64(j);
+  await cacheLocalSalt(saltB64);
+  return saltB64;
 }
 
 const PBKDF2_ITERATIONS = 200_000;

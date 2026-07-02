@@ -4,7 +4,7 @@ import {
   type GoogleCalendarEvent,
 } from '@features/calendar/api/calendarClient';
 import { startOfWeekMonday } from '@features/calendar/lib/events';
-import { googleCalendarPollIntervalMs } from '@pages/Settings/lib/settings-store';
+import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 
 /** Background worker refetches after this age (from app settings). */
 export function getGoogleCalendarFreshMs(): number {
@@ -94,7 +94,7 @@ function readRangeEntry(key: string, maxAgeMs: number): GoogleCalendarEvent[] | 
   return hit.events;
 }
 
-/** Read cached events for a range (snapshot or exact-range fallback). */
+/** Read cached events for a range from the snapshot or exact cached fetch. */
 export function peekGoogleCalendarEvents(timeMin: Date, timeMax: Date): GoogleCalendarEvent[] | null {
   const min = timeMin.getTime();
   const max = timeMax.getTime();
@@ -136,11 +136,9 @@ export async function fetchGoogleCalendarEvents(
       throw err;
     });
 
-  rangeCache.set(key, {
-    events: existing?.events ?? [],
-    fetchedAt: existing?.fetchedAt ?? 0,
-    promise,
-  });
+  if (existing) {
+    rangeCache.set(key, { ...existing, promise });
+  }
 
   return promise;
 }

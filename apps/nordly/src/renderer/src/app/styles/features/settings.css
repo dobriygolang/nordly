@@ -2,7 +2,7 @@
 
 .nordly-settings-page {
   position: absolute;
-  top: var(--nordly-header-h);
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;

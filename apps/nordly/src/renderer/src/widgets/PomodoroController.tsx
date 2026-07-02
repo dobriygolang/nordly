@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { listen } from '@tauri-apps/api/event';
 
@@ -6,9 +6,9 @@ import {
   applyPersistedSnapshot,
   completePomodoroTimer,
   finishFocusSession,
-  reattachFocusSession,
 } from '@features/focus/lib/pomodoroSession';
 import { POMODORO_EXPIRED_EVENT } from '@features/focus/lib/pomodoroCrossWindow';
+import { isTauriRuntime } from '@platform/runtime';
 import { startFocusSession } from '@features/focus/api/focusClient';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
 
@@ -20,6 +20,7 @@ function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): n
 export function PomodoroController(): null {
   const sessionRef = useRef<string | null>(null);
   const lastSavedRef = useRef(0);
+  const [error, setError] = useState<Error | null>(null);
 
   const finishSession = useCallback(async () => {
     await finishFocusSession(sessionRef);
@@ -48,7 +49,7 @@ export function PomodoroController(): null {
   }, [loadPersistedSnapshot]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     void listen(POMODORO_EXPIRED_EVENT, () => {
       void completePomodoroTimer(sessionRef, usePomodoroStore.getState().durationSec);
@@ -125,13 +126,13 @@ export function PomodoroController(): null {
           .then((s) => {
             sessionRef.current = s.id;
           })
-          .catch(() => {
-            void reattachFocusSession(sessionRef);
+          .catch((err: unknown) => {
+            setError(err instanceof Error ? err : new Error(String(err)));
           });
         return;
       }
       if (!state.running && prev.running) {
-        void finishSession();
+        void finishSession().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
       }
     });
   }, [finishSession]);
@@ -140,22 +141,21 @@ export function PomodoroController(): null {
     return usePomodoroStore.subscribe((state, prev) => {
       if (state.mode !== 'pomodoro') return;
       if (!state.running || state.remain !== 0 || prev.remain === 0) return;
-      void completePomodoroTimer(sessionRef, state.durationSec);
+      void completePomodoroTimer(sessionRef, state.durationSec).catch((err: unknown) =>
+        setError(err instanceof Error ? err : new Error(String(err))),
+      );
     });
   }, []);
 
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
-      if (state.resetToken !== prev.resetToken) void finishSession();
+      if (state.resetToken !== prev.resetToken) {
+        void finishSession().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
+      }
     });
   }, [finishSession]);
 
-  useEffect(() => {
-    return usePomodoroStore.subscribe((state, prev) => {
-      if (state.mode === prev.mode) return;
-      void finishSession();
-    });
-  }, [finishSession]);
+  if (error) throw error;
 
   return null;
 };

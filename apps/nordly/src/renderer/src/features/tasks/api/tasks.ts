@@ -1,5 +1,5 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {
   remoteCreateTaskConference,
@@ -32,7 +32,7 @@ export interface TaskCard {
   googleEventId?: string;
   /** Synced epic id from tracker. */
   epicId?: string;
-  /** Offline/pending epic tint — cleared once epicId is confirmed on server. */
+  /** Local tint persisted on existing rows; new assignments require a synced `epicId`. */
   epicColor?: string;
   conferenceUrl?: string;
   conferenceProvider?: ConferenceProvider;
@@ -119,7 +119,9 @@ export async function scheduleTask(
     typeof start === 'string'
       ? start
       : Number.isNaN(start.getTime())
-        ? new Date().toISOString()
+        ? (() => {
+            throw new Error(`Invalid schedule date for task: ${taskId}`);
+          })()
         : start.toISOString();
   const task: TaskCard = {
     ...prev,
@@ -140,7 +142,7 @@ export async function scheduleTask(
 
 export async function deleteTask(taskId: string): Promise<void> {
   const prev = await resolveTask(taskId);
-  if (!prev) return;
+  if (!prev) throw new Error(`Task not found: ${taskId}`);
   await tasksStoreSoftDelete(taskId);
   if (isSyncEnabled()) {
     await enqueueOutbox('tasks', 'delete', taskId, {});
@@ -161,36 +163,35 @@ export async function reorderTasks(updated: TaskCard[]): Promise<void> {
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
 }
 
-/** Assign or clear task epic — syncs epicId to tracker when online; epicColor offline fallback. */
+/** Assign or clear task epic. New assignments require a synced `epicId`. */
 export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
 
   const epics = await epicsStoreList();
   let epicId: string | undefined;
-  let epicColor: string | undefined;
 
   if (selection === null) {
     epicId = undefined;
-    epicColor = undefined;
   } else if ('epicId' in selection) {
     if (isOfflineEpicId(selection.epicId)) {
-      throw new Error('Cannot sync offline epic stub');
+      throw new Error('Cannot assign offline epic stub');
     }
     epicId = selection.epicId;
-    epicColor = epics.find((e) => e.id === epicId)?.color;
   } else {
     const color = normalizeHex(selection.color);
     if (!isTaskEpicColor(color)) throw new Error(`Invalid epic color: ${color}`);
-    epicColor = color;
     const match = findEpicByColor(epics, color);
-    epicId = match && !isOfflineEpicId(match.id) ? match.id : undefined;
+    if (!match || isOfflineEpicId(match.id)) {
+      throw new Error(`No synced epic for color: ${color}`);
+    }
+    epicId = match.id;
   }
 
   const task: TaskCard = {
     ...prev,
     epicId,
-    epicColor: epicId ? undefined : epicColor,
+    epicColor: undefined,
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);
@@ -200,19 +201,12 @@ export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection
       await enqueueOutbox('tasks', 'patch', taskId, { clearEpic: true });
     } else if (epicId) {
       await enqueueOutbox('tasks', 'patch', taskId, { epicId });
-    } else if (epicColor) {
-      await enqueueOutbox('tasks', 'patch', taskId, { epicColor });
     }
     scheduleSync();
   }
 
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
   return task;
-}
-
-/** @deprecated Use patchTaskEpic */
-export async function patchTaskEpicColor(taskId: string, epicColor: string | null): Promise<TaskCard> {
-  return patchTaskEpic(taskId, epicColor ? { color: epicColor } : null);
 }
 
 export async function patchTaskDetails(
@@ -242,12 +236,13 @@ export async function createTaskConference(
   taskId: string,
   provider: ConferenceProvider,
 ): Promise<TaskCard> {
-  if (LOCAL_ONLY) {
+  if (!isCloudEnabled()) {
     throw new Error('integrations require cloud account');
   }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  const serverId = (await getServerId('tasks', taskId)) ?? taskId;
+  const serverId = await getServerId('tasks', taskId);
+  if (!serverId) throw new Error('task_not_synced');
   const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));

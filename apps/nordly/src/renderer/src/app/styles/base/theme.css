@@ -6,6 +6,7 @@ html.dark {
      на 15 15 15, и те же call-site'ы сами рендерятся в чёрный с прозрачностью. */
   --ink-rgb: 255 255 255;
   --nordly-header-h: 40px;
+  --nordly-page-top: 40px;
   /* Draggable strip: overlay titlebar + wordmark row on home. */
   --nordly-drag-h: 72px;
   --ink-90: rgb(var(--ink-rgb) / 0.9);
@@ -28,6 +29,12 @@ html.dark {
   --ink-tint-08: rgb(var(--ink-rgb) / 0.08);
   --ink-tint-12: rgb(var(--ink-rgb) / 0.12);
   --ink-tint-16: rgb(var(--ink-rgb) / 0.16);
+  /* Winter 0.0.27 semantic surfaces (dark) — exact hex from DevTools */
+  --surface-hover: #ffffff1a;
+  --surface-subtle: #ffffff0d;
+  --surface-active: #ffffff1f;
+  --border-soft: #ffffff0d;
+  --border-subtle: #ffffff1a;
   /* Theme preview cards in Settings — framed so they read against the page. */
   --theme-card-bg: var(--bg);
   --theme-card-border: var(--ink-tint-08);

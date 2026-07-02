@@ -10,6 +10,18 @@ export class SyncError extends Error {
   }
 }
 
+/** Recoverable blocker — retry later without burning outbox attempts. */
+export class SyncDeferredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncDeferredError';
+  }
+}
+
 export function isSyncError(err: unknown): err is SyncError {
   return err instanceof SyncError;
+}
+
+export function isSyncDeferredError(err: unknown): err is SyncDeferredError {
+  return err instanceof SyncDeferredError;
 }

@@ -83,7 +83,7 @@ async function decryptAtRest(row: StoredNote): Promise<StoredNote & { vaultLocke
   if (!isVaultEnabledSync() || !isVaultUnlocked()) {
     return { ...row, title: '', bodyMd: '', vaultLocked: true };
   }
-  const { title, bodyMd } = await decryptNoteFields(row.title, row.bodyMd, true);
+  const { title, bodyMd } = await decryptNoteFields(row.title, row.bodyMd);
   return { ...row, title, bodyMd, vaultLocked: false };
 }
 
@@ -168,19 +168,6 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
       deleted: remote.deleted ?? false,
     });
     await dbPut('notes', row);
-  }
-}
-
-/** Encrypt legacy plaintext rows after first vault unlock. */
-export async function notesStoreReencryptAll(userId?: string): Promise<void> {
-  const uid = userId ?? requireUserId();
-  if (!isVaultEnabledSync() || !isVaultUnlocked()) return;
-  const rows = await dbGetAllByUser<StoredNote>('notes', uid);
-  for (const row of rows) {
-    if (row.deleted || row.atRestEncrypted) continue;
-    const plain = await decryptAtRest(row);
-    const enc = await encryptAtRest(uid, plain);
-    await dbPut('notes', enc);
   }
 }
 

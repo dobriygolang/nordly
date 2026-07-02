@@ -21,19 +21,21 @@ Tauri 2 + React desktop focus workspace: pomodoro timer, notes (E2EE vault), tas
 
 ## Pages and navigation
 
-Dock pages (`widgets/Dock.tsx`): `home`, `today`, `notes`, `whiteboard`, `settings`.
+Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`, `notes`, `whiteboard`, `calendar`, `planning`, `settings`.
 
 | Page | Component | Notes |
 |------|-----------|-------|
-| Home | `pages/Home.tsx` | Theme label + `widgets/HomeTodayTasks` (today list, hover focus/play) |
-| Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule |
+| Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today list, obstacles; no plan header) |
+| Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule; task UI in `features/tasks/components/` |
 | Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
+| Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
+| Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
 | Settings | `pages/Settings/index.tsx` | Theme, locale, pomodoro, Google Calendar, vault, sign out |
 
-Overlays (not pages): `AnimatedStatsOverlay`, `AnimatedCalendarOverlay`, `AnimatedDailyPlanningOverlay`, `PomodoroController`, `Palette` (Cmd+K).
+Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
-**Daily Planning** (`pages/DailyPlanning/`): 3-step triage wizard — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week; full-width, no timeline), Finalize (summary + obstacles + timeline preview). Open via Palette or `P`. On **Get started**: saves obstacles + plan snapshot (`taskIds`, `activeCount`, `totalDurationMin`) to IndexedDB meta `daily_plan::{userId}::{YYYY-MM-DD}`, dispatches `nordly:daily-plan-changed`, navigates to Home. **Home** shows the live today list + plan progress + obstacles; **Stats** overlay shows plan vs actual when finalized today. Manual open only (no auto-open on launch).
+**Daily Planning** (`pages/DailyPlanning/`): 3-step triage wizard — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week; full-width, no timeline), Finalize (summary + obstacles + timeline preview). Open via Palette or `P`. On **Get started**: saves obstacles + plan snapshot to IndexedDB meta `daily_plan::{userId}::{YYYY-MM-DD}`, dispatches `nordly:daily-plan-changed`, navigates Home. **Home** shows today task list + obstacles (no plan progress header); **Stats** overlay shows plan vs actual when finalized today. Manual open only (no auto-open on launch).
 
 ## Env flags
 
@@ -154,7 +156,7 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
-**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): always builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with **unsynced local sessions only** (avoids double-count). If remote is empty (focus service down / no migrations), falls back to local data.
+**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with **unsynced local sessions only** (avoids double-count). Remote fetch errors propagate; empty remote with pending local unsynced sessions uses local pending totals.
 
 Task fields **device-only** (preserved on pull/replace): `order`.
 
@@ -210,7 +212,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_logout` | Clear session |
 | `vault_pass_load/save/clear` | Vault passphrase keychain |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
-| `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 30s |
+| `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 60s |
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |
 | `focus_main_window` | Raise main window (notification click) |
 | `shell_open_external` | Open URL in browser |
@@ -265,13 +267,25 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 ```
 apps/nordly/
 ├── AGENTS.md
+├── docs/architecture-audit.md   # layering audit tracker
 ├── README.md
-├── src-tauri/           # Rust: auth, vault, pomodoro, deep links
+├── src-tauri/                   # Rust: auth, vault, pomodoro, deep links
 └── src/renderer/src/
-    ├── app/             # bootstrap, App shell, features.ts
-    ├── pages/           # Home, TaskBoard, Notes, Whiteboard, Settings
-    ├── widgets/         # Dock, Palette, overlays, Login
-    ├── features/        # auth, focus, notes, tasks, calendar, whiteboard
-    ├── shared/          # db, sync, crypto, ui, model
-    └── platform/        # Tauri IPC bridge
+    ├── app/                     # bootstrap, App shell, syncRegistry wiring
+    ├── platform/                # Tauri IPC bridge, runtime detection
+    ├── shared/
+    │   ├── model/               # settings, theme, navigation, session, pomodoro
+    │   ├── lib/                 # dates, applyTheme, useFlipList, excalidraw
+    │   ├── ui/                  # PageStack, SidebarDivider, primitives
+    │   ├── db/, sync/, crypto/, api/, hooks/
+    ├── features/
+    │   ├── auth/, focus/, calendar/, whiteboard/, planning/
+    │   ├── notes/               # api, repository, sync/
+    │   └── tasks/               # api, repository, lib, components, sync/
+    ├── pages/                   # route composition only (TaskBoard page shell, Notes, …)
+    └── widgets/                 # Dock, Palette, CanvasBg, overlays, Login
 ```
+
+**Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`; `features` never imports `pages/`. Types like `PageId` and `ThemeId` live in `shared/model/`.
+
+Architecture audit + layering rules: [docs/architecture-audit.md](docs/architecture-audit.md).

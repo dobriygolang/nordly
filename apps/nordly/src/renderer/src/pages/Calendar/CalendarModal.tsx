@@ -37,8 +37,8 @@ import {
   type CalendarEntry,
 } from '@features/calendar/lib/events';
 import { listTasks, createTask, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
-import { SegmentedControl } from '@pages/Settings/primitives/SegmentedControl';
-import { snapMinutes, toDayKey } from '@pages/TaskBoard/lib/dates';
+import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
+import { snapMinutes, toDayKey } from '@shared/lib/dates';
 import { epicEntrySurface, resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import type { TaskEpic } from '@features/tasks/api/epics';
@@ -49,7 +49,7 @@ import { useCalendarRangeSelect } from '@features/calendar/lib/useCalendarRangeS
 import { refreshGoogleCalendarCache } from '@features/calendar/lib/googleCalendarSyncWorker';
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 
 type ViewMode = 'week' | 'month' | 'year';
 
@@ -71,7 +71,8 @@ interface CalendarModalProps {
 export function CalendarModal({ onClose, closing = false }: CalendarModalProps): JSX.Element {
   const t = useT();
   const [locale] = useLocale();
-  const todayKey = toDayKey(new Date());
+  const [now, setNow] = useState(() => new Date());
+  const todayKey = toDayKey(now);
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date(), locale));
   const [monthDate, setMonthDate] = useState(() => new Date());
@@ -80,6 +81,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
+  const [operationError, setOperationError] = useState<Error | null>(null);
 
   const {
     connected,
@@ -88,13 +90,9 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   } = useGoogleCalendarConnection();
 
   const refreshTasks = useCallback(async () => {
-    try {
-      setTasks(await listTasks());
-    } catch {
-      /* keep stale list */
-    } finally {
-      setTasksLoaded(true);
-    }
+    setTasks(await listTasks());
+    setTasksLoaded(true);
+    setOperationError(null);
   }, []);
 
   const googleRange = useMemo(() => {
@@ -110,7 +108,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     return { padStart, padEnd };
   }, [viewMode, weekStart, monthDate, viewYear]);
 
-  const googleEnabled = !LOCAL_ONLY && connected && connectionReady;
+  const googleEnabled = isCloudEnabled() && connected && connectionReady;
   const {
     events: googleEvents,
     error: googleFetchError,
@@ -127,7 +125,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   }, [viewMode, weekStart]);
 
   useEffect(() => {
-    void refreshTasks();
+    void refreshTasks().catch((err: unknown) => setOperationError(err instanceof Error ? err : new Error(String(err))));
   }, [refreshTasks]);
 
   useEffect(() => {
@@ -135,7 +133,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   }, [locale]);
 
   useEffect(() => {
-    const onTasks = () => void refreshTasks();
+    const onTasks = () => void refreshTasks().catch((err: unknown) => setOperationError(err instanceof Error ? err : new Error(String(err))));
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
   }, [refreshTasks]);
@@ -159,6 +157,10 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   const gridSpan = CALENDAR_GRID_END_HOUR - CALENDAR_GRID_START_HOUR;
   const [hourHeight, setHourHeight] = useState(CALENDAR_HOUR_HEIGHT_PX);
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(tick);
+  }, []);
   useLayoutEffect(() => {
     if (viewMode !== 'week') return;
     const el = weekScrollRef.current;
@@ -175,6 +177,12 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     return () => ro.disconnect();
   }, [gridSpan, viewMode]);
   const gridHeight = gridSpan * hourHeight;
+  const nowHour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  const nowTop = (nowHour - CALENDAR_GRID_START_HOUR) * hourHeight;
+  const showNowLine =
+    viewMode === 'week' &&
+    nowHour >= CALENDAR_GRID_START_HOUR &&
+    nowHour <= CALENDAR_GRID_END_HOUR;
 
   const weekTimedLayouts = useMemo(() => {
     const map = new Map<string, ReturnType<typeof layoutTimedEntriesForDay>>();
@@ -190,7 +198,9 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     (err: unknown) => {
       if (err instanceof GoogleReauthError) {
         void refreshGoogleCalendarCache();
+        return;
       }
+      setOperationError(err instanceof Error ? err : new Error(String(err)));
     },
     [],
   );
@@ -199,8 +209,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     try {
       const url = await getGoogleCalendarAuthURL();
       openExternalUrl(url);
-    } catch {
-      /* settings banner stays */
+    } catch (err) {
+      setOperationError(err instanceof Error ? err : new Error(String(err)));
     }
   }, []);
 
@@ -215,12 +225,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
         Math.round((entry.end.getTime() - entry.start.getTime()) / 60_000),
       );
       if (entry.source === 'task' && entry.taskId) {
-        try {
-          await scheduleTask(entry.taskId, next, durationMin);
-          window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-        } catch {
-          /* next refresh reconciles */
-        }
+        await scheduleTask(entry.taskId, next, durationMin);
+        window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
         return;
       }
       if (entry.source === 'google' && entry.googleEventId && entry.googleEditable) {
@@ -306,7 +312,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
       }
     } catch (err) {
       if (editor.mode === 'create' && editor.kind === 'task') {
-        /* local task create rarely fails */
+        setOperationError(err instanceof Error ? err : new Error(String(err)));
       } else {
         handleGoogleWriteError(err);
       }
@@ -360,9 +366,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const openTask = useCallback(
     (taskId: string) => {
       window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.navOpenTask, { detail: { taskId } }));
-      onClose();
     },
-    [onClose],
+    [],
   );
 
   const onEntryClick = useCallback(
@@ -384,6 +389,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     ],
     [t],
   );
+
+  if (operationError) throw operationError;
 
   return (
     <div
@@ -429,7 +436,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           />
         </header>
 
-        {reauthNeeded && !LOCAL_ONLY && (
+        {reauthNeeded && isCloudEnabled() && (
           <div className="nordly-calendar-banner" role="status">
             <span>{t('nordly.calendar.google_reauth')}</span>
             <button type="button" className="nordly-calendar-banner__btn focus-ring" onClick={() => void reconnect()}>
@@ -521,6 +528,13 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                           aria-hidden
                         />
                       )}
+                      {showNowLine && dayKey === todayKey && (
+                        <div
+                          className="nordly-calendar-now-line"
+                          style={{ top: nowTop }}
+                          aria-hidden
+                        />
+                      )}
                       {weekTimedLayouts.get(dayKey)?.map(({ entry, top: layoutTop, height, column, columnCount }) => {
                           const maxTop = Math.max(0, gridHeight - height);
                           const isDragging = dragId === entry.id;
@@ -602,7 +616,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           {` · ${t('nordly.calendar.create_task_hint')}`}
           {` · ${t('nordly.calendar.create_dblclick_hint')}`}
         </p>
-        {googleError && !LOCAL_ONLY && !reauthNeeded && (
+        {googleError && isCloudEnabled() && !reauthNeeded && (
           <p className="nordly-calendar-footnote mono">{googleError}</p>
         )}
       </div>

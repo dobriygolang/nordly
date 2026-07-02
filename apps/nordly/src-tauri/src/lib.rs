@@ -15,7 +15,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_positioner::init())
@@ -119,9 +119,9 @@ fn pomodoro_save(app: AppHandle, snapshot: PomodoroSnapshot) -> Result<(), Strin
 
 #[tauri::command]
 async fn shell_open_external(app: AppHandle, url: String) -> Result<(), String> {
-    use tauri_plugin_shell::ShellExt;
-    app.shell()
-        .open(url, None)
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())?;
     Ok(())
 }

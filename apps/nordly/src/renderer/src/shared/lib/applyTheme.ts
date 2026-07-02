@@ -1,4 +1,4 @@
-import type { ThemeId } from '@widgets/CanvasBg';
+import type { ThemeId } from '@shared/model/theme';
 
 type Palette = 'light' | 'dark';
 
@@ -18,13 +18,16 @@ const THEME_COLOR: Partial<Record<ThemeId, string>> = {
   'birthday-light': '#fafaf8',
 };
 
+export function isLightTheme(theme: ThemeId): boolean {
+  return (THEME_PALETTE[theme] ?? 'dark') === 'light';
+}
+
 /** Sync `<html>` palette class + meta theme-color with the selected canvas theme. */
 export function applyTheme(theme: ThemeId): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   root.classList.remove('light', 'dark');
-  const palette = THEME_PALETTE[theme] ?? 'dark';
-  if (palette === 'light') {
+  if (isLightTheme(theme)) {
     root.classList.add('light');
   } else {
     root.classList.add('dark');

@@ -13,11 +13,10 @@ import {
   remotePublishWhiteboard,
   remoteShareWhiteboard,
 } from '@features/whiteboard/api/whiteboardRemote';
-import { LOCAL_ONLY } from '@app/config/features';
-import { NORDLY_HEADER_H } from '@widgets/Chrome';
+import { isCloudEnabled } from '@shared/model/features';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { NotesSidebarDivider, NotesSidebarEdge } from '@pages/Notes/SidebarDivider';
+import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 
 import { BoardCanvas, type BoardCanvasHandle } from './BoardCanvas';
 import { Sidebar } from './Sidebar';
@@ -240,7 +239,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, [flushCanvas]);
 
   const handleShareLive = useCallback(async () => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     setShareMsg(null);
     try {
       const sceneJson = await getScenePayload();
@@ -263,7 +262,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, [getScenePayload, t]);
 
   const handlePublish = useCallback(async () => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     setShareMsg(null);
     try {
       const sceneJson = await getScenePayload();
@@ -285,7 +284,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, [getScenePayload, t]);
 
   return (
-    <div className="nordly-vault" style={{ paddingTop: NORDLY_HEADER_H }}>
+    <div className="nordly-vault">
       <aside
         className="nordly-vault-sidebar-wrap"
         data-collapsed={sidebarCollapsed ? 'true' : 'false'}
@@ -295,7 +294,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
           <Sidebar
             list={list}
             selectedId={selectedId}
-            cloudEnabled={!LOCAL_ONLY}
+            cloudEnabled={isCloudEnabled()}
             onSelect={onSelectBoard}
             onCreate={() => void handleCreate()}
             onShare={() => void handleShareLive()}

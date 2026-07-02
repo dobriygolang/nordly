@@ -1,4 +1,4 @@
-/** Epic color resolution — server epicId + offline epicColor fallback. */
+/** Epic color resolution — prefer server epicId; `epicColor` is read only from existing rows. */
 
 import type { TaskEpic } from '../api/epics';
 import type { TaskCard } from '../api/tasks';
@@ -39,11 +39,6 @@ export function resolveTaskEpicColor(
   }
   if (task.epicColor) return normalizeHex(task.epicColor);
   return null;
-}
-
-/** @deprecated Use resolveTaskEpicColor(task, epics) */
-export function taskEpicColor(task: Pick<TaskCard, 'epicId' | 'epicColor'>, epics: TaskEpic[] = []): string | null {
-  return resolveTaskEpicColor(task, epics);
 }
 
 function parseHexColor(hex: string): { r: number; g: number; b: number } | null {

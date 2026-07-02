@@ -1,38 +1,26 @@
-import { API_BASE_URL, DEV_BEARER_TOKEN } from '@shared/api/config';
+import { API_BASE_URL } from '@shared/api/config';
+import { optionalJsonNumber, optionalJsonString, requireJsonString } from '@shared/api/json';
+import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
-import { useSessionStore } from '@shared/model/session';
 
 import type { TaskCard, TaskKind, TaskStatus, ConferenceProvider } from '../api/tasks';
 import type { TaskEpic } from '../api/epics';
 
 const BASE = `${API_BASE_URL}/v1/tracker/work/tasks`;
 const EPICS_BASE = `${API_BASE_URL}/v1/tracker/work/epics`;
-
-function authHeaders(): Record<string, string> {
-  const token = useSessionStore.getState().accessToken ?? DEV_BEARER_TOKEN;
-  return token ? { authorization: `Bearer ${token}` } : {};
-}
+const TASK_KINDS = new Set<TaskKind>(['algo', 'sysdesign', 'quiz', 'reflection', 'reading', 'ml', 'custom']);
+const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'in_review', 'done', 'dismissed']);
+const CONFERENCE_PROVIDERS = new Set<ConferenceProvider>(['meet', 'zoom']);
 
 type JsonWorkTask = Record<string, unknown>;
 
-function pickStr(obj: JsonWorkTask, camel: string, snake: string): string {
-  const v = obj[camel] ?? obj[snake];
-  return typeof v === 'string' ? v : '';
-}
-
-function pickNum(obj: JsonWorkTask, camel: string, snake: string): number | undefined {
-  const v = obj[camel] ?? obj[snake];
-  return typeof v === 'number' ? v : undefined;
-}
-
-function pickTs(obj: JsonWorkTask, camel: string, snake: string): string | undefined {
-  const v = obj[camel] ?? obj[snake];
+function pickTs(obj: JsonWorkTask, key: string): string | undefined {
+  const v = obj[key];
   if (typeof v === 'string' && v.length > 0) return v;
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>;
     if (typeof o.dateTime === 'string' && o.dateTime.length > 0) return o.dateTime;
-    if (typeof o.date_time === 'string' && o.date_time.length > 0) return o.date_time;
-    const sec = o.seconds ?? o.Seconds;
+    const sec = o.seconds;
     if (typeof sec === 'number' && Number.isFinite(sec)) {
       return new Date(sec * 1000).toISOString();
     }
@@ -41,43 +29,55 @@ function pickTs(obj: JsonWorkTask, camel: string, snake: string): string | undef
 }
 
 function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
+  const status = requireJsonString(raw, 'status') as TaskStatus;
+  if (!TASK_STATUSES.has(status)) throw new Error(`Invalid task response: status ${status}`);
+  const kind = requireJsonString(raw, 'kind') as TaskKind;
+  if (!TASK_KINDS.has(kind)) throw new Error(`Invalid task response: kind ${kind}`);
+  const conferenceProvider = optionalJsonString(raw, 'conferenceProvider');
+  if (conferenceProvider && !CONFERENCE_PROVIDERS.has(conferenceProvider as ConferenceProvider)) {
+    throw new Error(`Invalid task response: conferenceProvider ${conferenceProvider}`);
+  }
   return {
-    id: pickStr(raw, 'id', 'id'),
-    status: pickStr(raw, 'status', 'status') as TaskStatus,
-    kind: (pickStr(raw, 'kind', 'kind') || 'custom') as TaskKind,
-    title: pickStr(raw, 'title', 'title'),
-    createdAt: pickStr(raw, 'createdAt', 'created_at'),
-    updatedAt: pickStr(raw, 'updatedAt', 'updated_at'),
-    completedAt: pickTs(raw, 'completedAt', 'completed_at'),
-    scheduledStart: pickTs(raw, 'scheduledStart', 'scheduled_start'),
-    scheduledDurationMin: pickNum(raw, 'scheduledDurationMin', 'scheduled_duration_min'),
-    googleEventId: pickStr(raw, 'googleEventId', 'google_event_id') || undefined,
-    epicId: pickStr(raw, 'epicId', 'epic_id') || undefined,
-    conferenceUrl: pickStr(raw, 'conferenceUrl', 'conference_url') || undefined,
-    conferenceProvider: (pickStr(raw, 'conferenceProvider', 'conference_provider') ||
-      undefined) as TaskCard['conferenceProvider'],
-    order: pickNum(raw, 'order', 'order'),
+    id: requireJsonString(raw, 'id'),
+    status,
+    kind,
+    title: requireJsonString(raw, 'title'),
+    createdAt: requireJsonString(raw, 'createdAt'),
+    updatedAt: requireJsonString(raw, 'updatedAt'),
+    completedAt: pickTs(raw, 'completedAt'),
+    scheduledStart: pickTs(raw, 'scheduledStart'),
+    scheduledDurationMin: optionalJsonNumber(raw, 'scheduledDurationMin'),
+    googleEventId: optionalJsonString(raw, 'googleEventId'),
+    epicId: optionalJsonString(raw, 'epicId'),
+    conferenceUrl: optionalJsonString(raw, 'conferenceUrl'),
+    conferenceProvider: conferenceProvider ? (conferenceProvider as ConferenceProvider) : undefined,
+    order: optionalJsonNumber(raw, 'order'),
   };
 }
 
 function unwrapTaskResponse(j: unknown): TaskCard {
-  if (!j || typeof j !== 'object') return unwrapWorkTask({});
+  if (!j || typeof j !== 'object') throw new Error('Invalid task response: expected object');
   const obj = j as Record<string, unknown>;
-  return unwrapWorkTask((obj.task ?? obj) as JsonWorkTask);
+  const task = obj.task;
+  if (!task || typeof task !== 'object') throw new Error('Invalid task response: missing task');
+  return unwrapWorkTask(task as JsonWorkTask);
 }
 
 export async function remoteListTasks(): Promise<TaskCard[]> {
-  const resp = await apiFetch(BASE, { headers: authHeaders() });
+  const resp = await apiFetch(BASE, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`listTasks: ${resp.status}`);
   const j = (await resp.json()) as { tasks?: JsonWorkTask[] };
-  return (j.tasks ?? []).map(unwrapWorkTask);
+  if (!Array.isArray(j.tasks)) throw new Error('Invalid task response: missing tasks');
+  return j.tasks.map(unwrapWorkTask);
 }
 
 export async function remoteCreateTask(input: { title: string; kind?: TaskKind }): Promise<TaskCard> {
+  const title = input.title.trim();
+  if (!title) throw new Error('Cannot create task with empty title');
   const resp = await apiFetch(BASE, {
     method: 'POST',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: input.kind ?? 'custom', title: input.title }),
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: input.kind ?? 'custom', title }),
   });
   if (!resp.ok) throw new Error(`createTask: ${resp.status}`);
   return unwrapTaskResponse(await resp.json());
@@ -86,7 +86,7 @@ export async function remoteCreateTask(input: { title: string; kind?: TaskKind }
 export async function remoteMoveTaskStatus(taskId: string, status: TaskStatus): Promise<TaskCard> {
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/status`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ id: taskId, status }),
   });
   if (!resp.ok) throw new Error(`moveTaskStatus: ${resp.status}`);
@@ -96,7 +96,7 @@ export async function remoteMoveTaskStatus(taskId: string, status: TaskStatus): 
 export async function remoteDeleteTask(taskId: string): Promise<void> {
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: syncAuthHeaders(),
   });
   if (!resp.ok) throw new Error(`deleteTask: ${resp.status}`);
 }
@@ -110,12 +110,14 @@ export async function remoteScheduleTask(
     typeof start === 'string'
       ? start
       : Number.isNaN(start.getTime())
-        ? new Date().toISOString()
+        ? (() => {
+            throw new Error(`Invalid remote schedule date for task: ${taskId}`);
+          })()
         : start.toISOString();
   const duration = Math.max(15, Math.min(480, durationMin));
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/schedule`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ scheduledStartIso: startIso, durationMin: duration }),
   });
   if (!resp.ok) throw new Error(`scheduleTask: ${resp.status}`);
@@ -125,7 +127,7 @@ export async function remoteScheduleTask(
 export async function remoteUnscheduleTask(taskId: string): Promise<TaskCard> {
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/unschedule`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ id: taskId }),
   });
   if (!resp.ok) throw new Error(`unscheduleTask: ${resp.status}`);
@@ -142,7 +144,7 @@ export async function remotePatchTask(
   if (patch.clearConference) body.clear_conference = true;
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`patchTask: ${resp.status}`);
@@ -155,7 +157,7 @@ export async function remoteCreateTaskConference(
 ): Promise<TaskCard> {
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/conference`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ id: taskId, provider }),
   });
   if (!resp.ok) {
@@ -164,18 +166,20 @@ export async function remoteCreateTaskConference(
     if (msg.includes('google_reauth_required')) throw new Error('google_reauth_required');
     if (msg.includes('zoom_not_connected')) throw new Error('zoom_not_connected');
     if (msg.includes('zoom_reauth_required')) throw new Error('zoom_reauth_required');
+    if (resp.status === 404) throw new Error('conference_not_available');
     throw new Error(`createTaskConference: ${resp.status}`);
   }
   return unwrapTaskResponse(await resp.json());
 }
 
 export async function remoteListEpics(): Promise<TaskEpic[]> {
-  const resp = await apiFetch(EPICS_BASE, { headers: authHeaders() });
+  const resp = await apiFetch(EPICS_BASE, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`listEpics: ${resp.status}`);
   const j = (await resp.json()) as { epics?: Record<string, unknown>[] };
-  return (j.epics ?? []).map((raw) => ({
-    id: pickStr(raw, 'id', 'id'),
-    name: pickStr(raw, 'name', 'name'),
-    color: pickStr(raw, 'color', 'color'),
+  if (!Array.isArray(j.epics)) throw new Error('Invalid epics response: missing epics');
+  return j.epics.map((raw) => ({
+    id: requireJsonString(raw, 'id'),
+    name: requireJsonString(raw, 'name'),
+    color: requireJsonString(raw, 'color'),
   }));
 }

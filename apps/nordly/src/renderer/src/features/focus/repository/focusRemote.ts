@@ -1,7 +1,13 @@
-import { addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
-import { API_BASE_URL, DEV_BEARER_TOKEN } from '@shared/api/config';
+import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
+import { API_BASE_URL } from '@shared/api/config';
+import {
+  optionalJsonDate,
+  requireJsonNumber,
+  requireJsonObject,
+  requireJsonString,
+} from '@shared/api/json';
+import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
-import { useSessionStore } from '@shared/model/session';
 
 export interface FocusDay {
   date: string;
@@ -36,78 +42,52 @@ export interface FocusSession {
   mode: string;
 }
 
-type JsonSession = {
-  id?: string;
-  mode?: string;
-  pinnedTitle?: string;
-  pinned_title?: string;
-  taskId?: string;
-  task_id?: string;
-  startedAt?: string;
-  started_at?: string;
-  endedAt?: string;
-  ended_at?: string;
-  secondsFocused?: number;
-  seconds_focused?: number;
-  pomodorosCompleted?: number;
-  pomodoros_completed?: number;
-};
-
-type JsonFocusDay = { date?: string; seconds?: number; sessions?: number };
-
-function authHeaders(): HeadersInit {
-  const token = useSessionStore.getState().accessToken ?? DEV_BEARER_TOKEN;
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (token) headers.authorization = `Bearer ${token}`;
-  return headers;
+function focusJsonHeaders(): HeadersInit {
+  return syncAuthHeaders({ 'content-type': 'application/json' });
 }
 
-function parseTs(raw: string | undefined): Date | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function unwrapSession(raw: JsonSession | undefined): FocusSession {
-  const s = raw ?? {};
+function unwrapSession(raw: Record<string, unknown>): FocusSession {
   return {
-    id: s.id ?? '',
-    planItemId: s.taskId ?? s.task_id ?? '',
-    pinnedTitle: s.pinnedTitle ?? s.pinned_title ?? '',
-    startedAt: parseTs(s.startedAt ?? s.started_at),
-    endedAt: parseTs(s.endedAt ?? s.ended_at),
-    secondsFocused: s.secondsFocused ?? s.seconds_focused ?? 0,
-    pomodorosCompleted: s.pomodorosCompleted ?? s.pomodoros_completed ?? 0,
-    mode: s.mode ?? 'pomodoro',
+    id: requireJsonString(raw, 'id'),
+    planItemId: requireJsonString(raw, 'taskId'),
+    pinnedTitle: requireJsonString(raw, 'pinnedTitle'),
+    startedAt: optionalJsonDate(raw.startedAt),
+    endedAt: optionalJsonDate(raw.endedAt),
+    secondsFocused: requireJsonNumber(raw, 'secondsFocused'),
+    pomodorosCompleted: requireJsonNumber(raw, 'pomodorosCompleted'),
+    mode: requireJsonString(raw, 'mode'),
   };
 }
 
-function unwrapDay(d: JsonFocusDay): FocusDay {
-  return { date: d.date ?? '', seconds: d.seconds ?? 0, sessions: d.sessions ?? 0 };
-}
-
-function num(obj: Record<string, unknown>, camel: string, snake: string): number {
-  const v = obj[camel] ?? obj[snake];
-  return typeof v === 'number' ? v : 0;
+function unwrapDay(raw: Record<string, unknown>): FocusDay {
+  return {
+    date: requireJsonString(raw, 'date'),
+    seconds: requireJsonNumber(raw, 'seconds'),
+    sessions: requireJsonNumber(raw, 'sessions'),
+  };
 }
 
 export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
   const qs = upToDate ? `?up_to_date=${encodeURIComponent(upToDate)}` : '';
-  const resp = await apiFetch(`${API_BASE_URL}/v1/focus/stats${qs}`, { headers: authHeaders() });
+  const resp = await apiFetch(`${API_BASE_URL}/v1/focus/stats${qs}`, { headers: syncAuthHeaders() });
   if (!resp.ok) throw new Error(`getStats failed: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
-  const heatmap = (j.heatmap as JsonFocusDay[] | undefined) ?? [];
-  const lastSeven =
-    (j.lastSevenDays as JsonFocusDay[] | undefined) ??
-    (j.last_seven_days as JsonFocusDay[] | undefined) ??
-    [];
+  if (!Array.isArray(j.heatmap)) throw new Error('Invalid focus stats response: missing heatmap');
+  const lastSeven = j.lastSevenDays;
+  if (!Array.isArray(lastSeven)) throw new Error('Invalid focus stats response: missing lastSevenDays');
+  const queue = requireJsonObject(j, 'queue');
   return {
-    currentStreakDays: num(j, 'currentStreakDays', 'current_streak_days'),
-    longestStreakDays: num(j, 'longestStreakDays', 'longest_streak_days'),
-    totalFocusedSeconds: num(j, 'totalFocusedSeconds', 'total_focused_seconds'),
-    heatmap: heatmap.map(unwrapDay),
-    lastSevenDays: lastSeven.map(unwrapDay),
-    queue: { todayTotal: 0, todayDone: 0, aiShare: 0, userShare: 0 },
+    currentStreakDays: requireJsonNumber(j, 'currentStreakDays'),
+    longestStreakDays: requireJsonNumber(j, 'longestStreakDays'),
+    totalFocusedSeconds: requireJsonNumber(j, 'totalFocusedSeconds'),
+    heatmap: j.heatmap.map((d) => unwrapDay(d as Record<string, unknown>)),
+    lastSevenDays: lastSeven.map((d) => unwrapDay(d as Record<string, unknown>)),
+    queue: {
+      todayTotal: requireJsonNumber(queue, 'todayTotal'),
+      todayDone: requireJsonNumber(queue, 'todayDone'),
+      aiShare: requireJsonNumber(queue, 'aiShare'),
+      userShare: requireJsonNumber(queue, 'userShare'),
+    },
   };
 }
 
@@ -118,15 +98,16 @@ export async function remoteStartFocusSession(args: {
 }): Promise<FocusSession> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/focus/sessions/start`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: focusJsonHeaders(),
     body: JSON.stringify({
       mode: args.mode ?? 'pomodoro',
-      pinned_title: args.pinnedTitle ?? '',
-      task_id: args.planItemId ?? '',
+      pinnedTitle: args.pinnedTitle ?? '',
+      taskId: args.planItemId ?? '',
     }),
   });
   if (!resp.ok) throw new Error(`startFocusSession failed: ${resp.status}`);
-  const j = (await resp.json()) as { session?: JsonSession };
+  const j = (await resp.json()) as { session?: Record<string, unknown> };
+  if (!j.session) throw new Error('Invalid focus response: missing session');
   return unwrapSession(j.session);
 }
 
@@ -139,16 +120,17 @@ export async function remoteEndFocusSession(args: {
     `${API_BASE_URL}/v1/focus/sessions/${encodeURIComponent(args.sessionId)}/end`,
     {
       method: 'POST',
-      headers: authHeaders(),
+      headers: focusJsonHeaders(),
       body: JSON.stringify({
-        session_id: args.sessionId,
-        pomodoros_completed: args.pomodorosCompleted,
-        seconds_focused: args.secondsFocused,
+        sessionId: args.sessionId,
+        pomodorosCompleted: args.pomodorosCompleted,
+        secondsFocused: args.secondsFocused,
       }),
     },
   );
   if (!resp.ok) throw new Error(`endFocusSession failed: ${resp.status}`);
-  const j = (await resp.json()) as { session?: JsonSession };
+  const j = (await resp.json()) as { session?: Record<string, unknown> };
+  if (!j.session) throw new Error('Invalid focus response: missing session');
   return unwrapSession(j.session);
 }
 

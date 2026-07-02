@@ -31,60 +31,63 @@ const WAVES = [
   { d: 'M-200,760 C 360,740 700,800 1020,760 S 1460,720 1900,750', dur: '37s', delay: '-19s', anim: 'wave-drift', op: 0.14, sw: 1 },
 ];
 
+import { DEFAULT_THEME_ID, type ThemeId } from '@shared/model/theme';
+
 export type CanvasMode = 'full' | 'quiet' | 'void';
-export type ThemeId =
-  | 'drift'
-  | 'visor'
-  | 'winter'
-  | 'birthday-light'
-  | 'particles'
-  | 'debris'
-  | 'launch';
 
-export const THEME_IDS: ThemeId[] = [
-  'drift',
-  'visor',
-  'winter',
-  'birthday-light',
-  'particles',
-  'debris',
-  'launch',
-];
-
-/** Default home-screen canvas — manga ink portrait with ripple animation. */
-export const DEFAULT_THEME_ID: ThemeId = 'launch';
-
-const THEME_POSTER_SRC: Partial<Record<ThemeId, string>> = {
-  drift: '/backgrounds/drift.png',
-  visor: '/backgrounds/visor.png',
-  debris: '/backgrounds/debris.png',
-  launch: '/backgrounds/launch.png',
-  'birthday-light': '/backgrounds/birthday-light.png',
-};
-
-/** Static poster image for image-based canvas themes; fallback for animated themes. */
-export function themePosterSrc(theme: ThemeId): string {
-  return THEME_POSTER_SRC[theme] ?? '/backgrounds/launch.png';
-}
+type ImageExtractMode = 'bright' | 'dark';
 
 interface CanvasBgProps {
   mode?: CanvasMode;
   theme?: ThemeId;
+  /** Stronger pleated-curtain motion while modals/overlays are open (Winter-like). */
+  boost?: boolean;
+  /** Disable WebGL image animation for small previews so the main poster keeps its context. */
+  animated?: boolean;
 }
 
-export function CanvasBg({ mode = 'full', theme = DEFAULT_THEME_ID }: CanvasBgProps) {
+export function CanvasBg({
+  mode = 'full',
+  theme = DEFAULT_THEME_ID,
+  boost = false,
+  animated = true,
+}: CanvasBgProps) {
   if (mode === 'void') return null;
   switch (theme) {
     case 'drift':
-      return <ImageBg mode={mode} src="/backgrounds/drift.png" />;
+      return (
+        <ImageBg
+          mode={mode}
+          src="/backgrounds/drift.png"
+          boost={boost}
+          animated={animated}
+          extract="dark"
+        />
+      );
     case 'visor':
-      return <ImageBg mode={mode} src="/backgrounds/visor.png" />;
+      return (
+        <ImageBg
+          mode={mode}
+          src="/backgrounds/visor.png"
+          boost={boost}
+          animated={animated}
+          extract="dark"
+        />
+      );
     case 'debris':
-      return <ImageBg mode={mode} src="/backgrounds/debris.png" />;
+      return <ImageBg mode={mode} src="/backgrounds/debris.png" boost={boost} animated={animated} />;
     case 'launch':
-      return <ImageBg mode={mode} src="/backgrounds/launch.png" />;
+      return <ImageBg mode={mode} src="/backgrounds/launch.png" boost={boost} animated={animated} />;
     case 'birthday-light':
-      return <ImageBg mode={mode} src="/backgrounds/birthday-light.png" />;
+      return (
+        <ImageBg
+          mode={mode}
+          src="/backgrounds/birthday-light.png"
+          boost={boost}
+          animated={animated}
+          extract="dark"
+        />
+      );
     case 'particles':
       return <ParticlesBg mode={mode} />;
     case 'winter':
@@ -93,65 +96,116 @@ export function CanvasBg({ mode = 'full', theme = DEFAULT_THEME_ID }: CanvasBgPr
   }
 }
 
-// ─── Image — manga-ink scene as a pleated-curtain background ─────────────
-// Фон живёт в полосе между шапкой и доком (см. .nordly-bg-poster-host в CSS),
-// заполняя её по cover. Анимация — плиссированная штора: картинку режем на
-// вертикальные секторы-складки (pleated curtain / vertical louver shading).
-// Каждая складка выпукла (лёгкий UV-bulge для 3D) и по-своему ловит свет:
-// один бок светлее, другой в тени, тень в сгибах "плывёт" во времени =>
-// картина кажется живой тканью. Всё во фрагментном шейдере, без библиотек.
-// Границы секторов бесшовны: sin(fract*TAU) непрерывен на стыке.
-const CURTAIN_AMP = 0.0015; // UV-единицы — глубина выпуклости складки (мягко)
-const CURTAIN_SECTORS = 12.0; // число вертикальных складок шторы
-const CURTAIN_SPEED = 0.22; // скорость "дыхания" света, рад/с
-const CURTAIN_SHADOW = 0.07; // контраст тени/света складок
+// ─── Image posters — Winter-style WebGL (trywinter.app) ───────────────────
+// Wave in screen space (~2px), scanline reveal, shimmer. Inset via CSS host.
+
+const POSTER_MODE_SCANLINE = 0;
 
 const POSTER_VERT = `
-attribute vec2 aPos;
+attribute vec2 position;
 varying vec2 vUv;
 void main() {
-  vUv = aPos * 0.5 + 0.5;
-  gl_Position = vec4(aPos, 0.0, 1.0);
+  vUv = position * 0.5 + 0.5;
+  vUv.y = 1.0 - vUv.y;
+  gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
 const POSTER_FRAG = `
 precision mediump float;
-varying vec2 vUv;
-uniform sampler2D uTex;
-uniform float uTime;
-uniform float uAmp;
-uniform float uSpeed;
-uniform float uSectors;
-uniform float uShadow;
-uniform float uAmpMul;
 
-const float TAU = 6.2831853;
+uniform sampler2D uImage;
+uniform float uTime;
+uniform vec2 uResolution;
+uniform vec2 uImageResolution;
+uniform float uMode;
+uniform vec4 uPadding;
+uniform float uOpacity;
+uniform vec3 uTint;
+uniform float uExtractDark;
+
+varying vec2 vUv;
+
+float random(vec2 st) {
+  return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+}
 
 void main() {
-  vec2 uv = vUv;
-  float t = uTime * uSpeed;
+  vec2 pixelPos = vUv * uResolution;
 
-  // Координата внутри складки (0..1) и её индекс.
-  float s = uv.x * uSectors;
-  float fold = fract(s);
+  float areaTop = uPadding.x;
+  float areaRight = uResolution.x - uPadding.y;
+  float areaBottom = uResolution.y - uPadding.z;
+  float areaLeft = uPadding.w;
 
-  // Медленное дыхание всей шторы + лёгкий общий повод.
-  float breathe = 0.85 + 0.15 * sin(t * 0.5);
-  float sway = sin(uv.y * 2.5 + t * 0.8) * uAmp * 0.5 * uAmpMul;
+  if (pixelPos.x < areaLeft || pixelPos.x > areaRight || pixelPos.y < areaTop || pixelPos.y > areaBottom) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
+  }
 
-  // Выпуклость складки — горизонтальный UV-bulge даёт 3D-объём ткани.
-  // sin(fold*TAU) непрерывен на стыке секторов => швов не видно.
-  float bulge = sin(fold * TAU) * uAmp * breathe * uAmpMul;
-  vec2 d = vec2(bulge + sway, 0.0);
-  vec3 col = texture2D(uTex, uv + d).rgb;
+  float areaWidth = areaRight - areaLeft;
+  float areaHeight = areaBottom - areaTop;
+  vec2 localUv = (pixelPos - vec2(areaLeft, areaTop)) / vec2(areaWidth, areaHeight);
 
-  // Освещение складок: один бок светлее, другой в тени; блик "плывёт" во времени.
-  float flank = sin(fold * TAU - t);
-  // Затемнение в сгибах (стыки складок темнее гребня).
-  float seam = 0.5 - 0.5 * cos(fold * TAU);
-  col *= 1.0 + flank * uShadow * 0.6 * uAmpMul;
-  col *= 1.0 - seam * uShadow * uAmpMul;
-  gl_FragColor = vec4(col, 1.0);
+  float areaAspect = areaWidth / areaHeight;
+  float imageAspect = uImageResolution.x / uImageResolution.y;
+
+  vec2 scale = vec2(1.0);
+  if (areaAspect > imageAspect) {
+    scale.y = imageAspect / areaAspect;
+  } else {
+    scale.x = areaAspect / imageAspect;
+  }
+
+  float time = uTime;
+  float waveFreqX = 0.02;
+  float waveFreqY = 0.03;
+  float waveAmp = 2.0;
+
+  float offsetX = sin(gl_FragCoord.y * waveFreqY + time * 0.5) * waveAmp;
+  float offsetY = cos(gl_FragCoord.x * waveFreqX + time * 0.5) * waveAmp;
+
+  vec2 distortedLocalUv = localUv - vec2(offsetX / areaWidth, offsetY / areaHeight);
+  vec2 centeredUv = (distortedLocalUv - 0.5) * scale + 0.5;
+
+  if (centeredUv.x < 0.0 || centeredUv.x > 1.0 || centeredUv.y < 0.0 || centeredUv.y > 1.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
+  }
+
+  vec4 color = texture2D(uImage, centeredUv);
+  float brightness = max(color.r, max(color.g, color.b));
+  float signal = uExtractDark > 0.5 ? 1.0 - brightness : brightness;
+
+  if (signal < 30.0 / 255.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
+  }
+
+  float delay = 0.0;
+  if (uMode < 0.5) {
+    delay = (1.0 - localUv.y) * areaHeight * 0.5 + random(centeredUv) * 500.0;
+  } else if (uMode < 1.5) {
+    float dist = distance(localUv, vec2(0.5));
+    float distPx = dist * max(areaWidth, areaHeight);
+    delay = distPx * 0.5 + random(centeredUv) * 300.0;
+  } else {
+    delay = random(centeredUv) * 1500.0;
+  }
+
+  float timeMs = uTime * 1000.0;
+  if (timeMs < delay) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
+  }
+
+  float elapsed = timeMs - delay;
+  float fadeProgress = min(1.0, elapsed * 0.002);
+
+  float phase = random(centeredUv + 1.0) * 6.28;
+  float shimmer = sin(gl_FragCoord.x * 0.01 + time * 2.0 + phase * 0.1) * 0.15 * signal;
+
+  float finalAlpha = clamp(fadeProgress * signal + shimmer, 0.0, 1.0);
+  gl_FragColor = vec4(uTint * finalAlpha, finalAlpha) * uOpacity;
 }`;
 
 function compileShader(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
@@ -166,33 +220,73 @@ function compileShader(gl: WebGLRenderingContext, type: number, src: string): We
   return sh;
 }
 
-function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
+function StaticImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
+  const dim = mode === 'full' ? 1 : 0.55;
+
+  return (
+    <div style={{ ...BG_CONTAINER, background: 'var(--bg)', opacity: dim }}>
+      <div className="nordly-bg-poster-host">
+        <div className="nordly-bg-poster-wrap">
+          <img
+            src={src}
+            alt=""
+            aria-hidden="true"
+            className="nordly-bg-poster-canvas"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageBg({
+  mode,
+  src,
+  boost = false,
+  animated = true,
+  extract = 'bright',
+}: {
+  mode: CanvasMode;
+  src: string;
+  boost?: boolean;
+  animated?: boolean;
+  extract?: ImageExtractMode;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [fallback, setFallback] = useState(false);
+  const [renderError, setRenderError] = useState<Error | null>(null);
   const dim = mode === 'full' ? 1 : 0.55;
-  const ampMul = mode === 'full' ? 1 : 0.5;
+  const posterOpacity = boost ? 1.04 : 1;
+  const posterOpacityRef = useRef(posterOpacity);
 
   useEffect(() => {
-    if (fallback) return;
+    setRenderError(null);
+  }, [src]);
+
+  useEffect(() => {
+    posterOpacityRef.current = posterOpacity;
+  }, [posterOpacity]);
+
+  useEffect(() => {
+    if (!animated || renderError) return;
     const host = hostRef.current;
     const cv = canvasRef.current;
     if (!host || !cv) return;
 
     const gl = cv.getContext('webgl', {
       antialias: false,
-      premultipliedAlpha: false,
+      premultipliedAlpha: true,
       alpha: true,
     }) as WebGLRenderingContext | null;
     if (!gl) {
-      setFallback(true);
+      setRenderError(new Error('WebGL unavailable for animated background'));
       return;
     }
 
     const vert = compileShader(gl, gl.VERTEX_SHADER, POSTER_VERT);
     const frag = compileShader(gl, gl.FRAGMENT_SHADER, POSTER_FRAG);
     if (!vert || !frag) {
-      setFallback(true);
+      setRenderError(new Error('Animated background shader compilation failed'));
       return;
     }
     const prog = gl.createProgram()!;
@@ -200,30 +294,41 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
     gl.attachShader(prog, frag);
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      setFallback(true);
+      setRenderError(new Error('Animated background program link failed'));
       return;
     }
     gl.useProgram(prog);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     const quad = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, 'aPos');
+    const aPos = gl.getAttribLocation(prog, 'position');
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
+    const uImage = gl.getUniformLocation(prog, 'uImage');
     const uTime = gl.getUniformLocation(prog, 'uTime');
-    const uAmp = gl.getUniformLocation(prog, 'uAmp');
-    const uSpeed = gl.getUniformLocation(prog, 'uSpeed');
-    const uSectors = gl.getUniformLocation(prog, 'uSectors');
-    const uShadow = gl.getUniformLocation(prog, 'uShadow');
-    const uAmpMul = gl.getUniformLocation(prog, 'uAmpMul');
-    gl.uniform1f(uAmp, CURTAIN_AMP);
-    gl.uniform1f(uSpeed, CURTAIN_SPEED);
-    gl.uniform1f(uSectors, CURTAIN_SECTORS);
-    gl.uniform1f(uShadow, CURTAIN_SHADOW);
-    gl.uniform1f(uAmpMul, ampMul);
+    const uResolution = gl.getUniformLocation(prog, 'uResolution');
+    const uImageResolution = gl.getUniformLocation(prog, 'uImageResolution');
+    const uMode = gl.getUniformLocation(prog, 'uMode');
+    const uPadding = gl.getUniformLocation(prog, 'uPadding');
+    const uOpacity = gl.getUniformLocation(prog, 'uOpacity');
+    const uTint = gl.getUniformLocation(prog, 'uTint');
+    const uExtractDark = gl.getUniformLocation(prog, 'uExtractDark');
+
+    gl.uniform1i(uImage, 0);
+    gl.uniform1f(uMode, POSTER_MODE_SCANLINE);
+    gl.uniform4f(uPadding, 0, 0, 0, 0);
+    gl.uniform1f(uOpacity, posterOpacityRef.current);
+    gl.uniform1f(uExtractDark, extract === 'dark' ? 1 : 0);
+    {
+      const [r, g, b] = readInkRgb();
+      gl.uniform3f(uTint, r / 255, g / 255, b / 255);
+    }
 
     const tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
@@ -232,19 +337,12 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-    const off = document.createElement('canvas');
-    const offCtx = off.getContext('2d');
-    if (!offCtx) {
-      setFallback(true);
-      return;
-    }
 
     const img = new Image();
     img.decoding = 'async';
-    let imgAspect = 16 / 9;
     let ready = false;
+    let imgW = 1;
+    let imgH = 1;
     let lastCssW = 0;
     let lastCssH = 0;
     let lastBw = 0;
@@ -275,30 +373,16 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
       cv.style.height = `${h}px`;
       cv.width = bw;
       cv.height = bh;
-      off.width = bw;
-      off.height = bh;
       gl.viewport(0, 0, bw, bh);
+      gl.uniform2f(uResolution, bw, bh);
       uploadTexture();
     };
 
     const uploadTexture = () => {
       if (!ready || !img.complete || img.naturalWidth === 0) return;
-      const canvasAspect = off.width / off.height;
-      let sx = 0;
-      let sy = 0;
-      let sw = img.naturalWidth;
-      let sh = img.naturalHeight;
-      if (canvasAspect > imgAspect) {
-        sh = Math.round(sw / canvasAspect);
-        sy = Math.round((img.naturalHeight - sh) / 2);
-      } else {
-        sw = Math.round(sh * canvasAspect);
-        sx = Math.round((img.naturalWidth - sw) / 2);
-      }
-      offCtx.clearRect(0, 0, off.width, off.height);
-      offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, off.width, off.height);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, off);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.uniform2f(uImageResolution, imgW, imgH);
       textureUploaded = true;
     };
 
@@ -307,7 +391,10 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
     window.addEventListener('resize', syncLayout);
 
     img.onload = () => {
-      if (img.naturalWidth > 0) imgAspect = img.naturalWidth / img.naturalHeight;
+      if (img.naturalWidth > 0) {
+        imgW = img.naturalWidth;
+        imgH = img.naturalHeight;
+      }
       ready = true;
       syncLayout();
     };
@@ -319,7 +406,12 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
       raf = requestAnimationFrame(render);
       if (!ready) return;
       syncLayout();
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform1f(uTime, (performance.now() - t0) / 1000);
+      gl.uniform1f(uOpacity, posterOpacityRef.current);
+      const [r, g, b] = readInkRgb();
+      gl.uniform3f(uTint, r / 255, g / 255, b / 255);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     raf = requestAnimationFrame(render);
@@ -344,31 +436,19 @@ function ImageBg({ mode, src }: { mode: CanvasMode; src: string }) {
       gl.deleteShader(frag);
       gl.deleteBuffer(buf);
       gl.deleteTexture(tex);
-      const loseExt = gl.getExtension('WEBGL_lose_context');
-      loseExt?.loseContext();
     };
-  }, [src, ampMul, fallback]);
+  }, [src, renderError, animated, extract]);
 
-  if (fallback) {
-    return (
-      <div style={{ ...BG_CONTAINER, background: 'var(--bg)', opacity: dim }}>
-        <div className="nordly-bg-poster-host" ref={hostRef}>
-          <img
-            src={src}
-            alt=""
-            aria-hidden="true"
-            className="nordly-bg-poster-canvas"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        </div>
-      </div>
-    );
-  }
+  if (!animated) return <StaticImageBg mode={mode} src={src} />;
+
+  if (renderError) throw renderError;
 
   return (
     <div style={{ ...BG_CONTAINER, background: 'var(--bg)', opacity: dim }}>
-      <div className="nordly-bg-poster-host" ref={hostRef}>
-        <canvas ref={canvasRef} aria-hidden="true" className="nordly-bg-poster-canvas" />
+      <div className="nordly-bg-poster-host">
+        <div className="nordly-bg-poster-wrap" ref={hostRef}>
+          <canvas ref={canvasRef} aria-hidden="true" className="nordly-bg-poster-canvas" />
+        </div>
       </div>
     </div>
   );

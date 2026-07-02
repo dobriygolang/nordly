@@ -1,6 +1,8 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 import { API_BASE_URL } from '@shared/api/config';
+import { requireJsonString } from '@shared/api/json';
+import { isNativeHttpInTauri } from '@platform/runtime';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 
@@ -13,34 +15,22 @@ const REFRESH_SKEW_MS = 60_000;
 let clearingUnauthorized = false;
 let refreshInFlight: Promise<boolean> | null = null;
 
-function isTauriShell(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-function shouldUseNativeHttp(): boolean {
-  return isTauriShell() && !import.meta.env.DEV;
-}
-
 function apiPath(path: string): string {
   const base = API_BASE_URL.replace(/\/$/, '');
   return base ? `${base}${path}` : path;
 }
 
 function readJwtExpMs(token: string): number {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return 0;
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
-    if (typeof json.exp === 'number') return json.exp * 1000;
-  } catch {
-    /* ignore */
-  }
-  return 0;
+  const payload = token.split('.')[1];
+  if (!payload) throw new Error('invalid auth token: missing payload');
+  const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+  if (typeof json.exp !== 'number') throw new Error('invalid auth token: missing exp');
+  return json.exp * 1000;
 }
 
 /** Raw HTTP for auth endpoints — bypasses 401 handler to avoid refresh loops. */
 async function rawAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return shouldUseNativeHttp() ? tauriFetch(input, init) : fetch(input, init);
+  return isNativeHttpInTauri() ? tauriFetch(input, init) : fetch(input, init);
 }
 
 function setSessionReauthRequired(required: boolean): void {
@@ -107,14 +97,10 @@ export async function refreshAccessToken(): Promise<boolean> {
       }
 
       const body = (await resp.json()) as Record<string, unknown>;
-      const accessToken = String(body.accessToken ?? body.access_token ?? '');
-      const nextRefresh = String(body.refreshToken ?? body.refresh_token ?? refreshToken);
-      if (!accessToken) {
-        setSessionReauthRequired(true);
-        return false;
-      }
+      const accessToken = requireJsonString(body, 'accessToken');
+      const nextRefresh = requireJsonString(body, 'refreshToken');
 
-      const expiresAt = readJwtExpMs(accessToken) || Date.now() + 15 * 60 * 1000;
+      const expiresAt = readJwtExpMs(accessToken);
       await persistRefreshedTokens({ accessToken, refreshToken: nextRefresh, expiresAt });
       return true;
     } catch {

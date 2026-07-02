@@ -1,5 +1,5 @@
 // Notes — Obsidian-minimal vault: file list + markdown editor (local-only).
-// Sidebar instant-create (⌘N), debounced autosave to localStorage.
+// Sidebar instant-create (⌘N), debounced autosave to IndexedDB.
 //
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -21,9 +21,8 @@ import {
 import { getServerId } from '@shared/sync/idMap';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { subscribeVault } from '@shared/crypto/vault';
-import { isVaultReadyForPublish } from '@pages/Settings/sections/VaultSection';
+import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
-import { NORDLY_HEADER_H } from '@widgets/Chrome';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
   INITIAL_LIST,
@@ -32,7 +31,7 @@ import {
   type ListState,
 } from './Notes/utils';
 import { Sidebar } from './Notes/Sidebar';
-import { NotesSidebarDivider, NotesSidebarEdge } from '@pages/Notes/SidebarDivider';
+import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { Editor } from './Notes/Editor';
 
 const SAVE_STATUS_FADE_MS = 1200;
@@ -107,10 +106,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         if (firstId) setSelectedId((cur) => cur ?? firstId);
       })
       .catch((err: unknown) => {
-        setList((prev) => {
-          if (prev.status === 'ok' && prev.notes.length > 0) return prev;
-          return { status: 'error', notes: [], error: errorMessage(err) };
-        });
+        setList({ status: 'error', notes: [], error: errorMessage(err) });
       });
   }, []);
 
@@ -133,8 +129,10 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
           }
           setActiveError(null);
         })
-        .catch(() => {
-          /* keep current pane */
+        .catch((err: unknown) => {
+          if (selectedIdRef.current !== id) return;
+          setActive(null);
+          setActiveError(errorMessage(err));
         });
     });
     return unsub;
@@ -400,7 +398,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const SIDEBAR_W = 220;
 
   return (
-    <div className="nordly-vault" style={{ paddingTop: NORDLY_HEADER_H }}>
+    <div className="nordly-vault">
       <aside
         className="nordly-vault-sidebar-wrap"
         data-collapsed={sidebarCollapsed ? 'true' : 'false'}

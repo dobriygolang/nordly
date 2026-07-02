@@ -65,22 +65,23 @@ function toBoard(row: StoredWhiteboard): Board {
   };
 }
 
-export function parseSceneJson(raw: string): WhiteboardScene | null {
-  if (!raw.trim()) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<WhiteboardScene>;
-    if (!Array.isArray(parsed.elements)) return null;
-    return {
-      elements: parsed.elements,
-      files: (parsed.files as Record<string, unknown>) ?? {},
-      appState: mergePersistedAppState(
-        nordlyExcalidrawInitialAppState(),
-        parsed.appState as Record<string, unknown> | undefined,
-      ),
-    };
-  } catch {
-    return null;
+export function parseSceneJson(raw: string): WhiteboardScene {
+  if (!raw.trim()) {
+    return { elements: [], files: {}, appState: nordlyExcalidrawInitialAppState() };
   }
+  const parsed = JSON.parse(raw) as Partial<WhiteboardScene>;
+  if (!Array.isArray(parsed.elements)) throw new Error('Invalid whiteboard scene: missing elements');
+  if (!parsed.files || typeof parsed.files !== 'object') {
+    throw new Error('Invalid whiteboard scene: missing files');
+  }
+  return {
+    elements: parsed.elements,
+    files: parsed.files as Record<string, unknown>,
+    appState: mergePersistedAppState(
+      nordlyExcalidrawInitialAppState(),
+      parsed.appState as Record<string, unknown> | undefined,
+    ),
+  };
 }
 
 export function serializeScene(scene: WhiteboardScene): string {
@@ -102,12 +103,14 @@ export async function boardsStoreGet(id: string): Promise<Board | null> {
 }
 
 export async function boardsStoreCreate(title: string): Promise<Board> {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Error('Board title is required');
   const userId = requireUserId();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const row = rowFrom(userId, {
     id,
-    title: title.trim() || 'Untitled',
+    title: cleanTitle,
     sceneJson: '',
     createdAt: now,
     updatedAt: now,
@@ -128,12 +131,14 @@ export async function boardsStoreUpdateScene(id: string, sceneJson: string): Pro
 }
 
 export async function boardsStoreUpdateTitle(id: string, title: string): Promise<Board> {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Error('Board title is required');
   const userId = requireUserId();
   const key = entityKey(id, userId);
   const existing = await dbGet<StoredWhiteboard>('whiteboards', key);
   if (!existing) throw new Error(`Board not found: ${id}`);
   const now = new Date().toISOString();
-  const row: StoredWhiteboard = { ...existing, title: title.trim() || 'Untitled', updatedAt: now };
+  const row: StoredWhiteboard = { ...existing, title: cleanTitle, updatedAt: now };
   await dbPut('whiteboards', row);
   return toBoard(row);
 }
@@ -146,9 +151,5 @@ export async function boardsStoreDelete(id: string): Promise<void> {
     await dbDelete('whiteboards', key);
     return;
   }
-  // Fallback: list by userId index in case an older row has a mismatched primary key.
-  const rows = await dbGetAllByUser<StoredWhiteboard>('whiteboards', userId);
-  const row = rows.find((r) => r.id === id);
-  if (!row) throw new Error(`Board not found: ${id}`);
-  await dbDelete('whiteboards', row.key);
+  throw new Error(`Board not found: ${id}`);
 }

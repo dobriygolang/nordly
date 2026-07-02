@@ -3,11 +3,11 @@ import { useT } from '@nordly-i18n';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
-import { parseDayKey } from '@pages/TaskBoard/lib/dates';
+import { parseDayKey } from '@shared/lib/dates';
 
-import { PlanningTaskColumn } from '../components/PlanningTaskColumn';
-import { PLANNING_POOL_DAY_KEY } from '../lib/planningTasks';
-import type { usePlanningTaskBoard } from '../lib/usePlanningTaskBoard';
+import { PlanningTaskColumn } from '@features/planning/components/PlanningTaskColumn';
+import { PLANNING_POOL_DAY_KEY } from '@features/planning/lib/planningTasks';
+import type { usePlanningTaskBoard } from '@features/planning/hooks/usePlanningTaskBoard';
 
 type PlanningBoard = ReturnType<typeof usePlanningTaskBoard>;
 

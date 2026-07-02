@@ -6,34 +6,22 @@ let cached: string | null = null;
 
 export function getDeviceId(): string | null {
   if (cached) return cached;
-  try {
-    cached = window.localStorage.getItem(DEVICE_ID_KEY);
-  } catch {
-    cached = null;
-  }
+  cached = window.localStorage.getItem(DEVICE_ID_KEY);
   return cached;
 }
 
 export function setDeviceId(id: string): void {
   cached = id;
-  try {
-    window.localStorage.setItem(DEVICE_ID_KEY, id);
-  } catch {
-    /* private browsing / quota */
-  }
+  window.localStorage.setItem(DEVICE_ID_KEY, id);
 }
 
 export function clearDeviceId(): void {
   cached = null;
-  try {
-    window.localStorage.removeItem(DEVICE_ID_KEY);
-  } catch {
-    /* ignore */
-  }
+  window.localStorage.removeItem(DEVICE_ID_KEY);
 }
 
 /** Assign a stable local device id for API headers (x-device-id). */
-export async function ensureDevice(_opts: { appVersion: string; name?: string }): Promise<string | null> {
+export async function ensureDevice(_opts: { appVersion: string; name?: string }): Promise<string> {
   const existing = getDeviceId();
   if (existing) return existing;
   const id = crypto.randomUUID();

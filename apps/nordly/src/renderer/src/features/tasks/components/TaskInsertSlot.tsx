@@ -1,0 +1,37 @@
+import { memo, type CSSProperties } from 'react';
+
+import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskEpic } from '@features/tasks/api/epics';
+import { defaultDurationMin, formatDurationShort } from '@shared/lib/dates';
+import { resolveTaskEpicColor } from '@features/tasks/lib/taskUi';
+
+interface TaskInsertSlotProps {
+  task: TaskCard;
+  epics: TaskEpic[];
+}
+
+/** Drop preview — shows where the dragged task will land between siblings. */
+export const TaskInsertSlot = memo(function TaskInsertSlot({
+  task,
+  epics,
+}: TaskInsertSlotProps): JSX.Element {
+  const epicColor = resolveTaskEpicColor(task, epics);
+
+  return (
+    <div
+      className="nordly-task-insert-slot"
+      aria-hidden
+      data-epic={epicColor ? 'true' : 'false'}
+      style={
+        epicColor ? ({ '--task-epic-color': epicColor } as CSSProperties) : undefined
+      }
+    >
+      <span className="nordly-task-insert-slot__title">
+        {task.title || '…'}
+      </span>
+      <span className="mono nordly-task-insert-slot__duration">
+        {formatDurationShort(defaultDurationMin(task))}
+      </span>
+    </div>
+  );
+});

@@ -1,9 +1,11 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { PageId } from '@widgets/Palette';
+import type { PageId } from '@shared/model/navigation';
 
-/** Matches page-layer opacity/transform transition (`--motion-dur-medium`). */
-const PAGE_FADE_MS = 320;
+import { MOTION_MS } from '@shared/lib/motionMs';
+
+/** Matches page-layer fade (`--motion-dur-page`, Winter MAIN fadeIn 0.4s). */
+const PAGE_FADE_MS = MOTION_MS.page;
 
 type LayerStatus = 'active' | 'entering' | 'leaving';
 

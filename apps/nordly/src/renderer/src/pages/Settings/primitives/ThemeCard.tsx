@@ -2,8 +2,9 @@ import { memo } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { CanvasBg, type ThemeId } from '@widgets/CanvasBg';
-import { themeLabelKey } from '@pages/Settings/lib/settings-store';
+import { CanvasBg } from '@widgets/CanvasBg';
+import type { ThemeId } from '@shared/model/theme';
+import { themeLabelKey } from '@shared/model/settings';
 
 const previewLayerStyle: React.CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -64,9 +65,9 @@ export const ThemeCard = memo(function ThemeCard({
       style={btnStyle}
     >
       <div style={previewLayerStyle}>
-        {/* Live mini-preview — one pass through CanvasBg, scaled down via container */}
+        {/* Mini-preview: static for image themes to keep the main Home poster WebGL context stable. */}
         <div style={previewLayerStyle}>
-          <CanvasBg theme={id} mode="full" />
+          <CanvasBg theme={id} mode="full" animated={false} />
         </div>
         {/* Bottom-fade label */}
         <div className="nordly-theme-card__fade" style={fadeStyle}>

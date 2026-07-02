@@ -13,13 +13,10 @@ const dictionaries: Record<Locale, Record<string, string>> = { en, ru };
 
 function readStoredLocale(): Locale | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const v = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (v === 'en' || v === 'ru') return v;
-  } catch {
-    /* ignore */
-  }
-  return null;
+  const v = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (v === null) return null;
+  if (v === 'en' || v === 'ru') return v;
+  throw new Error(`Invalid stored locale: ${v}`);
 }
 
 function defaultLocale(): Locale {
@@ -33,12 +30,18 @@ function defaultLocale(): Locale {
 
 function interpolate(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(params[key] ?? ''));
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    const value = params[key];
+    if (value === undefined) throw new Error(`Missing i18n param: ${key}`);
+    return String(value);
+  });
 }
 
 function lookup(locale: Locale, key: string): string {
   const dict = dictionaries[locale];
-  return dict[key] ?? dictionaries.en[key] ?? key.split('.').pop()?.replace(/_/g, ' ') ?? key;
+  const value = dict[key];
+  if (value === undefined) throw new Error(`Missing i18n key: ${locale}.${key}`);
+  return value;
 }
 
 let localeState: {
@@ -49,11 +52,7 @@ let localeState: {
   setLocale: (locale) => {
     localeState = { ...localeState, locale };
     if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-      } catch {
-        /* ignore */
-      }
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
     }
     for (const listener of localeListeners) listener();
   },

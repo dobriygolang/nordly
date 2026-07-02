@@ -20,9 +20,10 @@ export const API_BASE_URL =
 /** Liveness probe — identity `/healthz` (Caddy in prod, Vite proxy in dev). */
 export const HEALTH_CHECK_URL = `${API_BASE_URL}/healthz`;
 
-/** Fallback when /v1/auth/config is unavailable. */
 export const TELEGRAM_BOT_USERNAME =
-  (import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined)?.trim() || 'nordly_bot';
+  ((import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined) ?? '').trim();
 
-export const DEV_BEARER_TOKEN: string | null =
-  ((import.meta.env.VITE_NORDLY_DEV_TOKEN as string | undefined) ?? '').trim() || null;
+/** Dev-only bearer for local API testing. Never available in production builds. */
+export const DEV_BEARER_TOKEN: string | null = import.meta.env.DEV
+  ? (((import.meta.env.VITE_NORDLY_DEV_TOKEN as string | undefined) ?? '').trim() || null)
+  : null;

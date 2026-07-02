@@ -27,11 +27,7 @@ export function snapMode(snap: PomodoroPersistSnap): FocusTimerMode {
 
 async function resolveSessionId(sessionRef: SessionRef): Promise<string | null> {
   if (sessionRef.current) return sessionRef.current;
-  try {
-    return (await findOpenFocusSession())?.id ?? null;
-  } catch {
-    return null;
-  }
+  return (await findOpenFocusSession())?.id ?? null;
 }
 
 export async function finishFocusSession(
@@ -46,39 +42,31 @@ export async function finishFocusSession(
     override?.pomodorosCompleted ?? (mode === 'pomodoro' && remain === 0 ? 1 : 0);
 
   const id = await resolveSessionId(sessionRef);
-  if (!id) return;
+  if (!id) throw new Error('No focus session to finish');
 
   sessionRef.current = null;
-  try {
-    await endFocusSession({
-      sessionId: id,
-      pomodorosCompleted,
-      secondsFocused,
-      reflection: '',
-    });
-  } catch {
-    /* silent */
-  }
+  await endFocusSession({
+    sessionId: id,
+    pomodorosCompleted,
+    secondsFocused,
+    reflection: '',
+  });
 }
 
 export async function reattachFocusSession(sessionRef: SessionRef): Promise<void> {
   if (sessionRef.current) return;
-  try {
-    const open = await findOpenFocusSession();
-    if (open) {
-      sessionRef.current = open.id;
-      return;
-    }
-    const { pinnedPlanItemId, pinnedTitle, mode } = usePomodoroStore.getState();
-    const session = await startFocusSession({
-      planItemId: pinnedPlanItemId ?? undefined,
-      pinnedTitle: pinnedTitle ?? undefined,
-      mode,
-    });
-    sessionRef.current = session.id;
-  } catch {
-    /* silent */
+  const open = await findOpenFocusSession();
+  if (open) {
+    sessionRef.current = open.id;
+    return;
   }
+  const { pinnedPlanItemId, pinnedTitle, mode } = usePomodoroStore.getState();
+  const session = await startFocusSession({
+    planItemId: pinnedPlanItemId ?? undefined,
+    pinnedTitle: pinnedTitle ?? undefined,
+    mode,
+  });
+  sessionRef.current = session.id;
 }
 
 export async function completePomodoroTimer(
@@ -87,8 +75,7 @@ export async function completePomodoroTimer(
 ): Promise<void> {
   const id = await resolveSessionId(sessionRef);
   if (!id) {
-    usePomodoroStore.getState().complete();
-    return;
+    throw new Error('No focus session to complete');
   }
   await finishFocusSession(sessionRef, {
     secondsFocused: durationSec,

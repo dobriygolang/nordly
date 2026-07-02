@@ -1,5 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 
+import { isTauriRuntime } from '@platform/runtime';
 import {
   usePomodoroStore,
   type FocusTimerMode,
@@ -40,13 +41,9 @@ function applyPayload(payload: PomodoroSyncPayload): void {
 
 let syncing = false;
 
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
 /** Main window: broadcast timer state and handle remote commands from the tray popover. */
 export function initPomodoroLeader(): () => void {
-  if (!isTauri()) return () => undefined;
+  if (!isTauriRuntime()) return () => undefined;
 
   const unsubs: Array<() => void> = [];
 
@@ -80,7 +77,7 @@ export function initPomodoroLeader(): () => void {
 
 /** Tray popover: mirror timer state and send play/pause commands to the main window. */
 export function initPomodoroFollower(): () => void {
-  if (!isTauri()) return () => undefined;
+  if (!isTauriRuntime()) return () => undefined;
 
   const unsubs: Array<() => void> = [];
 
@@ -139,7 +136,7 @@ export function initPomodoroFollower(): () => void {
 }
 
 export function sendPomodoroCommand(action: PomodoroCmdAction): void {
-  if (!isTauri()) {
+  if (!isTauriRuntime()) {
     const store = usePomodoroStore.getState();
     if (action === 'toggle') store.toggle();
     else store.reset();

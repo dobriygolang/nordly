@@ -14,15 +14,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT, useLocale, type TFunc } from '@nordly-i18n';
 
 import { getStats, padToSevenDays, type NordlyStats, type FocusDay } from '@features/focus/api/focusClient';
-import { loadDailyPlan } from '@pages/DailyPlanning/lib/dailyPlanStore';
+import { loadDailyPlan } from '@features/planning/repository/dailyPlanStore';
 import {
   computePlanProgress,
   isPlanFinalizedToday,
-} from '@pages/DailyPlanning/lib/planningProgress';
-import { tasksForToday } from '@pages/DailyPlanning/lib/planningTasks';
+} from '@features/planning/lib/planningProgress';
+import { tasksForToday } from '@features/planning/lib/planningTasks';
 import { listTasks } from '@features/tasks/api/tasks';
-import { formatWeekdayShort, addDays, parseDayKey, toDayKey } from '@pages/TaskBoard/lib/dates';
-import { readDailyGoalMin } from '@shared/model/prefs';
+import { formatWeekdayShort, addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
+import { readDailyGoalMin } from '@shared/model/settings';
 
 interface FetchState {
   status: 'loading' | 'ok' | 'error';

@@ -15,7 +15,7 @@ import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
-// Browser-mode dev fallback persistence. В Electron production session
+// Browser-mode dev persistence. В Electron production session
 // идёт через safeStorage keychain (main-process IPC). В Vite browser-mode
 // IPC bridge nil → reload terять токен. Persist в localStorage чтобы
 // dev-flow (LoginScreen DEV LOGIN button) survived page reload.
@@ -33,52 +33,37 @@ interface PersistedSession {
 }
 
 function readBrowserPersist(): PersistedSession | null {
-  try {
-    const raw = window.localStorage.getItem(BROWSER_PERSIST_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as Partial<PersistedSession>;
-    if (!s.userId) return null;
-    if (!s.accessToken && !s.refreshToken) return null;
-    return {
-      userId: s.userId,
-      accessToken: s.accessToken ?? '',
-      refreshToken: s.refreshToken ?? null,
-      expiresAt: s.expiresAt ?? 0,
-    };
-  } catch {
-    return null;
-  }
+  const raw = window.localStorage.getItem(BROWSER_PERSIST_KEY);
+  if (!raw) return null;
+  const s = JSON.parse(raw) as Partial<PersistedSession>;
+  if (!s.userId) throw new Error('Invalid browser session: missing userId');
+  if (!s.accessToken && !s.refreshToken) throw new Error('Invalid browser session: missing tokens');
+  if (typeof s.expiresAt !== 'number') throw new Error('Invalid browser session: missing expiresAt');
+  return {
+    userId: s.userId,
+    accessToken: s.accessToken ?? '',
+    refreshToken: s.refreshToken ?? null,
+    expiresAt: s.expiresAt,
+  };
 }
 
 async function persistSessionToNative(session: PersistedSession): Promise<void> {
   const bridge = window.nordly;
   if (!bridge) return;
-  try {
-    await bridge.auth.persist({
-      userId: session.userId,
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken ?? '',
-      expiresAt: session.expiresAt,
-    });
-  } catch {
-    /* keychain may be locked */
-  }
+  await bridge.auth.persist({
+    userId: session.userId,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken ?? '',
+    expiresAt: session.expiresAt,
+  });
 }
 
 function writeBrowserPersist(s: PersistedSession): void {
-  try {
-    window.localStorage.setItem(BROWSER_PERSIST_KEY, JSON.stringify(s));
-  } catch {
-    /* quota / privacy mode → skip */
-  }
+  window.localStorage.setItem(BROWSER_PERSIST_KEY, JSON.stringify(s));
 }
 
 function clearBrowserPersist(): void {
-  try {
-    window.localStorage.removeItem(BROWSER_PERSIST_KEY);
-  } catch {
-    /* ignore */
-  }
+  window.localStorage.removeItem(BROWSER_PERSIST_KEY);
 }
 
 interface SessionState {
@@ -161,35 +146,19 @@ export const useSessionStore = create<SessionState>((set) => ({
       set({ status: 'guest' });
       return;
     }
-    try {
-      const s = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
-      if (s && s.userId && (s.accessToken || s.refreshToken)) {
-        setDbUserId(s.userId);
-        set({
-          status: 'signed_in',
-          userId: s.userId,
-          accessToken: s.accessToken,
-          refreshToken: s.refreshToken ?? null,
-          expiresAt: s.expiresAt ?? 0,
-        });
-        return;
-      }
-    } catch {
-      /* swallow — keychain may be locked / unavailable */
-    }
-    const persisted = readBrowserPersist();
-    if (persisted) {
-      setDbUserId(persisted.userId);
+    const s = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
+    if (s && s.userId && (s.accessToken || s.refreshToken)) {
+      if (typeof s.expiresAt !== 'number') throw new Error('Invalid native session: missing expiresAt');
+      setDbUserId(s.userId);
       set({
         status: 'signed_in',
-        userId: persisted.userId,
-        accessToken: persisted.accessToken,
-        refreshToken: persisted.refreshToken,
-        expiresAt: persisted.expiresAt,
+        userId: s.userId,
+        accessToken: s.accessToken,
+        refreshToken: s.refreshToken ?? null,
+        expiresAt: s.expiresAt,
       });
       return;
     }
-    clearBrowserPersist();
     setDbUserId(null);
     set({ status: 'guest' });
   },
@@ -229,11 +198,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     clearBrowserPersist();
     const bridge = window.nordly;
     if (bridge) {
-      try {
-        await bridge.auth.logout();
-      } catch {
-        /* ignore */
-      }
+      await bridge.auth.logout();
     }
     setDbUserId(null);
     lockVault();

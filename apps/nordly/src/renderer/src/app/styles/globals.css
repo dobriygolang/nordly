@@ -16,6 +16,7 @@
 @import './base/utilities.css';
 @import './components/surfaces.css';
 @import './components/chrome.css';
+@import './components/odometer-timer.css';
 @import './components/transitions.css';
 @import './components/themes.css';
 @import './components/excalidraw.css';

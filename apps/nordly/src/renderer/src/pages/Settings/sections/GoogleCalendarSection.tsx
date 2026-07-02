@@ -12,13 +12,13 @@ import {
   type GoogleCalendarListEntry,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { invalidateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
 import {
   GOOGLE_CALENDAR_POLL_MINUTES,
   type GoogleCalendarPollMinutes,
-} from '../lib/settings-store';
+} from '@shared/model/settings';
 import { SettingRow } from '../primitives/SettingRow';
 import { Toggle } from '../primitives/Toggle';
 
@@ -57,7 +57,7 @@ export function GoogleCalendarSection({
   }, []);
 
   const load = useCallback(async () => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     setLoading(true);
     setError(null);
     try {
@@ -132,7 +132,7 @@ export function GoogleCalendarSection({
     };
   }, [oauthPending, loadCalendars]);
 
-  if (LOCAL_ONLY) return null;
+  if (!isCloudEnabled()) return null;
 
   const connected = settings?.googleCalendarConnected ?? false;
   const reauthNeeded = settings?.googleReauthRequired ?? false;

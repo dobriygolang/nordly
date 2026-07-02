@@ -2,9 +2,7 @@ import { useCallback, type MouseEvent } from 'react';
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isTauriRuntime } from '@platform/runtime';
 
 /** Top drag handle — macOS overlay titlebar + wordmark row. */
 export function TitlebarDrag(): JSX.Element {
@@ -13,7 +11,7 @@ export function TitlebarDrag(): JSX.Element {
     if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [data-no-drag]')) {
       return;
     }
-    if (!isTauri()) return;
+    if (!isTauriRuntime()) return;
     void getCurrentWindow().startDragging();
   }, []);
 

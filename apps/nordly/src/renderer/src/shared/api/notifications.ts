@@ -1,34 +1,20 @@
-// notifications.ts — Nordly toast banner (Tauri overlay window) + Web fallback.
+// notifications.ts — Nordly toast banner (Tauri overlay window).
 //
 // Desktop: `show_notification` opens a small always-on-top window styled like
 // a macOS banner in Nordly theme colors (surface, ink, blur).
-// Browser dev: falls back to the Web Notification API.
+// Browser dev uses the Web Notification API directly.
 
 import { invoke } from '@tauri-apps/api/core';
 
-import { playSessionCompleteSound } from '@shared/lib/sessionCompleteSound';
-import { STORAGE_KEYS } from '@shared/lib/storage-keys';
+import { readSettings } from '@shared/model/settings';
+import {
+  playCalendarReminderSound,
+  playSessionCompleteSound,
+} from '@shared/lib/sessionCompleteSound';
+import { isTauriRuntime } from '@platform/runtime';
 
-const SETTINGS_KEY: string = STORAGE_KEYS.settings;
-
-interface StoredSettings {
-  notifications?: boolean;
-}
-
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-function isNotificationsEnabled(): boolean {
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return true;
-    const parsed = JSON.parse(raw) as StoredSettings;
-    return typeof parsed.notifications === 'boolean' ? parsed.notifications : true;
-  } catch {
-    return true;
-  }
-}
+/** Auto-dismiss when the user does not close the banner manually. */
+export const NOTIFY_AUTO_DISMISS_MS = 60_000;
 
 let permissionPromise: Promise<NotificationPermission> | null = null;
 
@@ -45,18 +31,15 @@ async function ensureWebPermission(): Promise<NotificationPermission> {
 
 async function notifyWeb(title: string, body?: string): Promise<void> {
   if (typeof Notification === 'undefined') return;
-  try {
-    const perm = await ensureWebPermission();
-    if (perm !== 'granted') return;
-    new Notification(title, { body, silent: false });
-  } catch {
-    /* degraded UX */
-  }
+  const perm = await ensureWebPermission();
+  if (perm !== 'granted') throw new Error(`Notification permission is ${perm}`);
+  const notification = new Notification(title, { body, silent: false });
+  window.setTimeout(() => notification.close(), NOTIFY_AUTO_DISMISS_MS);
 }
 
 export interface NotifyOptions {
-  /** Play the built-in session-complete chime. */
-  sound?: boolean;
+  /** Play a built-in chime. */
+  sound?: boolean | 'session' | 'calendar';
 }
 
 /**
@@ -64,17 +47,17 @@ export interface NotifyOptions {
  */
 export async function notify(title: string, body?: string, options?: NotifyOptions): Promise<void> {
   if (typeof window === 'undefined') return;
-  if (!isNotificationsEnabled()) return;
+  if (!readSettings().notifications) return;
 
-  if (options?.sound) void playSessionCompleteSound();
+  if (options?.sound === 'calendar') {
+    void playCalendarReminderSound();
+  } else if (options?.sound) {
+    void playSessionCompleteSound();
+  }
 
-  if (isTauri()) {
-    try {
-      await invoke('show_notification', { title, body: body ?? '' });
-      return;
-    } catch {
-      /* fall through to web API */
-    }
+  if (isTauriRuntime()) {
+    await invoke('show_notification', { title, body: body ?? '' });
+    return;
   }
 
   await notifyWeb(title, body);

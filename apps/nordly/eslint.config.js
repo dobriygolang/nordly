@@ -47,4 +47,36 @@ export default [
       'react-hooks/exhaustive-deps': 'warn',
     },
   },
+  {
+    files: ['src/renderer/src/shared/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@pages/*', '@widgets/*'],
+              message: 'shared/ must not import pages/ or widgets/',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/renderer/src/features/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@pages/*'],
+              message: 'features/ must not import pages/',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

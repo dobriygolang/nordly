@@ -1,21 +1,21 @@
 import { HEALTH_CHECK_URL } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
+import { subscribeVault } from '@shared/crypto/vault';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSyncStore } from '@shared/model/sync';
-import { pullFocus, pushFocusOutbox } from '@shared/sync/domains/focusSync';
-import { pullNotes, pushNotesOutbox } from '@shared/sync/domains/notesSync';
-import { pullTasks, pushTasksOutbox } from '@shared/sync/domains/tasksSync';
-import { bumpOutboxAttempts, listOutbox, outboxCount } from '@shared/sync/outbox';
-import { runMigrationForCurrentUser } from '@shared/sync/migrateLocalStorage';
-import { SyncError } from '@shared/sync/errors';
+import { bumpOutboxAttempts, listOutbox, outboxCount, resetOutboxAttempts } from '@shared/sync/outbox';
+import { requireSyncHandlers } from '@shared/sync/registry';
+import { isSyncDeferredError, SyncError } from '@shared/sync/errors';
 import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
 import type { OutboxEntry } from '@shared/sync/types';
 
 type SyncOptions = {
   /** When true, reject if offline instead of silently queueing. */
   explicit?: boolean;
+  /** When true, reset outbox attempts and reconcile local unsynced state before push. */
+  retry?: boolean;
 };
 
 const DEBOUNCE_MS = 3000;
@@ -24,8 +24,8 @@ const MAX_ATTEMPTS = 8;
 
 let debounceTimer: number | null = null;
 let intervalId: number | null = null;
-let running = false;
 let started = false;
+let syncTail: Promise<void> = Promise.resolve();
 
 async function probeServer(): Promise<boolean> {
   if (!canReachNetwork()) return false;
@@ -38,28 +38,39 @@ async function probeServer(): Promise<boolean> {
 }
 
 async function pushEntry(entry: OutboxEntry): Promise<void> {
-  if (entry.domain === 'notes') await pushNotesOutbox(entry);
-  else if (entry.domain === 'tasks') await pushTasksOutbox(entry);
-  else if (entry.domain === 'focus') await pushFocusOutbox(entry);
+  const h = requireSyncHandlers();
+  if (entry.domain === 'notes') await h.pushNotesOutbox(entry);
+  else if (entry.domain === 'tasks') await h.pushTasksOutbox(entry);
+  else if (entry.domain === 'focus') await h.pushFocusOutbox(entry);
 }
 
 async function pullAll(): Promise<void> {
-  await pullNotes();
-  await pullTasks();
-  await pullFocus();
+  const h = requireSyncHandlers();
+  await h.pullNotes();
+  await h.pullTasks();
+  await h.pullFocus();
 }
 
-async function syncNow(options?: SyncOptions): Promise<void> {
+function enqueueSync(options?: SyncOptions): Promise<void> {
+  const job = syncTail.then(() => runSync(options));
+  syncTail = job.catch((err: unknown) => {
+    if (!options?.explicit) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[nordly:sync]', message, err);
+      useSyncStore.getState().setLastError(message);
+    }
+  });
+  return job;
+}
+
+async function runSync(options?: SyncOptions): Promise<void> {
   if (!isSyncEnabled() || !getDbUserId()) return;
-  if (running) return;
-  running = true;
 
   const store = useSyncStore.getState();
   if (!canReachNetwork()) {
     store.setStatus('offline');
     store.setServerReachable(false);
     store.setLastError(null);
-    running = false;
     if (options?.explicit) {
       throw new SyncError('no_network', 'No internet connection');
     }
@@ -70,7 +81,6 @@ async function syncNow(options?: SyncOptions): Promise<void> {
   if (!tokenReady) {
     store.setStatus('offline');
     store.setLastError(null);
-    running = false;
     if (options?.explicit) {
       throw new SyncError('session_expired', 'Session expired');
     }
@@ -82,39 +92,98 @@ async function syncNow(options?: SyncOptions): Promise<void> {
   if (!reachable) {
     store.setStatus('offline');
     store.setLastError(null);
-    running = false;
     if (options?.explicit) {
       throw new SyncError('server_unreachable', 'Cannot reach server');
     }
     return;
   }
 
+  if (options?.retry) {
+    store.setLastError(null);
+    await resetOutboxAttempts();
+    await requireSyncHandlers().reconcileOutbox();
+  }
+
   store.setStatus('syncing');
   try {
-    await runMigrationForCurrentUser();
     const queue = await listOutbox();
     store.setPendingCount(queue.length);
 
+    let deferred = false;
+    let pushError: string | null = null;
+    let exhausted = 0;
+
     for (const entry of queue) {
-      if (entry.attempts >= MAX_ATTEMPTS) continue;
+      if (entry.attempts >= MAX_ATTEMPTS) {
+        exhausted++;
+        continue;
+      }
       try {
         await pushEntry(entry);
       } catch (err) {
-        await bumpOutboxAttempts(entry);
-        throw err;
+        if (isSyncDeferredError(err)) {
+          deferred = true;
+          continue;
+        }
+        const attempts = await bumpOutboxAttempts(entry);
+        const message = err instanceof Error ? err.message : String(err);
+        if (attempts >= MAX_ATTEMPTS) {
+          pushError = `Sync failed on ${entry.domain}/${entry.op} (${entry.entityId}) after ${MAX_ATTEMPTS} attempts: ${message}`;
+          console.error('[nordly:sync]', pushError, entry);
+        } else if (!pushError) {
+          pushError = message;
+        }
       }
     }
 
-    await pullAll();
-    store.setPendingCount(await outboxCount());
+    let pullError: string | null = null;
+    try {
+      await pullAll();
+    } catch (err) {
+      if (isSyncDeferredError(err)) {
+        deferred = true;
+      } else {
+        pullError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    const pending = await outboxCount();
+    store.setPendingCount(pending);
+
+    if (pullError) {
+      console.error('[nordly:sync]', pullError);
+      store.setLastError(pullError);
+      return;
+    }
+
+    if (pushError) {
+      store.setLastError(pushError);
+      return;
+    }
+
+    if (exhausted > 0) {
+      const msg =
+        exhausted === 1
+          ? `Sync paused — one change failed after ${MAX_ATTEMPTS} attempts. Tap Retry.`
+          : `Sync paused — ${exhausted} changes failed after ${MAX_ATTEMPTS} attempts. Tap Retry.`;
+      store.setLastError(msg);
+      return;
+    }
+
+    if (deferred) {
+      store.setLastError(null);
+      store.setStatus('idle');
+      return;
+    }
+
     store.setLastSyncedAt(Date.now());
     store.setStatus('idle');
     window.dispatchEvent(new Event(NORDLY_EVENTS.syncChanged));
   } catch (err) {
-    store.setLastError(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[nordly:sync]', message, err);
+    store.setLastError(message);
     store.setPendingCount(await outboxCount());
-  } finally {
-    running = false;
   }
 }
 
@@ -123,7 +192,7 @@ export function scheduleSync(): void {
   if (debounceTimer !== null) window.clearTimeout(debounceTimer);
   debounceTimer = window.setTimeout(() => {
     debounceTimer = null;
-    void syncNow();
+    void enqueueSync();
   }, DEBOUNCE_MS);
 }
 
@@ -132,41 +201,52 @@ export function flushSync(): Promise<void> {
     window.clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  return syncNow({ explicit: true });
+  return enqueueSync({ explicit: true, retry: true });
+}
+
+function syncErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function onOnline(): void {
   useSyncStore.getState().setStatus('idle');
-  void flushSync().catch(() => {
-    /* retry on next interval or focus */
+  void flushSync().catch((err: unknown) => {
+    useSyncStore.getState().setLastError(syncErrorMessage(err));
   });
 }
 
 function onVisible(): void {
-  if (document.visibilityState === 'visible') void syncNow();
+  if (document.visibilityState === 'visible') void enqueueSync();
 }
 
 function onFocus(): void {
-  void syncNow();
+  void enqueueSync();
 }
+
+let vaultUnsub: (() => void) | null = null;
 
 export function startSyncEngine(): void {
   if (started) return;
   started = true;
+  vaultUnsub = subscribeVault((unlocked) => {
+    if (unlocked) scheduleSync();
+  });
   window.addEventListener('online', onOnline);
   window.addEventListener('focus', onFocus);
   document.addEventListener('visibilitychange', onVisible);
   intervalId = window.setInterval(() => {
     const s = useSyncStore.getState();
-    if (s.pendingCount > 0 || s.status === 'error') void syncNow();
-    else if (isSyncEnabled()) void syncNow();
+    if (s.pendingCount > 0 || s.status === 'error') void enqueueSync();
+    else if (isSyncEnabled()) void enqueueSync();
   }, INTERVAL_MS);
-  void syncNow();
+  void enqueueSync();
 }
 
 export function stopSyncEngine(): void {
   if (!started) return;
   started = false;
+  vaultUnsub?.();
+  vaultUnsub = null;
   window.removeEventListener('online', onOnline);
   window.removeEventListener('focus', onFocus);
   document.removeEventListener('visibilitychange', onVisible);
@@ -174,8 +254,11 @@ export function stopSyncEngine(): void {
   intervalId = null;
   if (debounceTimer !== null) window.clearTimeout(debounceTimer);
   debounceTimer = null;
+  syncTail = Promise.resolve();
   useSyncStore.getState().setStatus('idle');
   useSyncStore.getState().setPendingCount(0);
 }
 
-export { syncNow };
+export function syncNow(options?: SyncOptions): Promise<void> {
+  return enqueueSync(options);
+}

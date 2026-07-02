@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { buildDayWindow, toDayKey, type DayKey } from './lib/dates';
+import { buildDayWindow, toDayKey, type DayKey } from '@shared/lib/dates';
 
 export const DAY_COL_WIDTH = 254;
 export const DAY_COL_GAP = 10;
@@ -12,6 +12,8 @@ const BATCH = 14;
 const EDGE_THRESHOLD_COLS = 3;
 const FAR_FROM_TODAY_COLS = 7;
 const SCROLL_IDLE_MS = 150;
+const AUTO_EXPAND_PAST = 30;
+const AUTO_EXPAND_FUTURE = 45;
 
 interface UseInfiniteDayScrollResult {
   days: DayKey[];
@@ -139,7 +141,8 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       for (const dayKey of dayKeys) {
         const target = parseDayKeySafe(dayKey);
         if (!target) continue;
-        const offset = dayOffsetFrom(today, target);
+        const rawOffset = dayOffsetFrom(today, target);
+        const offset = Math.max(-AUTO_EXPAND_PAST, Math.min(AUTO_EXPAND_FUTURE, rawOffset));
         if (!hasOffset) {
           minOffset = offset;
           maxOffset = offset;

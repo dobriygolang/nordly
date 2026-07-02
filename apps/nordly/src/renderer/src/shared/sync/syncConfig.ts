@@ -1,4 +1,4 @@
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { canUseLocalApp, isSessionExpired } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 
@@ -6,10 +6,11 @@ export function canReachNetwork(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine;
 }
 
-export { canUseLocalApp };
+export { canUseLocalApp } from '@shared/api/authSession';
+export { isCloudEnabled } from '@shared/model/features';
 
 export function isSyncEnabled(): boolean {
-  if (LOCAL_ONLY) return false;
+  if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;
 
   const { accessToken, refreshToken } = useSessionStore.getState();

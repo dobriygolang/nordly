@@ -16,7 +16,7 @@ import {
   taskDayKey,
   taskScheduleStart,
   toDayKey,
-} from '@pages/TaskBoard/lib/dates';
+} from '@shared/lib/dates';
 
 export type CalendarEntrySource = 'task' | 'google';
 

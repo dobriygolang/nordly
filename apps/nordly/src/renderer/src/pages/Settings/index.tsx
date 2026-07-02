@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useT, useLocale, type Locale } from '@nordly-i18n';
 
-import { type ThemeId, THEME_IDS } from '@widgets/CanvasBg';
+import { type ThemeId, THEME_IDS } from '@shared/model/theme';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTextScale } from '@shared/model/accessibility';
 import { SignOutSection } from './sections/SignOutSection';
@@ -18,9 +18,9 @@ import {
   THEME_KEY,
   type NordlySettings,
   type TextScale,
-} from './lib/settings-store';
+} from '@shared/model/settings';
 import { SettingRow, SettingsGroup } from './primitives/SettingRow';
-import { SegmentedControl } from './primitives/SegmentedControl';
+import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
 import { Slider } from './primitives/Slider';
 import { Toggle } from './primitives/Toggle';
 import { ThemeCard } from './primitives/ThemeCard';
@@ -65,6 +65,10 @@ export function SettingsPage({
   );
 
   const setNotif = useCallback((b: boolean) => setSettings((s) => ({ ...s, notifications: b })), []);
+  const setCalendarNotif = useCallback(
+    (b: boolean) => setSettings((s) => ({ ...s, calendarNotifications: b })),
+    [],
+  );
 
   const setDailyGoal = useCallback(
     (n: number) => setSettings((s) => ({ ...s, dailyGoalMin: n })),
@@ -178,6 +182,21 @@ export function SettingsPage({
               value={settings.notifications}
               onChange={setNotif}
               label={settings.notifications ? t('nordly.settings.notifications.on') : t('nordly.settings.notifications.off')}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('nordly.settings.calendar_notifications.label')}
+            hint={t('nordly.settings.calendar_notifications.hint')}
+          >
+            <Toggle
+              value={settings.calendarNotifications}
+              onChange={setCalendarNotif}
+              label={
+                settings.calendarNotifications
+                  ? t('nordly.settings.notifications.on')
+                  : t('nordly.settings.notifications.off')
+              }
             />
           </SettingRow>
 

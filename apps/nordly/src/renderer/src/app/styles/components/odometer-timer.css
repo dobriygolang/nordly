@@ -1,0 +1,75 @@
+.nordly-odometer-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12em;
+  color: currentColor;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nordly-odometer-timer.is-running {
+  animation: nordly-odometer-timer-glow 2.6s ease-in-out infinite;
+}
+
+.nordly-odometer-timer__digit-slot {
+  position: relative;
+  display: inline-block;
+  width: 0.62em;
+  height: 1.05em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.nordly-odometer-timer__digit-strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.nordly-odometer-timer__digit-cell {
+  flex: 0 0 1.05em;
+  height: 1.05em;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.nordly-odometer-timer__sep {
+  display: inline-block;
+  margin: 0 0.02em;
+  opacity: 0.72;
+}
+
+.nordly-odometer-timer.is-running .nordly-odometer-timer__sep {
+  animation: nordly-odometer-colon-pulse 1s ease-in-out infinite;
+}
+
+@keyframes nordly-odometer-colon-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes nordly-odometer-timer-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0 rgb(var(--ink-rgb) / 0);
+  }
+  50% {
+    text-shadow: 0 0 10px rgb(var(--ink-rgb) / 0.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-odometer-timer__digit-strip,
+  .nordly-odometer-timer.is-running,
+  .nordly-odometer-timer.is-running .nordly-odometer-timer__sep {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

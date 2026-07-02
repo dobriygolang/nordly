@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { useOnlineStatus } from '@shared/hooks/useOnlineStatus';
 import { useSyncStore } from '@shared/model/sync';
 import { flushSync } from '@shared/sync/SyncEngine';
@@ -18,7 +18,7 @@ export function SyncStatusBanner(): JSX.Element | null {
   const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
 
   const kind = useMemo((): BannerKind => {
-    if (LOCAL_ONLY) return null;
+    if (!isCloudEnabled()) return null;
     if (sessionReauthRequired && !online) return 'reauth';
     if (!online || status === 'offline') return 'offline';
     if (!serverReachable) return 'unreachable';
@@ -39,16 +39,23 @@ export function SyncStatusBanner(): JSX.Element | null {
 
   const showRetry = kind === 'error' || kind === 'unreachable';
 
+  const detail = kind === 'error' && lastError ? lastError : null;
+
   return (
-    <div className="nordly-sync-banner" role="status">
-      <span className="nordly-sync-banner__text">{message}</span>
+    <div className="nordly-sync-banner" role="status" data-no-drag>
+      <span className="nordly-sync-banner__text" title={detail ?? undefined}>
+        {message}
+        {detail ? <span className="nordly-sync-banner__detail"> — {detail}</span> : null}
+      </span>
       {showRetry ? (
         <button
           type="button"
           className="nordly-sync-banner__btn focus-ring"
           onClick={() => {
-            void flushSync().catch(() => {
-              /* banner stays until next success */
+            useSyncStore.getState().setLastError(null);
+            useSyncStore.getState().setStatus('syncing');
+            void flushSync().catch((err: unknown) => {
+              useSyncStore.getState().setLastError(err instanceof Error ? err.message : String(err));
             });
           }}
         >

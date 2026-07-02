@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-/** Matches the full-screen layer transition (`--motion-dur-large`) in globals.css. */
-const SCREEN_FADE_MS = 440;
+import { MOTION_MS } from '@shared/lib/motionMs';
+
+/** Matches the full-screen layer transition (`--motion-dur-page`). */
+const SCREEN_FADE_MS = MOTION_MS.page;
 
 type LayerStatus = 'active' | 'entering' | 'leaving';
 

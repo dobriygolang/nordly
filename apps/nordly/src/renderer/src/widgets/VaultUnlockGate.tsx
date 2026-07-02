@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { notesStoreReencryptAll } from '@features/notes/repository/notesStore';
 import { flushSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import {
@@ -29,50 +28,27 @@ type GateState =
 async function loadSavedPassphrase(userId: string): Promise<string | null> {
   const bridge = typeof window !== 'undefined' ? window.nordly?.vault : undefined;
   if (bridge) {
-    try {
-      return await bridge.passLoad(userId);
-    } catch {
-      return null;
-    }
+    return bridge.passLoad(userId);
   }
-  try {
-    return window.sessionStorage.getItem(`nordly:vault-pass:${userId}`);
-  } catch {
-    return null;
-  }
+  return window.sessionStorage.getItem(`nordly:vault-pass:${userId}`);
 }
 
 async function savePassphrase(userId: string, pass: string): Promise<void> {
   const bridge = typeof window !== 'undefined' ? window.nordly?.vault : undefined;
   if (bridge) {
-    try {
-      await bridge.passSave(userId, pass);
-      return;
-    } catch {
-      /* fall through */
-    }
+    await bridge.passSave(userId, pass);
+    return;
   }
-  try {
-    window.sessionStorage.setItem(`nordly:vault-pass:${userId}`, pass);
-  } catch {
-    /* ignore */
-  }
+  window.sessionStorage.setItem(`nordly:vault-pass:${userId}`, pass);
 }
 
 async function clearSavedPassphrase(userId: string): Promise<void> {
   const bridge = typeof window !== 'undefined' ? window.nordly?.vault : undefined;
   if (bridge) {
-    try {
-      await bridge.passClear(userId);
-    } catch {
-      /* ignore */
-    }
+    await bridge.passClear(userId);
+    return;
   }
-  try {
-    window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
-  } catch {
-    /* ignore */
-  }
+  window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
 }
 
 export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
@@ -104,7 +80,6 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
     if (saved) {
       try {
         await unlockVault(saved);
-        await notesStoreReencryptAll(userId);
         if (!cancelled()) setState({ kind: 'unlocked' });
         return;
       } catch {
@@ -154,7 +129,6 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
       await initVault();
       await unlockVault(pwd1);
       await savePassphrase(userId, pwd1);
-      await notesStoreReencryptAll(userId);
       if (isSyncEnabled()) void flushSync();
       setState({ kind: 'unlocked' });
     } catch (e) {
@@ -175,7 +149,6 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
     try {
       await unlockVault(pwd1);
       await savePassphrase(userId, pwd1);
-      await notesStoreReencryptAll(userId);
       if (isSyncEnabled()) void flushSync();
       setState({ kind: 'unlocked' });
     } catch (e) {

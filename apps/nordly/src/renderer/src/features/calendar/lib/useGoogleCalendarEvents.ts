@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GoogleReauthError, type GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
 import {
@@ -25,13 +25,13 @@ export function useGoogleCalendarEvents(
   const rangeKey = googleRangeKey(timeMin, timeMax);
 
   const peek = useCallback((): GoogleCalendarEvent[] | null => {
-    if (!enabled || LOCAL_ONLY) return [];
+    if (!enabled || !isCloudEnabled()) return [];
     return peekGoogleCalendarEvents(timeMin, timeMax);
   }, [enabled, timeMin, timeMax]);
 
   const [events, setEvents] = useState<GoogleCalendarEvent[]>(() => peek() ?? []);
   const [loading, setLoading] = useState(() => {
-    if (!enabled || LOCAL_ONLY) return false;
+    if (!enabled || !isCloudEnabled()) return false;
     return peek() === null;
   });
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function useGoogleCalendarEvents(
 
   const load = useCallback(async (force = false) => {
     const { timeMin: min, timeMax: max, enabled: on } = rangeRef.current;
-    if (!on || LOCAL_ONLY) {
+    if (!on || !isCloudEnabled()) {
       setEvents([]);
       setLoading(false);
       setError(null);
@@ -77,7 +77,7 @@ export function useGoogleCalendarEvents(
       if (err instanceof GoogleReauthError) {
         setReauthRequired(true);
         setError('reauth');
-      } else if (cached === null) {
+      } else {
         setError('fetch');
       }
     } finally {
@@ -95,7 +95,7 @@ export function useGoogleCalendarEvents(
   useEffect(() => subscribeGoogleCalendarCache(applyCache), [applyCache]);
 
   useEffect(() => {
-    if (LOCAL_ONLY) return;
+    if (!isCloudEnabled()) return;
     const onChanged = () => applyCache();
     window.addEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);

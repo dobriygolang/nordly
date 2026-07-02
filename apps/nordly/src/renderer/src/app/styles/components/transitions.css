@@ -25,7 +25,12 @@
   inset: 0;
   pointer-events: none;
   opacity: 1;
-  transition: opacity var(--motion-dur-large) var(--motion-ease-interactive);
+  transition:
+    opacity var(--motion-dur-poster) var(--motion-ease-poster),
+    filter var(--motion-dur-content) var(--motion-ease-content);
+}
+.nordly-canvas-shell[data-boost='true'] {
+  filter: brightness(1.04);
 }
 .nordly-chrome-shell {
   position: absolute;
@@ -35,7 +40,7 @@
   z-index: 10;
   pointer-events: none;
   opacity: 1;
-  transition: opacity var(--motion-dur-large) var(--motion-ease-interactive);
+  transition: opacity var(--motion-dur-content) var(--motion-ease-content);
 }
 .nordly-canvas-shell[data-visible='false'],
 .nordly-chrome-shell[data-visible='false'] {
@@ -50,6 +55,18 @@
   justify-content: center;
   overflow: hidden;
 }
+/* Winter: relative wrap + canvas; transition-all duration-700 on wrap. */
+.nordly-bg-poster-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: scale(1);
+  transform-origin: center center;
+  transition: transform var(--motion-dur-poster) var(--motion-ease-poster);
+}
+.nordly-canvas-shell[data-boost='true'] .nordly-bg-poster-wrap {
+  transform: scale(1.012);
+}
 /* На главном экране постер живёт в полосе между шапкой и доком. */
 .nordly-canvas-shell .nordly-bg-poster-host {
   top: 56px;
@@ -58,6 +75,12 @@
 .nordly-bg-poster-canvas {
   display: block;
   border-radius: 12px;
+  /* Размер canvas задаёт syncLayout в JS (cover); не stretch через width/height 100%. */
+}
+.nordly-bg-poster-wrap img.nordly-bg-poster-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .nordly-app-version {
@@ -88,19 +111,15 @@
   z-index: 1;
   opacity: 1;
   transform: none;
-  transition:
-    opacity var(--motion-dur-large) var(--motion-ease-emphasized),
-    transform var(--motion-dur-large) var(--motion-ease-emphasized);
-  will-change: opacity, transform;
+  transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
+  will-change: opacity;
 }
 .nordly-screen-layer[data-status='entering'] {
   opacity: 0;
-  transform: scale(1.008);
   z-index: 2;
 }
 .nordly-screen-layer[data-status='leaving'] {
   opacity: 0;
-  transform: scale(0.994);
   z-index: 1;
   pointer-events: none;
 }
@@ -117,36 +136,30 @@
 
 .nordly-page-layer {
   position: absolute;
-  top: var(--nordly-header-h);
+  top: var(--nordly-page-top);
   left: 0;
   right: 0;
   bottom: 0;
   min-height: 0;
   z-index: 1;
   opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity var(--motion-dur-medium) var(--motion-ease-emphasized),
-    transform var(--motion-dur-medium) var(--motion-ease-emphasized);
+  transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
   contain: layout style paint;
-  will-change: opacity, transform;
+  will-change: opacity;
   pointer-events: auto;
 }
 .nordly-page-layer[data-status='leaving'] {
   opacity: 0;
-  transform: translateY(-6px);
   pointer-events: none;
   z-index: 1;
 }
 .nordly-page-layer[data-status='entering'] {
   opacity: 0;
-  transform: translateY(10px);
   pointer-events: none;
   z-index: 2;
 }
 .nordly-page-layer[data-status='active'] {
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
   z-index: 2;
 }

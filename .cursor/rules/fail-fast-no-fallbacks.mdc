@@ -1,0 +1,31 @@
+---
+description: Fail fast instead of silent fallbacks or legacy compatibility paths
+alwaysApply: true
+---
+
+# Fail Fast, No Silent Fallbacks
+
+**Principle:** Prefer a clear error, blocked action, or empty honest state over returning guessed, stale, or synthesized data. Wrong silence is worse than a visible failure.
+
+## Do not
+
+- Add silent fallbacks, legacy reads, compatibility shims, placeholder data, or catch-and-ignore paths when an operation fails.
+- Keep compatibility with unshipped branch behavior — replace it outright.
+- Call a legacy endpoint or synthesize a response when the current API/schema is missing.
+- Accept dual wire formats (e.g. `camelCase || snake_case`) — pick one canonical JSON shape per service and throw on mismatch.
+- Mask failed parsing, storage, sync, or network with defaults or stale UI (keep showing old data after reload failed).
+
+## Do
+
+- Throw a typed/user-visible error, surface `loadError` / banner / menu message, or block the action.
+- Use explicit one-way migrations only: observable, writes forward, removes old path after upgrade.
+- Allow UX defaults **before user intent** only (empty forms, first-run settings) — not after a failed operation.
+- In catch blocks: rethrow, map to user-visible error, or document deliberate best-effort cleanup (Tauri dismiss, listener teardown).
+
+## Nordly app
+
+- Audit tracker: `apps/nordly/docs/architecture-audit.md` (file-level checklist + phases).
+- Layering + HTTP: `apps/nordly/.cursor/rules/nordly.mdc`.
+- Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter raw `LOCAL_ONLY` checks.
+- Settings: `shared/model/settings.ts` only; invalid blobs throw.
+- Auth REST: `syncAuthHeaders()`; `DEV_BEARER_TOKEN` dev-only.

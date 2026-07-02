@@ -28,6 +28,6 @@ export const NORDLY_EVENTS = {
   settingsChanged: 'nordly:settings-changed',
   /** Daily planning finalized or obstacles updated. */
   dailyPlanChanged: 'nordly:daily-plan-changed',
-  /** Home / hotkey → App: open daily planning overlay. */
+  /** Home / hotkey → App: navigate to daily planning. */
   openPlanning: 'nordly:open-planning',
 } as const;

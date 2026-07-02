@@ -1,13 +1,13 @@
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import { useT, useLocale } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
-import { formatColumnHeader, formatDuration, sumDurationMin } from './lib/dates';
-import { TaskInsertSlot } from './TaskInsertSlot';
-import { TaskRow } from './TaskRow';
-import { useFlipList } from './useFlipList';
+import { formatColumnHeader, formatDuration, sumDurationMin } from '@shared/lib/dates';
+import { TaskInsertSlot } from '@features/tasks/components/TaskInsertSlot';
+import { TaskRow } from '@features/tasks/components/TaskRow';
+import { useFlipList } from '@shared/lib/useFlipList';
 
 const COL_W = 254;
 
@@ -39,7 +39,7 @@ interface DayColumnProps {
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
 }
 
-export function DayColumn({
+export const DayColumn = memo(function DayColumn({
   dayKey,
   date,
   today,
@@ -155,5 +155,24 @@ export function DayColumn({
         </div>
       </div>
     </section>
+  );
+}, areDayColumnPropsEqual);
+
+function areDayColumnPropsEqual(prev: DayColumnProps, next: DayColumnProps): boolean {
+  return (
+    prev.dayKey === next.dayKey &&
+    prev.date === next.date &&
+    prev.today === next.today &&
+    prev.tasks === next.tasks &&
+    prev.durationTasks === next.durationTasks &&
+    prev.draggingId === next.draggingId &&
+    prev.draggingTask === next.draggingTask &&
+    prev.dropHighlight === next.dropHighlight &&
+    prev.dropInsertBeforeId === next.dropInsertBeforeId &&
+    prev.detailTaskId === next.detailTaskId &&
+    prev.epics === next.epics &&
+    prev.settings === next.settings &&
+    prev.editRequest === next.editRequest &&
+    prev.selected === next.selected
   );
 }

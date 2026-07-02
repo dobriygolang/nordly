@@ -43,13 +43,38 @@ export async function removeOutbox(id: string, userId?: string): Promise<void> {
   await dbDelete('outbox', rowKey(uid, id));
 }
 
-export async function bumpOutboxAttempts(entry: OutboxEntry): Promise<void> {
+export async function bumpOutboxAttempts(entry: OutboxEntry): Promise<number> {
+  const nextAttempts = entry.attempts + 1;
   const row: OutboxRow = {
     ...entry,
     key: rowKey(entry.userId, entry.id),
-    attempts: entry.attempts + 1,
+    attempts: nextAttempts,
   };
   await dbPut('outbox', row);
+  return nextAttempts;
+}
+
+export async function resetOutboxAttempts(userId?: string): Promise<number> {
+  const uid = userId ?? requireUserId();
+  const rows = await dbGetAllByUser<OutboxRow>('outbox', uid);
+  let reset = 0;
+  for (const row of rows) {
+    if (row.attempts > 0) {
+      await dbPut('outbox', { ...row, attempts: 0 });
+      reset++;
+    }
+  }
+  return reset;
+}
+
+export async function hasOutboxForEntity(
+  domain: SyncDomain,
+  entityId: string,
+  op?: OutboxOp,
+  userId?: string,
+): Promise<boolean> {
+  const rows = await listOutbox(userId);
+  return rows.some((row) => row.domain === domain && row.entityId === entityId && (!op || row.op === op));
 }
 
 export async function outboxCount(userId?: string): Promise<number> {

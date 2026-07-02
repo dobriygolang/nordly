@@ -1,7 +1,7 @@
 // useGlobalHotkeys — global keyboard listener for Nordly hotkeys.
 import { useEffect, useRef } from 'react';
 
-import type { PageId } from '@widgets/Palette';
+import type { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
 interface GlobalHotkeysDeps {

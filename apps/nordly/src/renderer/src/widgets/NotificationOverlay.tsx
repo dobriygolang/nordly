@@ -4,15 +4,16 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
 import { Icon } from '@shared/ui/primitives/Icon';
+import { NOTIFY_AUTO_DISMISS_MS } from '@shared/api/notifications';
 import { applyTheme } from '@shared/lib/applyTheme';
-import { readStoredTheme } from '@shared/model/prefs';
+import { readStoredTheme } from '@shared/model/theme';
+import type { ThemeId } from '@shared/model/theme';
 
 interface NotificationPayload {
   title: string;
   body: string;
 }
 
-const AUTO_DISMISS_MS = 30_000;
 const SWIPE_DISMISS_PX = 72;
 const CLOSE_ANIM_MS = 320;
 
@@ -43,7 +44,7 @@ export function NotificationOverlayApp(): JSX.Element {
     clearDismissTimer();
     dismissTimerRef.current = window.setTimeout(() => {
       requestDismiss();
-    }, AUTO_DISMISS_MS);
+    }, NOTIFY_AUTO_DISMISS_MS);
   }, [clearDismissTimer, requestDismiss]);
 
   useEffect(() => {
@@ -71,6 +72,10 @@ export function NotificationOverlayApp(): JSX.Element {
         setDragX(0);
         setDragging(false);
       }, CLOSE_ANIM_MS);
+    }).then((off) => unsubs.push(off));
+
+    void listen<ThemeId>('theme:sync', ({ payload }) => {
+      applyTheme(payload);
     }).then((off) => unsubs.push(off));
 
     return () => {

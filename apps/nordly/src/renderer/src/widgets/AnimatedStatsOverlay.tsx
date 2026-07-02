@@ -2,7 +2,9 @@ import { memo, useEffect, useState } from 'react';
 
 import { StatsOverlayCards } from './StatsOverlayCards';
 
-const UNMOUNT_DELAY_MS = 320;
+import { MOTION_MS } from '@shared/lib/motionMs';
+
+const UNMOUNT_DELAY_MS = MOTION_MS.medium;
 
 export const AnimatedStatsOverlay = memo(function AnimatedStatsOverlay({
   open,

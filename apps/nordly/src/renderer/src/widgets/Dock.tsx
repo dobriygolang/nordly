@@ -4,6 +4,7 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { usePomodoroStore } from '@shared/model/pomodoro';
+import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
 // Локальный CSS — keyframes для mount-анимации + hover-варианты для
@@ -43,7 +44,7 @@ const DOCK_CSS = `
 }
 .nordly-dock-btn__icon {
   display: flex;
-  transition: transform var(--motion-dur-xxlarge) var(--motion-ease-interactive);
+  transition: transform var(--motion-dur-medium) var(--motion-ease-interactive);
 }
 .nordly-dock-btn[data-variant="menu"]:hover .nordly-dock-btn__icon {
   transform: rotate(180deg);
@@ -72,13 +73,29 @@ const DOCK_CSS = `
   align-items: center;
   justify-content: center;
   transition:
-    opacity var(--motion-dur-large) var(--motion-ease-emphasized),
-    transform var(--motion-dur-large) var(--motion-ease-emphasized);
+    opacity var(--motion-dur-medium) var(--motion-ease-interactive),
+    transform var(--motion-dur-medium) var(--motion-ease-interactive);
 }
 
 .nordly-dock-timer-layer--time {
-  gap: 4px;
-  transition-delay: 50ms;
+  gap: 6px;
+  transition-delay: 25ms;
+}
+
+.nordly-dock-timer-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--ink);
+  opacity: 0.86;
+}
+
+.nordly-dock-timer-display {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
 }
 
 .nordly-dock-timer-layer--reset {
@@ -99,7 +116,7 @@ const DOCK_CSS = `
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-  transition-delay: 60ms;
+  transition-delay: 30ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -189,11 +206,15 @@ function TimerControls() {
   const toggle = usePomodoroStore((s) => s.toggle);
   const reset = usePomodoroStore((s) => s.reset);
   const displaySec = mode === 'pomodoro' ? remain : elapsed;
-  const mm = String(Math.floor(displaySec / 60)).padStart(2, '0');
-  const ss = String(displaySec % 60).padStart(2, '0');
+
   return (
     <>
-      <TimerArea running={running} mm={mm} ss={ss} onReset={reset} />
+      <TimerArea
+        mode={mode}
+        totalSec={displaySec}
+        running={running}
+        onReset={reset}
+      />
       <Divider />
       <DockBtn
         onClick={toggle}
@@ -210,29 +231,25 @@ function TimerControls() {
 
 
 interface TimerAreaProps {
+  mode: 'pomodoro' | 'stopwatch';
+  totalSec: number;
   running: boolean;
-  mm: string;
-  ss: string;
   onReset: () => void;
 }
 
-function TimerArea({ running, mm, ss, onReset }: TimerAreaProps) {
+function TimerArea({ mode, totalSec, running, onReset }: TimerAreaProps) {
   const t = useT();
   return (
     <div className="nordly-dock-timer">
       <div className="nordly-dock-timer-layer nordly-dock-timer-layer--time">
-        <span
-          style={{
-            width: 9,
-            height: 9,
-            borderRadius: 99,
-            background: running ? 'var(--ink)' : 'transparent',
-            border: `1px solid ${running ? 'var(--ink)' : 'var(--ink-60)'}`,
-          }}
-        />
-        <span className="mono" style={{ fontSize: 14, letterSpacing: '0.04em', color: 'var(--ink)' }}>
-          {mm}:{ss}
+        <span className="nordly-dock-timer-mode" aria-hidden="true">
+          <Icon name={mode === 'pomodoro' ? 'pomodoro' : 'infinity'} size={14} strokeWidth={2} />
         </span>
+        <OdometerTimer
+          totalSec={totalSec}
+          running={running}
+          className="nordly-dock-timer-display"
+        />
       </div>
       <div className="nordly-dock-timer-layer nordly-dock-timer-layer--reset">
         <ModeCycleBtn />

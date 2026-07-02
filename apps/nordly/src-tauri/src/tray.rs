@@ -98,11 +98,6 @@ fn toggle_popover(app: &tauri::AppHandle) {
         return;
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        let _ = app.show();
-    }
-
     let _ = popover.move_window(Position::TrayCenter);
     let _ = window_macos::set_content_corner_radius(&popover, 16.0);
     let _ = popover.show();

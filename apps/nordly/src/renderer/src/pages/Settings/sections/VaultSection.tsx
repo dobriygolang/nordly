@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { notesStoreReencryptAll } from '@features/notes/repository/notesStore';
-import { pushAllNotesEncrypted } from '@shared/sync/domains/notesSync';
+import { pushAllNotesEncrypted } from '@features/notes/sync/notesSync';
 import { flushSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import {
@@ -23,7 +22,6 @@ import {
   validateRecoveryPhrase,
 } from '@shared/crypto/recoveryKey';
 import {
-  isVaultEnabledSync,
   loadVaultPrefs,
   setVaultEnabled,
 } from '@shared/crypto/vaultPrefs';
@@ -75,7 +73,6 @@ export function VaultSection() {
       if (!userId) return;
       await saveRecoveryWrap(passphrase, recoveryPhrase);
       await setVaultEnabled(true, userId);
-      await notesStoreReencryptAll(userId);
       if (isSyncEnabled()) {
         await pushAllNotesEncrypted();
         flushSync();
@@ -154,7 +151,6 @@ export function VaultSection() {
       const wrap = await hasRecoveryWrap();
       if (wrap) {
         await setVaultEnabled(true, userId!);
-        await notesStoreReencryptAll(userId!);
         if (isSyncEnabled()) flushSync();
         setEnabled(true);
         setModal(null);
@@ -177,7 +173,6 @@ export function VaultSection() {
       const pass = await recoverPassphraseFromPhrase(normalizeRecoveryPhrase(recoveryInput));
       await unlockVault(pass);
       await setVaultEnabled(true, userId!);
-      await notesStoreReencryptAll(userId!);
       if (isSyncEnabled()) flushSync();
       setEnabled(true);
       setUnlocked(true);
@@ -407,9 +402,4 @@ function VaultPassForm({
       </button>
     </form>
   );
-}
-
-/** Used by publish flow — vault enabled but locked blocks share. */
-export function isVaultReadyForPublish(): boolean {
-  return !isVaultEnabledSync() || isVaultUnlocked();
 }

@@ -49,3 +49,29 @@ Do **not** add per-endpoint Rust HTTP commands for normal REST — extend `apiFe
 - Prod build: `API_BASE_URL` = `https://trynordly.app` (override with `VITE_NORDLY_API_BASE`).
 
 Full endpoint list: [apps/nordly/AGENTS.md](../AGENTS.md).
+
+## Fail fast — no silent fallbacks
+
+Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fail-fast-no-fallbacks.mdc). Nordly-specific:
+
+- **Authenticated REST:** use `syncAuthHeaders()` from `shared/api/authToken.ts`. Never send unauthenticated requests when sync/cloud is expected. `DEV_BEARER_TOKEN` is **dev-only** (`import.meta.env.DEV`).
+- **Settings:** single reader — `shared/model/settings.ts` (`readSettings`, `persistSettings`). Invalid/missing required fields **throw**; one-way migration only for missing new keys.
+- **Cloud mode:** `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter `LOCAL_ONLY` or duplicate guards.
+- **JSON API:** grpc-gateway protojson uses camelCase — use `shared/api/json.ts` (`requireJsonString`, etc.). No dual `camelCase ?? snake_case` reads.
+- **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / `SyncStatusBanner` / throw). Do not `catch {}` and refresh silently.
+- **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
+
+Audit tracker: [docs/architecture-audit.md](../docs/architecture-audit.md).
+
+## Renderer layering
+
+```
+platform/   IPC + runtime
+shared/     db, sync, crypto, model, lib, ui — never import pages/ or widgets/
+features/   domain api + repository + hooks — never import pages/
+pages/      route composition
+widgets/    chrome/overlays — import features + shared, not pages/lib
+app/        bootstrap + shell
+```
+
+Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).

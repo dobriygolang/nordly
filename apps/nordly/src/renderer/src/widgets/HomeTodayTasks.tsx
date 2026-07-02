@@ -6,24 +6,15 @@ import { listTasks, moveTaskStatus, type TaskCard } from '@features/tasks/api/ta
 import { focusStoreList } from '@features/focus/repository/focusStore';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
-import { loadDailyPlan, type DailyPlanRecord } from '@pages/DailyPlanning/lib/dailyPlanStore';
-import {
-  computePlanProgress,
-  isPlanFinalizedToday,
-  parseObstacleLines,
-} from '@pages/DailyPlanning/lib/planningProgress';
-import { tasksForToday } from '@pages/DailyPlanning/lib/planningTasks';
-import { toDayKey } from '@pages/TaskBoard/lib/dates';
-import { useFlipList } from '@pages/TaskBoard/useFlipList';
+import { loadDailyPlan, type DailyPlanRecord } from '@features/planning/repository/dailyPlanStore';
+import { isPlanFinalizedToday, parseObstacleLines } from '@features/planning/lib/planningProgress';
+import { tasksForToday } from '@features/planning/lib/planningTasks';
+import { defaultDurationMin, toDayKey } from '@shared/lib/dates';
+import { useFlipList } from '@shared/lib/useFlipList';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { usePomodoroStore } from '@shared/model/pomodoro';
+import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
-
-function formatFocusMmSs(totalSec: number): string {
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
 
 function focusSecondsTodayForTask(
   sessions: Awaited<ReturnType<typeof focusStoreList>>,
@@ -39,9 +30,6 @@ function focusSecondsTodayForTask(
 }
 
 function sortHomeTasks(a: TaskCard, b: TaskCard): number {
-  const aDone = a.status === 'done' ? 1 : 0;
-  const bDone = b.status === 'done' ? 1 : 0;
-  if (aDone !== bDone) return bDone - aDone;
   const aOrder = a.order ?? new Date(a.createdAt).getTime();
   const bOrder = b.order ?? new Date(b.createdAt).getTime();
   return aOrder - bOrder;
@@ -54,46 +42,41 @@ export function HomeTodayTasks(): JSX.Element {
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [focusSessions, setFocusSessions] = useState<Awaited<ReturnType<typeof focusStoreList>>>([]);
   const [dailyPlan, setDailyPlan] = useState<DailyPlanRecord>({});
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
   const activeId = usePomodoroStore((s) => s.pinnedPlanItemId);
   const running = usePomodoroStore((s) => s.running);
   const mode = usePomodoroStore((s) => s.mode);
   const remain = usePomodoroStore((s) => s.remain);
   const elapsed = usePomodoroStore((s) => s.elapsed);
-  const displaySec = mode === 'pomodoro' ? remain : elapsed;
+  const durationSec = usePomodoroStore((s) => s.durationSec);
   const toggle = usePomodoroStore((s) => s.toggle);
 
   const refresh = useCallback(async () => {
-    try {
-      const [taskList, sessions] = await Promise.all([listTasks(), focusStoreList()]);
-      setTasks(taskList);
-      setFocusSessions(sessions);
-    } catch {
-      /* keep stale */
-    }
+    const [taskList, sessions] = await Promise.all([listTasks(), focusStoreList()]);
+    setTasks(taskList);
+    setFocusSessions(sessions);
+    setLoadError(null);
   }, []);
 
   const refreshPlan = useCallback(async () => {
-    try {
-      setDailyPlan(await loadDailyPlan(todayKey));
-    } catch {
-      /* keep stale */
-    }
+    setDailyPlan(await loadDailyPlan(todayKey));
+    setLoadError(null);
   }, [todayKey]);
 
   useEffect(() => {
-    void refresh();
-    void refreshPlan();
+    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    void refreshPlan().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
   }, [refresh, refreshPlan]);
 
   useEffect(() => {
-    const onTasksChanged = () => void refresh();
+    const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
   }, [refresh]);
 
   useEffect(() => {
-    const onPlanChanged = () => void refreshPlan();
+    const onPlanChanged = () => void refreshPlan().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
     window.addEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
   }, [refreshPlan]);
@@ -104,13 +87,9 @@ export function HomeTodayTasks(): JSX.Element {
   );
 
   const planFinalized = isPlanFinalizedToday(dailyPlan, todayKey);
-  const planProgress = computePlanProgress(dailyPlan.snapshot, todayTasks);
   const obstacles = parseObstacleLines(dailyPlan.obstacles);
 
-  const listRef = useFlipList(
-    todayTasks.map((task) => task.id),
-    todayTasks.map((task) => `${task.id}:${task.status}`).join('|'),
-  );
+  const listRef = useFlipList(todayTasks.map((task) => task.id));
 
   const startPomodoro = (task: TaskCard) => {
     usePomodoroStore.getState().start({ planItemId: task.id, pinnedTitle: task.title });
@@ -121,18 +100,17 @@ export function HomeTodayTasks(): JSX.Element {
       const next = task.status === 'done' ? 'todo' : 'done';
       setTasks((prev) => prev.map((item) => (item.id === task.id ? { ...item, status: next } : item)));
       try {
-        await moveTaskStatus(task.id, next);
+        const updated = await moveTaskStatus(task.id, next);
+        setTasks((prev) => prev.map((item) => (item.id === task.id ? updated : item)));
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-      } catch {
-        void refresh();
+      } catch (err) {
+        setLoadError(err instanceof Error ? err : new Error(String(err)));
       }
     },
-    [refresh],
+    [],
   );
 
-  const openPlanning = () => {
-    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openPlanning));
-  };
+  if (loadError) throw loadError;
 
   if (todayTasks.length === 0 && !planFinalized) {
     return (
@@ -144,25 +122,6 @@ export function HomeTodayTasks(): JSX.Element {
 
   return (
     <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
-      {planFinalized && planProgress ? (
-        <header className="nordly-home-today__plan">
-          <span className="nordly-home-today__plan-label">{t('nordly.home.plan_ready')}</span>
-          <span className="nordly-home-today__plan-progress mono">
-            {t('nordly.home.plan_progress', {
-              done: planProgress.doneCount,
-              total: planProgress.plannedTotal,
-            })}
-          </span>
-          <button
-            type="button"
-            className="nordly-home-today__plan-edit focus-ring"
-            onClick={openPlanning}
-          >
-            {t('nordly.home.plan_edit')}
-          </button>
-        </header>
-      ) : null}
-
       {todayTasks.length === 0 ? (
         <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
       ) : (
@@ -171,9 +130,13 @@ export function HomeTodayTasks(): JSX.Element {
             const done = task.status === 'done';
             const epicColor = resolveTaskEpicColor(task, epics);
             const isActive = activeId === task.id;
-            const timerSec = isActive
-              ? displaySec
-              : focusSecondsTodayForTask(focusSessions, task.id, todayKey);
+            const focusedTodaySec = focusSecondsTodayForTask(focusSessions, task.id, todayKey);
+            const activeSessionSec =
+              isActive ? (mode === 'pomodoro' ? Math.max(0, durationSec - remain) : elapsed) : 0;
+            const timerSec = Math.max(
+              0,
+              defaultDurationMin(task) * 60 - focusedTodaySec - activeSessionSec,
+            );
 
             return (
               <div
@@ -201,7 +164,11 @@ export function HomeTodayTasks(): JSX.Element {
                 </button>
                 {!done ? (
                   <span className="nordly-home-today__meta">
-                    <span className="nordly-home-today__timer mono">{formatFocusMmSs(timerSec)}</span>
+                    <OdometerTimer
+                      totalSec={timerSec}
+                      running={isActive && running}
+                      className="nordly-home-today__timer"
+                    />
                     <button
                       type="button"
                       className="nordly-home-today__play focus-ring"

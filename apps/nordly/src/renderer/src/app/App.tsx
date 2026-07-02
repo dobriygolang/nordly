@@ -4,18 +4,17 @@ import { emit, listen } from '@tauri-apps/api/event';
 
 import { translate } from '@nordly-i18n';
 
-import { CanvasBg, type ThemeId } from '@widgets/CanvasBg';
+import { CanvasBg } from '@widgets/CanvasBg';
+import { type ThemeId, readStoredTheme } from '@shared/model/theme';
 import { Wordmark, AppVersionBadge } from '@widgets/Chrome';
 import { TitlebarDrag } from '@widgets/TitlebarDrag';
 import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
 import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
-import { AnimatedCalendarOverlay } from '@widgets/AnimatedCalendarOverlay';
-import { AnimatedDailyPlanningOverlay } from '@widgets/AnimatedDailyPlanningOverlay';
 import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
-import { type PageId, type PaletteAction } from '@widgets/Palette';
+import { type PageId, type PaletteAction, isPageId } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
@@ -23,28 +22,32 @@ import {
   parseDayKey,
   resolveScheduleStart,
   toDayKey,
-} from '@pages/TaskBoard/lib/dates';
+} from '@shared/lib/dates';
 import { HomePage } from '@pages/Home';
-import { readStoredTheme } from '@shared/model/prefs';
-import { readSettings } from '@pages/Settings/lib/settings-store';
+import { patchSettings } from '@shared/model/settings';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
-import { applyTheme } from '@shared/lib/applyTheme';
+import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
+import { isTauriRuntime } from '@platform/runtime';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
-import { LOCAL_ONLY } from '@app/config/features';
-import { migrateLocalStorageIfNeeded } from '@shared/sync/migrateLocalStorage';
+import { isCloudEnabled } from '@shared/model/features';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
 import {
   startGoogleCalendarSyncWorker,
   stopGoogleCalendarSyncWorker,
 } from '@features/calendar/lib/googleCalendarSyncWorker';
+import {
+  startCalendarReminderWorker,
+  stopCalendarReminderWorker,
+} from '@features/calendar/lib/calendarReminderWorker';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { MOTION_MS } from '@shared/lib/motionMs';
 
 const TaskBoardPage = lazy(() => import('@pages/TaskBoard').then((m) => ({ default: m.TaskBoardPage })));
 const NotesPage = lazy(() => import('@pages/Notes').then((m) => ({ default: m.NotesPage })));
@@ -52,12 +55,20 @@ const SettingsPage = lazy(() => import('@pages/Settings').then((m) => ({ default
 const WhiteboardPage = lazy(() =>
   import('@pages/Whiteboard').then((m) => ({ default: m.WhiteboardPage })),
 );
+const CalendarPage = lazy(() =>
+  import('@pages/Calendar/CalendarModal').then((m) => ({ default: m.CalendarModal })),
+);
+const DailyPlanningPage = lazy(() =>
+  import('@pages/DailyPlanning/DailyPlanningModal').then((m) => ({
+    default: m.DailyPlanningModal,
+  })),
+);
 const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
 );
 
-/** Must match palette close transition in globals.css (`--motion-dur-medium`). */
-const PALETTE_CLOSE_MS = 320;
+/** Must match palette close transition (`--motion-dur-medium`). */
+const PALETTE_CLOSE_MS = MOTION_MS.medium;
 
 function preloadPalettePages(): void {
   void import('@pages/TaskBoard');
@@ -69,7 +80,9 @@ function preloadPalettePages(): void {
 
 type StartFocusArgs = PomodoroStartArgs;
 
-const NAV_PAGES = new Set<PageId>(['home', 'today', 'notes', 'whiteboard', 'settings']);
+function boardCanvasForTheme(theme: ThemeId): BoardCanvasTheme {
+  return isLightTheme(theme) ? 'light' : 'dark';
+}
 
 export default function App() {
   const status = useSessionStore((s) => s.status);
@@ -81,46 +94,30 @@ export default function App() {
   const PAGE_STORAGE_KEY = 'nordly:lastPage:v1';
   const readStoredPage = (): PageId => {
     if (typeof window === 'undefined') return 'home';
-    try {
-      const v = window.sessionStorage.getItem(PAGE_STORAGE_KEY);
-      if (v === 'stats') return 'home';
-      if (v && NAV_PAGES.has(v as PageId)) return v as PageId;
-    } catch {
-      /* sessionStorage may be unavailable */
-    }
-    return 'home';
+    const v = window.sessionStorage.getItem(PAGE_STORAGE_KEY);
+    if (v === null) return 'home';
+    if (isPageId(v)) return v;
+    throw new Error(`Invalid stored page: ${v}`);
   };
 
   const [page, setPageRaw] = useState<PageId>(() => readStoredPage());
   const [statsOpen, setStatsOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
-    try {
-      return window.sessionStorage.getItem(PAGE_STORAGE_KEY) === 'stats';
-    } catch {
-      return false;
-    }
+    return window.sessionStorage.getItem(PAGE_STORAGE_KEY) === 'stats';
   });
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [planningOpen, setPlanningOpen] = useState(false);
 
   const setPage = useCallback((next: PageId | ((p: PageId) => PageId)) => {
     setPageRaw((current) => {
       const resolved = typeof next === 'function' ? next(current) : next;
-      try {
-        window.sessionStorage.setItem(PAGE_STORAGE_KEY, resolved);
-      } catch {
-        /* ignore */
-      }
+      window.sessionStorage.setItem(PAGE_STORAGE_KEY, resolved);
       return resolved;
     });
   }, []);
 
   const navigateTo = useCallback(
     (id: PageId) => {
-      if (id === page) return;
       setStatsOpen(false);
-      setCalendarOpen(false);
-      setPlanningOpen(false);
+      if (id === page) return;
       setPage(id);
     },
     [page, setPage],
@@ -132,13 +129,17 @@ export default function App() {
   const [paletteTaskDate, setPaletteTaskDate] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => readStoredTheme());
   const [boardCanvas, setBoardCanvas] = useState<BoardCanvasTheme>(
-    () => readSettings().boardCanvas,
+    () => boardCanvasForTheme(readStoredTheme()),
   );
   const [vaultGateActive, setVaultGateActive] = useState(false);
+  const [operationError, setOperationError] = useState<Error | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
-    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    const nextBoardCanvas = boardCanvasForTheme(theme);
+    setBoardCanvas(nextBoardCanvas);
+    patchSettings({ boardCanvas: nextBoardCanvas });
+    if (isTauriRuntime()) {
       void emit('theme:sync', theme);
     }
   }, [theme]);
@@ -241,15 +242,16 @@ export default function App() {
     if (status !== 'signed_in' || !userId) {
       stopSyncEngine();
       stopGoogleCalendarSyncWorker();
+      stopCalendarReminderWorker();
       return;
     }
     let cancelled = false;
+    startCalendarReminderWorker();
     void (async () => {
-      await migrateLocalStorageIfNeeded(userId);
       await loadVaultPrefs(userId);
       if (cancelled) return;
-      setVaultGateActive(!LOCAL_ONLY && isVaultEnabledSync());
-      if (!LOCAL_ONLY) {
+      setVaultGateActive(isCloudEnabled() && isVaultEnabledSync());
+      if (isCloudEnabled()) {
         startSyncEngine();
         startGoogleCalendarSyncWorker();
       }
@@ -258,15 +260,16 @@ export default function App() {
       cancelled = true;
       stopSyncEngine();
       stopGoogleCalendarSyncWorker();
+      stopCalendarReminderWorker();
     };
   }, [status, userId]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
     void import('@shared/api/device').then(({ ensureDevice }) => {
-      void ensureDevice({ appVersion: '0.0.1' }).catch(() => {
-        /* silent */
-      });
+      void ensureDevice({ appVersion: '0.0.1' }).catch((err: unknown) =>
+        setOperationError(err instanceof Error ? err : new Error(String(err))),
+      );
     });
   }, [status]);
 
@@ -290,8 +293,6 @@ export default function App() {
   );
 
   const openStats = useCallback(() => {
-    setCalendarOpen(false);
-    setPlanningOpen(false);
     navigateTo('home');
     setStatsOpen(true);
   }, [navigateTo]);
@@ -301,27 +302,18 @@ export default function App() {
   }, []);
 
   const openCalendar = useCallback(() => {
-    setStatsOpen(false);
-    setPlanningOpen(false);
-    setCalendarOpen(true);
-  }, []);
+    navigateTo('calendar');
+  }, [navigateTo]);
 
   const closeCalendar = useCallback(() => {
-    setCalendarOpen(false);
-  }, []);
+    navigateTo('home');
+  }, [navigateTo]);
 
   const openPlanning = useCallback(() => {
-    setStatsOpen(false);
-    setCalendarOpen(false);
-    setPlanningOpen(true);
-  }, []);
+    navigateTo('planning');
+  }, [navigateTo]);
 
   const closePlanning = useCallback(() => {
-    setPlanningOpen(false);
-  }, []);
-
-  const completePlanning = useCallback(() => {
-    setPlanningOpen(false);
     navigateTo('home');
   }, [navigateTo]);
 
@@ -355,7 +347,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     void listen('app:open-palette', () => {
       openPalette();
@@ -405,12 +397,12 @@ export default function App() {
         const start = resolveScheduleStart(dayKey, existing, date);
         created = await scheduleTask(created.id, start, 30);
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-        if (!planningOpen) navigateTo('today');
-      } catch {
-        /* silent */
+        if (page !== 'planning') navigateTo('today');
+      } catch (err) {
+        setOperationError(err instanceof Error ? err : new Error(String(err)));
       }
     },
-    [closePalette, navigateTo, planningOpen],
+    [closePalette, navigateTo, page],
   );
 
   useEffect(() => {
@@ -427,7 +419,6 @@ export default function App() {
 
   const goHome = useCallback(() => {
     setStatsOpen(false);
-    setCalendarOpen(false);
     navigateTo('home');
   }, [navigateTo]);
 
@@ -435,7 +426,6 @@ export default function App() {
     const onNavTask = (e: Event) => {
       const taskId = (e as CustomEvent<{ taskId?: string }>).detail?.taskId;
       if (!taskId) return;
-      setCalendarOpen(false);
       setStatsOpen(false);
       navigateTo('today');
       window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openTask, { detail: { taskId } }));
@@ -471,8 +461,8 @@ export default function App() {
     page,
     paletteOpen,
     statsOpen,
-    calendarOpen,
-    planningOpen,
+    calendarOpen: page === 'calendar',
+    planningOpen: page === 'planning',
     setPaletteOpen: (fn) => {
       const next = fn(paletteOpen);
       if (next) openPalette();
@@ -500,6 +490,10 @@ export default function App() {
             return <NotesPage />;
           case 'whiteboard':
             return <WhiteboardPage boardCanvas={boardCanvas} />;
+          case 'calendar':
+            return <CalendarPage onClose={() => navigateTo('home')} />;
+          case 'planning':
+            return <DailyPlanningPage onClose={() => navigateTo('home')} />;
           case 'settings':
             return (
               <SettingsPage
@@ -514,8 +508,12 @@ export default function App() {
             return null;
         }
       },
-    [theme, boardCanvas],
+    [theme, boardCanvas, navigateTo],
   );
+
+  const posterBoost = statsOpen || paletteMounted;
+
+  if (operationError) throw operationError;
 
   const renderScreen = (screenId: string): JSX.Element => {
     if (screenId === 'loading') {
@@ -540,8 +538,16 @@ export default function App() {
 
     const signedInShell = (
       <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
-        <div className="nordly-canvas-shell" data-visible={page === 'home' ? 'true' : 'false'}>
-          <CanvasBg mode={page === 'home' ? 'full' : 'void'} theme={theme} />
+        <div
+          className="nordly-canvas-shell"
+          data-visible={page === 'home' ? 'true' : 'false'}
+          data-boost={posterBoost ? 'true' : 'false'}
+        >
+          <CanvasBg
+            mode={page === 'home' ? 'full' : 'quiet'}
+            theme={theme}
+            boost={posterBoost}
+          />
         </div>
 
         <TitlebarDrag />
@@ -559,12 +565,6 @@ export default function App() {
         <PageStack page={page}>{renderPage}</PageStack>
 
         {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
-        <AnimatedCalendarOverlay open={calendarOpen} onClose={closeCalendar} />
-        <AnimatedDailyPlanningOverlay
-          open={planningOpen}
-          onClose={closePlanning}
-          onComplete={completePlanning}
-        />
 
         <PomodoroController />
 

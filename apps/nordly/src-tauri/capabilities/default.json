@@ -15,7 +15,7 @@
     "core:default",
     "core:window:allow-start-dragging",
     "positioner:default",
-    "shell:allow-open",
+    "opener:default",
     "deep-link:default",
     "store:default",
     "allow-nordly-commands",

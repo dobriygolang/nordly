@@ -135,6 +135,14 @@
   color: var(--ink-40);
   line-height: 1.2;
 }
+.nordly-note-menu__error {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--danger, #e05252);
+  word-break: break-word;
+}
 .nordly-note-menu__item {
   display: flex;
   align-items: center;
@@ -375,15 +383,10 @@
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
 }
 
-/* Hidden markdown tokens — zero width, skipped atomically by arrow keys */
+/* Hidden markdown tokens keep their geometry so arrow navigation stays one line at a time. */
 .nordly-md-syntax-hidden {
-  display: inline-block;
-  width: 0;
-  overflow: hidden;
+  color: transparent;
   opacity: 0;
-  font-size: 0;
-  line-height: 0;
-  vertical-align: baseline;
   pointer-events: none;
   user-select: none;
 }
@@ -407,7 +410,6 @@
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   padding-top: 0.5rem;
-  margin-top: 0.35rem;
 }
 
 .nordly-live-md .cm-line.nordly-md-code-block:not(:has(+ .nordly-md-code-block)) {
@@ -415,7 +417,6 @@
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
   padding-bottom: 0.5rem;
-  margin-bottom: 0.35rem;
 }
 
 .nordly-md-code-block__fence {

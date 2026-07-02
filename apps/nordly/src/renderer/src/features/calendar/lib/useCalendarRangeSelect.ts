@@ -4,7 +4,7 @@ import {
   CALENDAR_GRID_END_HOUR,
   CALENDAR_GRID_START_HOUR,
 } from '@features/calendar/lib/events';
-import { snapMinutes } from '@pages/TaskBoard/lib/dates';
+import { snapMinutes } from '@shared/lib/dates';
 
 const MOVE_THRESHOLD_PX = 4;
 const MIN_DURATION_MIN = 15;

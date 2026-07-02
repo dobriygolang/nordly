@@ -7,7 +7,7 @@ import type { NoteSummary, PublishStatus } from '@features/notes/api/notesClient
 import { getPublishStatus, isNoteVaultLocked } from '@features/notes/api/notesClient';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
-import { isVaultReadyForPublish } from '@pages/Settings/sections/VaultSection';
+import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 
 import { NoteRowMenu } from './NoteRowMenu';
 
@@ -36,6 +36,7 @@ export const NoteRow = memo(function NoteRow({
   const [hover, setHover] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
+  const [pubStatusLoadFailed, setPubStatusLoadFailed] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -57,12 +58,15 @@ export const NoteRow = memo(function NoteRow({
   useEffect(() => {
     if (!menuOpen || !isSyncEnabled()) return;
     let live = true;
+    setPubStatusLoadFailed(false);
     void getPublishStatus(note.id)
       .then((s) => {
         if (live) setPubStatus(s);
       })
       .catch(() => {
-        /* offline or not synced yet */
+        if (!live) return;
+        setPubStatus(null);
+        setPubStatusLoadFailed(true);
       });
     return () => {
       live = false;
@@ -197,6 +201,7 @@ export const NoteRow = memo(function NoteRow({
             published={!!pubStatus?.published}
             cloudEnabled={isSyncEnabled()}
             vaultReady={isVaultReadyForPublish()}
+            publishStatusLoadFailed={pubStatusLoadFailed}
             style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: MENU_W }}
             onPublish={() => void handlePublish()}
             onCopyLink={() => void copyLink()}

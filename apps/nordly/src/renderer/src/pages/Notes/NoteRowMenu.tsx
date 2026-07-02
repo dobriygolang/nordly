@@ -8,6 +8,7 @@ export interface NoteRowMenuProps {
   published: boolean;
   cloudEnabled: boolean;
   vaultReady: boolean;
+  publishStatusLoadFailed?: boolean;
   style?: React.CSSProperties;
   onPublish: () => void;
   onCopyLink: () => void;
@@ -53,7 +54,7 @@ function MenuDivider() {
 
 export const NoteRowMenu = memo(
   forwardRef<HTMLDivElement, NoteRowMenuProps>(function NoteRowMenu(
-    { published, cloudEnabled, vaultReady, style, onPublish, onCopyLink, onViewPublic, onRegenerate, onUnpublish, onDelete },
+    { published, cloudEnabled, vaultReady, publishStatusLoadFailed, style, onPublish, onCopyLink, onViewPublic, onRegenerate, onUnpublish, onDelete },
     ref,
   ) {
     const t = useT();
@@ -68,6 +69,9 @@ export const NoteRowMenu = memo(
         role="menu"
       >
         <div className="nordly-note-menu__label mono">{t('nordly.notes.menu.publishing')}</div>
+        {publishStatusLoadFailed ? (
+          <p className="nordly-note-menu__error mono">{t('nordly.notes.menu.publish_status_error')}</p>
+        ) : null}
         {published ? (
           <>
             <MenuItem

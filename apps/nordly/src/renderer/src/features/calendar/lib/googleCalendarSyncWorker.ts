@@ -1,7 +1,7 @@
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { LOCAL_ONLY } from '@app/config/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { googleCalendarPollIntervalMs } from '@pages/Settings/lib/settings-store';
+import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
 
 import {
@@ -33,13 +33,9 @@ function dispatchChanged(): void {
 }
 
 async function shouldSync(): Promise<boolean> {
-  if (LOCAL_ONLY || !isSyncEnabled() || !canReachNetwork()) return false;
-  try {
-    const s = await getTrackerSettings();
-    return s.googleCalendarConnected && !s.googleReauthRequired;
-  } catch {
-    return false;
-  }
+  if (!isSyncEnabled() || !canReachNetwork()) return false;
+  const s = await getTrackerSettings();
+  return s.googleCalendarConnected && !s.googleReauthRequired;
 }
 
 async function runCycle(force = false): Promise<void> {
@@ -58,7 +54,9 @@ async function runCycle(force = false): Promise<void> {
     if (err instanceof GoogleReauthError) {
       invalidateGoogleCalendarCache();
       dispatchChanged();
+      return;
     }
+    throw err;
   } finally {
     running = false;
   }
@@ -76,7 +74,7 @@ export function notifyGoogleCalendarConnected(): void {
 }
 
 export function startGoogleCalendarSyncWorker(): void {
-  if (started || LOCAL_ONLY) return;
+  if (started || !isCloudEnabled()) return;
   started = true;
 
   void runCycle(false);

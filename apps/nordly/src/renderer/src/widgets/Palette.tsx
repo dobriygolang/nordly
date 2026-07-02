@@ -8,19 +8,12 @@ import {
   buildCreateScheduleDate,
   formatWhenChipWithTime,
   startOfLocalDay,
-} from '@pages/TaskBoard/lib/dates';
-import { TimePicker } from '@pages/TaskBoard/TimePicker';
+} from '@shared/lib/dates';
+import { TimePicker } from '@features/tasks/components/TimePicker';
 
-export type PageId =
-  | 'home'
-  | 'today'
-  | 'notes'
-  | 'whiteboard'
-  | 'stats'
-  | 'calendar'
-  | 'settings';
+export type { PageId, PaletteAction } from '@shared/model/navigation';
 
-export type PaletteAction = PageId | 'stats' | 'calendar' | 'planning';
+import type { PaletteAction } from '@shared/model/navigation';
 
 interface PaletteProps {
   onClose: () => void;
@@ -62,6 +55,7 @@ const PALETTE_PAGE_PRELOAD: Partial<Record<string, () => void>> = {
   planning: () => void import('@pages/DailyPlanning/DailyPlanningModal'),
   notes: () => void import('@pages/Notes'),
   whiteboard: () => void import('@pages/Whiteboard'),
+  calendar: () => void import('@pages/Calendar/CalendarModal'),
   settings: () => void import('@pages/Settings'),
 };
 
@@ -194,6 +188,8 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
                     onChange={(next) => {
                       timeCustomizedRef.current = true;
                       setScheduleAt(next);
+                      setTimeOpen(false);
+                      inputRef.current?.focus();
                     }}
                   />
                 </div>

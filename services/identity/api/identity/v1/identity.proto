@@ -5,7 +5,6 @@ package identity.v1;
 option go_package = "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1;identityv1";
 
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 service IdentityService {
@@ -16,44 +15,9 @@ service IdentityService {
     };
   }
 
-  rpc GetYandexAuthURL(GetYandexAuthURLRequest) returns (GetYandexAuthURLResponse) {
-    option (google.api.http) = {
-      get: "/v1/auth/yandex/url"
-    };
-  }
-
-  rpc YandexCallback(YandexCallbackRequest) returns (YandexCallbackResponse);
-
-  rpc ExchangeYandexCode(ExchangeYandexCodeRequest) returns (AuthResponse) {
-    option (google.api.http) = {
-      post: "/v1/auth/yandex/exchange"
-      body: "*"
-    };
-  }
-
   rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse) {
     option (google.api.http) = {
       post: "/v1/auth/refresh"
-      body: "*"
-    };
-  }
-
-  rpc Logout(LogoutRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v1/auth/logout"
-      body: "*"
-    };
-  }
-
-  rpc GetMe(google.protobuf.Empty) returns (GetUserResponse) {
-    option (google.api.http) = {
-      get: "/v1/me"
-    };
-  }
-
-  rpc UpdateMe(UpdateMeRequest) returns (GetUserResponse) {
-    option (google.api.http) = {
-      patch: "/v1/me"
       body: "*"
     };
   }
@@ -74,10 +38,6 @@ message User {
   string timezone = 6;
 }
 
-message UpdateMeRequest {
-  optional string timezone = 1;
-}
-
 message AuthResponse {
   string access_token = 1;
   string refresh_token = 2;
@@ -88,31 +48,7 @@ message AuthTelegramRequest {
   string code = 1;
 }
 
-message GetYandexAuthURLRequest {}
-
-message GetYandexAuthURLResponse {
-  string url = 1;
-  string state = 2;
-}
-
-message YandexCallbackRequest {
-  string code = 1;
-  string state = 2;
-}
-
-message YandexCallbackResponse {
-  string redirect_url = 1;
-}
-
-message ExchangeYandexCodeRequest {
-  string exchange_code = 1;
-}
-
 message RefreshTokenRequest {
-  string refresh_token = 1;
-}
-
-message LogoutRequest {
   string refresh_token = 1;
 }
 

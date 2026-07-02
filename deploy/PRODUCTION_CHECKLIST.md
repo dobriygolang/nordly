@@ -18,24 +18,18 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 |----------|-----|
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `INTERNAL_API_TOKEN` | `openssl rand -hex 32` |
-| `ROOM_INVITE_SECRET` | `openssl rand -hex 32` |
-| `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms invite/board links) |
+| `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms live/board links) |
 | `NORDLY_CALLBACK_URL` | `nordly://settings` (Google Calendar OAuth → Nordly desktop) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud OAuth app (Calendar integration; optional) |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts Google refresh tokens at rest; optional but recommended) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | BotFather |
-| `YANDEX_*` | OAuth app |
 | `CADDY_EMAIL` | Let's Encrypt |
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
 Optional: Tribute webhooks, CI-only `services/ai` LLM keys, Grafana password — see [RUNBOOK.md](./RUNBOOK.md).
 
-## 3. OAuth redirects
-
-Yandex app: `https://api.trynordly.app/v1/auth/yandex/callback` (+ `.online` mirror).
-
-## 4. GitHub Actions deploy
+## 3. GitHub Actions deploy
 
 Secrets: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY`, optional `DEPLOY_GIT_TOKEN`.
 
@@ -53,10 +47,9 @@ cp .env.example .env && nano .env && make keys && make up
 
 Updates: merge to `main` → CI deploys automatically.
 
-## 5. Smoke test
+## 4. Smoke test
 
 - [ ] `https://api.trynordly.app/healthz`
-- [ ] Yandex login
 - [ ] Live room guest create + WS
 - [ ] Published note `/notes/{slug}` and board `/board/{slug}`
 - [ ] Nordly login (Telegram)

@@ -77,7 +77,9 @@ func (s *trackerService) UpdateWorkTaskStatus(ctx context.Context, userID, taskI
 	if err != nil {
 		return nil, err
 	}
-	s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
+	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
+		return nil, err
+	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -91,8 +93,7 @@ func (s *trackerService) DeleteWorkTask(ctx context.Context, userID, taskID stri
 	if err != nil {
 		return err
 	}
-	s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
-	return nil
+	return s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
 }
 
 func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, startISO string, durationMin int) (*WorkTask, error) {
@@ -114,7 +115,9 @@ func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, s
 	if err != nil {
 		return nil, err
 	}
-	s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
+	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
+		return nil, err
+	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -128,7 +131,9 @@ func (s *trackerService) UnscheduleWorkTask(ctx context.Context, userID, taskID 
 	if err != nil {
 		return nil, err
 	}
-	s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
+	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
+		return nil, err
+	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }

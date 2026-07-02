@@ -34,7 +34,6 @@ HTTP `8089` | gRPC `9099` | PG `5441` `nordly_tracker`
 | PatchWorkTask | `PATCH /v1/tracker/work/tasks/{id}` | JWT |
 | CreateWorkTaskConference | `POST /v1/tracker/work/tasks/{id}/conference` | JWT |
 | ListEpics | `GET /v1/tracker/work/epics` | JWT |
-| CreateEpic | `POST /v1/tracker/work/epics` | JWT |
 | GetZoomAuthURL | `GET /v1/tracker/integrations/zoom/url` | JWT |
 | DisconnectZoom | `POST /v1/tracker/integrations/zoom/disconnect` | JWT |
 
@@ -75,11 +74,13 @@ OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD
 - **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view). Read is decoupled from the sync toggle.
 - **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
 
-**Token security.** Refresh tokens are encrypted at rest via `secretbox` (AES-GCM) when `TOKEN_ENCRYPTION_KEY` is set; legacy plaintext tokens are read transparently.
+**Token security.** `TOKEN_ENCRYPTION_KEY` is **required** at startup. Refresh tokens are stored encrypted (AES-GCM). Plaintext tokens at rest are rejected — user must reconnect Google/Zoom after enabling encryption.
 
 **Reauth.** On `invalid_grant` / `401` the service sets `google_reauth_required` and clears sync state; clients surface a reconnect prompt. Errors map to gRPC `FailedPrecondition` (`google_reauth_required` / `google_not_connected`).
 
-**Disconnect.** `DisconnectGoogleCalendar` best-effort deletes mirrored events from Google, clears `google_event_id` on tasks, wipes the event cache, and clears all Google connection state.
+**Disconnect.** `DisconnectGoogleCalendar` deletes mirrored events from Google (errors propagate), clears `google_event_id` on tasks, wipes the event cache, and clears all Google connection state.
+
+**Task→Google sync.** When sync is enabled, schedule/status/archive mutations return Google API errors to the client (reauth mapped to `ErrGoogleReauthRequired`).
 
 ## Zoom meetings
 
@@ -109,8 +110,8 @@ make start | gen-proto | test | lint | build
 | POSTGRES_DSN | localhost:5441 / `nordly_tracker` |
 | JWT_PUBLIC_KEY / JWT_PUBLIC_KEY_FILE | required |
 | INTERNAL_API_TOKEN | required (reserved; no internal RPCs yet) |
-| NORDLY_CALLBACK_URL | `https://trynordly.app/oauth/google-calendar` (web bridge → `nordly://settings`); legacy: `nordly://settings` |
-| GOOGLE_CLIENT_ID | optional |
+| NORDLY_CALLBACK_URL | `nordly://settings` (dev); prod: `https://trynordly.app/oauth/google-calendar` — validated at startup |
+| GOOGLE_CLIENT_ID | optional — required when Google integration endpoints are used |
 | GOOGLE_CLIENT_SECRET | optional |
 | GOOGLE_REDIRECT_URI | optional |
-| TOKEN_ENCRYPTION_KEY | optional — base64 16/24/32-byte AES key; encrypts Google refresh tokens at rest (unset = plaintext) |
+| TOKEN_ENCRYPTION_KEY | **required** — base64 16/24/32-byte AES key; OAuth refresh tokens encrypted at rest |

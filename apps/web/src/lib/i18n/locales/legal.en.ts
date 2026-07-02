@@ -21,7 +21,7 @@ export const legalEn: LegalMessages = {
       'Nordly (the “Service”) is a productivity workspace: a desktop app for notes, daily planning, and focus, plus a web companion for account management, billing, and live collaboration rooms. The operator is the Nordly project administration (trynordly.app). By using the Service, you confirm that you have read and accept these Terms and the Privacy Policy.',
     s2Title: '2. Registration and account',
     s2Body:
-      'Some features require sign-in via Telegram or Yandex ID. Live rooms can be created without an account (guest access). You must keep your identity-provider account secure and not share credentials. One person — one account unless otherwise agreed in writing with support.',
+      'Some features require sign-in via Telegram. Live rooms can be created without an account (guest access). You must keep your identity-provider account secure and not share credentials. One person — one account unless otherwise agreed in writing with support.',
     s3Title: '3. Acceptable use',
     s3Li1: 'Do not abuse APIs, plan quotas, or automated scripts without the operator’s written consent.',
     s3Li2: 'Do not upload malicious code or disrupt sandbox runs or live rooms.',
@@ -56,7 +56,7 @@ export const legalEn: LegalMessages = {
     s1Body:
       'This Policy describes how Nordly (operator: trynordly.app administration) processes users’ personal data under applicable data-protection law. It applies to the web companion, account services, billing, and live collaboration features.',
     s2Title: '2. Data we process',
-    s2Li1: 'Account data: username, avatar, Telegram and/or Yandex ID, registration date.',
+    s2Li1: 'Account data: username, avatar, Telegram ID, registration date.',
     s2Li2: 'Workspace data (when synced): notes, tasks, focus sessions, and related metadata.',
     s2Li3: 'Code-run data: source code submitted in live rooms, stdout/stderr, sandbox test results.',
     s2Li4: 'Live room data: editor and whiteboard content synced between participants; guest display names for session-scoped tokens.',
@@ -70,7 +70,7 @@ export const legalEn: LegalMessages = {
       'We process data to register and authenticate you, provide Service features, enforce plan quotas, enable collaboration, process payments, provide support, and protect the Service. Legal bases include consent, contract performance, and legitimate interests (security, abuse prevention). We do not sell personal data.',
     s4Title: '4. Third parties',
     s4Body:
-      'Data may be shared with: identity providers (Telegram, Yandex), payment partner Tribute (as needed for billing), hosting/infrastructure providers, and sandbox/code-run infrastructure — only what is required to deliver the feature you use. Transfers are governed by confidentiality and data-protection obligations.',
+      'Data may be shared with: identity providers (Telegram), payment partner Tribute (as needed for billing), hosting/infrastructure providers, and sandbox/code-run infrastructure — only what is required to deliver the feature you use. Transfers are governed by confidentiality and data-protection obligations.',
     s5Title: '5. Storage, location, and retention',
     s5Body:
       'Data is stored on servers located in the Russian Federation. Retention is for the life of the account and up to 3 years after deletion (for legal compliance and dispute resolution), unless a longer period is required by law. The access token (JWT) is stored in browser localStorage; guest room tokens are stored in sessionStorage.',

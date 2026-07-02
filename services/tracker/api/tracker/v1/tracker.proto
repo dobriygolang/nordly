@@ -110,13 +110,6 @@ service TrackerService {
     option (google.api.http) = {get: "/v1/tracker/work/epics"};
   }
 
-  rpc CreateEpic(CreateEpicRequest) returns (CreateEpicResponse) {
-    option (google.api.http) = {
-      post: "/v1/tracker/work/epics"
-      body: "*"
-    };
-  }
-
   rpc GetZoomAuthURL(GetZoomAuthURLRequest) returns (GetZoomAuthURLResponse) {
     option (google.api.http) = {get: "/v1/tracker/integrations/zoom/url"};
   }
@@ -257,15 +250,6 @@ message ListEpicsRequest {}
 
 message ListEpicsResponse {
   repeated Epic epics = 1;
-}
-
-message CreateEpicRequest {
-  string name = 1;
-  string color = 2;
-}
-
-message CreateEpicResponse {
-  Epic epic = 1;
 }
 
 message WorkTask {

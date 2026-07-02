@@ -1,4 +1,4 @@
-const NORDLY_REPO = 'dobriygolang/project-nordly'
+export const NORDLY_REPO = 'dobriygolang/nordly'
 
 export const NORDLY_RELEASES_PAGE = `https://github.com/${NORDLY_REPO}/releases/latest`
 
@@ -44,7 +44,7 @@ function pickInstallerAssets(assets: GitHubAsset[]): {
 
 function toReleaseInfo(release: GitHubRelease): NordlyReleaseInfo | null {
   const tag = release.tag_name?.toLowerCase() ?? ''
-  if (!tag.startsWith('nordly-v') && !tag.startsWith('nordly-v')) return null
+  if (!tag.startsWith('nordly-v') && !tag.startsWith('hone-v')) return null
   const picks = pickInstallerAssets(release.assets ?? [])
   return {
     version: parseVersion(release.tag_name),

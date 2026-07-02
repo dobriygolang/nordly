@@ -72,23 +72,19 @@ type webhookUser struct {
 	Username   string `json:"username"`
 }
 
-// VerifyWebhook validates Tribute trbt-signature (HMAC-SHA256 hex of raw body) or legacy secret headers.
+// VerifyWebhook validates Tribute trbt-signature (HMAC-SHA256 hex of raw body).
 func (p *Provider) VerifyWebhook(_ context.Context, headers map[string]string, body []byte) error {
 	if p.cfg.WebhookSecret == "" {
 		return fmt.Errorf("tribute webhook secret not configured: %w", providers.ErrWebhookUnauthorized)
 	}
-	if sig := headerValue(headers, "trbt-signature"); sig != "" {
-		if verifyTRBTSignature(p.cfg.WebhookSecret, body, sig) {
-			return nil
-		}
-		return fmt.Errorf("invalid tribute webhook signature: %w", providers.ErrWebhookUnauthorized)
+	sig := headerValue(headers, "trbt-signature")
+	if sig == "" {
+		return fmt.Errorf("missing tribute webhook signature: %w", providers.ErrWebhookUnauthorized)
 	}
-	for _, key := range []string{"X-Tribute-Secret", "X-Webhook-Secret", "X-Api-Key", "Api-Key"} {
-		if headerValue(headers, key) == p.cfg.WebhookSecret {
-			return nil
-		}
+	if verifyTRBTSignature(p.cfg.WebhookSecret, body, sig) {
+		return nil
 	}
-	return fmt.Errorf("invalid tribute webhook secret: %w", providers.ErrWebhookUnauthorized)
+	return fmt.Errorf("invalid tribute webhook signature: %w", providers.ErrWebhookUnauthorized)
 }
 
 // ParseWebhook decodes a Tribute webhook body.

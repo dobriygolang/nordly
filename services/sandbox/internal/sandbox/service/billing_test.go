@@ -26,11 +26,3 @@ func TestGateCodeRunConsumesUsage(t *testing.T) {
 		t.Fatalf("expected quota exceeded, got %v", err)
 	}
 }
-
-func TestGateCodeRunWithoutBilling(t *testing.T) {
-	t.Parallel()
-	svc := New(Deps{}).(*sandboxService)
-	if err := svc.gateCodeRun(context.Background(), "user-1"); err != nil {
-		t.Fatalf("expected nil without billing, got %v", err)
-	}
-}

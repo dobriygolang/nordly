@@ -52,15 +52,12 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init token cipher: %w", err)
 	}
-	if cipher == nil {
-		log.Warn("TOKEN_ENCRYPTION_KEY not set — Google refresh tokens stored as plaintext")
-	}
 	svc := trackerservice.New(trackerservice.Deps{
 		Repo:            repo,
 		Google:          googleClient,
 		Zoom:            zoomClient,
 		Cipher:          cipher,
-		HoneCallbackURL: cfg.HoneCallbackURL,
+		NordlyCallbackURL: cfg.NordlyCallbackURL,
 	})
 	return &App{Config: cfg, Logger: log, Postgres: pg, JWT: jwtValidator, Service: svc}, nil
 }

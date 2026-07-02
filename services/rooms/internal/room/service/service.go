@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	ErrNotFound      = repository.ErrNotFound
-	ErrInvalidInvite = model.ErrInvalidInvite
+	ErrNotFound = repository.ErrNotFound
 )
 
 type RoomView struct {
@@ -43,7 +42,7 @@ type Service interface {
 	CreateGuestRoom(ctx context.Context, displayName string, roomType model.RoomType, language model.Language) (*GuestCreateResult, error)
 	GetRoom(ctx context.Context, userID, roomID string) (*RoomView, error)
 	CloseRoom(ctx context.Context, userID, roomID string) error
-	GuestJoin(ctx context.Context, roomID, inviteToken, displayName string) (*GuestJoinResult, error)
+	GuestJoin(ctx context.Context, roomID, displayName string) (*GuestJoinResult, error)
 	ShareWhiteboard(ctx context.Context, userID, sceneJSON, title string) (*GuestCreateResult, error)
 	GetInitialScene(ctx context.Context, userID, roomID string) (string, error)
 	PublishWhiteboard(ctx context.Context, userID, sceneJSON, title string) (*PublishBoardResult, error)
@@ -56,7 +55,6 @@ type roomService struct {
 	publicBaseURL string
 	roomTTL       time.Duration
 	guestRoomTTL  time.Duration
-	inviteSecret  []byte
 	now           func() time.Time
 }
 
@@ -66,25 +64,15 @@ type Deps struct {
 	PublicBaseURL string
 	RoomTTL       time.Duration
 	GuestRoomTTL  time.Duration
-	InviteSecret  []byte
 }
 
 func New(deps Deps) Service {
-	ttl := deps.RoomTTL
-	if ttl <= 0 {
-		ttl = model.DefaultRoomTTL
-	}
-	guestTTL := deps.GuestRoomTTL
-	if guestTTL <= 0 {
-		guestTTL = model.DefaultGuestRoomTTL
-	}
 	return &roomService{
 		repo:          deps.Repo,
 		identity:      deps.Identity,
-		publicBaseURL: strings.TrimRight(deps.PublicBaseURL, "/"),
-		roomTTL:       ttl,
-		guestRoomTTL:  guestTTL,
-		inviteSecret:  deps.InviteSecret,
+		publicBaseURL: deps.PublicBaseURL,
+		roomTTL:       deps.RoomTTL,
+		guestRoomTTL:  deps.GuestRoomTTL,
 		now:           time.Now,
 	}
 }
@@ -95,9 +83,6 @@ func (s *roomService) CreateGuestRoom(
 	roomType model.RoomType,
 	language model.Language,
 ) (*GuestCreateResult, error) {
-	if s.identity == nil {
-		return nil, identityadapter.ErrUnavailable
-	}
 	if roomType == "" {
 		roomType = model.RoomTypePractice
 	}
@@ -186,10 +171,7 @@ func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) erro
 	return s.repo.DeleteRoom(ctx, rid, uid)
 }
 
-func (s *roomService) GuestJoin(ctx context.Context, roomID, inviteToken, displayName string) (*GuestJoinResult, error) {
-	if s.identity == nil {
-		return nil, identityadapter.ErrUnavailable
-	}
+func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string) (*GuestJoinResult, error) {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
 		name = "guest"
@@ -198,17 +180,6 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, inviteToken, displa
 	rid, err := uuid.Parse(roomID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid room id: %w", err)
-	}
-	// Invite token is optional: when present it must be valid and bind to this
-	// room; when absent, anyone with the room URL can join a shared room.
-	if inviteToken != "" {
-		tokenRoom, err := model.ValidateLegacyInviteToken(inviteToken, s.inviteSecret, s.now().UTC())
-		if err != nil {
-			return nil, ErrInvalidInvite
-		}
-		if tokenRoom != rid {
-			return nil, ErrInvalidInvite
-		}
 	}
 
 	room, err := s.repo.GetRoom(ctx, rid)
@@ -316,8 +287,4 @@ func IsForbidden(err error) bool {
 
 func IsQuotaExceeded(err error) bool {
 	return errors.Is(err, repository.ErrQuotaExceeded)
-}
-
-func IsInvalidInvite(err error) bool {
-	return errors.Is(err, model.ErrInvalidInvite)
 }

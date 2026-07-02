@@ -34,15 +34,13 @@ fn load_tray_icon(app: &tauri::App) -> Result<tauri::image::Image<'static>, Box<
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let icon = load_tray_icon(app)?;
 
-    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
+    let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .tooltip("Nordly")
         .show_menu_on_left_click(false);
 
     #[cfg(target_os = "macos")]
-    {
-        builder = builder.icon_as_template(true);
-    }
+    let builder = builder.icon_as_template(true);
 
     let app_handle = app.handle().clone();
     builder
@@ -83,6 +81,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
+    #[cfg(target_os = "macos")]
     if let RunEvent::Reopen { .. } = event {
         let _ = show_main(app);
     }

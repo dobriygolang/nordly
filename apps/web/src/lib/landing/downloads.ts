@@ -40,6 +40,15 @@ function urlFromEnv(platform: DownloadPlatform): string | null {
   return null
 }
 
+export function triggerDownload(url: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.rel = 'noopener noreferrer'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 export async function resolveDownloadUrl(platform: DownloadPlatform): Promise<string | null> {
   const envUrl = urlFromEnv(platform)
   if (envUrl) return envUrl
@@ -50,9 +59,8 @@ export async function resolveDownloadUrl(platform: DownloadPlatform): Promise<st
   const direct = await urlFromRelease(release, platform)
   if (direct) return direct
 
-  if (platform === 'other') {
-    return release.macAarch64Url ?? release.windowsUrl ?? release.macX64Url
-  }
+  const anyInstaller = release.macAarch64Url ?? release.windowsUrl ?? release.macX64Url
+  if (anyInstaller) return anyInstaller
 
   return release.releasePageUrl
 }

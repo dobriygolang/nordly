@@ -12,69 +12,29 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const (
-	defaultListLimit = 100
-	maxListLimit     = 200
-)
-
-func (r *Repository) ListNotes(
-	ctx context.Context,
-	userID string,
-	f ListNotesFilter,
-) ([]notesmodel.NoteSummary, string, error) {
-	limit := f.Limit
-	if limit <= 0 {
-		limit = defaultListLimit
-	}
-	if limit > maxListLimit {
-		limit = maxListLimit
-	}
-
-	args := []any{userID}
-	query := `
+func (r *Repository) ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error) {
+	const maxNotes = 200
+	rows, err := r.pg.Query(ctx, `
 		SELECT id, title, updated_at, size_bytes
 		FROM notes
 		WHERE user_id = $1 AND archived_at IS NULL
-	`
-	if f.Cursor != "" {
-		parts := strings.SplitN(f.Cursor, "|", 2)
-		if len(parts) == 2 {
-			cursorTime, err := time.Parse(time.RFC3339Nano, parts[0])
-			if err == nil {
-				args = append(args, cursorTime, parts[1])
-				n := len(args)
-				query += fmt.Sprintf(" AND (updated_at, id) < ($%d, $%d)", n-1, n)
-			}
-		}
-	}
-	args = append(args, limit+1)
-	query += fmt.Sprintf(" ORDER BY updated_at DESC, id DESC LIMIT $%d", len(args))
-
-	rows, err := r.pg.Query(ctx, query, args...)
+		ORDER BY updated_at DESC, id DESC
+		LIMIT $2
+	`, userID, maxNotes)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	defer rows.Close()
 
-	out := make([]notesmodel.NoteSummary, 0, limit)
+	out := make([]notesmodel.NoteSummary, 0, maxNotes)
 	for rows.Next() {
 		var n notesmodel.NoteSummary
 		if err := rows.Scan(&n.ID, &n.Title, &n.UpdatedAt, &n.SizeBytes); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		out = append(out, n)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, "", err
-	}
-
-	var nextCursor string
-	if len(out) > limit {
-		last := out[limit-1]
-		out = out[:limit]
-		nextCursor = last.UpdatedAt.UTC().Format(time.RFC3339Nano) + "|" + last.ID
-	}
-	return out, nextCursor, nil
+	return out, rows.Err()
 }
 
 func (r *Repository) GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error) {

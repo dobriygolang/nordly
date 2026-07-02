@@ -33,13 +33,13 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 | `GRPC_PORT` | `9100` |
 | `POSTGRES_DSN` | `postgres://postgres:postgres@localhost:5442/nordly_notes?sslmode=disable` |
 | `JWT_PUBLIC_KEY` or `JWT_PUBLIC_KEY_FILE` | required |
-| `BILLING_GRPC_ADDR` | optional; default `127.0.0.1:9095` |
-| `INTERNAL_API_TOKEN` | optional; enables `cloud_notes_count` gate on create |
-| `PUBLIC_BASE_URL` | publish/invite link base for notes + rooms (default dev: `http://localhost:5173`) |
+| `BILLING_GRPC_ADDR` | default `127.0.0.1:9095` |
+| `INTERNAL_API_TOKEN` | **required** — billing gRPC for `cloud_notes_count` gate |
+| `PUBLIC_BASE_URL` | **required** — publish link base |
 
 ## Billing
 
-When `INTERNAL_API_TOKEN` is set, `CreateNote` checks active note count against billing gauge `cloud_notes_count` (free: 10, pro: unlimited). Exceed → gRPC `ResourceExhausted`.
+`CreateNote` checks active note count against billing gauge `cloud_notes_count`. Billing client is always wired at startup; missing entitlement or billing error fails the create (no noop/unlimited fallback).
 
 ## Data model
 

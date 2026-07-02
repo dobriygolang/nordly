@@ -56,11 +56,6 @@ func ParseStoreRef(stored string) (string, bool) {
 	return strings.CutPrefix(stored, FilePrefix)
 }
 
-// IsLegacyFakeURL reports synthetic t.me userpic URLs that always 404.
-func IsLegacyFakeURL(url string) bool {
-	return strings.Contains(url, "t.me/i/userpic/")
-}
-
 // OpenFile downloads a Telegram file by file_path using the bot token.
 func OpenFile(ctx context.Context, botToken, filePath string) (io.ReadCloser, string, error) {
 	if botToken == "" || filePath == "" {

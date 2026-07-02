@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -32,6 +33,14 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
+	internalToken := os.Getenv("INTERNAL_API_TOKEN")
+	if internalToken == "" {
+		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
+	}
+	publicBaseURL := os.Getenv("PUBLIC_BASE_URL")
+	if publicBaseURL == "" {
+		return nil, fmt.Errorf("PUBLIC_BASE_URL is required")
+	}
 	return &Config{
 		AppEnv:           getEnv("APP_ENV", "development"),
 		LogLevel:         getEnv("LOG_LEVEL", "info"),
@@ -40,9 +49,9 @@ func Load() (*Config, error) {
 		GRPCHost:         grpcListenHost(),
 		PostgresDSN:      getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5442/nordly_notes?sslmode=disable"),
 		JWTPublicKeyPEM:  publicKey,
-		PublicBaseURL:    getEnv("PUBLIC_BASE_URL", getEnv("FRONTEND_URL", "http://localhost:5173")),
+		PublicBaseURL:    strings.TrimRight(publicBaseURL, "/"),
 		BillingGRPCAddr:  getEnv("BILLING_GRPC_ADDR", "127.0.0.1:9095"),
-		InternalAPIToken: getEnv("INTERNAL_API_TOKEN", ""),
+		InternalAPIToken: internalToken,
 	}, nil
 }
 

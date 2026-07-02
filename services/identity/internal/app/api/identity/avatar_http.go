@@ -5,8 +5,6 @@ import (
 	"io"
 	"net/http"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
 	"github.com/dobriygolang/project-nordly/services/identity/internal/adapter/telegram"
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 )
@@ -35,17 +33,7 @@ func (i *Implementation) UserAvatarHTTP() http.HandlerFunc {
 			return
 		}
 
-		if telegram.IsLegacyFakeURL(user.AvatarURL) && user.TelegramID != nil && i.telegramBotToken != "" {
-			api, err := tgbotapi.NewBotAPI(i.telegramBotToken)
-			if err == nil {
-				if fresh, err := telegram.ProfilePhotoFilePath(api, *user.TelegramID); err == nil && fresh != "" {
-					i.serveTelegramFile(w, r, fresh)
-					return
-				}
-			}
-		}
-
-		if user.AvatarURL != "" && !telegram.IsLegacyFakeURL(user.AvatarURL) {
+		if user.AvatarURL != "" {
 			http.Redirect(w, r, user.AvatarURL, http.StatusFound)
 			return
 		}

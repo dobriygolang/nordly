@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CollabCodeEditor,
@@ -59,8 +59,6 @@ export default function CollabRoomPage() {
   const { t } = useI18n()
   const { roomId = '' } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const inviteToken = searchParams.get('invite') ?? undefined
   const qc = useQueryClient()
   const codeEditorRef = useRef<CollabCodeEditorHandle>(null)
   const diagramEditorRef = useRef<CollabExcalidrawHandle>(null)
@@ -83,7 +81,7 @@ export default function CollabRoomPage() {
   }, [roomId])
 
   const roomQ = useQuery({
-    queryKey: ['room', roomId, inviteToken],
+    queryKey: ['room', roomId],
     queryFn: () => getRoom(roomId),
     enabled: !!roomId && hasSession,
     retry: false,
@@ -94,7 +92,7 @@ export default function CollabRoomPage() {
   }, [roomId, roomQ.data])
 
   const guestJoinM = useMutation({
-    mutationFn: () => guestJoin(roomId, inviteToken ?? '', guestName.trim() || 'guest'),
+    mutationFn: () => guestJoin(roomId, guestName.trim() || 'guest'),
     onSuccess: (result) => {
       persistGuestToken(roomId, result.access_token)
       persistGuestRoom(roomId, result.room)

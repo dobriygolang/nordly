@@ -1,7 +1,4 @@
-// Package secretbox provides optional symmetric encryption for secrets at rest
-// (Google refresh tokens). When no key is configured it is a transparent no-op,
-// and it always round-trips legacy plaintext values so encryption can be enabled
-// without a data migration.
+// Package secretbox provides symmetric encryption for secrets at rest (OAuth refresh tokens).
 package secretbox
 
 import (
@@ -15,21 +12,18 @@ import (
 	"strings"
 )
 
-// prefix marks a value produced by Seal so Open can distinguish it from legacy
-// plaintext tokens stored before encryption was enabled.
 const prefix = "enc:v1:"
 
-// Cipher seals and opens secrets. A nil Cipher is a valid no-op (passthrough).
+// Cipher seals and opens secrets at rest.
 type Cipher struct {
 	aead cipher.AEAD
 }
 
-// New builds a Cipher from a base64-encoded 16/24/32-byte AES key. An empty key
-// returns (nil, nil): encryption is disabled and values are stored as plaintext.
+// New builds a Cipher from a base64-encoded 16/24/32-byte AES key.
 func New(keyB64 string) (*Cipher, error) {
 	keyB64 = strings.TrimSpace(keyB64)
 	if keyB64 == "" {
-		return nil, nil
+		return nil, errors.New("secretbox: encryption key is required")
 	}
 	key, err := base64.StdEncoding.DecodeString(keyB64)
 	if err != nil {
@@ -51,10 +45,10 @@ func New(keyB64 string) (*Cipher, error) {
 	return &Cipher{aead: aead}, nil
 }
 
-// Seal encrypts plaintext. A nil Cipher returns the input unchanged.
+// Seal encrypts plaintext.
 func (c *Cipher) Seal(plaintext string) (string, error) {
-	if c == nil || plaintext == "" {
-		return plaintext, nil
+	if plaintext == "" {
+		return "", nil
 	}
 	nonce := make([]byte, c.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -64,14 +58,13 @@ func (c *Cipher) Seal(plaintext string) (string, error) {
 	return prefix + base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Open decrypts a value produced by Seal. Values without the prefix (legacy
-// plaintext) are returned unchanged.
+// Open decrypts a value produced by Seal.
 func (c *Cipher) Open(value string) (string, error) {
-	if !strings.HasPrefix(value, prefix) {
-		return value, nil
+	if value == "" {
+		return "", nil
 	}
-	if c == nil {
-		return "", errors.New("secretbox: encrypted value but no key configured")
+	if !strings.HasPrefix(value, prefix) {
+		return "", errors.New("secretbox: value is not encrypted — reconnect the integration")
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, prefix))
 	if err != nil {

@@ -35,6 +35,14 @@ export function jsonBoolTrue(obj: Record<string, unknown>, key: string): boolean
   return obj[key] === true;
 }
 
+export function requireJsonBoolean(obj: Record<string, unknown>, key: string): boolean {
+  const v = obj[key];
+  if (typeof v !== 'boolean') {
+    throw new Error(`Invalid response: missing ${key}`);
+  }
+  return v;
+}
+
 export function requireJsonObject(obj: Record<string, unknown>, key: string): Record<string, unknown> {
   const v = obj[key];
   if (!v || typeof v !== 'object') {

@@ -6,7 +6,6 @@ import (
 
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
-	"github.com/dobriygolang/project-nordly/services/identity/internal/adapter/yandex"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/config"
 	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/logger"
@@ -78,11 +77,7 @@ func New(ctx context.Context) (*App, error) {
 		Users:         userrepo.New(pg),
 		LoginCodes:    authrepo.NewLoginCodeRepository(redisClient),
 		RefreshTokens: authrepo.NewRefreshTokenRepository(redisClient),
-		OAuthStates:   authrepo.NewOAuthStateRepository(redisClient),
-		ExchangeCodes: authrepo.NewExchangeCodeRepository(redisClient),
-		Yandex:        yandex.NewClient(cfg.YandexClientID, cfg.YandexClientSecret, cfg.YandexRedirectURI),
 		Tokens:        tokenManager,
-		FrontendURL:   cfg.FrontendURL,
 		Log:           log,
 	})
 

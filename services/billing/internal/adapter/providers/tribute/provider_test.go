@@ -38,13 +38,21 @@ func TestParseWebhookNormalizesEvent(t *testing.T) {
 
 func TestVerifyWebhookSecret(t *testing.T) {
 	t.Parallel()
-	p := tribute.New(tribute.Config{WebhookSecret: "secret"})
-	err := p.VerifyWebhook(context.Background(), map[string]string{"X-Tribute-Secret": "secret"}, nil)
-	if err != nil {
+	secret := "secret"
+	body := []byte(`{"test":true}`)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(body)
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	p := tribute.New(tribute.Config{WebhookSecret: secret})
+	if err := p.VerifyWebhook(context.Background(), map[string]string{"trbt-signature": sig}, body); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.VerifyWebhook(context.Background(), map[string]string{"X-Tribute-Secret": "wrong"}, nil); err == nil {
-		t.Fatal("expected invalid secret error")
+	if err := p.VerifyWebhook(context.Background(), map[string]string{"trbt-signature": "wrong"}, body); err == nil {
+		t.Fatal("expected invalid signature error")
+	}
+	if err := p.VerifyWebhook(context.Background(), map[string]string{}, body); err == nil {
+		t.Fatal("expected missing signature error")
 	}
 }
 
@@ -108,7 +116,7 @@ func TestParseWebhookPingPayloads(t *testing.T) {
 func TestVerifyWebhookRejectsWhenSecretNotConfigured(t *testing.T) {
 	t.Parallel()
 	p := tribute.New(tribute.Config{})
-	err := p.VerifyWebhook(context.Background(), map[string]string{"X-Tribute-Secret": "any"}, nil)
+	err := p.VerifyWebhook(context.Background(), map[string]string{"trbt-signature": "any"}, nil)
 	if err == nil {
 		t.Fatal("expected error when webhook secret is not configured")
 	}

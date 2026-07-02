@@ -35,7 +35,7 @@ Prod host needs `/var/lib/sandbox-work` bind-mount + Docker socket. See [deploy/
 
 ## Billing
 
-When `BILLING_GRPC_ADDR` is set, each run consumes `code_runs_per_day` quota.
+`INTERNAL_API_TOKEN` required. Each run consumes `code_runs_per_day` quota via billing gRPC (always wired at startup).
 
 ## Commands
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	billinggrpc "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing/grpc"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	sandboxrepo "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/repository"
@@ -61,25 +60,16 @@ func New(ctx context.Context) (*App, error) {
 		)
 	}
 
-	var billingClient billingadapter.Client
-	var billingConn *billinggrpc.Client
-	if cfg.BillingGRPCAddr != "" {
-		if cfg.InternalAPIToken == "" {
-			pg.Close()
-			return nil, fmt.Errorf("INTERNAL_API_TOKEN is required when BILLING_GRPC_ADDR is set")
-		}
-		billingConn, err = billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
-		if err != nil {
-			pg.Close()
-			return nil, fmt.Errorf("init billing client: %w", err)
-		}
-		billingClient = billingConn
+	billingConn, err := billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init billing client: %w", err)
 	}
 
 	repo := sandboxrepo.New(pg)
 	svc := sandboxservice.New(sandboxservice.Deps{
 		Repo:          repo,
-		Billing:       billingClient,
+		Billing:       billingConn,
 		Runner:        codeRunner,
 		TimeoutMS:     cfg.DefaultTimeoutMS,
 		MemoryMB:      cfg.DefaultMemoryMB,

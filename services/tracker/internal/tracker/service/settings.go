@@ -79,20 +79,34 @@ func (s *trackerService) HandleGoogleCallback(ctx context.Context, code, state s
 }
 
 func (s *trackerService) DisconnectGoogleCalendar(ctx context.Context, userID string) (*model.UserSettingsView, error) {
-	// Best-effort: remove Google events that were created from tasks so the
-	// user's calendar isn't left with orphans.
-	if settings, err := s.repo.GetUserSettings(ctx, userID); err == nil && s.googleReady() && settings.Connected() {
-		if token, terr := s.refreshToken(settings); terr == nil {
-			calID := settings.CalendarID()
-			if ids, lerr := s.repo.ListGoogleEventIDs(ctx, userID); lerr == nil {
-				for _, id := range ids {
-					_ = s.google.DeleteEvent(ctx, token, calID, id)
+	settings, err := s.repo.GetUserSettings(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if s.googleReady() && settings.Connected() {
+		token, err := s.refreshToken(settings)
+		if err != nil {
+			return nil, err
+		}
+		calID := settings.CalendarID()
+		ids, err := s.repo.ListGoogleEventIDs(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			if err := s.google.DeleteEvent(ctx, token, calID, id); err != nil {
+				if mapped := s.handleGoogleErr(ctx, userID, err); mapped != nil {
+					return nil, mapped
 				}
 			}
 		}
 	}
-	_ = s.repo.ClearAllGoogleEventIDs(ctx, userID)
-	_ = s.repo.ClearGoogleEventsCache(ctx, userID)
+	if err := s.repo.ClearAllGoogleEventIDs(ctx, userID); err != nil {
+		return nil, err
+	}
+	if err := s.repo.ClearGoogleEventsCache(ctx, userID); err != nil {
+		return nil, err
+	}
 	if err := s.repo.ClearGoogleConnection(ctx, userID); err != nil {
 		return nil, err
 	}
@@ -131,9 +145,9 @@ func (s *trackerService) handleGoogleErr(ctx context.Context, userID string, err
 }
 
 func (s *trackerService) callbackRedirect(status, detail string) string {
-	u, err := url.Parse(s.honeCallbackURL)
+	u, err := url.Parse(s.nordlyCallbackURL)
 	if err != nil || u.Scheme == "" {
-		u, _ = url.Parse("nordly://settings")
+		panic("invalid NORDLY_CALLBACK_URL configured at startup")
 	}
 	q := u.Query()
 	q.Set("google_calendar", status)

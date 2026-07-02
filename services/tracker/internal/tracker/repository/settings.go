@@ -12,7 +12,7 @@ import (
 
 const userSettingsColumns = `user_id, google_calendar_sync_enabled,
 	google_refresh_token, google_oauth_state, google_calendar_id,
-	google_reauth_required, google_sync_token, google_synced_at,
+	google_reauth_required,
 	zoom_refresh_token, zoom_oauth_state, zoom_reauth_required,
 	created_at, updated_at`
 
@@ -109,8 +109,6 @@ func (r *Repository) SaveGoogleRefreshToken(ctx context.Context, userID, refresh
 		ON CONFLICT (user_id) DO UPDATE SET
 			google_refresh_token = $2,
 			google_reauth_required = false,
-			google_sync_token = NULL,
-			google_synced_at = NULL,
 			updated_at = now()
 	`, uid, refreshToken)
 	if err != nil {
@@ -129,8 +127,6 @@ func (r *Repository) MarkGoogleReauthRequired(ctx context.Context, userID string
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET
 			google_refresh_token = NULL,
-			google_sync_token = NULL,
-			google_synced_at = NULL,
 			google_reauth_required = true,
 			updated_at = now()
 		WHERE user_id = $1
@@ -151,40 +147,9 @@ func (r *Repository) ClearGoogleConnection(ctx context.Context, userID string) e
 		UPDATE user_settings SET
 			google_refresh_token = NULL,
 			google_oauth_state = NULL,
-			google_sync_token = NULL,
-			google_synced_at = NULL,
 			google_reauth_required = false,
 			google_calendar_sync_enabled = false,
 			updated_at = now()
-		WHERE user_id = $1
-	`, uid)
-	if err != nil {
-		return err
-	}
-	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
-}
-
-// SaveGoogleSyncState persists the incremental sync token after a successful sync.
-func (r *Repository) SaveGoogleSyncState(ctx context.Context, userID, syncToken string) error {
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
-	}
-	_, err = r.conn(ctx).Exec(ctx, `
-		UPDATE user_settings SET google_sync_token = $2, google_synced_at = now(), updated_at = now()
-		WHERE user_id = $1
-	`, uid, syncToken)
-	return err
-}
-
-// ClearGoogleSyncState forces the next sync to be a full resync.
-func (r *Repository) ClearGoogleSyncState(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
-	}
-	_, err = r.conn(ctx).Exec(ctx, `
-		UPDATE user_settings SET google_sync_token = NULL, google_synced_at = NULL, updated_at = now()
 		WHERE user_id = $1
 	`, uid)
 	if err != nil {
@@ -198,7 +163,7 @@ func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {
 	var uid uuid.UUID
 	if err := row.Scan(&uid, &s.GoogleCalendarSyncEnabled,
 		&s.GoogleRefreshToken, &s.GoogleOAuthState, &s.GoogleCalendarID,
-		&s.GoogleReauthRequired, &s.GoogleSyncToken, &s.GoogleSyncedAt,
+		&s.GoogleReauthRequired,
 		&s.ZoomRefreshToken, &s.ZoomOAuthState, &s.ZoomReauthRequired,
 		&s.CreatedAt, &s.UpdatedAt); err != nil {
 		return nil, err

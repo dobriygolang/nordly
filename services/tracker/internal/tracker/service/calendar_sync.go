@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
@@ -10,19 +11,22 @@ import (
 )
 
 // syncGoogleCalendarWorkTaskSchedule mirrors a scheduled work task to Google
-// Calendar (create/update/delete) when task→Google sync is enabled. Best-effort:
-// a revoked token flips the account to re-auth state; other errors are ignored.
-func (s *trackerService) syncGoogleCalendarWorkTaskSchedule(ctx context.Context, userID string, before, after *model.WorkTask) {
+// Calendar when task→Google sync is enabled. Skips when sync is off; returns
+// errors from Google API (reauth is mapped via handleGoogleErr).
+func (s *trackerService) syncGoogleCalendarWorkTaskSchedule(ctx context.Context, userID string, before, after *model.WorkTask) error {
 	if !s.googleReady() || after == nil {
-		return
+		return nil
 	}
 	settings, err := s.repo.GetUserSettings(ctx, userID)
-	if err != nil || !settings.GoogleCalendarSyncEnabled || !settings.Connected() {
-		return
+	if err != nil {
+		return err
+	}
+	if !settings.GoogleCalendarSyncEnabled || !settings.Connected() {
+		return nil
 	}
 	token, err := s.refreshToken(settings)
 	if err != nil {
-		return
+		return err
 	}
 	calID := settings.CalendarID()
 	eventID := ""
@@ -30,12 +34,11 @@ func (s *trackerService) syncGoogleCalendarWorkTaskSchedule(ctx context.Context,
 		eventID = *after.GoogleEventID
 	}
 
-	// Completed or archived → remove the mirrored event and unlink the task.
 	if after.ArchivedAt != nil || after.Status == "done" {
-		if eventID != "" {
-			s.removeMirroredEvent(ctx, userID, token, calID, after.ID, eventID)
+		if eventID == "" {
+			return nil
 		}
-		return
+		return s.removeMirroredEvent(ctx, userID, token, calID, after.ID, eventID)
 	}
 
 	hasSchedule := after.ScheduledStart != nil && after.ScheduledDurationMin != nil && *after.ScheduledDurationMin > 0
@@ -43,9 +46,9 @@ func (s *trackerService) syncGoogleCalendarWorkTaskSchedule(ctx context.Context,
 
 	if !hasSchedule {
 		if hadSchedule && eventID != "" {
-			s.removeMirroredEvent(ctx, userID, token, calID, after.ID, eventID)
+			return s.removeMirroredEvent(ctx, userID, token, calID, after.ID, eventID)
 		}
-		return
+		return nil
 	}
 
 	start := *after.ScheduledStart
@@ -58,38 +61,40 @@ func (s *trackerService) syncGoogleCalendarWorkTaskSchedule(ctx context.Context,
 	}
 
 	if eventID == "" {
-		ev, cerr := s.google.CreateEvent(ctx, token, calID, input)
-		if cerr != nil {
-			_ = s.handleGoogleErr(ctx, userID, cerr)
-			return
+		ev, err := s.google.CreateEvent(ctx, token, calID, input)
+		if err != nil {
+			return s.handleGoogleErr(ctx, userID, err)
 		}
 		if ev.ID == "" {
-			return
+			return fmt.Errorf("google calendar create returned empty event id")
 		}
-		_, _ = s.repo.PatchWorkTask(ctx, after.ID, userID, repository.WorkTaskPatch{GoogleEventID: &ev.ID})
-		_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(ev)})
-		return
+		if _, err := s.repo.PatchWorkTask(ctx, after.ID, userID, repository.WorkTaskPatch{GoogleEventID: &ev.ID}); err != nil {
+			return err
+		}
+		return s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(ev)})
 	}
 
 	titleChanged := before == nil || before.Title != after.Title
 	scheduleChanged := before == nil || !workTaskScheduleEqual(before, after)
-	if titleChanged || scheduleChanged {
-		ev, uerr := s.google.UpdateEvent(ctx, token, calID, eventID, input)
-		if uerr != nil {
-			_ = s.handleGoogleErr(ctx, userID, uerr)
-			return
-		}
-		_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(ev)})
+	if !titleChanged && !scheduleChanged {
+		return nil
 	}
+	ev, err := s.google.UpdateEvent(ctx, token, calID, eventID, input)
+	if err != nil {
+		return s.handleGoogleErr(ctx, userID, err)
+	}
+	return s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(ev)})
 }
 
-func (s *trackerService) removeMirroredEvent(ctx context.Context, userID, token, calID, taskID, eventID string) {
-	if derr := s.google.DeleteEvent(ctx, token, calID, eventID); derr != nil {
-		_ = s.handleGoogleErr(ctx, userID, derr)
-		return
+func (s *trackerService) removeMirroredEvent(ctx context.Context, userID, token, calID, taskID, eventID string) error {
+	if err := s.google.DeleteEvent(ctx, token, calID, eventID); err != nil {
+		return s.handleGoogleErr(ctx, userID, err)
 	}
-	_ = s.repo.DeleteGoogleEvents(ctx, userID, calID, []string{eventID})
-	_, _ = s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{ClearGoogleEventID: true})
+	if err := s.repo.DeleteGoogleEvents(ctx, userID, calID, []string{eventID}); err != nil {
+		return err
+	}
+	_, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{ClearGoogleEventID: true})
+	return err
 }
 
 func workTaskScheduleEqual(a, b *model.WorkTask) bool {

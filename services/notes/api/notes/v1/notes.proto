@@ -136,14 +136,10 @@ message EncryptNoteRequest {
 
 message EncryptNoteResponse {}
 
-message ListNotesRequest {
-  int32 limit = 1;
-  string cursor = 2;
-}
+message ListNotesRequest {}
 
 message ListNotesResponse {
   repeated NoteSummary notes = 1;
-  string next_cursor = 2;
 }
 
 message GetNoteRequest {

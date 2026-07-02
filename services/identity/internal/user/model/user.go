@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// User represents a platform account linked to Telegram and/or Yandex.
+// User represents a platform account linked to Telegram.
 type User struct {
 	ID         string
 	Username   string

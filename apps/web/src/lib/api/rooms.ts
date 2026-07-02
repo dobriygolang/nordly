@@ -128,7 +128,6 @@ export async function getRoom(roomId: string): Promise<CodeRoom> {
 
 export async function guestJoin(
   roomId: string,
-  inviteToken: string,
   displayName: string,
 ): Promise<GuestJoinResult> {
   const id = roomId.trim()
@@ -138,7 +137,7 @@ export async function guestJoin(
   const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(id)}/guest-join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invite_token: inviteToken, display_name: displayName }),
+    body: JSON.stringify({ display_name: displayName }),
     redirect: 'manual',
   })
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {

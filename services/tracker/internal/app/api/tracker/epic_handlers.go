@@ -55,20 +55,6 @@ func (i *Implementation) ListEpics(ctx context.Context, _ *trackerv1.ListEpicsRe
 	return out, nil
 }
 
-func (i *Implementation) CreateEpic(ctx context.Context, req *trackerv1.CreateEpicRequest) (*trackerv1.CreateEpicResponse, error) {
-	userID, err := requireUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	epic, err := i.svc.CreateEpic(ctx, userID, trackerservice.CreateEpicParams{
-		Name: req.GetName(), Color: req.GetColor(),
-	})
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	return &trackerv1.CreateEpicResponse{Epic: epicToProto(*epic)}, nil
-}
-
 func epicToProto(e trackerservice.Epic) *trackerv1.Epic {
 	return &trackerv1.Epic{Id: e.ID, Name: e.Name, Color: e.Color}
 }

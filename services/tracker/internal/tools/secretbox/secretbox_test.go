@@ -28,9 +28,6 @@ func TestRoundTrip(t *testing.T) {
 	if !strings.HasPrefix(sealed, prefix) {
 		t.Fatalf("sealed value missing prefix: %q", sealed)
 	}
-	if sealed == "refresh-token-123" {
-		t.Fatal("value was not encrypted")
-	}
 	got, err := c.Open(sealed)
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -40,37 +37,19 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestNilCipherPassthrough(t *testing.T) {
-	c, err := New("")
-	if err != nil {
-		t.Fatalf("new: %v", err)
-	}
-	if c != nil {
-		t.Fatal("empty key should yield nil cipher")
-	}
-	sealed, err := c.Seal("plain")
-	if err != nil || sealed != "plain" {
-		t.Fatalf("nil seal = %q, %v", sealed, err)
-	}
-	got, err := c.Open("plain")
-	if err != nil || got != "plain" {
-		t.Fatalf("nil open = %q, %v", got, err)
+func TestEmptyKeyRejected(t *testing.T) {
+	if _, err := New(""); err == nil {
+		t.Fatal("expected error for empty key")
 	}
 }
 
-func TestOpenLegacyPlaintext(t *testing.T) {
+func TestPlaintextAtRestRejected(t *testing.T) {
 	c, err := New(newKey(t))
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
-	// A value stored before encryption was enabled has no prefix and must
-	// round-trip unchanged.
-	got, err := c.Open("legacy-plaintext-token")
-	if err != nil {
-		t.Fatalf("open legacy: %v", err)
-	}
-	if got != "legacy-plaintext-token" {
-		t.Fatalf("legacy open = %q", got)
+	if _, err := c.Open("legacy-plaintext-token"); err == nil {
+		t.Fatal("expected error opening unencrypted token")
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
 	identitygrpc "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity/grpc"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/config"
@@ -46,26 +45,20 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
 
-	var identityClient identityadapter.TokenMinter
-	var identityConn *identitygrpc.Client
-	if cfg.IdentityGRPCAddr != "" && cfg.InternalAPIToken != "" {
-		identityConn, err = identitygrpc.NewClient(ctx, cfg.IdentityGRPCAddr, cfg.InternalAPIToken)
-		if err != nil {
-			pg.Close()
-			return nil, fmt.Errorf("init identity client: %w", err)
-		}
-		identityClient = identityConn
+	identityConn, err := identitygrpc.NewClient(ctx, cfg.IdentityGRPCAddr, cfg.InternalAPIToken)
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init identity client: %w", err)
 	}
 
 	repo := roomrepo.New(pg)
 	hub := ws.NewHub(slog.Default())
 	svc := roomservice.New(roomservice.Deps{
 		Repo:          repo,
-		Identity:      identityClient,
+		Identity:      identityConn,
 		PublicBaseURL: cfg.PublicBaseURL,
 		RoomTTL:       cfg.RoomTTL,
 		GuestRoomTTL:  cfg.GuestRoomTTL,
-		InviteSecret:  cfg.InviteSecret,
 	})
 
 	return &App{

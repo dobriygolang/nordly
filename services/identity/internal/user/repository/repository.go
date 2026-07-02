@@ -40,15 +40,6 @@ func (r *Repository) GetByTelegramID(ctx context.Context, telegramID int64) (*mo
 	return scanUser(row)
 }
 
-func (r *Repository) GetByYandexID(ctx context.Context, yandexID string) (*model.User, error) {
-	row := r.pg.QueryRow(ctx, `
-		SELECT `+userColumns+`
-		FROM users
-		WHERE yandex_id = $1
-	`, yandexID)
-	return scanUser(row)
-}
-
 func (r *Repository) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	row := r.pg.QueryRow(ctx, `
 		SELECT `+userColumns+`

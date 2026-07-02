@@ -18,7 +18,6 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/v1/auth': { target: identity, changeOrigin: true },
-      '/v1/me': { target: identity, changeOrigin: true },
       '/v1/billing': { target: billing, changeOrigin: true },
       '/v1/sandbox': { target: sandbox, changeOrigin: true },
       '/v1/rooms': { target: rooms, changeOrigin: true },

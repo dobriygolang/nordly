@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 )
@@ -23,17 +22,11 @@ func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, ti
 	if sceneJSON == "" {
 		return nil, fmt.Errorf("ShareWhiteboard: scene_json required")
 	}
-	if s.identity == nil {
-		return nil, identityadapter.ErrUnavailable
-	}
 
 	roomID := uuid.New()
 	guestTTL := s.guestRoomTTL
 	scope := fmt.Sprintf("editor:%s", roomID)
 	ttlSec := int32(guestTTL.Seconds())
-	if ttlSec <= 0 {
-		ttlSec = int32(model.DefaultGuestRoomTTL.Seconds())
-	}
 
 	displayName := strings.TrimSpace(title)
 	if displayName == "" {

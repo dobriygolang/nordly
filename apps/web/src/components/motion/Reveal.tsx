@@ -1,19 +1,7 @@
 import type { ReactNode } from 'react'
-import { motion, useReducedMotion, type Variants } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 
-const revealEase = [0.16, 1, 0.3, 1] as const
-
-const containerVariants: Variants = {
-  hidden: {},
-  show: {
-    transition: { staggerChildren: 0.07, delayChildren: 0.04 },
-  },
-}
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: revealEase } },
-}
+import { revealContainerVariants, revealItemVariants } from '@/lib/motion-presets'
 
 type RevealTag = 'div' | 'section' | 'header'
 
@@ -38,8 +26,8 @@ type RevealProps = {
 
 /**
  * Staggered entrance container. `RevealItem` descendants fade + rise in
- * sequence, matching the landing hero cascade. Falls back to a static element
- * when the user prefers reduced motion.
+ * sequence, matching the landing hero `fadeInUp` cascade. Falls back to a
+ * static element when the user prefers reduced motion.
  */
 export function Reveal({ children, className, as = 'div' }: RevealProps) {
   const reduced = useReducedMotion()
@@ -51,7 +39,7 @@ export function Reveal({ children, className, as = 'div' }: RevealProps) {
 
   const MotionHost = motionHosts[as]
   return (
-    <MotionHost className={className} variants={containerVariants} initial="hidden" animate="show">
+    <MotionHost className={className} variants={revealContainerVariants} initial="hidden" animate="show">
       {children}
     </MotionHost>
   )
@@ -68,7 +56,7 @@ export function RevealItem({ children, className, as = 'div' }: RevealProps) {
 
   const MotionHost = motionHosts[as]
   return (
-    <MotionHost className={className} variants={itemVariants}>
+    <MotionHost className={className} variants={revealItemVariants}>
       {children}
     </MotionHost>
   )

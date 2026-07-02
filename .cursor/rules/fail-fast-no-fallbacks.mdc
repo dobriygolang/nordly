@@ -29,3 +29,14 @@ alwaysApply: true
 - Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter raw `LOCAL_ONLY` checks.
 - Settings: `shared/model/settings.ts` only; invalid blobs throw.
 - Auth REST: `syncAuthHeaders()`; `DEV_BEARER_TOKEN` dev-only.
+
+## Go backend (`services/*`)
+
+- Audit tracker: `docs/backend-audit.md` (per-service file checklist + RPC/field usage).
+- Work inside `services/<name>/` — follow that service's `AGENTS.md`.
+- **Required config fails in `cmd/*/app/run.go` or `config.Load()`** — not deep in handlers (missing JWT key, encryption key, internal token, adapter URLs when feature is enabled).
+- **Wire dependencies once at startup** — if billing/identity/encryption is required, dial it in `run.go` and pass a non-optional struct field. Do not add `if deps.X == nil` / `if s.x == nil` guards in domain/service code for things that must always be present; that hides misconfiguration until runtime.
+- **No legacy wire paths** — one JSON/proto shape; remove dual-field reads (`body_md` OR `bodyMd`), deprecated RPCs, and “if old column empty read old column” after migration shipped.
+- **No silent degradation** — do not serve stale cache, synthesized defaults, or plaintext secrets when encryption is configured; return typed errors.
+- **Delete unused RPCs and proto fields** at the root (proto → gen → transport → service → repo), verified against `apps/nordly` + `apps/web` clients.
+- `getEnv(key, fallback)` is for dev defaults only — production-required vars must error in `Load()` when empty.

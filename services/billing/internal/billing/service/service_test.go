@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -291,7 +294,7 @@ func TestTributeWebhookCreatesSubscription(t *testing.T) {
 		"tier":"tribute_pro_monthly",
 		"status":"active"
 	}`)
-	headers := map[string]string{"X-Tribute-Secret": "test-secret"}
+	headers := map[string]string{"trbt-signature": tributeHMAC("test-secret", body)}
 	if err := svc.HandleProviderWebhook(context.Background(), "tribute", headers, body); err != nil {
 		t.Fatal(err)
 	}
@@ -312,3 +315,9 @@ func (f *fakeIdentity) GetUserByTelegramID(context.Context, int64) (*identityada
 }
 
 var _ repository.Store = (*fakeRepo)(nil)
+
+func tributeHMAC(secret string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}

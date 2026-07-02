@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -35,11 +34,8 @@ func (s *trackerService) ListGoogleCalendarEvents(
 	if !settings.Connected() {
 		return []googleadapter.CalendarEvent{}, nil
 	}
-	// Best-effort refresh. Surface re-auth, but serve stale cache on transient errors.
-	if serr := s.syncGoogleCache(ctx, userID, settings); serr != nil {
-		if errors.Is(serr, model.ErrGoogleReauthRequired) {
-			return nil, serr
-		}
+	if err := s.syncGoogleCache(ctx, userID, settings); err != nil {
+		return nil, err
 	}
 	cached, err := s.repo.ListGoogleEventsForUser(ctx, userID, timeMin, timeMax)
 	if err != nil {
@@ -93,10 +89,6 @@ func (s *trackerService) syncOneCalendar(
 	syncToken, err := s.repo.GetGoogleCalendarSyncToken(ctx, userID, calendarID)
 	if err != nil {
 		return err
-	}
-	// Legacy: single token stored on user_settings before multical migration.
-	if syncToken == "" && settings.GoogleSyncToken != nil && calendarID == settings.CalendarID() {
-		syncToken = *settings.GoogleSyncToken
 	}
 
 	var timeMin, timeMax time.Time

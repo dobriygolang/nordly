@@ -82,7 +82,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFMkU4NEYwOTAyRTI5NkIKUldScktTNlE4SVF1N3A5WS9RSmZKb09vWFB4N2NhWFdXZWpNbElKSEgyMklLd0IzQUI1T2lralgK",
       "endpoints": [
-        "https://github.com/dobriygolang/project-nordly/releases/latest/download/latest.json"
+        "https://github.com/dobriygolang/nordly/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

@@ -8,9 +8,9 @@ Module: `github.com/dobriygolang/project-nordly/services/ai`
 
 ## Purpose
 
-LLM evaluation for interview attempts. Consumes `interview.attempt_submitted` → content rubric → score → `CompleteEvaluation` / `FailEvaluation`.
+LLM evaluation for **retired** interview attempts. `run.go` wires Postgres, Redis, LLM chains, and optional billing only — **interview/content gRPC clients are not configured**; the outbox worker exits idle when `InterviewClient` is nil.
 
-Does not own: users, catalog, sessions (consumes billing quota only).
+Does not own: users, catalog, sessions.
 
 ## Ports
 
@@ -22,24 +22,11 @@ HTTP `8083` | gRPC `9093` | PG `5435` / `nordly_ai`
 
 ## Workers
 
-- **Outbox** — claim `interview.attempt_submitted` only; poll `WORKER_POLL_INTERVAL` (2s)
-
-Metrics: `outbox_lag_seconds`, `outbox_handler_duration_seconds`, `llm_*`, `llm_prompt_cache_*`.
-
-## Pipeline (`run_evaluation`)
-
-1. Idempotent job row
-2. `CheckAndConsumeUsage` on first attempt only (`ai_evaluations_per_day`)
-3. content `GetTaskBundle` + interview `GetAttemptInternal`
-4. 2-pass judge + optional caveman compression (`LLM_CAVEMAN`)
-5. Prompt cache (`LLM_PROMPT_CACHE=on`) — SHA-256 LRU + optional Redis L2
-6. `CompleteEvaluation` or permanent fail → `ReleaseUsage` + `FailEvaluation`
+- **Outbox** — would consume `interview.attempt_submitted` when interview client is wired; currently disabled in default `run.go`
 
 ## API
 
 Internal only (`x-internal-token`): `RunEvaluation`, admin eval jobs, `GetLLMConfig` / `UpdateLLMConfig`, `ProbeLLMProviders`.
-
-HTTP admin routes under `/v1/admin/ai/*` (via admin BFF).
 
 ## Commands
 
@@ -53,12 +40,9 @@ make start | gen-proto | gen-mocks | test | lint | build
 
 | Variable | Notes |
 |----------|-------|
-| INTERNAL_API_TOKEN | required |
-| BILLING_GRPC_ADDR | optional |
-| LLM_FREE_CHAIN_ORDER / LLM_PAID_CHAIN_ORDER | plan-based routing — see [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md) |
-| GROQ_API_KEY, DEEPSEEK_API_KEY, … | provider keys |
-| LLM_PROMPT_CACHE, REDIS_ADDR | cache |
-| EVAL_MAX_RETRIES, EVAL_WORKER_CONCURRENCY, WORKER_POLL_INTERVAL | worker tuning |
-| NATS_URL, OUTBOX_POLL_ENABLED | bus consumer when relay enabled (`false` in prod compose) |
+| INTERNAL_API_TOKEN | **required** |
+| BILLING_GRPC_ADDR | optional (CI builds without billing dial) |
+| LLM_* keys | optional in dev — fake evaluator when no keys |
+| REDIS_ADDR | optional — prompt cache L2 |
 
 Build: `GOWORK=off`

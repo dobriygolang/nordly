@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	billingadapter "github.com/dobriygolang/project-nordly/services/notes/internal/adapter/billing"
@@ -20,7 +21,7 @@ type Service interface {
 	InitVault(ctx context.Context, userID string) (saltB64 string, initialized bool, err error)
 	GetVaultSalt(ctx context.Context, userID string) (saltB64 string, err error)
 
-	ListNotes(ctx context.Context, userID string, limit int, cursor string) ([]notesmodel.NoteSummary, string, error)
+	ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error)
 	GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error)
 	CreateNote(ctx context.Context, userID, title, body string) (*notesmodel.Note, error)
 	UpdateNote(ctx context.Context, userID, id, title, body string) (*notesmodel.Note, error)
@@ -48,15 +49,11 @@ type Deps struct {
 }
 
 func New(deps Deps) Service {
-	base := strings.TrimRight(deps.PublicBaseURL, "/")
-	if base == "" {
-		base = "http://localhost:5173"
+	return &notesService{
+		repo:          deps.Repo,
+		publicBaseURL: deps.PublicBaseURL,
+		billing:       deps.Billing,
 	}
-	billing := deps.Billing
-	if billing == nil {
-		billing = billingadapter.Noop()
-	}
-	return &notesService{repo: deps.Repo, publicBaseURL: base, billing: billing}
 }
 
 func (s *notesService) InitVault(ctx context.Context, userID string) (string, bool, error) {
@@ -80,18 +77,11 @@ func (s *notesService) GetVaultSalt(ctx context.Context, userID string) (string,
 	return salt, nil
 }
 
-func (s *notesService) ListNotes(
-	ctx context.Context,
-	userID string,
-	limit int,
-	cursor string,
-) ([]notesmodel.NoteSummary, string, error) {
+func (s *notesService) ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error) {
 	if strings.TrimSpace(userID) == "" {
-		return nil, "", ErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
-	return s.repo.ListNotes(ctx, userID, notesrepo.ListNotesFilter{
-		Limit: limit, Cursor: cursor,
-	})
+	return s.repo.ListNotes(ctx, userID)
 }
 
 func (s *notesService) GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error) {
@@ -184,8 +174,14 @@ func IsQuotaExceeded(err error) bool {
 
 func (s *notesService) ensureCloudNotesQuota(ctx context.Context, userID string) error {
 	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementCloudNotesCount)
-	if err != nil || limit.Unlimited || limit.Limit == nil {
+	if err != nil {
 		return err
+	}
+	if limit.Unlimited {
+		return nil
+	}
+	if limit.Limit == nil {
+		return fmt.Errorf("billing: cloud_notes_count limit missing for user %s", userID)
 	}
 	count, err := s.repo.CountActiveNotes(ctx, userID)
 	if err != nil {

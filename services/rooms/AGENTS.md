@@ -33,9 +33,9 @@ WebSocket: `GET /ws/editor/{room_id}?token=JWT`.
 
 Frontend: `/live/new` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. `/live/:roomId` → `CollabRoomPage.tsx` (CodeMirror or Excalidraw by `room_type`).
 
-**Guest join is open:** shared rooms join via `/live/{roomId}` (UUID in path is the capability). `GuestJoin` accepts an **optional** legacy `invite_token` from old `?invite=…` links; when present it must be valid and bind to the room. Private rooms remain forbidden for guests.
+**Guest join is open:** shared rooms join via `/live/{roomId}` (UUID in path is the capability). Private rooms remain forbidden for guests.
 
-**Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{PUBLIC_BASE_URL}/live/{room_id}` (no query token). Frontend copies the same short URL client-side.
+**Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{PUBLIC_BASE_URL}/live/{room_id}`. Frontend copies the same short URL client-side.
 
 Roles: `owner`, `participant`, `viewer`. Legacy DB value `interviewer` may still exist on old rooms.
 
@@ -51,4 +51,4 @@ make start   # JWT_PUBLIC_KEY_FILE=../identity/scripts/dev/jwt/public.pem
 make gen-proto | build
 ```
 
-Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `ROOM_INVITE_SECRET` (legacy `?invite=` validation only), `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (1h).
+Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (1h).

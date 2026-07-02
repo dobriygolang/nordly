@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,7 +20,6 @@ type Config struct {
 	RoomTTL             time.Duration
 	GuestRoomTTL        time.Duration
 	RoomArchiveInterval time.Duration
-	InviteSecret        []byte
 	IdentityGRPCAddr    string
 	InternalAPIToken    string
 }
@@ -56,9 +56,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
 
-	inviteSecret := []byte(os.Getenv("ROOM_INVITE_SECRET"))
-	if len(inviteSecret) == 0 {
-		inviteSecret = []byte("dev-room-invite-secret")
+	internalToken := os.Getenv("INTERNAL_API_TOKEN")
+	if internalToken == "" {
+		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
+	}
+	publicBaseURL := os.Getenv("PUBLIC_BASE_URL")
+	if publicBaseURL == "" {
+		return nil, fmt.Errorf("PUBLIC_BASE_URL is required")
 	}
 
 	return &Config{
@@ -68,13 +72,12 @@ func Load() (*Config, error) {
 		GRPCPort:            grpcPort,
 		PostgresDSN:         getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5440/nordly_rooms?sslmode=disable"),
 		JWTPublicKeyPEM:     publicKey,
-		PublicBaseURL:       getEnv("PUBLIC_BASE_URL", "http://localhost:5173"),
+		PublicBaseURL:       strings.TrimRight(publicBaseURL, "/"),
 		RoomTTL:             roomTTL,
 		GuestRoomTTL:        guestRoomTTL,
 		RoomArchiveInterval: archiveInterval,
-		InviteSecret:        inviteSecret,
 		IdentityGRPCAddr:    getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
-		InternalAPIToken:    os.Getenv("INTERNAL_API_TOKEN"),
+		InternalAPIToken:    internalToken,
 	}, nil
 }
 

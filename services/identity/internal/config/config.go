@@ -27,11 +27,6 @@ type Config struct {
 	TelegramBotToken    string
 	TelegramBotUsername string
 
-	YandexClientID     string
-	YandexClientSecret string
-	YandexRedirectURI  string
-
-	FrontendURL            string
 	CORSAllowedOrigins     []string
 	AuthRateLimitPerMinute int
 	InternalAPIToken       string
@@ -99,10 +94,6 @@ func Load() (*Config, error) {
 		JWTRefreshTTL:       refreshTTL,
 		TelegramBotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", ""),
-		YandexClientID:      os.Getenv("YANDEX_CLIENT_ID"),
-		YandexClientSecret:  os.Getenv("YANDEX_CLIENT_SECRET"),
-		YandexRedirectURI:      os.Getenv("YANDEX_REDIRECT_URI"),
-		FrontendURL:            getEnv("FRONTEND_URL", "http://localhost:3000"),
 		CORSAllowedOrigins:     ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		AuthRateLimitPerMinute: authRateLimit,
 		InternalAPIToken:       internalToken,

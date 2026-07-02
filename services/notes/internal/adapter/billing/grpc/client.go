@@ -53,11 +53,11 @@ func (c *Client) GetGaugeLimit(ctx context.Context, userID, key string) (billing
 	}
 	ent := resp.GetEntitlements()
 	if ent == nil || ent.Limits == nil {
-		return billingadapter.GaugeLimit{Unlimited: true}, nil
+		return billingadapter.GaugeLimit{}, fmt.Errorf("billing: no entitlements for user %s", userID)
 	}
 	lim, ok := ent.Limits[key]
 	if !ok {
-		return billingadapter.GaugeLimit{Unlimited: true}, nil
+		return billingadapter.GaugeLimit{}, fmt.Errorf("billing: entitlement %q not configured", key)
 	}
 	if lim.GetUnlimited() {
 		return billingadapter.GaugeLimit{Unlimited: true}, nil
@@ -66,7 +66,7 @@ func (c *Client) GetGaugeLimit(ctx context.Context, userID, key string) (billing
 		v := int(lim.GetLimit())
 		return billingadapter.GaugeLimit{Limit: &v}, nil
 	}
-	return billingadapter.GaugeLimit{Unlimited: true}, nil
+	return billingadapter.GaugeLimit{}, fmt.Errorf("billing: entitlement %q has no limit", key)
 }
 
 var _ billingadapter.Client = (*Client)(nil)

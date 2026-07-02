@@ -26,7 +26,6 @@ func RunAPI(ctx context.Context, a *App) error {
 	impl := identityapi.NewImplementation(a.Service, userrepo.New(a.Postgres), a.Postgres, a.Config.TelegramBotToken)
 	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		identityapi.InternalAuthInterceptor(a.Config.InternalAPIToken),
-		identityapi.AuthInterceptor(a.Service),
 	))
 	identityapi.Register(grpcSrv, impl)
 
@@ -46,7 +45,6 @@ func RunAPI(ctx context.Context, a *App) error {
 		ops.PingRedis(a.Redis.Client),
 	))
 	httpMux.Handle("/metrics", ops.MetricsHandler())
-	httpMux.HandleFunc("/v1/auth/yandex/callback", impl.YandexCallbackHTTP())
 	httpMux.HandleFunc("/v1/auth/config", identityapi.AuthConfigHTTP(a.Config.TelegramBotUsername))
 	httpMux.HandleFunc("GET /v1/users/{id}/avatar", impl.UserAvatarHTTP())
 	httpMux.HandleFunc("/v1/jwt/public.pem", impl.PublicKeyHTTP(a.PublicKeyPEM))

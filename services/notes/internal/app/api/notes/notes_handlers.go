@@ -47,11 +47,11 @@ func (i *Implementation) ListNotes(ctx context.Context, req *notesv1.ListNotesRe
 	if err != nil {
 		return nil, err
 	}
-	notes, next, err := i.service.ListNotes(ctx, userID, int(req.GetLimit()), req.GetCursor())
+	notes, err := i.service.ListNotes(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := &notesv1.ListNotesResponse{NextCursor: next}
+	out := &notesv1.ListNotesResponse{}
 	for _, n := range notes {
 		out.Notes = append(out.Notes, toProtoNoteSummary(n))
 	}

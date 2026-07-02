@@ -18,7 +18,9 @@ When working on a service, **open only that service folder** and read its local 
 | **focus** | [services/focus/AGENTS.md](services/focus/AGENTS.md) | pomodoro sessions, focus stats |
 | ai | [services/ai/AGENTS.md](services/ai/AGENTS.md) | **ARCHIVED — CI only, not prod** |
 
-**Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync).
+**Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync). Frontend audit: [apps/nordly/docs/architecture-audit.md](apps/nordly/docs/architecture-audit.md).
+
+**Backend audit (fail-fast, RPC usage):** [docs/backend-audit.md](docs/backend-audit.md) — per-service file checklist for `services/*`.
 
 **Web companion:** [apps/web/AGENTS.md](apps/web/AGENTS.md) — landing, guest live collab, pricing, published notes/boards.
 
@@ -96,7 +98,7 @@ services/<name>/
 | `mapper.go` | proto ↔ domain mapping, `mapServiceError` |
 | `<rpc_name>.go` | **One RPC per file** (`get_item.go`, `list_items.go`, …) |
 
-Custom HTTP routes (OAuth callback, file download): add `*_http.go` on `Implementation` — see identity `yandex_callback_http.go`.
+Custom HTTP routes (file download, auth config): add `*_http.go` on `Implementation`.
 
 ### Layer rules
 

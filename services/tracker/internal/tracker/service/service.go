@@ -35,8 +35,6 @@ type Repository interface {
 	SaveZoomRefreshToken(ctx context.Context, userID, refreshToken string) error
 	MarkZoomReauthRequired(ctx context.Context, userID string) error
 	ClearZoomConnection(ctx context.Context, userID string) error
-	SaveGoogleSyncState(ctx context.Context, userID, syncToken string) error
-	ClearGoogleSyncState(ctx context.Context, userID string) error
 	GetGoogleCalendarSyncToken(ctx context.Context, userID, calendarID string) (string, error)
 	SaveGoogleCalendarSyncToken(ctx context.Context, userID, calendarID, syncToken string) error
 	ClearAllGoogleCalendarSyncState(ctx context.Context, userID string) error
@@ -68,7 +66,6 @@ type Service interface {
 	PatchWorkTask(ctx context.Context, userID, taskID string, in PatchWorkTaskParams) (*WorkTask, error)
 	CreateWorkTaskConference(ctx context.Context, userID, taskID, provider string) (*WorkTask, error)
 	ListEpics(ctx context.Context, userID string) ([]Epic, error)
-	CreateEpic(ctx context.Context, userID string, in CreateEpicParams) (*Epic, error)
 	GetSettings(ctx context.Context, userID string) (*model.UserSettingsView, error)
 	UpdateSettings(ctx context.Context, userID string, in UpdateSettingsParams) (*model.UserSettingsView, error)
 	GetGoogleCalendarAuthURL(ctx context.Context, userID string) (string, error)
@@ -89,27 +86,23 @@ type trackerService struct {
 	google          *googleadapter.Client
 	zoom            *zoomadapter.Client
 	cipher          *secretbox.Cipher
-	honeCallbackURL string
+	nordlyCallbackURL string
 }
 
 type Deps struct {
-	Repo            Repository
-	Google          *googleadapter.Client
-	Zoom            *zoomadapter.Client
-	Cipher          *secretbox.Cipher
-	HoneCallbackURL string
+	Repo              Repository
+	Google            *googleadapter.Client
+	Zoom              *zoomadapter.Client
+	Cipher            *secretbox.Cipher
+	NordlyCallbackURL string
 }
 
 func New(deps Deps) Service {
-	callback := deps.HoneCallbackURL
-	if callback == "" {
-		callback = "nordly://settings"
-	}
 	return &trackerService{
-		repo:            deps.Repo,
-		google:          deps.Google,
-		zoom:            deps.Zoom,
-		cipher:          deps.Cipher,
-		honeCallbackURL: callback,
+		repo:              deps.Repo,
+		google:            deps.Google,
+		zoom:              deps.Zoom,
+		cipher:            deps.Cipher,
+		nordlyCallbackURL: deps.NordlyCallbackURL,
 	}
 }

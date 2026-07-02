@@ -6,17 +6,12 @@ import (
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 )
 
-type ListNotesFilter struct {
-	Limit  int
-	Cursor string
-}
-
 // Store is the persistence port consumed by the domain layer.
 type Store interface {
 	InitVault(ctx context.Context, userID string) (saltB64 string, initialized bool, err error)
 	GetVaultSalt(ctx context.Context, userID string) (saltB64 string, ok bool, err error)
 
-	ListNotes(ctx context.Context, userID string, f ListNotesFilter) ([]notesmodel.NoteSummary, string, error)
+	ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error)
 	GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error)
 	CreateNote(ctx context.Context, userID, title, body string) (*notesmodel.Note, error)
 	UpdateNote(ctx context.Context, userID, id, title, body string) (*notesmodel.Note, error)

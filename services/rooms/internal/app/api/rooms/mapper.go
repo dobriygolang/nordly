@@ -1,17 +1,13 @@
 package roomsapi
 
 import (
-	"errors"
-
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	roomservice "github.com/dobriygolang/project-nordly/services/rooms/internal/room/service"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
 )
 
 func toProtoRoom(view *roomservice.RoomView) *roomsv1.Room {
@@ -52,12 +48,6 @@ func mapServiceError(err error) error {
 	}
 	if roomservice.IsQuotaExceeded(err) {
 		return failedPrecondition("room quota exceeded")
-	}
-	if roomservice.IsInvalidInvite(err) {
-		return permissionDenied("invalid or expired invite")
-	}
-	if errors.Is(err, identityadapter.ErrUnavailable) {
-		return status.Errorf(codes.Unavailable, "guest join unavailable")
 	}
 	return status.Errorf(codes.Internal, "internal error")
 }

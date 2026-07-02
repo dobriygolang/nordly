@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/notes/internal/adapter/billing"
 	billinggrpc "github.com/dobriygolang/project-nordly/services/notes/internal/adapter/billing/grpc"
 	"github.com/dobriygolang/project-nordly/services/notes/internal/config"
 	notesrepo "github.com/dobriygolang/project-nordly/services/notes/internal/notes/repository"
@@ -41,21 +40,16 @@ func New(ctx context.Context) (*App, error) {
 	}
 	repo := notesrepo.New(pg)
 
-	billingClient := billingadapter.Noop()
-	var billingConn *billinggrpc.Client
-	if cfg.InternalAPIToken != "" {
-		billingConn, err = billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
-		if err != nil {
-			pg.Close()
-			return nil, fmt.Errorf("init billing client: %w", err)
-		}
-		billingClient = billingConn
+	billingConn, err := billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init billing client: %w", err)
 	}
 
 	svc := notesservice.New(notesservice.Deps{
 		Repo:          repo,
 		PublicBaseURL: cfg.PublicBaseURL,
-		Billing:       billingClient,
+		Billing:       billingConn,
 	})
 	return &App{
 		Config:      cfg,

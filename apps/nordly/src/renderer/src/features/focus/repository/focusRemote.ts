@@ -3,7 +3,6 @@ import { API_BASE_URL } from '@shared/api/config';
 import {
   optionalJsonDate,
   requireJsonNumber,
-  requireJsonObject,
   requireJsonString,
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
@@ -75,7 +74,6 @@ export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
   if (!Array.isArray(j.heatmap)) throw new Error('Invalid focus stats response: missing heatmap');
   const lastSeven = j.lastSevenDays;
   if (!Array.isArray(lastSeven)) throw new Error('Invalid focus stats response: missing lastSevenDays');
-  const queue = requireJsonObject(j, 'queue');
   return {
     currentStreakDays: requireJsonNumber(j, 'currentStreakDays'),
     longestStreakDays: requireJsonNumber(j, 'longestStreakDays'),
@@ -83,10 +81,10 @@ export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
     heatmap: j.heatmap.map((d) => unwrapDay(d as Record<string, unknown>)),
     lastSevenDays: lastSeven.map((d) => unwrapDay(d as Record<string, unknown>)),
     queue: {
-      todayTotal: requireJsonNumber(queue, 'todayTotal'),
-      todayDone: requireJsonNumber(queue, 'todayDone'),
-      aiShare: requireJsonNumber(queue, 'aiShare'),
-      userShare: requireJsonNumber(queue, 'userShare'),
+      todayTotal: 0,
+      todayDone: 0,
+      aiShare: 0,
+      userShare: 0,
     },
   };
 }

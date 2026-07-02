@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { detectPlatform, NORDLY_RELEASES_PAGE, resolveDownloadUrl } from '@/lib/landing/downloads'
+import { detectPlatform, NORDLY_RELEASES_PAGE, resolveDownloadUrl, triggerDownload } from '@/lib/landing/downloads'
 import { fetchLatestNordlyRelease } from '@/lib/landing/nordlyRelease'
 import { useI18n } from '@/lib/i18n'
 
@@ -50,7 +50,7 @@ export function LandingDownloadProvider({ children }: { children: ReactNode }) {
 
   const onDownload = useCallback(() => {
     if (!downloadUrl) return
-    window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+    triggerDownload(downloadUrl)
     setDownloaded(true)
   }, [downloadUrl])
 

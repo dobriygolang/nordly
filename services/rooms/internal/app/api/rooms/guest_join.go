@@ -7,7 +7,7 @@ import (
 )
 
 func (i *Implementation) GuestJoin(ctx context.Context, req *roomsv1.GuestJoinRequest) (*roomsv1.GuestJoinResponse, error) {
-	result, err := i.service.GuestJoin(ctx, req.RoomId, req.InviteToken, req.DisplayName)
+	result, err := i.service.GuestJoin(ctx, req.RoomId, req.DisplayName)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

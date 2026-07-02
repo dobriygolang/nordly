@@ -45,9 +45,6 @@ func publicAvatarURL(user *model.User) string {
 	if path, ok := telegram.ParseStoreRef(user.AvatarURL); ok && path != "" {
 		return fmt.Sprintf("/v1/users/%s/avatar", user.ID)
 	}
-	if telegram.IsLegacyFakeURL(user.AvatarURL) && user.TelegramID != nil {
-		return fmt.Sprintf("/v1/users/%s/avatar", user.ID)
-	}
 	if strings.HasPrefix(user.AvatarURL, "/v1/users/") {
 		return user.AvatarURL
 	}
@@ -69,13 +66,8 @@ func mapServiceError(err error) error {
 	case errors.Is(err, authservice.ErrUnauthorized):
 		return unauthorized()
 	case errors.Is(err, authservice.ErrInvalidLoginCode),
-		errors.Is(err, authservice.ErrInvalidRefreshToken),
-		errors.Is(err, authservice.ErrInvalidOAuthState),
-		errors.Is(err, authservice.ErrInvalidExchangeCode),
-		errors.Is(err, authservice.ErrInvalidTimezone):
+		errors.Is(err, authservice.ErrInvalidRefreshToken):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, authservice.ErrProviderAlreadyLinked):
-		return failedPrecondition(err.Error())
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

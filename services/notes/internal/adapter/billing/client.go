@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 const EntitlementCloudNotesCount = "cloud_notes_count"
@@ -21,12 +22,3 @@ type GaugeLimit struct {
 type Client interface {
 	GetGaugeLimit(ctx context.Context, userID, key string) (GaugeLimit, error)
 }
-
-type noopClient struct{}
-
-func (noopClient) GetGaugeLimit(context.Context, string, string) (GaugeLimit, error) {
-	return GaugeLimit{Unlimited: true}, nil
-}
-
-// Noop returns a client that skips billing checks (local dev without billing).
-func Noop() Client { return noopClient{} }

@@ -123,22 +123,9 @@ func telegramUsernameCandidates(firstName, lastName, username string) []string {
 	return nil
 }
 
-func yandexUsernameCandidates(login, displayName string) []string {
-	if login != "" {
-		return []string{login}
-	}
-	if displayName != "" {
-		return []string{displayName}
-	}
-	return nil
-}
-
-func pickAvatar(current, telegram, yandex string) string {
+func pickAvatar(current, telegram string) string {
 	if telegram != "" {
 		return telegram
-	}
-	if yandex != "" {
-		return yandex
 	}
 	return current
 }

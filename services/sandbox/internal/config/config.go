@@ -101,6 +101,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
 
+	internalToken := os.Getenv("INTERNAL_API_TOKEN")
+	if internalToken == "" {
+		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
+	}
+
 	return &Config{
 		AppEnv:             appEnv,
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
@@ -109,8 +114,8 @@ func Load() (*Config, error) {
 		GRPCHost:           grpcListenHost(),
 		PostgresDSN:        getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5439/nordly_sandbox?sslmode=disable"),
 		JWTPublicKeyPEM:    publicKey,
-		BillingGRPCAddr:    getEnv("BILLING_GRPC_ADDR", ""),
-		InternalAPIToken:   os.Getenv("INTERNAL_API_TOKEN"),
+		BillingGRPCAddr:    getEnv("BILLING_GRPC_ADDR", "127.0.0.1:9095"),
+		InternalAPIToken:   internalToken,
 		RunnerMode:         runnerMode,
 		MaxOutputBytes:     maxOutput,
 		DefaultTimeoutMS:   timeoutMS,

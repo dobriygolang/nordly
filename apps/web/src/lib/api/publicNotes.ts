@@ -6,20 +6,23 @@ export interface PublishedNote {
   publishedAt: string | null
 }
 
-function pickStr(j: Record<string, unknown>, ...keys: string[]): string {
-  for (const k of keys) {
-    const v = j[k]
-    if (typeof v === 'string') return v
+function requireStr(j: Record<string, unknown>, key: string): string {
+  const v = j[key]
+  if (typeof v !== 'string') {
+    throw new Error(`Invalid published note: missing ${key}`)
   }
-  return ''
+  return v
 }
 
 function mapPublishedNote(j: Record<string, unknown>): PublishedNote {
-  const publishedAt = pickStr(j, 'publishedAt', 'published_at')
+  const publishedAtRaw = j.publishedAt
+  if (publishedAtRaw != null && typeof publishedAtRaw !== 'string') {
+    throw new Error('Invalid published note: publishedAt must be a string')
+  }
   return {
-    title: pickStr(j, 'title'),
-    bodyMd: pickStr(j, 'bodyMd', 'body_md'),
-    publishedAt: publishedAt || null,
+    title: requireStr(j, 'title'),
+    bodyMd: requireStr(j, 'bodyMd'),
+    publishedAt: typeof publishedAtRaw === 'string' && publishedAtRaw ? publishedAtRaw : null,
   }
 }
 

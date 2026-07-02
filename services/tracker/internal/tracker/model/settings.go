@@ -13,8 +13,6 @@ type UserSettings struct {
 	GoogleOAuthState          *string
 	GoogleCalendarID          *string
 	GoogleReauthRequired      bool
-	GoogleSyncToken           *string
-	GoogleSyncedAt            *time.Time
 	ZoomRefreshToken          *string
 	ZoomOAuthState            *string
 	ZoomReauthRequired        bool

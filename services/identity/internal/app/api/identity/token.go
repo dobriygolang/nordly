@@ -4,7 +4,6 @@ import (
 	"context"
 
 	identityv1 "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // RefreshToken rotates refresh token and returns a new token pair.
@@ -18,14 +17,6 @@ func (i *Implementation) RefreshToken(ctx context.Context, req *identityv1.Refre
 		return nil, mapServiceError(err)
 	}
 	return toAuthResponse(result), nil
-}
-
-// Logout invalidates refresh token.
-func (i *Implementation) Logout(ctx context.Context, req *identityv1.LogoutRequest) (*emptypb.Empty, error) {
-	if err := i.service.Logout(ctx, req.GetRefreshToken()); err != nil {
-		return nil, mapServiceError(err)
-	}
-	return &emptypb.Empty{}, nil
 }
 
 // ValidateToken validates access token for internal callers.

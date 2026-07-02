@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { authTelegram, getAuthConfig } from '@features/auth/api/auth';
+import { resetAuthRefreshState } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
-import { useSyncStore } from '@shared/model/sync';
 
 function TelegramIcon(): JSX.Element {
   return (
@@ -24,7 +24,7 @@ async function persistSession(session: {
   expiresAt: number;
 }): Promise<void> {
   useSessionStore.getState().hydrate(session);
-  useSyncStore.getState().setSessionReauthRequired(false);
+  resetAuthRefreshState();
   if (window.nordly) {
     await window.nordly.auth.persist(session);
   }

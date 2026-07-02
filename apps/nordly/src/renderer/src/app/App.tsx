@@ -32,7 +32,7 @@ import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
-import { startSessionRefreshLoop } from '@shared/api/authSession';
+import { startSessionRefreshLoop, resetAuthRefreshState } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
@@ -189,6 +189,7 @@ export default function App() {
           refreshToken: session.refreshToken,
           expiresAt: session.expiresAt,
         });
+        resetAuthRefreshState();
       } else {
         void clear();
       }
@@ -441,12 +442,11 @@ export default function App() {
         const start = resolveScheduleStart(dayKey, existing, date);
         created = await scheduleTask(created.id, start, 30);
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-        if (page !== 'planning') navigateTo('today');
       } catch (err) {
         setOperationError(err instanceof Error ? err : new Error(String(err)));
       }
     },
-    [closePalette, navigateTo, page],
+    [closePalette],
   );
 
   useEffect(() => {

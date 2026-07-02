@@ -1,65 +1,137 @@
-/* Task board row */
+/* Task board — Winter 0.0.27 parity tokens */
+:root,
+html.dark {
+  --task-row-bg: rgb(38 38 38 / 0.6);
+  --task-row-bg-hover: rgb(38 38 38 / 0.8);
+  --task-row-bg-drag: rgb(38 38 38 / 0.95);
+  --task-check-done: oklch(0.696 0.17 162.48);
+}
+
+html.light {
+  --task-row-bg: rgb(var(--ink-rgb) / 0.06);
+  --task-row-bg-hover: rgb(var(--ink-rgb) / 0.09);
+  --task-row-bg-drag: rgb(var(--ink-rgb) / 0.12);
+  --task-check-done: #4cb35c;
+}
+
+/* ── Drag-and-drop (dnd-kit contract) ───────────────────────────────────────
+ *
+ * Same column     → SortableContext GPU transforms (no items state during drag).
+ * Cross column    → items update once when container changes (onDragOver).
+ * --dragging      → translucent source preview, matching dnd-kit DragOverlay docs.
+ * --ghost         → DragOverlay clone in document.body.
+ */
+
+.nordly-sortable-task {
+  touch-action: none;
+  box-sizing: border-box;
+}
+
+.nordly-sortable-task--dragging {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .nordly-task-row {
   position: relative;
   box-sizing: border-box;
-  padding: 7px 10px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgb(var(--ink-rgb) / 0.06);
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  transition:
-    background-color var(--t-fast),
-    opacity var(--t-fast),
-    transform var(--t-fast),
-    padding-left var(--t-fast);
-}
-.nordly-task-row[data-done='true'] {
-  gap: 8px;
-  background: rgb(var(--ink-rgb) / 0.04);
-}
-.nordly-task-row:not([data-done='true']) {
-  gap: 0;
-}
-.nordly-task-row:hover:not([data-done='true']):not([data-dragging='true']),
-.nordly-task-row:focus-within:not([data-done='true']) {
-  padding-left: 32px;
-}
-body.nordly-task-dragging .nordly-task-row {
-  transition: none;
-}
-body.nordly-task-dragging .nordly-task-row:hover:not([data-done='true']):not([data-dragging='true']),
-body.nordly-task-dragging .nordly-task-row:focus-within:not([data-done='true']) {
-  padding-left: 10px;
-}
-.nordly-task-row:hover:not([data-done='true']):not([data-dragging='true']) {
-  background: rgb(var(--ink-rgb) / 0.09);
-  border-color: var(--ink-tint-12);
-}
-.nordly-task-row[data-dragging='true'] {
-  display: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
-/* Epic accent — left stripe, muted when done. */
-.nordly-task-row[data-epic='true']::before {
+.nordly-task-row[data-dragging='true'] {
+  pointer-events: none;
+}
+
+/* Visible card surface */
+.nordly-task-row__card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--task-row-bg);
+  cursor: grab;
+  transition:
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nordly-task-row__card:hover {
+  background: var(--task-row-bg-hover);
+  border-color: rgb(var(--ink-rgb) / 0.1);
+}
+
+body.nordly-task-dragging .nordly-task-row__card {
+  cursor: grabbing;
+}
+
+.nordly-task-row[data-done='true'] .nordly-task-row__card {
+  opacity: 0.5;
+}
+
+.nordly-task-row[data-detail-open='true'] .nordly-task-row__card {
+  z-index: 6;
+  background: var(--task-row-bg-hover);
+  border-color: rgb(var(--ink-rgb) / 0.1);
+}
+
+.nordly-task-row.nordly-task-row--ghost {
+  cursor: grabbing;
+}
+
+.nordly-task-row--ghost .nordly-task-row__card {
+  transform: rotate(2deg) scale(1.02);
+  transform-origin: center center;
+  background: var(--task-row-bg-drag);
+  border-color: var(--hair-2);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+  opacity: 1;
+}
+
+.nordly-task-row__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nordly-task-row__title-row {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  gap: 0;
+}
+
+.nordly-task-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+/* Epic accent — left stripe on card */
+.nordly-task-row[data-epic='true'] .nordly-task-row__card::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 7px;
-  bottom: 7px;
+  top: 10px;
+  bottom: 10px;
   width: 3px;
   border-radius: 0 2px 2px 0;
   background: var(--task-epic-color);
   pointer-events: none;
 }
-.nordly-task-row[data-done='true'][data-epic='true']::before {
+
+.nordly-task-row[data-done='true'][data-epic='true'] .nordly-task-row__card::before {
   opacity: 0.35;
-}
-.nordly-task-row[data-detail-open='true'] {
-  z-index: 6;
-  background: rgb(var(--ink-rgb) / 0.1);
-  border-color: var(--ink-tint-12);
 }
 
 .nordly-task-row__meet {
@@ -100,8 +172,8 @@ body.nordly-task-dragging .nordly-task-row:focus-within:not([data-done='true']) 
     opacity 140ms var(--motion-ease-standard, ease),
     background-color var(--t-fast);
 }
-.nordly-task-row:hover .nordly-task-row__detail,
-.nordly-task-row:focus-within .nordly-task-row__detail,
+.nordly-task-row__card:hover .nordly-task-row__detail,
+.nordly-task-row__card:focus-within .nordly-task-row__detail,
 .nordly-task-row[data-detail-open='true'] .nordly-task-row__detail {
   opacity: 1;
   pointer-events: auto;
@@ -164,66 +236,117 @@ body.nordly-task-dragging .nordly-task-row__detail {
   color: var(--ink-40);
 }
 .nordly-task-row__check {
-  width: 16px;
+  box-sizing: border-box;
+  width: 0;
   height: 16px;
-  border-radius: 99px;
-  border: 1.5px solid var(--ink-60);
-  background: rgb(var(--ink-rgb) / 0.04);
+  margin: 0;
+  margin-right: 0;
+  border-radius: 999px;
+  border: 2px solid rgb(var(--ink-rgb) / 0.3);
+  background: transparent;
   flex-shrink: 0;
   cursor: pointer;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   color: transparent;
-  font-size: 10px;
+  font-size: 0;
   line-height: 1;
   padding: 0;
   opacity: 0;
-  transition: opacity 140ms var(--motion-ease-standard, ease);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.nordly-task-row:not([data-done='true']) .nordly-task-row__check {
-  position: absolute;
-  left: 10px;
-  top: 8px;
-  margin-top: 0;
-  pointer-events: none;
-}
-.nordly-task-row:not([data-done='true']):hover .nordly-task-row__check,
-.nordly-task-row:not([data-done='true']):focus-within .nordly-task-row__check {
+
+.nordly-task-row__card:hover .nordly-task-row__check,
+.nordly-task-row__card:focus-within .nordly-task-row__check {
+  width: 16px;
+  margin-right: 10px;
   opacity: 1;
   pointer-events: auto;
 }
-body.nordly-task-dragging .nordly-task-row:not([data-done='true']) .nordly-task-row__check {
+
+.nordly-task-row__check:hover {
+  border-color: rgb(var(--ink-rgb) / 0.5);
+}
+
+.nordly-task-row__check:focus-visible {
+  outline: 2px solid rgb(var(--ink-rgb) / 0.35);
+  outline-offset: 1px;
+}
+
+.nordly-task-row__check:active {
+  transform: scale(0.92);
+}
+
+body.nordly-task-dragging .nordly-task-row__check {
   opacity: 0;
+  width: 0;
+  margin-right: 0;
   pointer-events: none;
 }
+
 .nordly-task-row[data-done='true'] .nordly-task-row__check {
-  margin-top: 0;
+  width: 16px;
+  margin-right: 10px;
   opacity: 1;
-  border: none;
-  background: #4cb35c;
-  color: #0a0a0a;
+  border: 2px solid var(--task-check-done);
+  background: var(--task-check-done);
+  color: #000;
   pointer-events: auto;
 }
+
 .nordly-task-row__body {
   flex: 1;
   min-width: 0;
 }
-.nordly-task-row__duration {
-  flex-shrink: 0;
-  margin-top: 0;
+
+.nordly-task-row__title {
+  font-size: 13px;
+  line-height: 1.25;
+  color: rgb(var(--ink-rgb) / 0.8);
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+
+.nordly-task-row[data-done='true'] .nordly-task-row__title {
+  color: rgb(var(--ink-rgb) / 0.3);
+  text-decoration: line-through;
+}
+
+.nordly-task-row__duration-btn {
+  border: none;
+  background: transparent;
+  color: rgb(var(--ink-rgb) / 0.3);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nordly-task-row__duration-btn:hover:not(:disabled) {
+  color: rgb(var(--ink-rgb) / 0.5);
+}
+
+.nordly-task-row__duration-btn[data-open='true'] {
+  color: rgb(var(--ink-rgb) / 0.5);
 }
 
 .nordly-day-add-btn {
   box-sizing: border-box;
   width: 100%;
   flex-shrink: 0;
-  padding: 6px 10px;
-  border-radius: 0;
-  border: 1px solid rgb(var(--ink-rgb) / 0.1);
-  background: rgb(var(--ink-rgb) / 0.03);
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.06);
+  background: rgb(var(--ink-rgb) / 0.055);
   color: var(--ink-40);
-  font-size: 12px;
-  line-height: 15px;
+  font-size: 13px;
+  line-height: 1.25;
   font-weight: 400;
   text-align: left;
   cursor: pointer;
@@ -233,8 +356,8 @@ body.nordly-task-dragging .nordly-task-row:not([data-done='true']) .nordly-task-
     border-color var(--t-fast);
 }
 .nordly-day-add-btn:hover {
-  background: rgb(var(--ink-rgb) / 0.07);
-  border-color: var(--ink-tint-12);
+  background: rgb(var(--ink-rgb) / 0.09);
+  border-color: rgb(var(--ink-rgb) / 0.1);
   color: var(--ink-60);
 }
 .nordly-day-add-btn:focus-visible {
@@ -259,7 +382,8 @@ body.nordly-task-dragging .nordly-task-row:not([data-done='true']) .nordly-task-
 
 .nordly-task-board-scroll {
   box-sizing: border-box;
-  padding-top: 0;
+  padding-top: 10px;
+  padding-bottom: 14px;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   cursor: grab;
@@ -271,28 +395,43 @@ body.nordly-task-dragging .nordly-task-row:not([data-done='true']) .nordly-task-
 }
 
 .nordly-day-column {
-  contain-intrinsic-size: 254px 480px;
-  perspective: 900px;
+  position: relative;
+  contain-intrinsic-size: 270px 480px;
+  box-sizing: border-box;
   height: 100%;
   min-height: 100%;
+  perspective: 900px;
 }
 
 .nordly-day-column__body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   height: 100%;
   min-height: 100%;
+  padding: 0 8px 8px;
   border: none;
-  border-radius: 0;
-  transform-origin: center top;
+  border-radius: 14px;
+  transform: translate3d(0, 0, 0) scale(1);
+  transform-origin: center center;
   transition:
-    transform 180ms var(--motion-ease-standard),
-    background-color 180ms var(--motion-ease-standard);
+    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    background-color 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 body.nordly-task-dragging .nordly-day-column__body {
-  transition: none;
+  will-change: transform, background-color, box-shadow;
+}
+
+/* Target-day lift: visual-only inner surface animation; dnd-kit state stays unchanged. */
+.nordly-day-column--drop .nordly-day-column__body {
+  transform: translate3d(0, -4px, 18px) scale(1.012);
+  background: color-mix(in srgb, var(--surface-hover) 55%, transparent);
+  box-shadow:
+    0 22px 44px -16px rgb(0 0 0 / 0.48),
+    0 8px 18px -12px rgb(0 0 0 / 0.38),
+    0 0 0 1px rgb(var(--ink-rgb) / 0.06);
 }
 
 .nordly-day-column__header {
@@ -301,14 +440,14 @@ body.nordly-task-dragging .nordly-day-column__body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  padding: 0 10px;
-  min-height: 34px;
+  padding: 0;
+  min-height: 0;
 }
 
 .nordly-day-column__weekday {
   font-size: 13px;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 1.25;
   color: var(--ink-90);
 }
 
@@ -317,42 +456,21 @@ body.nordly-task-dragging .nordly-day-column__body {
 }
 
 .nordly-day-column__date {
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 10px;
+  line-height: 1.25;
   color: var(--ink-40);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .nordly-day-column__total {
   font-size: 10px;
-  line-height: 16px;
+  line-height: 1.25;
   color: var(--ink-40);
   flex-shrink: 0;
+  padding-top: 1px;
 }
 
-/* Whole column block — 3D lift + side/bottom highlight (no top edge, no border tween). */
-.nordly-day-column__body--drop {
-  position: relative;
-  z-index: 4;
-  transform: translate3d(0, -4px, 0) scale(1.012);
-  background: rgb(var(--ink-rgb) / 0.07);
-  box-shadow:
-    inset 1px 0 0 rgb(var(--ink-rgb) / 0.28),
-    inset -1px 0 0 rgb(var(--ink-rgb) / 0.28),
-    inset 0 -1px 0 rgb(var(--ink-rgb) / 0.28),
-    0 6px 20px rgb(var(--ink-rgb) / 0.14),
-    0 14px 36px rgb(var(--ink-rgb) / 0.1),
-    0 20px 48px rgb(0 0 0 / 0.32);
-}
-
-body.nordly-task-dragging .nordly-day-column__body--drop {
-  transform: translate3d(0, -2px, 0);
-  background: rgb(var(--ink-rgb) / 0.045);
-  box-shadow:
-    inset 1px 0 0 rgb(var(--ink-rgb) / 0.18),
-    inset -1px 0 0 rgb(var(--ink-rgb) / 0.18),
-    inset 0 -1px 0 rgb(var(--ink-rgb) / 0.18);
-}
+/* Drop target column — scale + subtle fill (Winter dnd-kit). */
 
 .nordly-day-column__tasks {
   display: flex;
@@ -361,6 +479,8 @@ body.nordly-task-dragging .nordly-day-column__body--drop {
   flex: 1;
   min-height: 0;
   overflow: visible;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 /* ── Task detail popover (UI mock) — anchored to row, like duration picker ── */
@@ -627,19 +747,16 @@ html.light .nordly-task-detail-pop {
 
 /* Completion checkbox: hidden until row hover/focus; space stays reserved. */
 @media (prefers-reduced-motion: reduce) {
-  .nordly-task-row__check {
+  .nordly-task-row,
+  .nordly-task-row__check,
+  .nordly-task-row__card {
     transition: none;
   }
   .nordly-day-column__body {
     transition: none;
   }
-  .nordly-day-column__body--drop {
+  .nordly-day-column--drop .nordly-day-column__body {
     transform: none;
-    background: rgb(var(--ink-rgb) / 0.07);
-    box-shadow:
-      inset 1px 0 0 rgb(var(--ink-rgb) / 0.28),
-      inset -1px 0 0 rgb(var(--ink-rgb) / 0.28),
-      inset 0 -1px 0 rgb(var(--ink-rgb) / 0.28);
   }
   .nordly-task-detail-pop {
     animation: none;

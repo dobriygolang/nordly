@@ -5,6 +5,7 @@ import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { parseDayKey } from '@shared/lib/dates';
 
+import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';
 import { PlanningTaskColumn } from '@features/planning/components/PlanningTaskColumn';
 import type { usePlanningTaskBoard } from '@features/planning/hooks/usePlanningTaskBoard';
 
@@ -22,14 +23,14 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
   const todayDate = parseDayKey(todayKey);
   const tomorrowDate = parseDayKey(board.tomorrow);
   const mondayDate = parseDayKey(board.monday);
+  const { dnd } = board;
 
   const columnProps = {
     epics,
     settings,
-    draggingId: board.draggingId,
-    draggingTask: board.draggingTask,
     detailTaskId: board.detailTaskId,
     editRequest: board.editRequest,
+    isDragging: dnd.isDragging,
     onToggleDone: board.handleToggleDone,
     onTitleChange: (task: TaskCard, title: string) => void board.handleTitleChange(task, title),
     onOpenDetail: board.handleOpenDetail,
@@ -38,45 +39,44 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
       void board.handleEpicChange(task, selection),
     onCreateConference: board.handleCreateConference,
     onClearConference: (task: TaskCard) => void board.handleClearConference(task),
-    onPointerDragStart: board.onPointerDragStart,
+    onTaskTap: board.handleTaskTap,
     onAddClick: () => undefined,
   };
 
   return (
-    <div className="nordly-planning-cols" data-cols="3">
-      <PlanningTaskColumn
-        dayKey={todayKey}
-        title={t('nordly.planning.col_today')}
-        subtitle={t('nordly.planning.col_today_defer_hint')}
-        tasks={board.tasksByDay.get(todayKey) ?? []}
-        durationTasks={board.columnDurationTasks(todayKey)}
-        dropHighlight={board.dropDay === todayKey && board.draggingId !== null}
-        dropInsertBeforeId={board.dropDay === todayKey ? board.dropInsertBeforeId : null}
-        onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
-        {...columnProps}
-      />
-      <PlanningTaskColumn
-        dayKey={board.tomorrow}
-        title={t('nordly.planning.col_tomorrow')}
-        subtitle={t('nordly.planning.col_tomorrow_hint')}
-        tasks={board.tasksByDay.get(board.tomorrow) ?? []}
-        durationTasks={board.columnDurationTasks(board.tomorrow)}
-        dropHighlight={board.dropDay === board.tomorrow && board.draggingId !== null}
-        dropInsertBeforeId={board.dropDay === board.tomorrow ? board.dropInsertBeforeId : null}
-        onDurationChange={(task, min) => void board.handleDurationChange(task, min, tomorrowDate)}
-        {...columnProps}
-      />
-      <PlanningTaskColumn
-        dayKey={board.monday}
-        title={t('nordly.planning.col_next_week')}
-        subtitle={t('nordly.planning.col_next_week_hint')}
-        tasks={board.tasksByDay.get(board.monday) ?? []}
-        durationTasks={board.columnDurationTasks(board.monday)}
-        dropHighlight={board.dropDay === board.monday && board.draggingId !== null}
-        dropInsertBeforeId={board.dropDay === board.monday ? board.dropInsertBeforeId : null}
-        onDurationChange={(task, min) => void board.handleDurationChange(task, min, mondayDate)}
-        {...columnProps}
-      />
-    </div>
+    <DayTaskDndContext dnd={dnd} epics={epics} settings={settings}>
+      <div className="nordly-planning-cols" data-cols="3">
+        <PlanningTaskColumn
+          dayKey={todayKey}
+          title={t('nordly.planning.col_today')}
+          subtitle={t('nordly.planning.col_today_defer_hint')}
+          taskIds={dnd.items[todayKey] ?? []}
+          taskById={dnd.taskById}
+          dropHighlight={dnd.overContainerId === todayKey && dnd.isDragging}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
+          {...columnProps}
+        />
+        <PlanningTaskColumn
+          dayKey={board.tomorrow}
+          title={t('nordly.planning.col_tomorrow')}
+          subtitle={t('nordly.planning.col_tomorrow_hint')}
+          taskIds={dnd.items[board.tomorrow] ?? []}
+          taskById={dnd.taskById}
+          dropHighlight={dnd.overContainerId === board.tomorrow && dnd.isDragging}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min, tomorrowDate)}
+          {...columnProps}
+        />
+        <PlanningTaskColumn
+          dayKey={board.monday}
+          title={t('nordly.planning.col_next_week')}
+          subtitle={t('nordly.planning.col_next_week_hint')}
+          taskIds={dnd.items[board.monday] ?? []}
+          taskById={dnd.taskById}
+          dropHighlight={dnd.overContainerId === board.monday && dnd.isDragging}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min, mondayDate)}
+          {...columnProps}
+        />
+      </div>
+    </DayTaskDndContext>
   );
 }

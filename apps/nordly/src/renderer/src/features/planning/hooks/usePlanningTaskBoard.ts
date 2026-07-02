@@ -13,7 +13,7 @@ import {
   type TaskEpicSelection,
 } from '@features/tasks/api/tasks';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { useDayTaskDrag } from '@features/tasks/lib/useDayTaskDrag';
+import { useDayTaskDnd } from '@features/tasks/lib/useDayTaskDnd';
 import {
   applyTimeFromDay,
   buildDefaultScheduleDate,
@@ -210,34 +210,17 @@ export function usePlanningTaskBoard({
     setEditRequest((prev) => ({ taskId, key: (prev?.key ?? 0) + 1 }));
   }, []);
 
-  const { draggingId, dragSourceDay, dropDay, dropInsertBeforeId, onPointerDragStart } =
-    useDayTaskDrag(handleDrop, handleTaskTap);
-
-  const draggingTask = useMemo(
-    () => (draggingId ? tasks.find((t) => t.id === draggingId) ?? null : null),
-    [tasks, draggingId],
+  const columnKeys = useMemo(
+    () => [todayKey, tomorrow, monday, PLANNING_POOL_DAY_KEY],
+    [todayKey, tomorrow, monday],
   );
 
-  const columnDurationTasks = useCallback(
-    (dayKey: string): TaskCard[] => {
-      const base = tasksByDay.get(dayKey) ?? [];
-      if (!draggingId) return base;
-
-      const task = tasks.find((t) => t.id === draggingId);
-      if (!task) return base;
-
-      const sourceKey = dragSourceDay ?? findTaskColumnKey(draggingId);
-
-      if (sourceKey === dayKey && (dropDay === null || dropDay !== sourceKey)) {
-        return base.filter((t) => t.id !== draggingId);
-      }
-      if (dropDay === dayKey && sourceKey !== dayKey && !base.some((t) => t.id === draggingId)) {
-        return [...base, task];
-      }
-      return base;
-    },
-    [tasksByDay, draggingId, dragSourceDay, dropDay, tasks, findTaskColumnKey],
-  );
+  const dnd = useDayTaskDnd({
+    columnKeys,
+    tasksByDay,
+    tasks,
+    onDrop: handleDrop,
+  });
 
   const handleAddTask = useCallback((dayKey: string) => {
     if (dayKey === PLANNING_POOL_DAY_KEY) return;
@@ -381,12 +364,8 @@ export function usePlanningTaskBoard({
     tomorrow,
     monday,
     tasksByDay,
-    draggingId,
-    draggingTask,
-    dropDay,
-    dropInsertBeforeId,
-    onPointerDragStart,
-    columnDurationTasks,
+    dnd,
+    handleTaskTap,
     editRequest,
     detailTaskId,
     handleAddTask,

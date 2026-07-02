@@ -224,11 +224,11 @@
 }
 
 .nordly-planning-cols[data-cols='2'] {
-  grid-template-columns: repeat(2, minmax(0, 254px));
+  grid-template-columns: repeat(2, minmax(0, 270px));
 }
 
 .nordly-planning-cols[data-cols='3'] {
-  grid-template-columns: repeat(3, minmax(0, 254px));
+  grid-template-columns: repeat(3, minmax(0, 270px));
 }
 
 .nordly-planning-day-column {
@@ -248,13 +248,8 @@
   overflow-x: visible;
 }
 
-.nordly-planning-day-column .nordly-day-column__body--drop {
-  box-shadow:
-    inset 1px 0 0 rgb(var(--ink-rgb) / 0.28),
-    inset -1px 0 0 rgb(var(--ink-rgb) / 0.28),
-    0 6px 20px rgb(var(--ink-rgb) / 0.14),
-    0 14px 36px rgb(var(--ink-rgb) / 0.1),
-    0 20px 48px rgb(0 0 0 / 0.32);
+.nordly-planning-day-column.nordly-day-column--drop {
+  box-shadow: none;
 }
 
 .nordly-planning-day-column__header {

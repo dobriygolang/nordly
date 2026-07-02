@@ -17,12 +17,14 @@ import {
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
+import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayColumn } from './DayColumn';
-import { useDayTaskDrag } from '@features/tasks/lib/useDayTaskDrag';
+import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';
+import { useDayTaskDnd } from '@features/tasks/lib/useDayTaskDnd';
 import { useHorizontalPanScroll } from './useHorizontalPanScroll';
-import { useInfiniteDayScroll } from './useInfiniteDayScroll';
+import { DAY_COL_GAP, useInfiniteDayScroll } from './useInfiniteDayScroll';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
   applyTimeFromDay,
@@ -37,6 +39,18 @@ import {
 
 const VISIBLE = new Set(['todo', 'in_progress', 'in_review', 'done']);
 
+function isAuthError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b401\b|unauthorized/i.test(message);
+}
+
+/** Stable column order — never resort by done; only explicit `order` / schedule / createdAt. */
+function compareTaskColumnOrder(a: TaskCard, b: TaskCard): number {
+  const aOrder = a.order ?? taskScheduleStart(a)?.getTime() ?? new Date(a.createdAt).getTime();
+  const bOrder = b.order ?? taskScheduleStart(b)?.getTime() ?? new Date(b.createdAt).getTime();
+  return aOrder - bOrder;
+}
+
 export function TaskBoardPage(): JSX.Element {
   const t = useT();
   const today = useMemo(() => new Date(), []);
@@ -50,7 +64,17 @@ export function TaskBoardPage(): JSX.Element {
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
   const didExpandTasksRef = useRef(false);
+
+  const handleLoadError = useCallback((err: unknown) => {
+    if (isAuthError(err) || useSyncStore.getState().sessionReauthRequired) {
+      useSyncStore.getState().setSessionReauthRequired(true);
+      setLoadError(null);
+      return;
+    }
+    setLoadError(err instanceof Error ? err : new Error(String(err)));
+  }, []);
 
   const refresh = useCallback(async () => {
     setTasks(await listTasks());
@@ -59,10 +83,10 @@ export function TaskBoardPage(): JSX.Element {
 
   const failTaskAction = useCallback(
     (err: unknown) => {
-      setLoadError(err instanceof Error ? err : new Error(String(err)));
+      handleLoadError(err);
       void refresh();
     },
-    [refresh],
+    [handleLoadError, refresh],
   );
 
   const loadSettings = useCallback(async () => {
@@ -71,20 +95,20 @@ export function TaskBoardPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-    void loadSettings().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-  }, [refresh, loadSettings]);
+    void refresh().catch(handleLoadError);
+    void loadSettings().catch(handleLoadError);
+  }, [refresh, loadSettings, handleLoadError]);
 
   useEffect(() => {
-    const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-    const onSync = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    const onTasksChanged = () => void refresh().catch(handleLoadError);
+    const onSync = () => void refresh().catch(handleLoadError);
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
     window.addEventListener(NORDLY_EVENTS.syncChanged, onSync);
     return () => {
       window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
       window.removeEventListener(NORDLY_EVENTS.syncChanged, onSync);
     };
-  }, [refresh]);
+  }, [refresh, handleLoadError]);
 
   useEffect(() => {
     if (tasks.length === 0 || didExpandTasksRef.current) return;
@@ -105,14 +129,7 @@ export function TaskBoardPage(): JSX.Element {
       map.get(key)!.push(task);
     }
     for (const [, list] of map) {
-      list.sort((a, b) => {
-        const aDone = a.status === 'done' ? 1 : 0;
-        const bDone = b.status === 'done' ? 1 : 0;
-        if (aDone !== bDone) return aDone - bDone;
-        const aOrder = a.order ?? taskScheduleStart(a)?.getTime() ?? new Date(a.createdAt).getTime();
-        const bOrder = b.order ?? taskScheduleStart(b)?.getTime() ?? new Date(b.createdAt).getTime();
-        return aOrder - bOrder;
-      });
+      list.sort(compareTaskColumnOrder);
     }
     return map;
   }, [tasks, days, todayKey]);
@@ -135,14 +152,7 @@ export function TaskBoardPage(): JSX.Element {
         const list = prev
           .filter((t) => VISIBLE.has(t.status))
           .filter((t) => (t.scheduledStart ? taskDayKey(t) : todayKey) === dayKey)
-          .sort((a, b) => {
-            const aDone = a.status === 'done' ? 1 : 0;
-            const bDone = b.status === 'done' ? 1 : 0;
-            if (aDone !== bDone) return aDone - bDone;
-            const aOrder = a.order ?? taskScheduleStart(a)?.getTime() ?? new Date(a.createdAt).getTime();
-            const bOrder = b.order ?? taskScheduleStart(b)?.getTime() ?? new Date(b.createdAt).getTime();
-            return aOrder - bOrder;
-          });
+          .sort(compareTaskColumnOrder);
 
         const moved = list.find((t) => t.id === taskId);
         if (!moved) return prev;
@@ -305,36 +315,16 @@ export function TaskBoardPage(): JSX.Element {
     [refresh],
   );
 
-  const { draggingId, dragSourceDay, dropDay, dropInsertBeforeId, onPointerDragStart } =
-    useDayTaskDrag(handleDrop, handleTaskTap);
+  const columnKeys = useMemo(() => days.map((d) => d.key), [days]);
 
-  const draggingTask = useMemo(
-    () => (draggingId ? tasks.find((t) => t.id === draggingId) ?? null : null),
-    [tasks, draggingId],
-  );
+  const dnd = useDayTaskDnd({
+    columnKeys,
+    tasksByDay,
+    tasks,
+    onDrop: handleDrop,
+  });
 
-  useHorizontalPanScroll(scrollRef, draggingId === null);
-
-  const columnDurationTasks = useCallback(
-    (dayKey: string): TaskCard[] => {
-      const base = tasksByDay.get(dayKey) ?? [];
-      if (!draggingId) return base;
-
-      const task = tasks.find((t) => t.id === draggingId);
-      if (!task) return base;
-
-      const sourceKey = dragSourceDay ?? findTaskColumnKey(draggingId);
-
-      if (sourceKey === dayKey && (dropDay === null || dropDay !== sourceKey)) {
-        return base.filter((t) => t.id !== draggingId);
-      }
-      if (dropDay === dayKey && sourceKey !== dayKey && !base.some((t) => t.id === draggingId)) {
-        return [...base, task];
-      }
-      return base;
-    },
-    [tasksByDay, draggingId, dragSourceDay, dropDay, tasks, findTaskColumnKey],
-  );
+  useHorizontalPanScroll(scrollRef, !dnd.isDragging);
 
   const openAddTask = useCallback((dayKey: string) => {
     window.dispatchEvent(
@@ -436,7 +426,7 @@ export function TaskBoardPage(): JSX.Element {
     return () => window.removeEventListener(NORDLY_EVENTS.openTask, onOpen);
   }, [tasks, ensureDayVisible]);
 
-  if (loadError) throw loadError;
+  if (loadError && !sessionReauthRequired) throw loadError;
 
   return (
     <div
@@ -461,51 +451,51 @@ export function TaskBoardPage(): JSX.Element {
           minHeight: 0,
         }}
       >
-        <div
-          ref={scrollRef}
-          className="nordly-hide-scrollbar nordly-task-board-scroll"
-          style={{
-            width: '100%',
-            height: '100%',
-            minHeight: 0,
-            overflowX: 'auto',
-            display: 'flex',
-            alignItems: 'stretch',
-            gap: 10,
-            WebkitAppRegion: 'no-drag',
-          }}
-        >
-          {days.map((d) => (
-            <DayColumn
-              key={d.key}
-              dayKey={d.key}
-              date={d.date}
-              today={today}
-              draggingId={draggingId}
-              draggingTask={draggingTask}
-              dropHighlight={dropDay === d.key && draggingId !== null}
-              dropInsertBeforeId={dropDay === d.key ? dropInsertBeforeId : null}
-              detailTaskId={detailTaskId}
-              epics={epics}
-              settings={trackerSettings}
-              editRequest={editRequest}
-              durationTasks={columnDurationTasks(d.key)}
-              tasks={tasksByDay.get(d.key) ?? []}
-              selected={selectedDay === d.key}
-              onSelect={() => setSelectedDay(d.key)}
-              onAddClick={() => openAddTask(d.key)}
-              onToggleDone={(task) => void handleToggleDone(task)}
-              onDurationChange={(task, min) => void handleDurationChange(task, min, d.date)}
-              onTitleChange={(task, title) => void handleTitleChange(task, title)}
-              onOpenDetail={handleOpenDetail}
-              onCloseDetail={handleCloseDetail}
-              onEpicChange={(task, selection) => void handleEpicChange(task, selection)}
-              onCreateConference={handleCreateConference}
-              onClearConference={(task) => void handleClearConference(task)}
-              onPointerDragStart={onPointerDragStart}
-            />
-          ))}
-        </div>
+        <DayTaskDndContext dnd={dnd} epics={epics} settings={trackerSettings}>
+          <div
+            ref={scrollRef}
+            className="nordly-hide-scrollbar nordly-task-board-scroll"
+            style={{
+              width: '100%',
+              height: '100%',
+              minHeight: 0,
+              overflowX: 'auto',
+              display: 'flex',
+              alignItems: 'stretch',
+              gap: DAY_COL_GAP,
+              WebkitAppRegion: 'no-drag',
+            }}
+          >
+            {days.map((d) => (
+              <DayColumn
+                key={d.key}
+                dayKey={d.key}
+                date={d.date}
+                today={today}
+                taskIds={dnd.items[d.key] ?? []}
+                taskById={dnd.taskById}
+                dropHighlight={dnd.overContainerId === d.key && dnd.isDragging}
+                isDragging={dnd.isDragging}
+                detailTaskId={detailTaskId}
+                epics={epics}
+                settings={trackerSettings}
+                editRequest={editRequest}
+                selected={selectedDay === d.key}
+                onSelect={() => setSelectedDay(d.key)}
+                onAddClick={() => openAddTask(d.key)}
+                onToggleDone={(task) => void handleToggleDone(task)}
+                onDurationChange={(task, min) => void handleDurationChange(task, min, d.date)}
+                onTitleChange={(task, title) => void handleTitleChange(task, title)}
+                onOpenDetail={handleOpenDetail}
+                onCloseDetail={handleCloseDetail}
+                onEpicChange={(task, selection) => void handleEpicChange(task, selection)}
+                onCreateConference={handleCreateConference}
+                onClearConference={(task) => void handleClearConference(task)}
+                onTaskTap={handleTaskTap}
+              />
+            ))}
+          </div>
+        </DayTaskDndContext>
       </div>
 
       <DayTimeline

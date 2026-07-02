@@ -1,32 +1,31 @@
-import { Fragment } from 'react';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useMemo } from 'react';
 import { useT } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
-import { TaskInsertSlot } from '@features/tasks/components/TaskInsertSlot';
-import { TaskRow } from '@features/tasks/components/TaskRow';
-import { useFlipList } from '@shared/lib/useFlipList';
+import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
+import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
 import { formatDuration, sumDurationMin } from '@shared/lib/dates';
 
-const COL_W = 254;
+const COL_W = 270;
 
 interface PlanningTaskColumnProps {
   dayKey: string;
   title: string;
   subtitle?: string;
-  tasks: TaskCard[];
-  durationTasks: TaskCard[];
-  draggingId: string | null;
-  draggingTask: TaskCard | null;
+  taskIds: string[];
+  taskById: Map<string, TaskCard>;
   dropHighlight: boolean;
-  dropInsertBeforeId: string | null;
   detailTaskId: string | null;
   epics: TaskEpic[];
   settings: TrackerSettings | null;
   editRequest: { taskId: string; key: number } | null;
   showAdd?: boolean;
   noDrop?: boolean;
+  isDragging: boolean;
   onAddClick: () => void;
   onToggleDone: (task: TaskCard) => void;
   onDurationChange: (task: TaskCard, minutes: number) => void;
@@ -36,25 +35,23 @@ interface PlanningTaskColumnProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
-  onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
+  onTaskTap?: (taskId: string) => void;
 }
 
 export function PlanningTaskColumn({
   dayKey,
   title,
   subtitle,
-  tasks,
-  durationTasks,
-  draggingId,
-  draggingTask,
+  taskIds,
+  taskById,
   dropHighlight,
-  dropInsertBeforeId,
   detailTaskId,
   epics,
   settings,
   editRequest,
   showAdd,
   noDrop,
+  isDragging,
   onAddClick,
   onToggleDone,
   onDurationChange,
@@ -64,26 +61,21 @@ export function PlanningTaskColumn({
   onEpicChange,
   onCreateConference,
   onClearConference,
-  onPointerDragStart,
+  onTaskTap,
 }: PlanningTaskColumnProps): JSX.Element {
   const t = useT();
-  const total = formatDuration(sumDurationMin(durationTasks));
-
-  const showInsertPreview = draggingId !== null && dropHighlight && draggingTask !== null;
-  const listTasks =
-    draggingId !== null && tasks.some((task) => task.id === draggingId)
-      ? tasks.filter((task) => task.id !== draggingId)
-      : tasks;
-
-  const layoutSig = showInsertPreview ? (dropInsertBeforeId ?? '__end__') : '';
-  const tasksRef = useFlipList(
-    listTasks.map((task) => task.id),
-    layoutSig,
+  const columnTaskIds = useMemo(() => uniqueTaskIds(taskIds), [taskIds]);
+  const tasks = useMemo(
+    () => resolveTasksForColumn(columnTaskIds, taskById),
+    [columnTaskIds, taskById],
   );
+  const total = formatDuration(sumDurationMin(tasks));
+
+  const { setNodeRef } = useDroppable({ id: dayKey, disabled: noDrop });
 
   return (
     <section
-      className="nordly-day-column nordly-planning-day-column"
+      className={`nordly-day-column nordly-planning-day-column${dropHighlight ? ' nordly-day-column--drop' : ''}`}
       data-day-key={dayKey}
       data-planning-no-drop={noDrop ? 'true' : undefined}
       style={{
@@ -93,7 +85,7 @@ export function PlanningTaskColumn({
         minHeight: '100%',
       }}
     >
-      <div className={`nordly-day-column__body${dropHighlight ? ' nordly-day-column__body--drop' : ''}`}>
+      <div ref={setNodeRef} className="nordly-day-column__body">
         <header className="nordly-planning-day-column__header">
           <div className="nordly-planning-day-column__header-main">
             <h3 className="nordly-planning-day-column__title">{title}</h3>
@@ -110,23 +102,21 @@ export function PlanningTaskColumn({
               e.stopPropagation();
               onAddClick();
             }}
-            style={{ pointerEvents: draggingId ? 'none' : 'auto' }}
+            style={{ pointerEvents: isDragging ? 'none' : 'auto' }}
           >
             {t('nordly.taskboard.add_task')}
           </button>
         ) : null}
 
-        <div className="nordly-day-column__tasks" ref={tasksRef}>
-          {listTasks.map((task) => (
-            <Fragment key={task.id}>
-              {showInsertPreview && dropInsertBeforeId === task.id && (
-                <TaskInsertSlot task={draggingTask} epics={epics} />
-              )}
-              <TaskRow
+        <div className="nordly-day-column__tasks">
+          <SortableContext items={columnTaskIds} strategy={verticalListSortingStrategy}>
+            {tasks.map((task) => (
+              <SortableTaskRow
+                key={task.id}
+                containerId={dayKey}
                 task={task}
                 epics={epics}
                 settings={settings}
-                dragging={draggingId === task.id}
                 detailOpen={detailTaskId === task.id}
                 editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
                 onToggleDone={onToggleDone}
@@ -137,13 +127,10 @@ export function PlanningTaskColumn({
                 onEpicChange={onEpicChange}
                 onCreateConference={onCreateConference}
                 onClearConference={onClearConference}
-                onPointerDragStart={onPointerDragStart}
+                onTaskTap={onTaskTap}
               />
-            </Fragment>
-          ))}
-          {showInsertPreview && dropInsertBeforeId === null && (
-            <TaskInsertSlot task={draggingTask} epics={epics} />
-          )}
+            ))}
+          </SortableContext>
         </div>
       </div>
     </section>

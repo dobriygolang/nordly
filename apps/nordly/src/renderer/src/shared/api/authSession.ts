@@ -13,6 +13,8 @@ function canReachNetwork(): boolean {
 const REFRESH_SKEW_MS = 60_000;
 
 let refreshInFlight: Promise<boolean> | null = null;
+/** After a definitive refresh failure (400/401), stop hammering /v1/auth/refresh. */
+let refreshRejected = false;
 
 function apiPath(path: string): string {
   const base = API_BASE_URL.replace(/\/$/, '');
@@ -34,6 +36,12 @@ async function rawAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promi
 
 function setSessionReauthRequired(required: boolean): void {
   useSyncStore.getState().setSessionReauthRequired(required);
+}
+
+/** Call after a fresh login so refresh can run again. */
+export function resetAuthRefreshState(): void {
+  refreshRejected = false;
+  setSessionReauthRequired(false);
 }
 
 export function isSessionExpired(): boolean {
@@ -66,16 +74,19 @@ async function persistRefreshedTokens(tokens: {
     refreshToken: tokens.refreshToken,
     expiresAt: tokens.expiresAt,
   });
+  refreshRejected = false;
   setSessionReauthRequired(false);
 }
 
 /** Rotate refresh token and persist new pair to store + keychain. */
 export async function refreshAccessToken(): Promise<boolean> {
+  if (refreshRejected) return false;
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
     const { refreshToken } = useSessionStore.getState();
     if (!refreshToken) {
+      refreshRejected = true;
       if (isSessionExpired()) setSessionReauthRequired(true);
       return false;
     }
@@ -91,7 +102,12 @@ export async function refreshAccessToken(): Promise<boolean> {
         body: JSON.stringify({ refreshToken }),
       });
       if (!resp.ok) {
-        if (isSessionExpired()) setSessionReauthRequired(true);
+        if (resp.status === 400 || resp.status === 401) {
+          refreshRejected = true;
+          setSessionReauthRequired(true);
+        } else if (isSessionExpired()) {
+          setSessionReauthRequired(true);
+        }
         return false;
       }
 
@@ -115,6 +131,10 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 /** Proactive refresh before sync/API when access token is stale. */
 export async function ensureAccessTokenForSync(): Promise<boolean> {
+  if (refreshRejected) {
+    setSessionReauthRequired(true);
+    return false;
+  }
   const { accessToken, refreshToken } = useSessionStore.getState();
   if (!accessToken && !refreshToken) return false;
   if (!isSessionExpired() && !isAccessTokenExpiringSoon()) return true;
@@ -127,9 +147,13 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
 
 /** Sign out on explicit logout only; failed refresh keeps local session for offline use. */
 export async function handleUnauthorized(): Promise<void> {
-  if (clearingUnauthorized) return;
   const { status } = useSessionStore.getState();
   if (status !== 'signed_in') return;
+
+  if (refreshRejected) {
+    setSessionReauthRequired(true);
+    return;
+  }
 
   if (!canReachNetwork()) {
     setSessionReauthRequired(true);
@@ -149,6 +173,11 @@ export function startSessionRefreshLoop(): () => void {
   const tick = (): void => {
     const { status } = useSessionStore.getState();
     if (status !== 'signed_in') return;
+
+    if (refreshRejected) {
+      setSessionReauthRequired(true);
+      return;
+    }
 
     if (!canReachNetwork()) {
       if (isSessionExpired()) setSessionReauthRequired(true);

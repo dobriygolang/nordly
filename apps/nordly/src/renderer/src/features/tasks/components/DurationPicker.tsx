@@ -10,10 +10,16 @@ export const DURATION_PRESETS_MIN = [15, 20, 30, 45, 60, 120, 180, 240, 360, 480
 interface DurationPickerProps {
   valueMin: number;
   disabled?: boolean;
+  buttonClassName?: string;
   onChange: (minutes: number) => void;
 }
 
-export function DurationPicker({ valueMin, disabled, onChange }: DurationPickerProps): JSX.Element {
+export function DurationPicker({
+  valueMin,
+  disabled,
+  buttonClassName,
+  onChange,
+}: DurationPickerProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -39,20 +45,25 @@ export function DurationPicker({ valueMin, disabled, onChange }: DurationPickerP
       <button
         type="button"
         disabled={disabled}
+        data-open={open ? 'true' : 'false'}
         onClick={(e) => {
           e.stopPropagation();
           if (!disabled) setOpen((v) => !v);
         }}
-        className="mono"
-        style={{
-          border: 'none',
-          background: open ? 'rgb(var(--ink-rgb) / 0.08)' : 'transparent',
-          color: 'var(--ink-40)',
-          fontSize: 10,
-          padding: '2px 4px',
-          borderRadius: 4,
-          cursor: disabled ? 'default' : 'pointer',
-        }}
+        className={buttonClassName ?? 'mono'}
+        style={
+          buttonClassName
+            ? undefined
+            : {
+                border: 'none',
+                background: open ? 'rgb(var(--ink-rgb) / 0.08)' : 'transparent',
+                color: 'var(--ink-40)',
+                fontSize: 10,
+                padding: '2px 4px',
+                borderRadius: 4,
+                cursor: disabled ? 'default' : 'pointer',
+              }
+        }
       >
         {formatDurationShort(valueMin)}
       </button>

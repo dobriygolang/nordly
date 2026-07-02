@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { useSyncStore } from '@shared/model/sync';
 
 let settingsCache: {
   connected: boolean;
@@ -11,6 +12,11 @@ let settingsCache: {
 } | null = null;
 
 const SETTINGS_TTL_MS = 30_000;
+
+function isAuthError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b401\b|unauthorized/i.test(message);
+}
 
 export function useGoogleCalendarConnection(): {
   connected: boolean;
@@ -36,7 +42,20 @@ export function useGoogleCalendarConnection(): {
       setReady(true);
       return;
     }
-    const s = await getTrackerSettings();
+    let s: Awaited<ReturnType<typeof getTrackerSettings>>;
+    try {
+      s = await getTrackerSettings();
+    } catch (err) {
+      if (isAuthError(err)) {
+        useSyncStore.getState().setSessionReauthRequired(true);
+        setConnected(false);
+        setReauthRequired(true);
+        setReady(true);
+        setError(null);
+        return;
+      }
+      throw err;
+    }
     settingsCache = {
       connected: s.googleCalendarConnected,
       reauthRequired: s.googleReauthRequired,
@@ -59,7 +78,7 @@ export function useGoogleCalendarConnection(): {
     return () => window.removeEventListener(NORDLY_EVENTS.syncChanged, onSync);
   }, [refresh]);
 
-  if (error) throw error;
+  if (error && !useSyncStore.getState().sessionReauthRequired) throw error;
 
   return { connected, reauthRequired, ready, refresh };
 }

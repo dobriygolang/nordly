@@ -1,4 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type DownloadEvent } from '@tauri-apps/plugin-updater';
 
@@ -30,8 +31,9 @@ export function compareSemver(a: string, b: string): number {
 
 /** Version string from GitHub Release latest.json (what the in-app updater reads). */
 export async function fetchPublishedVersion(): Promise<string | null> {
+  if (!isTauriRuntime()) return null;
   try {
-    const resp = await fetch(UPDATER_JSON_URL, { cache: 'no-store' });
+    const resp = await tauriFetch(UPDATER_JSON_URL, { cache: 'no-store' });
     if (!resp.ok) return null;
     const j = (await resp.json()) as { version?: string };
     return typeof j.version === 'string' && j.version.length > 0 ? j.version : null;

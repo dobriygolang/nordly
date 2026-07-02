@@ -36,7 +36,9 @@ interface TaskRowProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
-  onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+  overlay?: boolean;
+  onTaskTap?: (taskId: string) => void;
 }
 
 export const TaskRow = memo(function TaskRow({
@@ -54,7 +56,9 @@ export const TaskRow = memo(function TaskRow({
   onEpicChange,
   onCreateConference,
   onClearConference,
-  onPointerDragStart,
+  dragHandleProps,
+  overlay = false,
+  onTaskTap,
 }: TaskRowProps): JSX.Element {
   const t = useT();
   const done = task.status === 'done';
@@ -137,147 +141,155 @@ export const TaskRow = memo(function TaskRow({
           ? ({ '--task-epic-color': epicColor } as CSSProperties)
           : undefined
       }
-      onPointerDown={(e) => {
-        if (editing) return;
-        const target = e.target as HTMLElement;
-        if (target.closest('button, textarea, a, [data-no-drag]')) return;
-        onPointerDragStart(task.id, e);
-      }}
       onClick={(e) => e.stopPropagation()}
     >
-      <button
-        type="button"
-        data-no-drag
-        className="nordly-task-row__check"
-        aria-label={done ? t('nordly.taskboard.mark_incomplete') : t('nordly.taskboard.mark_done')}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleDone(task);
-        }}
+      <div
+        className="nordly-task-row__card"
+        {...(overlay ? {} : dragHandleProps)}
+        onClick={
+          overlay
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                const target = e.target as HTMLElement;
+                if (target.closest('button, textarea, a, [data-no-drag]')) return;
+                onTaskTap?.(task.id);
+              }
+        }
       >
-        {done ? '✓' : ''}
-      </button>
+        <div className="nordly-task-row__main">
+          <div className="nordly-task-row__title-row">
+            <button
+              type="button"
+              data-no-drag
+              className="nordly-task-row__check"
+              aria-label={done ? t('nordly.taskboard.mark_incomplete') : t('nordly.taskboard.mark_done')}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleDone(task);
+              }}
+            >
+              {done ? <Icon name="check" size={10} stroke="#000" strokeWidth={3} /> : null}
+            </button>
 
-      <div className="nordly-task-row__body">
-        {editing ? (
-          <textarea
-            ref={textareaRef}
-            data-no-drag
-            value={draft}
-            rows={1}
-            aria-label={t('nordly.taskboard.edit_title')}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              autosize();
-            }}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                commit();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                cancel();
-              }
-            }}
-            style={{
-              width: '100%',
-              resize: 'none',
-              overflow: 'hidden',
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              padding: 0,
-              margin: 0,
-              font: 'inherit',
-              fontSize: 13,
-              lineHeight: '15px',
-              color: 'var(--ink-90)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          />
-        ) : (
-          <div
-            role="textbox"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDraft(task.title);
-              setEditing(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                setDraft(task.title);
-                setEditing(true);
-              }
-            }}
-            style={{
-              fontSize: 13,
-              lineHeight: '15px',
-              color: done ? 'var(--ink-40)' : 'var(--ink-90)',
-              textDecoration: done ? 'line-through' : 'none',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              cursor: 'text',
-            }}
-          >
-            {task.title || t('nordly.taskboard.untitled')}
+            <div className="nordly-task-row__body">
+              {editing ? (
+                <textarea
+                  ref={textareaRef}
+                  data-no-drag
+                  value={draft}
+                  rows={1}
+                  aria-label={t('nordly.taskboard.edit_title')}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    autosize();
+                  }}
+                  onBlur={commit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      commit();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      cancel();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    resize: 'none',
+                    overflow: 'hidden',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    margin: 0,
+                    font: 'inherit',
+                    fontSize: 13,
+                    lineHeight: 1.25,
+                    color: 'rgb(var(--ink-rgb) / 0.8)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                />
+              ) : (
+                <div
+                  role="textbox"
+                  tabIndex={0}
+                  className="nordly-task-row__title"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDraft(task.title);
+                    setEditing(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      setDraft(task.title);
+                      setEditing(true);
+                    }
+                  }}
+                >
+                  {task.title || t('nordly.taskboard.untitled')}
+                </div>
+              )}
+            </div>
           </div>
+
+          <div className="nordly-task-row__actions">
+            {task.conferenceUrl && (
+              <a
+                href={task.conferenceUrl}
+                data-no-drag
+                className="nordly-task-row__meet"
+                aria-label={t('nordly.taskboard.join_meeting')}
+                title={t('nordly.taskboard.join_meeting')}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Icon name="video" size={12} stroke="var(--ink-40)" />
+              </a>
+            )}
+
+            <button
+              type="button"
+              data-no-drag
+              ref={detailBtnRef}
+              className="nordly-task-row__detail"
+              aria-label={t('nordly.taskboard.open_details')}
+              aria-expanded={detailVisible}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail(task);
+              }}
+            >
+              <Icon name="more" size={14} stroke="var(--ink-40)" />
+            </button>
+
+            <div className="nordly-task-row__duration" data-no-drag>
+              <DurationPicker
+                valueMin={defaultDurationMin(task)}
+                buttonClassName="nordly-task-row__duration-btn mono"
+                onChange={(min) => onDurationChange(task, min)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {detailMounted && (
+          <TaskDetailPopover
+            task={task}
+            epics={epics}
+            settings={settings}
+            anchorRef={detailBtnRef}
+            closing={detailClosing}
+            onEpicChange={(selection) => onEpicChange(task, selection)}
+            onCreateConference={(provider) => onCreateConference(task, provider)}
+            onClearConference={() => onClearConference(task)}
+            onClose={onCloseDetail}
+          />
         )}
       </div>
-
-      {task.conferenceUrl && (
-        <a
-          href={task.conferenceUrl}
-          data-no-drag
-          className="nordly-task-row__meet"
-          aria-label={t('nordly.taskboard.join_meeting')}
-          title={t('nordly.taskboard.join_meeting')}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Icon name="video" size={12} stroke="var(--ink-40)" />
-        </a>
-      )}
-
-      <button
-        type="button"
-        data-no-drag
-        ref={detailBtnRef}
-        className="nordly-task-row__detail"
-        aria-label={t('nordly.taskboard.open_details')}
-        aria-expanded={detailVisible}
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenDetail(task);
-        }}
-      >
-        <Icon name="more" size={14} stroke="var(--ink-40)" />
-      </button>
-
-      <div className="nordly-task-row__duration" data-no-drag>
-        <DurationPicker
-          valueMin={defaultDurationMin(task)}
-          onChange={(min) => onDurationChange(task, min)}
-        />
-      </div>
-
-      {detailMounted && (
-        <TaskDetailPopover
-          task={task}
-          epics={epics}
-          settings={settings}
-          anchorRef={detailBtnRef}
-          closing={detailClosing}
-          onEpicChange={(selection) => onEpicChange(task, selection)}
-          onCreateConference={(provider) => onCreateConference(task, provider)}
-          onClearConference={() => onClearConference(task)}
-          onClose={onCloseDetail}
-        />
-      )}
     </article>
   );
 }, areTaskRowPropsEqual);

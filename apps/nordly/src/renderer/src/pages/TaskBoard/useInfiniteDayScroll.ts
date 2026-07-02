@@ -2,8 +2,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { buildDayWindow, toDayKey, type DayKey } from '@shared/lib/dates';
 
-export const DAY_COL_WIDTH = 254;
-export const DAY_COL_GAP = 10;
+export const DAY_COL_WIDTH = 270;
+export const DAY_COL_GAP = 12;
 export const DAY_COL_STRIDE = DAY_COL_WIDTH + DAY_COL_GAP;
 
 const INITIAL_PAST = 14;

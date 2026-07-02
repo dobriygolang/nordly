@@ -1,31 +1,30 @@
-import { Fragment, memo } from 'react';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { memo, useMemo } from 'react';
 import { useT, useLocale } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from '@shared/lib/dates';
-import { TaskInsertSlot } from '@features/tasks/components/TaskInsertSlot';
-import { TaskRow } from '@features/tasks/components/TaskRow';
-import { useFlipList } from '@shared/lib/useFlipList';
+import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
+import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
 
-const COL_W = 254;
+const COL_W = 270;
 
 interface DayColumnProps {
   dayKey: string;
   date: Date;
   today: Date;
-  tasks: TaskCard[];
-  durationTasks: TaskCard[];
-  draggingId: string | null;
-  draggingTask: TaskCard | null;
+  taskIds: string[];
+  taskById: Map<string, TaskCard>;
   dropHighlight: boolean;
-  dropInsertBeforeId: string | null;
   detailTaskId: string | null;
   epics: TaskEpic[];
   settings: TrackerSettings | null;
   editRequest: { taskId: string; key: number } | null;
   selected: boolean;
+  isDragging: boolean;
   onSelect: () => void;
   onAddClick: () => void;
   onToggleDone: (task: TaskCard) => void;
@@ -36,24 +35,22 @@ interface DayColumnProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
-  onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
+  onTaskTap?: (taskId: string) => void;
 }
 
 export const DayColumn = memo(function DayColumn({
   dayKey,
   date,
   today,
-  tasks,
-  durationTasks,
-  draggingId,
-  draggingTask,
+  taskIds,
+  taskById,
   dropHighlight,
-  dropInsertBeforeId,
   detailTaskId,
   epics,
   settings,
   editRequest,
   selected,
+  isDragging,
   onSelect,
   onAddClick,
   onToggleDone,
@@ -64,28 +61,23 @@ export const DayColumn = memo(function DayColumn({
   onEpicChange,
   onCreateConference,
   onClearConference,
-  onPointerDragStart,
+  onTaskTap,
 }: DayColumnProps): JSX.Element {
   const t = useT();
   const [locale] = useLocale();
   const { weekday, label, isToday } = formatColumnHeader(date, today, locale);
-  const total = formatDuration(sumDurationMin(durationTasks));
-
-  const showInsertPreview = draggingId !== null && dropHighlight && draggingTask !== null;
-  const listTasks =
-    draggingId !== null && tasks.some((task) => task.id === draggingId)
-      ? tasks.filter((task) => task.id !== draggingId)
-      : tasks;
-
-  const layoutSig = showInsertPreview ? (dropInsertBeforeId ?? '__end__') : '';
-  const tasksRef = useFlipList(
-    listTasks.map((task) => task.id),
-    layoutSig,
+  const columnTaskIds = useMemo(() => uniqueTaskIds(taskIds), [taskIds]);
+  const tasks = useMemo(
+    () => resolveTasksForColumn(columnTaskIds, taskById),
+    [columnTaskIds, taskById],
   );
+  const total = formatDuration(sumDurationMin(tasks));
+
+  const { setNodeRef } = useDroppable({ id: dayKey });
 
   return (
     <section
-      className="nordly-day-column"
+      className={`nordly-day-column${dropHighlight ? ' nordly-day-column--drop' : ''}`}
       data-day-key={dayKey}
       onClick={onSelect}
       style={{
@@ -95,7 +87,7 @@ export const DayColumn = memo(function DayColumn({
         minHeight: '100%',
       }}
     >
-      <div className={`nordly-day-column__body${dropHighlight ? ' nordly-day-column__body--drop' : ''}`}>
+      <div ref={setNodeRef} className="nordly-day-column__body">
         <header className="nordly-day-column__header">
           <div className="nordly-day-column__header-main">
             <div
@@ -119,22 +111,20 @@ export const DayColumn = memo(function DayColumn({
             e.stopPropagation();
             onAddClick();
           }}
-          style={{ pointerEvents: draggingId ? 'none' : 'auto' }}
+          style={{ pointerEvents: isDragging ? 'none' : 'auto' }}
         >
           {t('nordly.taskboard.add_task')}
         </button>
 
-        <div className="nordly-day-column__tasks" ref={tasksRef}>
-          {listTasks.map((task) => (
-            <Fragment key={task.id}>
-              {showInsertPreview && dropInsertBeforeId === task.id && (
-                <TaskInsertSlot task={draggingTask} epics={epics} />
-              )}
-              <TaskRow
+        <div className="nordly-day-column__tasks">
+          <SortableContext items={columnTaskIds} strategy={verticalListSortingStrategy}>
+            {tasks.map((task) => (
+              <SortableTaskRow
+                key={task.id}
+                containerId={dayKey}
                 task={task}
                 epics={epics}
                 settings={settings}
-                dragging={draggingId === task.id}
                 detailOpen={detailTaskId === task.id}
                 editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
                 onToggleDone={onToggleDone}
@@ -145,34 +135,38 @@ export const DayColumn = memo(function DayColumn({
                 onEpicChange={onEpicChange}
                 onCreateConference={onCreateConference}
                 onClearConference={onClearConference}
-                onPointerDragStart={onPointerDragStart}
+                onTaskTap={onTaskTap}
               />
-            </Fragment>
-          ))}
-          {showInsertPreview && dropInsertBeforeId === null && (
-            <TaskInsertSlot task={draggingTask} epics={epics} />
-          )}
+            ))}
+          </SortableContext>
         </div>
       </div>
     </section>
   );
 }, areDayColumnPropsEqual);
 
+/** Only the column that owns the detail/edit target should react to those props. */
+function detailSig(id: string | null, ids: string[]): string {
+  return id && ids.includes(id) ? id : '';
+}
+
+function editSig(req: { taskId: string; key: number } | null, ids: string[]): string {
+  return req && ids.includes(req.taskId) ? `${req.taskId}:${req.key}` : '';
+}
+
 function areDayColumnPropsEqual(prev: DayColumnProps, next: DayColumnProps): boolean {
   return (
     prev.dayKey === next.dayKey &&
     prev.date === next.date &&
     prev.today === next.today &&
-    prev.tasks === next.tasks &&
-    prev.durationTasks === next.durationTasks &&
-    prev.draggingId === next.draggingId &&
-    prev.draggingTask === next.draggingTask &&
+    prev.taskIds === next.taskIds &&
+    prev.taskById === next.taskById &&
     prev.dropHighlight === next.dropHighlight &&
-    prev.dropInsertBeforeId === next.dropInsertBeforeId &&
-    prev.detailTaskId === next.detailTaskId &&
     prev.epics === next.epics &&
     prev.settings === next.settings &&
-    prev.editRequest === next.editRequest &&
-    prev.selected === next.selected
+    prev.selected === next.selected &&
+    prev.isDragging === next.isDragging &&
+    detailSig(prev.detailTaskId, prev.taskIds) === detailSig(next.detailTaskId, next.taskIds) &&
+    editSig(prev.editRequest, prev.taskIds) === editSig(next.editRequest, next.taskIds)
   );
 }

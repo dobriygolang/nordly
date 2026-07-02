@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
+import { resetAuthRefreshState } from '@shared/api/authSession';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
@@ -18,6 +19,7 @@ export function SignOutSection() {
     if (busy) return;
     setBusy(true);
     try {
+      resetAuthRefreshState();
       await clear();
     } finally {
       setBusy(false);

@@ -1,6 +1,6 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
-import { handleUnauthorized, isSessionExpired, refreshAccessToken } from '@shared/api/authSession';
+import { handleUnauthorized, refreshAccessToken } from '@shared/api/authSession';
 import { isNativeHttpInTauri } from '@platform/runtime';
 import { useSessionStore } from '@shared/model/session';
 
@@ -44,9 +44,8 @@ export async function apiFetch(
       if (refreshed) {
         return apiFetch(input, withFreshBearer(init), { _retried: true });
       }
-      if (!isSessionExpired()) return resp;
     }
-    void handleUnauthorized();
+    await handleUnauthorized();
   }
 
   return resp;

@@ -12,8 +12,6 @@ import (
 	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 )
 
-const loginCodeTTLSeconds = 300
-
 // AuthResult is returned after successful authentication.
 type AuthResult struct {
 	AccessToken  string

@@ -85,12 +85,7 @@ export function SettingsPage(props: SettingsPageProps) {
             </>
           )}
 
-          {section === 'vault' && (
-            <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.section.vault')}</h1>
-              <VaultSection />
-            </>
-          )}
+          {section === 'vault' && <VaultSection />}
 
           {section === 'shortcuts' && (
             <>

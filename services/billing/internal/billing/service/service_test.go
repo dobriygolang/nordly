@@ -13,6 +13,7 @@ import (
 	identityadapter "github.com/dobriygolang/project-nordly/services/billing/internal/adapter/identity"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/adapter/providers"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/adapter/providers/tribute"
+	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/cache"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/repository"
 )
@@ -142,9 +143,18 @@ func (f *fakeRepo) UpdatePlanEntitlement(context.Context, string, string, json.R
 	return nil
 }
 
+func newTestPlansCache(repo *fakeRepo) *cache.Plans {
+	plans := cache.NewPlans(repo)
+	if err := plans.Reload(context.Background()); err != nil {
+		panic(err)
+	}
+	return plans
+}
+
 func newTestService(repo *fakeRepo) Service {
 	return New(Deps{
 		Repo:            repo,
+		PlansCache:      newTestPlansCache(repo),
 		TierToPlan:      map[string]string{"tribute_pro_monthly": model.PlanProMonthly},
 		ProTrialEnabled: true,
 		ProTrialDays:    14,
@@ -283,6 +293,7 @@ func TestTributeWebhookCreatesSubscription(t *testing.T) {
 		Repo:       repo,
 		Identity:   identity,
 		Providers:  []providers.BillingProvider{provider},
+		PlansCache: newTestPlansCache(repo),
 		TierToPlan: map[string]string{"tribute_pro_monthly": model.PlanProMonthly},
 	})
 	body := []byte(`{

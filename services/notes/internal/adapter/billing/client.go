@@ -3,7 +3,6 @@ package billing
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 const EntitlementCloudNotesCount = "cloud_notes_count"

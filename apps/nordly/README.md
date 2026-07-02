@@ -16,7 +16,9 @@ npm run dev              # Tauri
 # npm run dev:vite       # browser-only (no shell IPC)
 ```
 
-**Default:** Vite proxies `/v1/*` to prod (`https://trynordly.app`). Login: Telegram code flow (same as web).
+**Default:** Vite proxies `/v1/*` to prod (`https://trynordly.app`). Login: Telegram code flow in desktop app.
+
+**OAuth (Google Calendar, Zoom):** tracker redirects to web `/oauth/google-calendar` or `/oauth/zoom` → deep link back to `nordly://settings?…`.
 
 **Local backend:** set `VITE_NORDLY_LOCAL_API=true` in `.env` and run services (`make start` per service).
 

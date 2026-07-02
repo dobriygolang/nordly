@@ -16,14 +16,30 @@ Does not own: users (identity), tasks (tracker), notes (notes service).
 
 `value_json`: `{"type":"bool","value":true}` or `{"type":"counter","limit":N,"period":"day"|"month"}` or `{"type":"gauge","limit":N}`.
 
-Seeded in `00001_init.sql`. Plans: `free`, `pro_monthly`.
+Seeded in migrations (`00001`, `00003_nordly_plan_entitlements.sql`). Plans: `free`, `pro_monthly`.
+
+Full matrix + enforcement status: [docs/billing-plans.md](../../docs/billing-plans.md).
+
+### Nordly desktop (public pricing catalog)
 
 | Key | Type | Free | Pro |
 |-----|------|------|-----|
-| cloud_notes_count | gauge | unlimited | unlimited |
+| cloud_sync_enabled | bool | false | true |
+| cloud_sync_devices | gauge | 0 | 5 |
+| cloud_notes_count | gauge | 50 | unlimited |
+| published_notes_active | gauge | 3 | 100 |
+| publish_unlisted | bool | false | true |
+| publish_password | bool | false | true |
+
+`GET /v1/billing/plans` returns only the rows above (`catalog.PublicPricingView`).
+
+### Internal (hidden from pricing API)
+
+| Key | Type | Free | Pro |
+|-----|------|------|-----|
+| code_runs_per_day | counter/day | unlimited | 500 |
 | live_rooms_per_month | counter/month | unlimited | 30 |
 | live_rooms_concurrent | gauge | unlimited | 5 |
-| code_runs_per_day | counter/day | unlimited | 500 |
 
 **Not seeded** (retired with interview/content/recommendation): `mock_interviews_per_month`, `ai_evaluations_per_day`, `ai_insights_per_day`, `company_templates_enabled`, `recommendations_enabled`, `advanced_feedback_enabled`, `sd_ai_turns_per_month`, `hidden_tests_enabled`.
 
@@ -61,3 +77,7 @@ make start | gen-proto | lint | test | build
 ```
 
 Production requires `INTERNAL_API_TOKEN`, `TRIBUTE_WEBHOOK_SECRET`.
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation + plans/entitlements cache (`billing_plans_*`, `billing_entitlements_*` in `internal/billing/cache/`) + product counters (`billing_usage_consume_total`, `billing_subscriptions_total`, `billing_webhook_events_total` in `internal/billing/product/metrics.go`).

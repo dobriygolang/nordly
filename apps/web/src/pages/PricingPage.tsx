@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Eyebrow } from '@/components/brand/Eyebrow'
-import { formatPlanLimitSpec, planLimitKeys } from '@/lib/billing/planLimits'
+import { formatPlanEntitlementValue, planPricingKeys } from '@/lib/billing/planLimits'
 import { getBillingPlans } from '@/lib/api/billing'
 import { useBillingLabels } from '@/lib/billingLabels'
 import { ErrorMessage } from '@/components/ErrorMessage'
@@ -19,7 +19,7 @@ export default function PricingPage() {
   })
 
   const plans = plansQ.data?.plans ?? []
-  const limitKeys = planLimitKeys(plans)
+  const limitKeys = planPricingKeys(plans)
 
   return (
     <PageContent>
@@ -66,7 +66,7 @@ export default function PricingPage() {
                     <td className="px-5 py-3.5 text-site-text">{entitlementLabel(key)}</td>
                     {plans.map((plan) => (
                       <td key={`${plan.slug}-${key}`} className="px-5 py-3.5 text-site-muted">
-                        {formatPlanLimitSpec(plan.limits?.[key])}
+                        {formatPlanEntitlementValue(plan, key, t)}
                       </td>
                     ))}
                   </tr>

@@ -44,4 +44,18 @@ Import JSON dashboards from `deploy/grafana/dashboards/` via UI or API.
 
 Dashboards: **Platform**, **HTTP routes**, **Billing**, **Product** (`deploy/grafana/dashboards/`).
 
-Retired services (interview, recommendation, admin, ai) are not scraped in prod.
+| JSON file | Dashboard title |
+|-----------|-----------------|
+| `nordly-platform.json` | nordly — Platform |
+| `nordly-http-routes.json` | nordly — HTTP routes |
+| `nordly-billing.json` | nordly — Billing |
+| `nordly-product.json` | nordly — Product |
+
+**Product dashboard label values:**
+
+- `identity_auth_total`: `method=telegram|refresh`, `result=ok|invalid_code|invalid_token`
+- `tracker_work_tasks_total`: `action=create|complete|status_change|delete|schedule|unschedule|conference`
+- `focus_sessions_total`: `result=started|completed|abandoned`
+- `billing_usage_consume_total`: `result=allowed|limit_exceeded|not_usage_entitlement`
+
+Retired services (interview, recommendation, admin, ai) are not scraped in prod. No AI & LLM dashboard in prod.

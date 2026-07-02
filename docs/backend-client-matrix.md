@@ -3,6 +3,8 @@
 Cross-reference of **what ships in proto/HTTP** vs **what Nordly desktop + web companion actually call**.  
 Pair with [backend-audit.md](./backend-audit.md) (fail-fast cleanup) and [apps/nordly/docs/architecture-audit.md](../apps/nordly/docs/architecture-audit.md) (frontend).
 
+Summary matrix (legacy): [api-usage-matrix.md](./architecture/api-usage-matrix.md) — prefer **this file** for field-level detail.
+
 **Legend**
 
 | Mark | Meaning |
@@ -11,7 +13,7 @@ Pair with [backend-audit.md](./backend-audit.md) (fail-fast cleanup) and [apps/n
 | ⚠️ | HTTP exists; **no app client** (s2s, admin, or dead) |
 | 🔸 | Called but **some response/request fields unused** by all clients |
 
-Last reviewed: 2026-07-02 (grep-based inventory, not OpenAPI diff).
+Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 
 ---
 

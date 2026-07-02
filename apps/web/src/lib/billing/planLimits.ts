@@ -1,33 +1,41 @@
 import type { PlanCatalogEntry, PlanEntitlementSpec } from '@/lib/types'
 
-const LIMIT_DISPLAY_ORDER = [
+/** Rows shown on /pricing — order matches product docs. */
+const PRICING_DISPLAY_ORDER = [
+  'cloud_sync_enabled',
+  'cloud_sync_devices',
   'cloud_notes_count',
-  'code_runs_per_day',
-  'live_rooms_per_month',
-  'live_rooms_concurrent',
-  'focus_stats_history_days',
+  'published_notes_active',
+  'publish_unlisted',
+  'publish_password',
 ] as const
 
-export function planLimitKeys(plans: PlanCatalogEntry[]): string[] {
-  const keys = new Set<string>()
-  for (const plan of plans) {
-    for (const key of Object.keys(plan.limits ?? {})) {
-      keys.add(key)
-    }
-  }
-  const order = new Map(LIMIT_DISPLAY_ORDER.map((k, i) => [k, i]))
-  return [...keys].sort((a, b) => {
-    const ia = order.get(a as (typeof LIMIT_DISPLAY_ORDER)[number]) ?? 999
-    const ib = order.get(b as (typeof LIMIT_DISPLAY_ORDER)[number]) ?? 999
-    if (ia !== ib) return ia - ib
-    return a.localeCompare(b)
-  })
+export type PricingEntitlementKey = (typeof PRICING_DISPLAY_ORDER)[number]
+
+export function planPricingKeys(plans: PlanCatalogEntry[]): string[] {
+  return PRICING_DISPLAY_ORDER.filter((key) =>
+    plans.some((plan) => plan.limits?.[key] != null || plan.features?.[key] !== undefined),
+  )
 }
 
-export function formatPlanLimitSpec(spec: PlanEntitlementSpec | undefined): string {
+export function formatPlanEntitlementValue(
+  plan: PlanCatalogEntry,
+  key: string,
+  t: (msgKey: string) => string,
+): string {
+  if (plan.features && key in plan.features) {
+    return plan.features[key] ? t('pricing.yes') : t('pricing.no')
+  }
+  return formatPlanLimitSpec(plan.limits?.[key], t)
+}
+
+export function formatPlanLimitSpec(
+  spec: PlanEntitlementSpec | undefined,
+  t: (msgKey: string) => string,
+): string {
   if (!spec) return '—'
-  if (spec.type === 'bool') return spec.value ? 'Yes' : 'No'
-  if (spec.unlimited || spec.limit == null) return 'Unlimited'
+  if (spec.type === 'bool') return spec.value ? t('pricing.yes') : t('pricing.no')
+  if (spec.unlimited || spec.limit == null) return t('pricing.unlimited')
   const suffix =
     spec.period === 'day' ? '/day' : spec.period === 'month' ? '/month' : spec.period ? `/${spec.period}` : ''
   return `${spec.limit}${suffix}`

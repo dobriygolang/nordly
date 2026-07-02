@@ -5,7 +5,7 @@ Architecture overview for the **Nordly productivity stack**.
 ## Platform (current)
 
 ```
-Nordly (Tauri desktop) ──HTTP──► identity | tracker | notes | focus
+Nordly (Tauri desktop) ──HTTP──► identity | tracker | notes | focus | rooms (whiteboard share/publish)
 Web (landing + live) ──HTTP/WS──► identity | billing | rooms | sandbox | notes (public)
 ```
 
@@ -16,7 +16,7 @@ Each service has its own Postgres. Cross-service calls via gRPC adapters only.
 | Nordly desktop | [apps/nordly/AGENTS.md](../../apps/nordly/AGENTS.md) |
 | Web companion | [apps/web/AGENTS.md](../../apps/web/AGENTS.md) |
 | Backend services | [AGENTS.md](../../AGENTS.md) |
-| API usage matrix | [api-usage-matrix.md](../architecture/api-usage-matrix.md) |
+| API usage matrix | [backend-client-matrix.md](../backend-client-matrix.md) |
 
 Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults).
 
@@ -24,13 +24,17 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 
 | Service | Purpose | Clients |
 |---------|---------|---------|
-| identity | Telegram auth, JWT | nordly, web (refresh only) |
+| identity | Telegram auth, JWT | nordly |
 | tracker | Work tasks, Google Calendar | nordly |
 | notes | Notes CRUD, vault, publish | nordly, web (public slug) |
 | focus | Pomodoro sessions, stats | nordly |
 | rooms | Live collab, Yjs WS, board publish | web, nordly (share) |
 | sandbox | Code run, format | web (live rooms) |
 | billing | Plans, entitlements | web (pricing), notes/sandbox (gates) |
+
+Plan matrix: [docs/billing-plans.md](../billing-plans.md).
+
+**Billing note:** `live_rooms_per_month` / `live_rooms_concurrent` entitlements exist in billing; **rooms does not consume them yet** (reserved for future wiring).
 
 **CI only (not prod):** ai — archived interview-era LLM gateway.
 
@@ -102,13 +106,13 @@ cd services/tracker && make start
 cd services/focus && make start
 ```
 
-Prod ops: [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md).
+Prod ops: [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md). Monitoring: [deploy/grafana/README.md](../../deploy/grafana/README.md) (Product dashboard for business metrics).
 
 ## First week checklist
 
 - [ ] Read [AGENTS.md](../../AGENTS.md) + [architecture-standard.mdc](../../.cursor/rules/architecture-standard.mdc)
 - [ ] Read [apps/nordly/AGENTS.md](../../apps/nordly/AGENTS.md) or [apps/web/AGENTS.md](../../apps/web/AGENTS.md) for your area
-- [ ] Skim [api-usage-matrix.md](../architecture/api-usage-matrix.md)
+- [ ] Skim [backend-client-matrix.md](../backend-client-matrix.md)
 - [ ] Run nordly locally; try notes, task board, whiteboard
 - [ ] Run web `/live/new` with local rooms + sandbox
 

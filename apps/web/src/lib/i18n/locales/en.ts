@@ -33,7 +33,7 @@ export const en: Messages = {
       },
       pricing: {
         title: 'Plans & limits',
-        description: 'Free and Pro limits for Nordly — notes, live rooms, code runs, and focus stats.',
+        description: 'Free and Pro limits for the Nordly desktop app — cloud sync, notes, and publishing.',
       },
       legalTerms: {
         title: 'Terms of Service',
@@ -68,11 +68,12 @@ export const en: Messages = {
   },
   billing: {
     counters: {
+      cloud_sync_enabled: 'Cloud sync',
+      cloud_sync_devices: 'Synced devices',
       cloud_notes_count: 'Cloud notes',
-      code_runs_per_day: 'Code runs',
-      live_rooms_per_month: 'Live rooms',
-      live_rooms_concurrent: 'Concurrent live rooms',
-      focus_stats_history_days: 'Focus stats history',
+      published_notes_active: 'Published notes (active)',
+      publish_unlisted: 'Unlisted publish links',
+      publish_password: 'Password / expiry links',
     },
   },
   session: {
@@ -84,8 +85,11 @@ export const en: Messages = {
   pricing: {
     eyebrow: 'Pricing',
     title: 'Plans & limits',
-    subtitle: 'Compare Free and Pro limits for the Nordly desktop app.',
-    limitColumn: 'Limit',
+    subtitle: 'Compare Free and Pro for the Nordly desktop app.',
+    limitColumn: 'Feature',
+    yes: 'Yes',
+    no: 'No',
+    unlimited: 'Unlimited',
     desktopNote: 'Subscriptions are managed in the desktop app — this page is for reference only.',
   },
   welcome: {

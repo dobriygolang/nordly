@@ -77,7 +77,20 @@ docker compose -f docker-compose.prod.yml --profile monitoring up -d prometheus 
 
 Grafana: https://grafana.trynordly.app — configure alert notification channels for rules in `prometheus-alerts.yml`.
 
-Key metrics: `up`, `http_requests_total`, `http_request_duration_seconds`. AI LLM metrics apply to CI-only `ai` service only.
+**Dashboards** (auto-provisioned from `deploy/grafana/dashboards/`):
+
+| File | Title |
+|------|-------|
+| `nordly-platform.json` | Platform |
+| `nordly-http-routes.json` | HTTP routes |
+| `nordly-billing.json` | Billing |
+| `nordly-product.json` | Product |
+
+Key metrics: `up`, `http_requests_total`, `http_request_duration_seconds`.
+
+**Business counters:** `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total`, `billing_usage_consume_total`, `billing_subscriptions_total`, `billing_webhook_events_total` — see Product dashboard and [grafana/README.md](grafana/README.md).
+
+AI LLM metrics apply to CI-only `ai` service only (not scraped in prod).
 
 ## LLM (optional — ai service, CI only)
 

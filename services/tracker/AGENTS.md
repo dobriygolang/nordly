@@ -68,12 +68,6 @@ Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` 
 
 OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
 
-**Google Calendar**
-
-Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (callback path `/v1/tracker/integrations/google/callback`), `TOKEN_ENCRYPTION_KEY`.
-
-OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
-
 - **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view).
 - **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
 - **Meet on tasks:** `CreateWorkTaskConference` with `provider=meet` creates/patches a Google Calendar event with Meet link (`google_event_id` on task). This is **not** automatic task mirroring — only explicit conference creation.
@@ -119,3 +113,8 @@ make start | gen-proto | test | lint | build
 | GOOGLE_CLIENT_SECRET | optional |
 | GOOGLE_REDIRECT_URI | optional |
 | TOKEN_ENCRYPTION_KEY | **required** — base64 16/24/32-byte AES key; OAuth refresh tokens encrypted at rest |
+| ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET / ZOOM_REDIRECT_URI | optional — Zoom conference + OAuth |
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation + `tracker_work_tasks_total{action}` (`internal/tracker/metrics/`).

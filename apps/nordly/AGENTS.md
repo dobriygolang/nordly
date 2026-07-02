@@ -44,7 +44,7 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on,
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no cloud sync, no publish, no Google Calendar API |
-| `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8089/8090/8091) |
+| `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | **required for share** | Public web URL for live whiteboard links (`requireNordlyWebBaseUrl()`) |
 
@@ -60,7 +60,7 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 | tracker | 8089 | Work tasks, Google Calendar |
 | notes | 8090 | Notes CRUD, vault, publish |
 | focus | 8091 | Sessions, stats |
-| rooms | 8087 | Whiteboard live share (when implemented) |
+| rooms | 8087 | Whiteboard live share + publish |
 
 Billing is not called from Nordly.
 
@@ -91,6 +91,10 @@ Billing is not called from Nordly.
 | GET/PATCH | `/v1/tracker/settings` |
 | GET | `/v1/tracker/integrations/google/url` |
 | POST | `/v1/tracker/integrations/google/disconnect` |
+| GET | `/v1/tracker/integrations/google/events` |
+| POST/PATCH/DELETE | `/v1/tracker/integrations/google/events` (+ `{id}` for patch/delete) |
+| GET | `/v1/tracker/integrations/google/calendars` |
+| GET/POST | `/v1/tracker/integrations/zoom/url`, `/disconnect` |
 | GET | `/v1/tracker/work/epics` |
 | PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference) |
 | POST | `/v1/tracker/work/tasks/{id}/conference` |
@@ -221,7 +225,7 @@ Registered in `src-tauri/src/lib.rs`:
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth result).
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
 
 ## Commands
 
@@ -259,7 +263,8 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 |-----|--------|
 | Note folders | Data model only; no folder UI |
 | Task delete in UI | Remote + sync support exists; no TaskRow delete button |
-| Google OAuth callback | Handled: tracker redirects to `nordly://settings?google_calendar=…`, routed via `app:deep-link` / cold-start `deep_link_initial` |
+| Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
+| Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
 
 ## Layout
 

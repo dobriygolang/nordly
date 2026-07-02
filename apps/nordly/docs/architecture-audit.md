@@ -19,9 +19,11 @@ app/        bootstrap, shell, styles
 
 **Cloud gates:** `isCloudEnabled()` (`shared/model/features.ts`), `isSyncEnabled()` (`shared/sync/syncConfig.ts`). UI/integration code uses these — not raw env checks scattered everywhere.
 
+**Observability:** desktop does not emit Prometheus metrics; backend business counters are scraped server-side (see [deploy/grafana/README.md](../../../../deploy/grafana/README.md)).
+
 **JSON wire:** grpc-gateway protojson → camelCase. Custom identity HTTP → snake_case where documented. Use `shared/api/json.ts` strict readers; no `field ?? other_field`.
 
-## File checklist (158 source files)
+## File checklist
 
 Legend: ✅ reviewed + clean | ⚠️ reviewed, known follow-up
 

@@ -55,3 +55,8 @@ make gen-proto | lint | test | build
 | TELEGRAM_BOT_TOKEN | required (API avatar proxy + bot) |
 | TELEGRAM_BOT_USERNAME | required (`GET /v1/auth/config`) |
 | INTERNAL_API_TOKEN | required in production (s2s gRPC) |
+| REDIS_ADDR | default `localhost:6379` — login codes + refresh tokens |
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation + `identity_auth_total{method,result}` (`internal/auth/metrics/`).

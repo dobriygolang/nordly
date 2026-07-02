@@ -28,6 +28,10 @@ When working on a service, **open only that service folder** and read its local 
 
 Prod deploy: [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md), [deploy/RUNBOOK.md](deploy/RUNBOOK.md)
 
+Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Billing**, **Product**.
+
+**CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, ai, billing, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
+
 Future outbox relay design: [docs/architecture/outbox-relay.md](docs/architecture/outbox-relay.md)
 
 Root `go.work` is optional. Services build with `GOWORK=off`.
@@ -149,6 +153,8 @@ func NewRegisteredImplementation(s *grpc.Server, svc exampleservice.Service) *Im
 | **notes** | **8090** | **9100** | **5442** | **nordly_notes** |
 | **focus** | **8091** | **9101** | **5443** | **nordly_focus** |
 | template | 8099 | 9199 | 5439 | nordly_template |
+
+All prod HTTP services expose `GET /metrics` (request instrumentation + domain counters where implemented). See [deploy/grafana/README.md](../deploy/grafana/README.md).
 
 Pick unused ports for each new service. Update `Makefile`, `config.go`, `docker-compose.yml`.
 

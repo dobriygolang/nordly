@@ -69,3 +69,23 @@ make migrate-up  # tracker: 00005
 GOPROXY=https://proxy.golang.org,direct GOWORK=off go test ./...
 GOPROXY=https://proxy.golang.org,direct GOWORK=off go build ./...
 ```
+
+---
+
+## Business metrics (prod)
+
+Scraped at `GET /metrics` on all prod HTTP services. Grafana **Product** dashboard: `deploy/grafana/dashboards/nordly-product.json`.
+
+| Service | Counter | Labels |
+|---------|---------|--------|
+| **identity** | `identity_auth_total` | `method` (`telegram`, `refresh`), `result` (`ok`, `invalid_code`, `invalid_token`) |
+| **tracker** | `tracker_work_tasks_total` | `action` (`create`, `complete`, `status_change`, `delete`, `schedule`, `unschedule`, `conference`) |
+| **focus** | `focus_sessions_total` | `result` (`started`, `completed`, `abandoned`) |
+| **billing** | `billing_usage_consume_total` | `entitlement`, `result` (`allowed`, `limit_exceeded`, `not_usage_entitlement`) |
+| **billing** | `billing_subscriptions_total` | `action` (`grant`, `revoke`), `plan` |
+| **billing** | `billing_webhook_events_total` | `provider`, `event`, `result` |
+| **billing** | cache | `billing_plans_*`, `billing_entitlements_*` |
+
+**notes**, **rooms**, **sandbox**: HTTP instrumentation only (no domain counters yet). **ai**: CI-only, not scraped in prod.
+
+Plan entitlements (Free vs Pro): [billing-plans.md](./billing-plans.md).

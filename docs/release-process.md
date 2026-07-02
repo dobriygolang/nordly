@@ -60,6 +60,6 @@ bash scripts/prod-clean-slate.sh
 
 - [ ] Linear release epic closed or tagged
 - [ ] `bash deploy/scripts/audit-env.sh` — no obsolete `.env` keys
-- [ ] Grafana: all Prometheus targets `up`
-- [ ] Smoke: `make smoke` from `deploy/`
+- [ ] Grafana: all Prometheus targets `up`; **Product** dashboard provisioned (`deploy/grafana/dashboards/nordly-product.json`)
+- [ ] Smoke: `make smoke` from `deploy/` — check `identity_auth_total` / `http_requests_total` after login
 - [ ] Desktop tag pushed: `git tag nordly-vX.Y.Z && git push origin nordly-vX.Y.Z`

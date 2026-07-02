@@ -209,7 +209,15 @@ func (s *billingService) ListPlanEntitlements(ctx context.Context, planID string
 }
 
 func (s *billingService) ListPlans(ctx context.Context) ([]catalog.PlanCatalogItem, error) {
-	return s.plansCache.ListCatalog()
+	items, err := s.plansCache.ListCatalog()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]catalog.PlanCatalogItem, len(items))
+	for i, item := range items {
+		out[i] = catalog.PublicPricingView(item)
+	}
+	return out, nil
 }
 
 func (s *billingService) CheckEntitlement(ctx context.Context, userID, key string) (*model.CheckEntitlementResult, error) {

@@ -32,7 +32,7 @@ export const ru = {
       },
       pricing: {
         title: 'Тарифы и лимиты',
-        description: 'Free и Pro для Nordly — заметки, live-комнаты, запуски кода и focus-статистика.',
+        description: 'Free и Pro для Nordly desktop — облачная синхронизация, заметки и публикация.',
       },
       legalTerms: {
         title: 'Условия использования',
@@ -67,11 +67,12 @@ export const ru = {
   },
   billing: {
     counters: {
+      cloud_sync_enabled: 'Облачная синхронизация',
+      cloud_sync_devices: 'Синхронизируемые устройства',
       cloud_notes_count: 'Облачные заметки',
-      code_runs_per_day: 'Запуски кода',
-      live_rooms_per_month: 'Live-комнаты',
-      live_rooms_concurrent: 'Одновременные live-комнаты',
-      focus_stats_history_days: 'История focus-статистики',
+      published_notes_active: 'Опубликованные заметки (активные)',
+      publish_unlisted: 'Приватные ссылки',
+      publish_password: 'Ссылки с паролем / сроком',
     },
   },
   session: {
@@ -83,8 +84,11 @@ export const ru = {
   pricing: {
     eyebrow: 'Тарифы',
     title: 'Планы и лимиты',
-    subtitle: 'Сравнение лимитов Free и Pro в desktop-приложении Nordly.',
-    limitColumn: 'Лимит',
+    subtitle: 'Сравнение Free и Pro в desktop-приложении Nordly.',
+    limitColumn: 'Функция',
+    yes: 'Да',
+    no: 'Нет',
+    unlimited: 'Без лимита',
     desktopNote: 'Подписка оформляется в desktop-приложении — эта страница только для справки.',
   },
   welcome: {

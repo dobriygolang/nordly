@@ -46,3 +46,11 @@ make start | gen-proto | test | lint | build
 ```
 
 Build: `GOWORK=off`
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation + `focus_sessions_total{result}` (`started`, `completed`, `abandoned`; `internal/focus/metrics/`).
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation + `focus_sessions_total{result}` (`started`, `completed`, `abandoned`; `internal/focus/metrics/`).

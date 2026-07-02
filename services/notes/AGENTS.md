@@ -57,4 +57,8 @@ make start | gen-proto | test | lint | build
 
 Build: `GOWORK=off`
 
+## Metrics
+
+`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+
 Hone client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault in `apps/nordly/src/renderer/src/features/notes/repository/vaultRemote.ts`.

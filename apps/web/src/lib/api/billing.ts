@@ -13,6 +13,7 @@ function normalizePlanCatalog(raw: PlanCatalogEntry): PlanCatalogEntry {
     slug: raw.slug,
     name: raw.name,
     tagline: raw.tagline ?? '',
+    features: raw.features ?? {},
     limits: raw.limits ?? {},
   }
 }

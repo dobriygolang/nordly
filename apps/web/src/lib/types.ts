@@ -10,6 +10,7 @@ export interface PlanCatalogEntry {
   slug: string
   name: string
   tagline: string
+  features?: Record<string, boolean>
   limits?: Record<string, PlanEntitlementSpec>
 }
 

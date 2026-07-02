@@ -19,15 +19,18 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `INTERNAL_API_TOKEN` | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms live/board links) |
-| `NORDLY_CALLBACK_URL` | `nordly://settings` (Google Calendar OAuth → Nordly desktop) |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud OAuth app (Calendar integration; optional) |
-| `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts Google refresh tokens at rest; optional but recommended) |
+| `NORDLY_CALLBACK_URL` | `https://trynordly.app/oauth/google-calendar` (prod — web OAuth bridge → `nordly://settings`; dev desktop-only: `nordly://settings`) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud OAuth app (Calendar integration; optional). Prod callback: `https://trynordly.app/v1/tracker/integrations/google/callback` |
+| `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_REDIRECT_URI` | Zoom meetings (optional). Prod callback: `https://trynordly.app/v1/tracker/integrations/zoom/callback` |
+| `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts Google/Zoom refresh tokens at rest; **required** in tracker prod) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | BotFather |
 | `CADDY_EMAIL` | Let's Encrypt |
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
-Optional: Tribute webhooks, CI-only `services/ai` LLM keys, Grafana password — see [RUNBOOK.md](./RUNBOOK.md).
+Optional: Tribute webhooks, CI-only `services/ai` LLM keys — see [RUNBOOK.md](./RUNBOOK.md).
+
+| `GRAFANA_ADMIN_PASSWORD` | required when using `--profile monitoring` (default in `make up`) |
 
 ## 3. GitHub Actions deploy
 
@@ -53,6 +56,7 @@ Updates: merge to `main` → CI deploys automatically.
 - [ ] Live room guest create + WS
 - [ ] Published note `/notes/{slug}` and board `/board/{slug}`
 - [ ] Nordly login (Telegram)
+- [ ] `https://grafana.trynordly.app` — Platform + Product dashboards load
 - [ ] `docker compose ps` — healthy
 
 Ops: [RUNBOOK.md](./RUNBOOK.md)

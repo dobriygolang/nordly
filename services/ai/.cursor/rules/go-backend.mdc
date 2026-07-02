@@ -1,9 +1,0 @@
----
-description: Go backend — ai (CI archive)
-globs: "**/*.go"
-alwaysApply: false
----
-
-# Go backend — ai (CI only, not prod)
-
-Follow [AGENTS.md](../../AGENTS.md). Root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc) applies to new edits; legacy LLM chain fallbacks in this service are **CI archive exceptions**.

@@ -45,3 +45,11 @@ make gen-proto | start | test | lint
 ```
 
 Env: JWT public key, `BILLING_GRPC_ADDR`, `SANDBOX_*` limits.
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation only (no domain counters yet).

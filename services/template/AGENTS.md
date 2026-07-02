@@ -1,6 +1,6 @@
 # AGENTS.md — template service (skeleton)
 
-**Not production.** Copy to bootstrap new services. Monorepo: [../../AGENTS.md](../../AGENTS.md).
+**Not production.** Copy to bootstrap new services. Not in `CI_SERVICES` — skeleton only. Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/template`
 

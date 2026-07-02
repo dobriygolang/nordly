@@ -54,3 +54,15 @@ make gen-proto | build
 ```
 
 Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (1h).
+
+**Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+
+**Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
+
+## Metrics
+
+`GET /metrics` — HTTP instrumentation only (no domain counters yet).

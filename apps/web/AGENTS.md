@@ -23,13 +23,15 @@ Retired routes redirect to `/` or `/pricing` (see below).
 
 ## Routes
 
-Defined in `src/App.tsx`:
+Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 
 | Route | Page | Auth |
 |-------|------|------|
 | `/` | `WelcomePage` | — |
 | `/welcome` | → `/` | legacy redirect |
 | `/download` | `NordlyDownloadPage` | redirects to latest OS installer |
+| `/oauth/google-calendar` | `GoogleCalendarOAuthPage` | OAuth bridge → `nordly://settings?google_calendar=…` |
+| `/oauth/zoom` | `ZoomOAuthPage` | OAuth bridge → `nordly://settings?zoom=…` |
 | `/notes/:slug` | `PublishedNotePage` | — |
 | `/n/:slug` | → `/notes/:slug` | — |
 | `/board/:slug` | `PublishedBoardPage` | — |
@@ -44,11 +46,11 @@ Defined in `src/App.tsx`:
 
 ## Backend dependencies
 
-Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`.
+Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-origin via Caddy on `trynordly.app` (tracker OAuth callbacks at `/v1/tracker/integrations/*/callback`).
 
 | Service | Port | Proxy prefix |
 |---------|------|--------------|
-| identity | 8080 | `/v1/auth`, `/v1/me` |
+| identity | 8080 | `/v1/auth` |
 | billing | 8085 | `/v1/billing` |
 | sandbox | 8086 | `/v1/sandbox`, `/ws/lsp` |
 | rooms | 8087 | `/v1/rooms`, `/ws` |
@@ -60,7 +62,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`.
 
 | Method | Path | Used by |
 |--------|------|---------|
-| GET | `/v1/billing/plans` | `PricingPage` |
+| GET | `/v1/billing/plans` | `PricingPage` — Nordly desktop entitlements (cloud sync, notes, publish) |
 
 **rooms** — `lib/api/rooms.ts`
 
@@ -163,13 +165,15 @@ cd services/notes && make start   # published notes
 
 ```
 apps/web/src/
-├── App.tsx              # routes
-├── pages/               # Welcome, CollabRoom, Pricing, Legal, Published*
-├── components/          # landing, collab editors, shell
+├── App.tsx                    # mounts AnimatedRoutes
+├── components/
+│   ├── AnimatedRoutes.tsx     # route table
+│   └── …                      # landing, collab editors, shell
+├── pages/                     # Welcome, CollabRoom, Pricing, Legal, Published*, OAuth bridges
 ├── lib/
-│   ├── api/             # REST clients
-│   ├── ws/              # collab WebSocket
-│   └── collab/          # Excalidraw Yjs helpers
+│   ├── api/                   # REST clients
+│   ├── ws/                    # collab WebSocket
+│   └── collab/                # Excalidraw Yjs helpers
 ```
 
 ## Retired (removed from routing)

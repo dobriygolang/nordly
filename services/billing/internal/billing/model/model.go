@@ -21,10 +21,15 @@ const (
 
 	TrialKindPro = "pro_trial"
 
-	EntitlementCodeRunsPerDay      = "code_runs_per_day"
-	EntitlementCloudNotesCount     = "cloud_notes_count"
-	EntitlementLiveRoomsPerMonth   = "live_rooms_per_month"
-	EntitlementLiveRoomsConcurrent     = "live_rooms_concurrent"
+	EntitlementCodeRunsPerDay        = "code_runs_per_day"
+	EntitlementCloudNotesCount       = "cloud_notes_count"
+	EntitlementCloudSyncEnabled      = "cloud_sync_enabled"
+	EntitlementCloudSyncDevices      = "cloud_sync_devices"
+	EntitlementPublishedNotesActive  = "published_notes_active"
+	EntitlementPublishUnlisted       = "publish_unlisted"
+	EntitlementPublishPassword       = "publish_password"
+	EntitlementLiveRoomsPerMonth     = "live_rooms_per_month"
+	EntitlementLiveRoomsConcurrent   = "live_rooms_concurrent"
 )
 
 // Plan is a billable tier.

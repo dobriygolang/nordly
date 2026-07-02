@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
+	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/product"
 )
 
 // Store is the persistence port this command needs (consumer-side interface).
@@ -59,5 +60,6 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.Subscription,
 	}); err != nil {
 		return nil, err
 	}
+	product.IncSubscription("grant", plan.Slug)
 	return sub, nil
 }

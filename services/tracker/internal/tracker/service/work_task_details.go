@@ -8,6 +8,7 @@ import (
 
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
 	zoomadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/zoom"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/metrics"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 )
@@ -108,6 +109,7 @@ func (s *trackerService) createZoomConference(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
+	metrics.IncWorkTask("conference")
 	wt := workTaskFromModel(patched)
 	return &wt, nil
 }
@@ -201,6 +203,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
+	metrics.IncWorkTask("conference")
 	wt := workTaskFromModel(patched)
 	return &wt, nil
 }

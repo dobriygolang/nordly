@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
+	"github.com/dobriygolang/project-nordly/services/identity/internal/auth/metrics"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
 	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 )
@@ -75,6 +76,7 @@ func (s *service) AuthTelegram(ctx context.Context, code string) (*AuthResult, e
 	loginCode, err := s.loginCodes.Consume(ctx, code)
 	if err != nil {
 		if isAuthNotFound(err) {
+			metrics.IncAuth("telegram", "invalid_code")
 			return nil, ErrInvalidLoginCode
 		}
 		return nil, err
@@ -109,7 +111,7 @@ func (s *service) AuthTelegram(ctx context.Context, code string) (*AuthResult, e
 				return nil, err
 			}
 		}
-		return s.issueTokens(ctx, user)
+		return s.authTelegramOK(ctx, user)
 	}
 
 	if loginCode.AvatarURL != "" {
@@ -120,13 +122,22 @@ func (s *service) AuthTelegram(ctx context.Context, code string) (*AuthResult, e
 		}
 	}
 
-	return s.issueTokens(ctx, user)
+	return s.authTelegramOK(ctx, user)
+}
+
+func (s *service) authTelegramOK(ctx context.Context, user *model.User) (*AuthResult, error) {
+	result, err := s.issueTokens(ctx, user)
+	if err == nil {
+		metrics.IncAuth("telegram", "ok")
+	}
+	return result, err
 }
 
 func (s *service) RefreshToken(ctx context.Context, refreshToken string) (*AuthResult, error) {
 	userID, err := s.refreshTokens.GetUserID(ctx, HashRefreshToken(refreshToken))
 	if err != nil {
 		if isAuthNotFound(err) {
+			metrics.IncAuth("refresh", "invalid_token")
 			return nil, ErrInvalidRefreshToken
 		}
 		return nil, err
@@ -145,6 +156,7 @@ func (s *service) RefreshToken(ctx context.Context, refreshToken string) (*AuthR
 	if err := s.refreshTokens.Delete(ctx, HashRefreshToken(refreshToken)); err != nil {
 		s.log.Error("failed to delete rotated refresh token", "err", err)
 	}
+	metrics.IncAuth("refresh", "ok")
 	return result, nil
 }
 

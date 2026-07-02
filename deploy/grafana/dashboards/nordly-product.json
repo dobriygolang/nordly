@@ -1,0 +1,237 @@
+{
+  "uid": "nordly-product",
+  "title": "nordly — Product",
+  "tags": ["nordly", "product", "business"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "row",
+      "title": "Growth",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Telegram logins (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(identity_auth_total{method=\"telegram\",result=\"ok\"}[24h]))",
+          "legendFormat": "logins"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Token refreshes (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(identity_auth_total{method=\"refresh\",result=\"ok\"}[24h]))",
+          "legendFormat": "refreshes"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Invalid login codes (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(identity_auth_total{method=\"telegram\",result=\"invalid_code\"}[24h]))",
+          "legendFormat": "invalid"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth events",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (method, result) (rate(identity_auth_total[5m]))",
+          "legendFormat": "{{method}} {{result}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Tasks & focus",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Tasks created (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(tracker_work_tasks_total{action=\"create\"}[24h]))",
+          "legendFormat": "created"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tasks completed (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(tracker_work_tasks_total{action=\"complete\"}[24h]))",
+          "legendFormat": "completed"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Focus sessions completed (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(focus_sessions_total{result=\"completed\"}[24h]))",
+          "legendFormat": "completed"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Conferences created (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(tracker_work_tasks_total{action=\"conference\"}[24h]))",
+          "legendFormat": "conferences"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Task actions",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action) (rate(tracker_work_tasks_total[5m]))",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Focus sessions",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (result) (rate(focus_sessions_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Billing",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Quota denials (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(billing_usage_consume_total{result=\"limit_exceeded\"}[24h]))",
+          "legendFormat": "denials"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Subscriptions granted (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(billing_subscriptions_total{action=\"grant\"}[24h]))",
+          "legendFormat": "grants"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Subscriptions revoked (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(billing_subscriptions_total{action=\"revoke\"}[24h]))",
+          "legendFormat": "revokes"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Usage consume by entitlement",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (entitlement, result) (rate(billing_usage_consume_total[5m]))",
+          "legendFormat": "{{entitlement}} {{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Webhook events",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (provider, event, result) (rate(billing_webhook_events_total[5m]))",
+          "legendFormat": "{{provider}} {{event}} {{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Subscriptions by plan",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 39 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (action, plan) (rate(billing_subscriptions_total[5m]))",
+          "legendFormat": "{{action}} {{plan}}"
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/metrics"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 )
@@ -56,6 +57,7 @@ func (s *trackerService) CreateWorkTask(ctx context.Context, userID string, in C
 	if err != nil {
 		return nil, err
 	}
+	metrics.IncWorkTask("create")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -77,6 +79,11 @@ func (s *trackerService) UpdateWorkTaskStatus(ctx context.Context, userID, taskI
 	if err != nil {
 		return nil, err
 	}
+	if status == "done" {
+		metrics.IncWorkTask("complete")
+	} else {
+		metrics.IncWorkTask("status_change")
+	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -87,6 +94,9 @@ func (s *trackerService) DeleteWorkTask(ctx context.Context, userID, taskID stri
 		return err
 	}
 	_, err = s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{Archived: true})
+	if err == nil {
+		metrics.IncWorkTask("delete")
+	}
 	return err
 }
 
@@ -109,6 +119,7 @@ func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, s
 	if err != nil {
 		return nil, err
 	}
+	metrics.IncWorkTask("schedule")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -122,6 +133,7 @@ func (s *trackerService) UnscheduleWorkTask(ctx context.Context, userID, taskID 
 	if err != nil {
 		return nil, err
 	}
+	metrics.IncWorkTask("unschedule")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }

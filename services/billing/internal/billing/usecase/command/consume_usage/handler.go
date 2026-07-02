@@ -7,6 +7,7 @@ import (
 
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
+	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/product"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/repository"
 )
 
@@ -61,6 +62,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ConsumeUsageR
 		return nil, err
 	}
 	if val.Type != entitlement.TypeCounter {
+		product.IncUsageConsume(key, "not_usage_entitlement")
 		return &model.ConsumeUsageResult{Allowed: false, Reason: "not_a_usage_entitlement"}, nil
 	}
 	start, end, err := entitlement.PeriodWindow(val.Period, h.now())
@@ -73,12 +75,14 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ConsumeUsageR
 		if err != nil {
 			return nil, err
 		}
+		product.IncUsageConsume(key, "allowed")
 		return &model.ConsumeUsageResult{Allowed: true, Used: used}, nil
 	}
 
 	used, err := h.repo.ConsumeUsage(ctx, cmd.UserID, key, start, end, cmd.Amount, *val.Limit)
 	if errors.Is(err, repository.ErrLimitExceeded) {
 		current, _ := h.repo.GetUsage(ctx, cmd.UserID, key, start, end)
+		product.IncUsageConsume(key, "limit_exceeded")
 		return &model.ConsumeUsageResult{
 			Allowed:   false,
 			Used:      current,
@@ -90,6 +94,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ConsumeUsageR
 	if err != nil {
 		return nil, err
 	}
+	product.IncUsageConsume(key, "allowed")
 	return &model.ConsumeUsageResult{
 		Allowed:   true,
 		Used:      used,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	focusmodel "github.com/dobriygolang/project-nordly/services/focus/internal/focus/model"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/metrics"
 	focusrepo "github.com/dobriygolang/project-nordly/services/focus/internal/focus/repository"
 )
 
@@ -55,7 +56,11 @@ func (s *focusService) StartFocusSession(
 	if tid := strings.TrimSpace(taskID); tid != "" {
 		taskPtr = &tid
 	}
-	return s.repo.CreateSession(ctx, userID, mode, strings.TrimSpace(pinnedTitle), taskPtr)
+	sess, err := s.repo.CreateSession(ctx, userID, mode, strings.TrimSpace(pinnedTitle), taskPtr)
+	if err == nil {
+		metrics.IncFocusSession("started")
+	}
+	return sess, err
 }
 
 func (s *focusService) EndFocusSession(
@@ -72,6 +77,13 @@ func (s *focusService) EndFocusSession(
 	sess, err := s.repo.EndSession(ctx, userID, sessionID, secondsFocused, pomodorosCompleted)
 	if errors.Is(err, focusmodel.ErrNotFound) {
 		return nil, ErrNotFound
+	}
+	if err == nil {
+		if secondsFocused > 0 || pomodorosCompleted > 0 {
+			metrics.IncFocusSession("completed")
+		} else {
+			metrics.IncFocusSession("abandoned")
+		}
 	}
 	return sess, err
 }

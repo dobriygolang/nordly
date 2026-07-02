@@ -14,6 +14,7 @@ import (
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/catalog"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
+	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/product"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/repository"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/consume_usage"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/grant_subscription"
@@ -292,19 +293,23 @@ func (s *billingService) RevokeSubscription(ctx context.Context, userID string) 
 		return err
 	}
 	s.entitlements.Invalidate(ctx, userID)
+	product.IncSubscription("revoke", "unknown")
 	return nil
 }
 
 func (s *billingService) HandleProviderWebhook(ctx context.Context, providerName string, headers map[string]string, body []byte) error {
 	provider, ok := s.providers[providerName]
 	if !ok {
+		product.IncWebhook(providerName, "unknown", "unknown_provider")
 		return fmt.Errorf("unknown provider %q", providerName)
 	}
 	if err := provider.VerifyWebhook(ctx, headers, body); err != nil {
+		product.IncWebhook(providerName, "unknown", "verify_failed")
 		return err
 	}
 	event, err := provider.ParseWebhook(ctx, headers, body)
 	if err != nil {
+		product.IncWebhook(providerName, "unknown", "parse_failed")
 		return err
 	}
 
@@ -312,16 +317,18 @@ func (s *billingService) HandleProviderWebhook(ctx context.Context, providerName
 	// read-only external call and must not hold a DB transaction open.
 	telegramID, err := parseTelegramID(event.ProviderUserID)
 	if err != nil {
+		product.IncWebhook(providerName, event.EventType, "invalid_user")
 		return err
 	}
 	user, err := s.identity.GetUserByTelegramID(ctx, telegramID)
 	if err != nil {
+		product.IncWebhook(providerName, event.EventType, "unknown_user")
 		return fmt.Errorf("%w: %v", ErrUnknownUser, err)
 	}
 
 	// Mark-processed and apply run in one transaction. If apply fails, the
 	// provider_events row is rolled back too, so redelivery can retry safely.
-	return s.repo.WithTx(ctx, func(ctx context.Context) error {
+	err = s.repo.WithTx(ctx, func(ctx context.Context) error {
 		first, err := s.repo.MarkProviderEventProcessed(ctx, event.Provider, event.ProviderEventID, event.EventType, event.RawPayload)
 		if err != nil {
 			return err
@@ -331,6 +338,16 @@ func (s *billingService) HandleProviderWebhook(ctx context.Context, providerName
 		}
 		return s.applyProviderEvent(ctx, user.ID, event)
 	})
+	if errors.Is(err, ErrDuplicateEvent) {
+		product.IncWebhook(providerName, event.EventType, "duplicate")
+		return err
+	}
+	if err != nil {
+		product.IncWebhook(providerName, event.EventType, "error")
+		return err
+	}
+	product.IncWebhook(providerName, event.EventType, "ok")
+	return nil
 }
 
 func (s *billingService) applyProviderEvent(ctx context.Context, userID string, event providers.Event) error {
@@ -397,6 +414,7 @@ func (s *billingService) activateProviderSubscription(ctx context.Context, userI
 		return err
 	}
 	s.entitlements.Invalidate(ctx, userID)
+	product.IncSubscription("grant", plan.Slug)
 	return nil
 }
 
@@ -409,6 +427,7 @@ func (s *billingService) cancelProviderSubscription(ctx context.Context, userID 
 			if err := s.repo.UpsertSubscription(ctx, existing); err != nil {
 				return err
 			}
+			product.IncSubscription("revoke", existing.PlanSlug)
 			return nil
 		}
 	}

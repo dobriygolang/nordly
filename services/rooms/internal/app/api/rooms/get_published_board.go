@@ -3,7 +3,6 @@ package roomsapi
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
@@ -16,8 +15,7 @@ func (i *Implementation) GetPublishedBoard(
 		return nil, mapServiceError(err)
 	}
 	return &roomsv1.GetPublishedBoardResponse{
-		Title:       board.Title,
-		SceneJson:   board.SceneJSON,
-		PublishedAt: timestamppb.New(board.PublishedAt),
+		Title:     board.Title,
+		SceneJson: board.SceneJSON,
 	}, nil
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"net/url"
+
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
 	zoomadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/zoom"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/secretbox"
@@ -82,27 +84,27 @@ type Service interface {
 }
 
 type trackerService struct {
-	repo            Repository
-	google          *googleadapter.Client
-	zoom            *zoomadapter.Client
-	cipher          *secretbox.Cipher
-	nordlyCallbackURL string
+	repo         Repository
+	google       *googleadapter.Client
+	zoom         *zoomadapter.Client
+	cipher       *secretbox.Cipher
+	callbackBase url.URL
 }
 
 type Deps struct {
-	Repo              Repository
-	Google            *googleadapter.Client
-	Zoom              *zoomadapter.Client
-	Cipher            *secretbox.Cipher
-	NordlyCallbackURL string
+	Repo         Repository
+	Google       *googleadapter.Client
+	Zoom         *zoomadapter.Client
+	Cipher       *secretbox.Cipher
+	CallbackBase url.URL
 }
 
 func New(deps Deps) Service {
 	return &trackerService{
-		repo:              deps.Repo,
-		google:            deps.Google,
-		zoom:              deps.Zoom,
-		cipher:            deps.Cipher,
-		nordlyCallbackURL: deps.NordlyCallbackURL,
+		repo:         deps.Repo,
+		google:       deps.Google,
+		zoom:         deps.Zoom,
+		cipher:       deps.Cipher,
+		callbackBase: deps.CallbackBase,
 	}
 }

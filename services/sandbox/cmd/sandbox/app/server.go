@@ -41,7 +41,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpMux.HandleFunc("/readyz", ops.ReadyzHandler(ops.PingPostgres(a.Postgres.Pool)))
 	httpMux.Handle("/metrics", ops.MetricsHandler())
 
-	lspHandler := lspws.NewHandler(a.JWT, a.Config.DockerWorkRoot, a.Config.GoplsPath, nil)
+	lspHandler := lspws.NewHandler(a.JWT, a.Config.DockerWorkRoot, a.Config.GoplsPath, a.Logger)
 	httpMux.Handle("GET /ws/lsp/go", lspHandler)
 
 	if err := sandboxapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {

@@ -2,7 +2,6 @@ package ws
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/lsp/gopls"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/logger"
 )
 
 type configMessage struct {
@@ -24,14 +24,11 @@ type Handler struct {
 	JWT       *jwt.Validator
 	WorkRoot  string
 	GoplsPath string
-	Log       *slog.Logger
+	Log       logger.Logger
 	Upgrader  websocket.Upgrader
 }
 
-func NewHandler(v *jwt.Validator, workRoot, goplsPath string, log *slog.Logger) *Handler {
-	if log == nil {
-		log = slog.Default()
-	}
+func NewHandler(v *jwt.Validator, workRoot, goplsPath string, log logger.Logger) *Handler {
 	return &Handler{
 		JWT:       v,
 		WorkRoot:  workRoot,
@@ -46,10 +43,6 @@ func NewHandler(v *jwt.Validator, workRoot, goplsPath string, log *slog.Logger) 
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.JWT == nil {
-		http.Error(w, "auth unavailable", http.StatusServiceUnavailable)
-		return
-	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {

@@ -3,24 +3,20 @@ import { API_BASE, ApiError, parseResponse } from '@/lib/apiClient'
 export interface PublishedBoard {
   title: string
   sceneJson: string
-  publishedAt: string | null
 }
 
-function pickStr(j: Record<string, unknown>, ...keys: string[]): string {
-  for (const k of keys) {
-    const v = j[k]
-    if (typeof v === 'string') return v
+function requireString(obj: Record<string, unknown>, key: string, label: string): string {
+  const v = obj[key]
+  if (typeof v !== 'string') {
+    throw new Error(`Invalid published board response: missing ${label}`)
   }
-  return ''
+  return v
 }
 
 function mapPublishedBoard(j: Record<string, unknown>): PublishedBoard {
-  const publishedAt = pickStr(j, 'publishedAt', 'published_at')
-  return {
-    title: pickStr(j, 'title'),
-    sceneJson: pickStr(j, 'sceneJson', 'scene_json'),
-    publishedAt: publishedAt || null,
-  }
+  const title = requireString(j, 'title', 'title')
+  const sceneJson = requireString(j, 'scene_json', 'sceneJson')
+  return { title, sceneJson }
 }
 
 export async function fetchPublishedBoard(slug: string): Promise<PublishedBoard> {

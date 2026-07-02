@@ -70,28 +70,18 @@ type Deps struct {
 
 // New constructs sandbox service.
 func New(deps Deps) Service {
-	timeout := deps.TimeoutMS
-	if timeout <= 0 {
-		timeout = 2000
-	}
-	mem := deps.MemoryMB
-	if mem <= 0 {
-		mem = 128
-	}
-	maxCode := deps.MaxCodeBytes
-	if maxCode <= 0 {
-		maxCode = 131072
-	}
-	maxStdin := deps.MaxStdinBytes
-	if maxStdin <= 0 {
-		maxStdin = 65536
-	}
 	return &sandboxService{
-		repo:      deps.Repo,
-		billing:   deps.Billing,
-		runner:    deps.Runner,
-		defaults:  runDefaults{timeoutMS: timeout, memoryMB: mem},
-		limits:    runLimits{maxCodeBytes: maxCode, maxStdinBytes: maxStdin},
+		repo:    deps.Repo,
+		billing: deps.Billing,
+		runner:  deps.Runner,
+		defaults: runDefaults{
+			timeoutMS: deps.TimeoutMS,
+			memoryMB:  deps.MemoryMB,
+		},
+		limits: runLimits{
+			maxCodeBytes:  deps.MaxCodeBytes,
+			maxStdinBytes: deps.MaxStdinBytes,
+		},
 		asyncRuns: deps.AsyncRuns,
 	}
 }

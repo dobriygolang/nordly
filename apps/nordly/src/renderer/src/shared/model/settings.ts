@@ -4,14 +4,22 @@ import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 
 export type TextScale = 'normal' | 'large' | 'xlarge';
 
+/** Default focus timer mode shown in the dock. Mirrors `FocusTimerMode` in
+ * `@shared/model/pomodoro` — declared here (not imported) to avoid a cycle,
+ * since pomodoro reads its defaults from this module. */
+export type TimerMode = 'pomodoro' | 'stopwatch';
+
 /** How often the desktop app refetches Google events in the background. */
 export const GOOGLE_CALENDAR_POLL_MINUTES = [1, 5, 15, 30] as const;
 export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[number];
 
 export interface NordlySettings {
   pomodoroMinutes: number;
+  timerMode: TimerMode;
+  endBell: boolean;
   notifications: boolean;
   calendarNotifications: boolean;
+  taskRollover: boolean;
   dailyGoalMin: number;
   textScale: TextScale;
   boardCanvas: BoardCanvasTheme;
@@ -32,13 +40,21 @@ export const TEXT_SCALES: TextScale[] = ['normal', 'large', 'xlarge'];
 
 export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
+  timerMode: 'pomodoro',
+  endBell: true,
   notifications: true,
   calendarNotifications: true,
+  taskRollover: true,
   dailyGoalMin: 120,
   textScale: 'normal',
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
 };
+
+function parseTimerMode(v: unknown): TimerMode {
+  if (v === 'pomodoro' || v === 'stopwatch') return v;
+  throw new Error(`Invalid timer mode: ${String(v)}`);
+}
 
 function parseTextScale(v: unknown): TextScale {
   if (v === 'large' || v === 'xlarge') return v;
@@ -64,17 +80,24 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
 
   const migrated =
     typeof parsed.calendarNotifications !== 'boolean' ||
+    parsed.timerMode === undefined ||
+    typeof parsed.endBell !== 'boolean' ||
+    typeof parsed.taskRollover !== 'boolean' ||
     parsed.textScale === undefined ||
     parsed.boardCanvas === undefined ||
     parsed.googleCalendarPollMinutes === undefined;
 
   const settings: NordlySettings = {
     pomodoroMinutes: clampInt(parsed.pomodoroMinutes, 5, 90, 'pomodoroMinutes'),
+    timerMode: parsed.timerMode === undefined ? DEFAULTS.timerMode : parseTimerMode(parsed.timerMode),
+    endBell: typeof parsed.endBell === 'boolean' ? parsed.endBell : DEFAULTS.endBell,
     notifications: parsed.notifications,
     calendarNotifications:
       typeof parsed.calendarNotifications === 'boolean'
         ? parsed.calendarNotifications
         : DEFAULTS.calendarNotifications,
+    taskRollover:
+      typeof parsed.taskRollover === 'boolean' ? parsed.taskRollover : DEFAULTS.taskRollover,
     dailyGoalMin: clampInt(parsed.dailyGoalMin, 15, 720, 'dailyGoalMin'),
     textScale: parsed.textScale === undefined ? DEFAULTS.textScale : parseTextScale(parsed.textScale),
     boardCanvas: parsed.boardCanvas === undefined ? DEFAULTS.boardCanvas : parseBoardCanvas(parsed.boardCanvas),
@@ -115,6 +138,18 @@ export function googleCalendarPollIntervalMs(): number {
 
 export function readPomodoroSeconds(): number {
   return readSettings().pomodoroMinutes * 60;
+}
+
+export function readTimerMode(): TimerMode {
+  return readSettings().timerMode;
+}
+
+export function readEndBell(): boolean {
+  return readSettings().endBell;
+}
+
+export function readTaskRollover(): boolean {
+  return readSettings().taskRollover;
 }
 
 export function readDailyGoalMin(): number {

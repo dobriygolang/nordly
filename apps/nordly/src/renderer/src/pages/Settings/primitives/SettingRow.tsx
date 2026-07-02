@@ -31,3 +31,19 @@ export const SettingsGroup = memo(function SettingsGroup({ title, children }: Se
     </section>
   );
 });
+
+interface SettingsBlockProps {
+  title: string;
+  children: ReactNode;
+}
+
+/** Airy content block used by the sidebar layout: a large heading over a set of
+ * hairline-separated rows (no bordered card). */
+export const SettingsBlock = memo(function SettingsBlock({ title, children }: SettingsBlockProps) {
+  return (
+    <section className="nordly-settings-block">
+      <h2 className="nordly-settings-block__title">{title}</h2>
+      <div className="nordly-settings-block__rows">{children}</div>
+    </section>
+  );
+});

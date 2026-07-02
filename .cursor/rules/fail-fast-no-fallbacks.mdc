@@ -12,31 +12,52 @@ alwaysApply: true
 - Add silent fallbacks, legacy reads, compatibility shims, placeholder data, or catch-and-ignore paths when an operation fails.
 - Keep compatibility with unshipped branch behavior — replace it outright.
 - Call a legacy endpoint or synthesize a response when the current API/schema is missing.
-- Accept dual wire formats (e.g. `camelCase || snake_case`) — pick one canonical JSON shape per service and throw on mismatch.
-- Mask failed parsing, storage, sync, or network with defaults or stale UI (keep showing old data after reload failed).
+- Accept dual wire formats (e.g. `camelCase ?? snake_case`, `pickStr('a', 'b')`) — one canonical JSON shape per endpoint; throw on mismatch.
+- Mask failed parsing, storage, sync, or network with defaults or stale UI.
+- Add `if deps.X == nil` / `if s.x == nil` in domain/service code for dependencies that must always be wired at startup — fail in `config.Load()` / `run.go` instead.
+- Return empty proto / zero struct from mappers when input is `nil` on success paths — callers must guarantee non-nil or error before map.
 
 ## Do
 
 - Throw a typed/user-visible error, surface `loadError` / banner / menu message, or block the action.
 - Use explicit one-way migrations only: observable, writes forward, removes old path after upgrade.
-- Allow UX defaults **before user intent** only (empty forms, first-run settings) — not after a failed operation.
-- In catch blocks: rethrow, map to user-visible error, or document deliberate best-effort cleanup (Tauri dismiss, listener teardown).
+- Allow UX defaults **before user intent** only (empty forms, first-run settings, unset optional env for dev) — not after a failed operation.
+- In catch blocks: rethrow, map to user-visible error, or document deliberate best-effort cleanup (Tauri dismiss, listener teardown, idempotent `Close()`).
+- Wire required adapters once in `run.go`; optional integrations (OAuth when env unset) use explicit `Configured()` — not nil checks scattered in handlers.
+- Delete unused RPCs and proto fields at the root (proto → gen → transport → service → repo), verified against clients.
 
-## Nordly app
+## Nordly desktop (`apps/nordly`)
 
-- Audit tracker: `apps/nordly/docs/architecture-audit.md` (file-level checklist + phases).
-- Layering + HTTP: `apps/nordly/.cursor/rules/nordly.mdc`.
-- Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter raw `LOCAL_ONLY` checks.
+- Audit: `apps/nordly/docs/architecture-audit.md`
+- Rules: `apps/nordly/.cursor/rules/nordly.mdc`
+- Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` — not scattered `LOCAL_ONLY` checks.
 - Settings: `shared/model/settings.ts` only; invalid blobs throw.
-- Auth REST: `syncAuthHeaders()`; `DEV_BEARER_TOKEN` dev-only.
+- Auth REST: `syncAuthHeaders()` / `requireAccessToken()` — no dev bearer bypass, no dev login.
+- JSON: grpc-gateway camelCase — `shared/api/json.ts` strict readers only.
+
+## Web companion (`apps/web`)
+
+- Rules: `apps/web/.cursor/rules/web.mdc`
+- API JSON: read camelCase from wire; use `normalizeProtoJson()` then **snake_case internal types only** — never `field ?? otherField`.
+- Auth: `parseAuthTokens` (identity) vs `parseGuestAccessToken` (rooms guest) — do not mix shapes.
+- Audit: `docs/backend-client-matrix.md`
 
 ## Go backend (`services/*`)
 
-- Audit tracker: `docs/backend-audit.md` (per-service file checklist + RPC/field usage).
-- Work inside `services/<name>/` — follow that service's `AGENTS.md`.
-- **Required config fails in `cmd/*/app/run.go` or `config.Load()`** — not deep in handlers (missing JWT key, encryption key, internal token, adapter URLs when feature is enabled).
-- **Wire dependencies once at startup** — if billing/identity/encryption is required, dial it in `run.go` and pass a non-optional struct field. Do not add `if deps.X == nil` / `if s.x == nil` guards in domain/service code for things that must always be present; that hides misconfiguration until runtime.
-- **No legacy wire paths** — one JSON/proto shape; remove dual-field reads (`body_md` OR `bodyMd`), deprecated RPCs, and “if old column empty read old column” after migration shipped.
-- **No silent degradation** — do not serve stale cache, synthesized defaults, or plaintext secrets when encryption is configured; return typed errors.
-- **Delete unused RPCs and proto fields** at the root (proto → gen → transport → service → repo), verified against `apps/nordly` + `apps/web` clients.
-- `getEnv(key, fallback)` is for dev defaults only — production-required vars must error in `Load()` when empty.
+- Audit: `docs/backend-audit.md`
+- Work inside `services/<name>/` — follow that service's `AGENTS.md` and `.cursor/rules/go-backend.mdc`.
+- **Required config fails in `config.Load()` or `cmd/*/app/run.go`** — not deep in handlers.
+- **No legacy wire paths** — one JSON/proto shape per RPC.
+- **No silent degradation** — no stale cache as truth, no synthesized entitlements.
+- `getEnv(key, fallback)` for dev defaults only — production-required vars error in `Load()` when empty.
+- Layering: [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc)
+
+## Intentional exceptions (document in code or AGENTS.md)
+
+| Pattern | Reason |
+|---------|--------|
+| Tracker Google/Zoom `Configured()` | OAuth optional when env unset |
+| Billing optional Redis entitlements cache | no-op inside type when Redis absent |
+| WS hub `room == nil` after unregister | concurrent lifecycle |
+| `Close()` idempotent nil conn | cleanup |
+| ai service (CI archive) | not prod |

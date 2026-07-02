@@ -10,9 +10,6 @@ import (
 )
 
 func toProtoNote(n *notesmodel.Note) *notesv1.Note {
-	if n == nil {
-		return nil
-	}
 	return &notesv1.Note{
 		Id:        n.ID,
 		Title:     n.Title,

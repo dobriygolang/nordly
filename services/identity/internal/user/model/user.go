@@ -7,7 +7,6 @@ type User struct {
 	ID         string
 	Username   string
 	TelegramID *int64
-	YandexID   *string
 	AvatarURL  string
 	Timezone   string
 	CreatedAt  time.Time

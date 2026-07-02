@@ -24,7 +24,6 @@ func RunAPI(ctx context.Context, a *App) error {
 	}
 
 	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		billingapi.AuthInterceptor(a.JWT),
 		billingapi.InternalAuthInterceptor(a.Config.InternalAPIToken),
 	))
 	billingapi.NewRegisteredImplementation(

@@ -27,7 +27,7 @@ export function preserveLocalOnlyTaskFields(local: TaskCard, remote: TaskCard): 
   const epicId = remote.epicId ?? local.epicId;
   return {
     ...remote,
-    order: local.order ?? remote.order,
+    order: local.order,
     epicId,
     epicColor: epicId ? undefined : local.epicColor,
   };

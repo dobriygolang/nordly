@@ -53,11 +53,11 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("init token cipher: %w", err)
 	}
 	svc := trackerservice.New(trackerservice.Deps{
-		Repo:            repo,
-		Google:          googleClient,
-		Zoom:            zoomClient,
-		Cipher:          cipher,
-		NordlyCallbackURL: cfg.NordlyCallbackURL,
+		Repo:         repo,
+		Google:       googleClient,
+		Zoom:         zoomClient,
+		Cipher:       cipher,
+		CallbackBase: cfg.CallbackURL,
 	})
 	return &App{Config: cfg, Logger: log, Postgres: pg, JWT: jwtValidator, Service: svc}, nil
 }

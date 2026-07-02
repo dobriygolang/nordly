@@ -3,7 +3,6 @@ package roomsapi
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
@@ -21,13 +20,12 @@ func (i *Implementation) ShareWhiteboard(
 	}
 	resp := &roomsv1.ShareWhiteboardResponse{
 		AccessToken: result.AccessToken,
-		Room:        toProtoRoom(result.Room),
+		RoomId:      result.Room.Room.ID.String(),
 		ExpiresIn:   result.ExpiresIn,
 	}
 	if result.Invite != nil {
 		resp.Invite = &roomsv1.InviteLink{
-			Url:       result.Invite.URL,
-			ExpiresAt: timestamppb.New(result.Invite.ExpiresAt),
+			Url: result.Invite.URL,
 		}
 	}
 	return resp, nil

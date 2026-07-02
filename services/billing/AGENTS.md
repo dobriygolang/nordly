@@ -31,7 +31,7 @@ Seeded in `00001_init.sql`. Plans: `free`, `pro_monthly`.
 
 | RPC | HTTP | Auth |
 |-----|------|------|
-| GetMe | `GET /v1/billing/me` | JWT |
+| ListPlans | `GET /v1/billing/plans` | public |
 | GetEntitlements, CheckEntitlement, CheckAndConsumeUsage, ReleaseUsage | gRPC | `x-internal-token` |
 | Grant/Revoke subscription | admin HTTP | `x-internal-token` |
 | Tribute webhook | `POST /v1/billing/webhooks/tribute` | `trbt-signature` HMAC-SHA256 hex only |

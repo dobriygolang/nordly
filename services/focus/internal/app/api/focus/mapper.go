@@ -10,9 +10,6 @@ import (
 )
 
 func toProtoSession(s *focusmodel.Session) *focusv1.FocusSession {
-	if s == nil {
-		return nil
-	}
 	out := &focusv1.FocusSession{
 		Id:                 s.ID,
 		Mode:               s.Mode,

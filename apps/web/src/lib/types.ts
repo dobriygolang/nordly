@@ -10,19 +10,7 @@ export interface PlanCatalogEntry {
   slug: string
   name: string
   tagline: string
-  highlights: string[]
   limits?: Record<string, PlanEntitlementSpec>
-}
-
-export interface TestResult {
-  name: string
-  status: string
-  stdout?: string
-  stderr?: string
-  expected_output?: string
-  actual_output?: string
-  time_ms?: number
-  error?: string
 }
 
 export interface CodeRun {
@@ -40,7 +28,6 @@ export interface CodeRun {
   memory_kb?: number
   tests_total: number
   tests_passed: number
-  test_results: TestResult[]
   runner?: string
   created_at?: string
   updated_at?: string

@@ -39,7 +39,7 @@ import {
   type LiveRoomTheme,
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
-import type { ThemeToggleOrigin } from '@/lib/site/themeTransition'
+import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 import { cn } from '@/lib/cn'
 
@@ -144,8 +144,10 @@ export default function CollabRoomPage() {
     if (trimmed) persistGuestDisplayName(trimmed)
   }, [])
 
-  const handleThemeToggle = useCallback((_origin?: ThemeToggleOrigin) => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+  const handleThemeToggle = useCallback((origin?: ThemeToggleOrigin) => {
+    runThemeTransition(() => {
+      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+    }, origin)
   }, [])
 
   const handleRemoteCodeRun = useCallback(

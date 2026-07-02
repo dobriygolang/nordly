@@ -77,19 +77,9 @@ message CodeRun {
   optional int32 memory_kb = 14;
   int32 tests_total = 15;
   int32 tests_passed = 16;
-  repeated TestResult test_results = 17;
+  reserved 17;
+  reserved "test_results";
   optional string runner = 18;
   google.protobuf.Timestamp created_at = 19;
   google.protobuf.Timestamp updated_at = 20;
-}
-
-message TestResult {
-  string name = 1;
-  string status = 2;
-  optional string stdout = 3;
-  optional string stderr = 4;
-  optional string expected_output = 5;
-  optional string actual_output = 6;
-  optional int32 time_ms = 7;
-  optional string error = 8;
 }

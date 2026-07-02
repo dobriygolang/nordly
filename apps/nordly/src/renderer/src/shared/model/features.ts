@@ -14,14 +14,6 @@ export const LOCAL_ONLY =
   readBoolEnv(import.meta.env.VITE_NORDLY_LOCAL_ONLY) ??
   true;
 
-/**
- * Dev username/passwordless login (identity DEV_AUTH=true).
- * Default: on in `vite dev`, off in production builds.
- */
-export const DEV_LOGIN_ENABLED =
-  readBoolEnv(import.meta.env.VITE_NORDLY_DEV_LOGIN) ??
-  import.meta.env.DEV;
-
 /** Cloud sync + integrations (tracker, notes API, Google Calendar, vault server). */
 export function isCloudEnabled(): boolean {
   return !LOCAL_ONLY;

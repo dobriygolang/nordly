@@ -1,9 +1,11 @@
 ---
-description: Go backend conventions for notes skeleton
+description: Go backend — notes service
 globs: "**/*.go"
 alwaysApply: false
 ---
 
 # Go backend — notes
 
-Follow root [AGENTS.md](../../AGENTS.md#service-notes-canonical). Transport thin; logic in `internal/<domain>/service/`.
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+
+- `PUBLIC_BASE_URL`, `INTERNAL_API_TOKEN`, billing gRPC required at startup.

@@ -14,7 +14,7 @@ func AuthConfigHTTP(telegramBotUsername string) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"telegram_bot_username": telegramBotUsername,
+			"telegramBotUsername": telegramBotUsername,
 		})
 	}
 }

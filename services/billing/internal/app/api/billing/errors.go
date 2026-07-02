@@ -32,10 +32,6 @@ func mapServiceError(err error) error {
 	}
 }
 
-func unauthorized() error {
-	return status.Error(codes.Unauthenticated, "unauthorized")
-}
-
 func invalidArgument(msg string) error {
 	return status.Error(codes.InvalidArgument, msg)
 }

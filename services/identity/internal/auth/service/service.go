@@ -83,11 +83,11 @@ func (s *service) AuthTelegram(ctx context.Context, code string) (*AuthResult, e
 	}
 
 	user, err := s.users.GetByTelegramID(ctx, loginCode.TelegramID)
-	if err != nil && !isUserNotFound(err) {
-		return nil, err
-	}
+	if err != nil {
+		if !isUserNotFound(err) {
+			return nil, err
+		}
 
-	if user == nil {
 		username, err := AllocateUsername(ctx, s.users, telegramUsernameCandidates(
 			loginCode.FirstName,
 			loginCode.LastName,
@@ -111,7 +111,10 @@ func (s *service) AuthTelegram(ctx context.Context, code string) (*AuthResult, e
 				return nil, err
 			}
 		}
-	} else if loginCode.AvatarURL != "" {
+		return s.issueTokens(ctx, user)
+	}
+
+	if loginCode.AvatarURL != "" {
 		user.AvatarURL = pickAvatar(user.AvatarURL, loginCode.AvatarURL)
 		user, err = s.users.Update(ctx, user)
 		if err != nil {
@@ -141,7 +144,7 @@ func (s *service) RefreshToken(ctx context.Context, refreshToken string) (*AuthR
 		return nil, err
 	}
 
-	if err := s.refreshTokens.Delete(ctx, HashRefreshToken(refreshToken)); err != nil && s.log != nil {
+	if err := s.refreshTokens.Delete(ctx, HashRefreshToken(refreshToken)); err != nil {
 		s.log.Error("failed to delete rotated refresh token", "err", err)
 	}
 	return result, nil

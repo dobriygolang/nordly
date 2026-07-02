@@ -1,29 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 
-import { useT, useLocale, type Locale } from '@nordly-i18n';
+import { useT } from '@nordly-i18n';
 
-import { type ThemeId, THEME_IDS } from '@shared/model/theme';
+import { Icon, type IconName } from '@shared/ui/primitives/Icon';
+import type { ThemeId } from '@shared/model/theme';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
-import { applyTextScale } from '@shared/model/accessibility';
+import type { TimerMode } from '@shared/model/settings';
+
+import { GeneralSection } from './sections/GeneralSection';
+import { IntegrationsSection } from './sections/IntegrationsSection';
+import { ShortcutsSection } from './sections/ShortcutsSection';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
-import { GoogleCalendarSection } from './sections/GoogleCalendarSection';
-import { ZoomSection } from './sections/ZoomSection';
 import { VaultSection } from './sections/VaultSection';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import {
-  readSettings,
-  SETTINGS_KEY,
-  TEXT_SCALES,
-  THEME_KEY,
-  type NordlySettings,
-  type TextScale,
-} from '@shared/model/settings';
-import { SettingRow, SettingsGroup } from './primitives/SettingRow';
-import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
-import { Slider } from './primitives/Slider';
-import { Toggle } from './primitives/Toggle';
-import { ThemeCard } from './primitives/ThemeCard';
+
+type SectionId = 'general' | 'integrations' | 'vault' | 'shortcuts' | 'about';
+
+interface NavItem {
+  id: SectionId;
+  icon: IconName;
+  labelKey: string;
+}
+
+const NAV: NavItem[] = [
+  { id: 'general', icon: 'settings', labelKey: 'nordly.settings.nav.general' },
+  { id: 'integrations', icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
+  { id: 'vault', icon: 'lock', labelKey: 'nordly.settings.nav.vault' },
+  { id: 'shortcuts', icon: 'command', labelKey: 'nordly.settings.nav.shortcuts' },
+  { id: 'about', icon: 'info', labelKey: 'nordly.settings.nav.about' },
+];
 
 interface SettingsPageProps {
   theme: ThemeId;
@@ -31,215 +36,77 @@ interface SettingsPageProps {
   boardCanvas: BoardCanvasTheme;
   onBoardCanvasChange: (t: BoardCanvasTheme) => void;
   onPomoChange?: (secs: number) => void;
+  onTimerModeChange?: (mode: TimerMode) => void;
+  onBack?: () => void;
 }
 
-const LOCALES: Locale[] = ['ru', 'en'];
-
-export function SettingsPage({
-  theme,
-  onThemeChange,
-  boardCanvas,
-  onBoardCanvasChange,
-  onPomoChange,
-}: SettingsPageProps) {
+export function SettingsPage(props: SettingsPageProps) {
   const t = useT();
-  const [locale, setLocale] = useLocale();
-  const [settings, setSettings] = useState<NordlySettings>(() => readSettings());
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      window.dispatchEvent(new Event(NORDLY_EVENTS.settingsChanged));
-    } catch {
-      /* ignore */
-    }
-    applyTextScale(settings.textScale);
-  }, [settings]);
-
-  const setPomo = useCallback(
-    (n: number) => {
-      setSettings((s) => ({ ...s, pomodoroMinutes: n }));
-      onPomoChange?.(n * 60);
-    },
-    [onPomoChange],
-  );
-
-  const setNotif = useCallback((b: boolean) => setSettings((s) => ({ ...s, notifications: b })), []);
-  const setCalendarNotif = useCallback(
-    (b: boolean) => setSettings((s) => ({ ...s, calendarNotifications: b })),
-    [],
-  );
-
-  const setDailyGoal = useCallback(
-    (n: number) => setSettings((s) => ({ ...s, dailyGoalMin: n })),
-    [],
-  );
-
-  const setTextScale = useCallback((scale: TextScale) => {
-    setSettings((s) => ({ ...s, textScale: scale }));
-  }, []);
-
-  const setBoardCanvas = useCallback(
-    (next: BoardCanvasTheme) => {
-      onBoardCanvasChange(next);
-      setSettings((s) => ({ ...s, boardCanvas: next }));
-    },
-    [onBoardCanvasChange],
-  );
-
-  const boardCanvasOptions = useMemo(
-    () => [
-      { value: 'dark' as const, label: t('nordly.settings.board_canvas.dark') },
-      { value: 'light' as const, label: t('nordly.settings.board_canvas.light') },
-    ],
-    [t],
-  );
-
-  const pickTheme = useCallback(
-    (id: ThemeId) => {
-      onThemeChange(id);
-      try {
-        window.localStorage.setItem(THEME_KEY, id);
-      } catch {
-        /* ignore */
-      }
-    },
-    [onThemeChange],
-  );
-
-  const localeOptions = useMemo(
-    () =>
-      LOCALES.map((l) => ({
-        value: l,
-        label: l === 'ru' ? t('common.lang.ru') : t('common.lang.en'),
-      })),
-    [t],
-  );
-
-  const textScaleOptions = useMemo(
-    () =>
-      TEXT_SCALES.map((scale) => ({
-        value: scale,
-        label:
-          scale === 'normal'
-            ? t('nordly.settings.text_scale.normal')
-            : scale === 'large'
-              ? t('nordly.settings.text_scale.large')
-              : t('nordly.settings.text_scale.xlarge'),
-      })),
-    [t],
-  );
+  const [section, setSection] = useState<SectionId>('general');
 
   return (
-    <div className="nordly-settings-page">
-      <div className="nordly-settings-page__inner">
-        <p className="nordly-settings-page__eyebrow mono">{t('nordly.settings.eyebrow').toUpperCase()}</p>
-        <h1 className="nordly-settings-page__title">{t('nordly.settings.heading')}</h1>
+    <div className="nordly-settings-shell">
+      <nav className="nordly-settings-nav" aria-label={t('nordly.settings.heading')}>
+        <button
+          type="button"
+          className="nordly-settings-nav__back focus-ring"
+          onClick={props.onBack}
+          disabled={!props.onBack}
+        >
+          <Icon name="chevron-left" size={13} />
+          <span className="mono">{t('nordly.settings.eyebrow').toUpperCase()}</span>
+        </button>
 
-        <SettingsGroup title={t('nordly.settings.section.appearance')}>
-          <SettingRow label={t('nordly.settings.language.label')} hint={t('nordly.settings.language.hint')}>
-            <SegmentedControl
-              ariaLabel={t('nordly.settings.language.label')}
-              value={locale}
-              options={localeOptions}
-              onChange={setLocale}
-            />
-          </SettingRow>
+        <ul className="nordly-settings-nav__list">
+          {NAV.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                className={`nordly-settings-nav__item${section === item.id ? ' is-active' : ''} focus-ring`}
+                aria-current={section === item.id}
+                onClick={() => setSection(item.id)}
+              >
+                <Icon name={item.icon} size={15} />
+                <span>{t(item.labelKey)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
-          <SettingRow label={t('nordly.settings.text_scale.label')} hint={t('nordly.settings.text_scale.hint')}>
-            <SegmentedControl
-              ariaLabel={t('nordly.settings.text_scale.label')}
-              value={settings.textScale}
-              options={textScaleOptions}
-              onChange={setTextScale}
-            />
-          </SettingRow>
+      <div className="nordly-settings-content">
+        <div className="nordly-settings-content__inner">
+          {section === 'general' && <GeneralSection {...props} />}
 
-          <SettingRow
-            label={t('nordly.settings.board_canvas.label')}
-            hint={t('nordly.settings.board_canvas.hint')}
-          >
-            <SegmentedControl
-              ariaLabel={t('nordly.settings.board_canvas.label')}
-              value={boardCanvas}
-              options={boardCanvasOptions}
-              onChange={setBoardCanvas}
-            />
-          </SettingRow>
+          {section === 'integrations' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.integrations')}</h1>
+              <IntegrationsSection />
+            </>
+          )}
 
-          <SettingRow label={t('nordly.settings.theme.label')} hint={t('nordly.settings.theme.hint')}>
-            <div className="nordly-settings-theme-grid">
-              {THEME_IDS.map((id) => (
-                <ThemeCard key={id} id={id} active={theme === id} onPick={() => pickTheme(id)} />
-              ))}
-            </div>
-          </SettingRow>
-        </SettingsGroup>
+          {section === 'vault' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.section.vault')}</h1>
+              <VaultSection />
+            </>
+          )}
 
-        <SettingsGroup title={t('nordly.settings.section.focus')}>
-          <SettingRow label={t('nordly.settings.notifications.label')} hint={t('nordly.settings.notifications.hint')}>
-            <Toggle
-              value={settings.notifications}
-              onChange={setNotif}
-              label={settings.notifications ? t('nordly.settings.notifications.on') : t('nordly.settings.notifications.off')}
-            />
-          </SettingRow>
+          {section === 'shortcuts' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.shortcuts')}</h1>
+              <ShortcutsSection />
+            </>
+          )}
 
-          <SettingRow
-            label={t('nordly.settings.calendar_notifications.label')}
-            hint={t('nordly.settings.calendar_notifications.hint')}
-          >
-            <Toggle
-              value={settings.calendarNotifications}
-              onChange={setCalendarNotif}
-              label={
-                settings.calendarNotifications
-                  ? t('nordly.settings.notifications.on')
-                  : t('nordly.settings.notifications.off')
-              }
-            />
-          </SettingRow>
-
-          <SettingRow label={t('nordly.settings.pomodoro.label')} hint={t('nordly.settings.pomodoro.hint')}>
-            <Slider
-              min={5}
-              max={90}
-              step={5}
-              value={settings.pomodoroMinutes}
-              onChange={setPomo}
-              unit={t('nordly.settings.pomodoro.unit')}
-            />
-          </SettingRow>
-
-          <SettingRow label={t('nordly.settings.daily_goal.label')} hint={t('nordly.settings.daily_goal.hint')}>
-            <Slider
-              min={15}
-              max={480}
-              step={15}
-              value={settings.dailyGoalMin}
-              onChange={setDailyGoal}
-              unit={t('nordly.settings.pomodoro.unit')}
-            />
-          </SettingRow>
-        </SettingsGroup>
-
-        <SettingsGroup title={t('nordly.settings.section.integrations')}>
-          <GoogleCalendarSection
-            pollMinutes={settings.googleCalendarPollMinutes}
-            onPollMinutesChange={(googleCalendarPollMinutes) =>
-              setSettings((s) => ({ ...s, googleCalendarPollMinutes }))
-            }
-          />
-          <ZoomSection />
-        </SettingsGroup>
-
-        <VaultSection />
-
-        <SoftwareSection />
-
-        <SettingsGroup title={t('nordly.settings.section.account')}>
-          <SignOutSection />
-        </SettingsGroup>
+          {section === 'about' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.about')}</h1>
+              <SoftwareSection />
+              <SignOutSection />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

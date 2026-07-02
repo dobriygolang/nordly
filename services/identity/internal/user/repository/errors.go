@@ -10,7 +10,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 // ErrAlreadyExists is returned when an insert violates a unique constraint
-// (e.g. concurrent first login for the same telegram_id / yandex_id).
+// (e.g. concurrent first login for the same telegram_id).
 var ErrAlreadyExists = errors.New("already exists")
 
 // uniqueViolation reports whether err is a Postgres unique_violation (23505).

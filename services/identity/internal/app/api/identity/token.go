@@ -9,7 +9,7 @@ import (
 // RefreshToken rotates refresh token and returns a new token pair.
 func (i *Implementation) RefreshToken(ctx context.Context, req *identityv1.RefreshTokenRequest) (*identityv1.AuthResponse, error) {
 	if req.GetRefreshToken() == "" {
-		return nil, invalidArgument("refresh_token is required")
+		return nil, invalidArgument("refreshToken is required")
 	}
 
 	result, err := i.service.RefreshToken(ctx, req.GetRefreshToken())

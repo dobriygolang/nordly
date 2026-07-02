@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { readPomodoroSeconds } from '@shared/model/settings';
+import { readPomodoroSeconds, readTimerMode } from '@shared/model/settings';
 
 export type FocusTimerMode = 'pomodoro' | 'stopwatch';
 
@@ -32,7 +32,7 @@ interface PomodoroState {
 }
 
 export const usePomodoroStore = create<PomodoroState>((set, get) => ({
-  mode: 'pomodoro',
+  mode: readTimerMode(),
   remain: readPomodoroSeconds(),
   elapsed: 0,
   running: false,

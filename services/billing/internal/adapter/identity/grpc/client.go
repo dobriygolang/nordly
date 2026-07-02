@@ -57,7 +57,11 @@ func (c *Client) GetUserByTelegramID(ctx context.Context, telegramID int64) (*id
 		}
 		return nil, err
 	}
-	return toUser(resp.GetUser()), nil
+	u := resp.GetUser()
+	if u == nil {
+		return nil, fmt.Errorf("identity GetUserByTelegramID: empty user")
+	}
+	return toUser(u), nil
 }
 
 func internalTokenInterceptor(token string) grpc.UnaryClientInterceptor {
@@ -70,9 +74,6 @@ func internalTokenInterceptor(token string) grpc.UnaryClientInterceptor {
 }
 
 func toUser(u *identityv1.User) *identityadapter.User {
-	if u == nil {
-		return nil
-	}
 	out := &identityadapter.User{ID: u.GetId(), Username: u.GetUsername()}
 	if tg := u.GetTelegramId(); tg != 0 {
 		out.TelegramID = &tg

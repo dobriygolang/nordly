@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	identitygrpc "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity/grpc"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
@@ -52,7 +51,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	repo := roomrepo.New(pg)
-	hub := ws.NewHub(slog.Default())
+	hub := ws.NewHub(log)
 	svc := roomservice.New(roomservice.Deps{
 		Repo:          repo,
 		Identity:      identityConn,

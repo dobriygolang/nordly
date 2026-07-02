@@ -35,9 +35,6 @@ func Register(s *grpc.Server, impl *Implementation) {
 }
 
 func toProtoEntitlements(view *model.EntitlementsView) *billingv1.GetMeResponse {
-	if view == nil {
-		return &billingv1.GetMeResponse{}
-	}
 	out := &billingv1.GetMeResponse{
 		UserId:         view.UserID,
 		PlanSlug:       view.PlanSlug,
@@ -76,12 +73,11 @@ func toProtoEntitlements(view *model.EntitlementsView) *billingv1.GetMeResponse 
 
 func toProtoPlanCatalog(item catalog.PlanCatalogItem, checkout PlanCheckoutURLs, trialDays int32) *billingv1.PlanCatalog {
 	out := &billingv1.PlanCatalog{
-		Slug:       item.Slug,
-		Name:       item.Name,
-		Tagline:    item.Tagline,
-		Highlight:  item.Highlight,
-		Highlights: append([]string(nil), item.Highlights...),
-		Features:   map[string]bool{},
+		Slug:      item.Slug,
+		Name:      item.Name,
+		Tagline:   item.Tagline,
+		Highlight: item.Highlight,
+		Features:  map[string]bool{},
 		Limits:     map[string]*billingv1.PlanEntitlementSpec{},
 		TrialDays:  trialDays,
 	}

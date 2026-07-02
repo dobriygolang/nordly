@@ -17,9 +17,6 @@ import (
 )
 
 func toProtoUser(user *model.User) *identityv1.User {
-	if user == nil {
-		return nil
-	}
 	out := &identityv1.User{
 		Id:        user.ID,
 		Username:  user.Username,
@@ -36,9 +33,6 @@ func toProtoUser(user *model.User) *identityv1.User {
 }
 
 func publicAvatarURL(user *model.User) string {
-	if user == nil {
-		return ""
-	}
 	if user.AvatarURL == "" {
 		return ""
 	}

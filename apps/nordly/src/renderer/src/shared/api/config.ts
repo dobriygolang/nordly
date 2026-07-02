@@ -20,10 +20,11 @@ export const API_BASE_URL =
 /** Liveness probe — identity `/healthz` (Caddy in prod, Vite proxy in dev). */
 export const HEALTH_CHECK_URL = `${API_BASE_URL}/healthz`;
 
-export const TELEGRAM_BOT_USERNAME =
-  ((import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined) ?? '').trim();
-
-/** Dev-only bearer for local API testing. Never available in production builds. */
-export const DEV_BEARER_TOKEN: string | null = import.meta.env.DEV
-  ? (((import.meta.env.VITE_NORDLY_DEV_TOKEN as string | undefined) ?? '').trim() || null)
-  : null;
+/** Public web companion base URL — required for live/share links (no silent prod default). */
+export function requireNordlyWebBaseUrl(): string {
+  const raw = (import.meta.env.VITE_NORDLY_WEB_BASE as string | undefined)?.trim();
+  if (!raw) {
+    throw new Error('VITE_NORDLY_WEB_BASE is required for share links');
+  }
+  return raw.replace(/\/$/, '');
+}

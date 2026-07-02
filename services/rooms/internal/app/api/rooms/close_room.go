@@ -15,11 +15,11 @@ func (i *Implementation) CloseRoom(ctx context.Context, req *roomsv1.CloseRoomRe
 	if err := i.service.CloseRoom(ctx, userID, req.RoomId); err != nil {
 		return nil, mapServiceError(err)
 	}
-	if i.hub != nil {
-		if rid, parseErr := uuid.Parse(req.RoomId); parseErr == nil {
-			i.hub.BroadcastRoomClosed(rid)
-			i.hub.CloseRoom(rid)
-		}
+	rid, err := uuid.Parse(req.RoomId)
+	if err != nil {
+		return nil, invalidArgument("roomId is invalid")
 	}
+	i.hub.BroadcastRoomClosed(rid)
+	i.hub.CloseRoom(rid)
 	return &roomsv1.CloseRoomResponse{}, nil
 }

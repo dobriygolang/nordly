@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 
 	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
@@ -40,7 +39,7 @@ func (s *trackerService) UpdateSettings(ctx context.Context, userID string, in U
 }
 
 func (s *trackerService) GetGoogleCalendarAuthURL(ctx context.Context, userID string) (string, error) {
-	if s.google == nil || !s.google.Configured() {
+	if !s.google.Configured() {
 		return "", fmt.Errorf("%w: google calendar not configured", model.ErrInvalidArgument)
 	}
 	state, err := randomState()
@@ -54,7 +53,7 @@ func (s *trackerService) GetGoogleCalendarAuthURL(ctx context.Context, userID st
 }
 
 func (s *trackerService) HandleGoogleCallback(ctx context.Context, code, state string) (string, error) {
-	if s.google == nil || !s.google.Configured() {
+	if !s.google.Configured() {
 		return s.callbackRedirect("error", "not_configured"), nil
 	}
 	if code == "" || state == "" {
@@ -115,7 +114,7 @@ func (s *trackerService) DisconnectGoogleCalendar(ctx context.Context, userID st
 
 // googleReady reports whether the Google adapter is configured for use.
 func (s *trackerService) googleReady() bool {
-	return s.google != nil && s.google.Configured()
+	return s.google.Configured()
 }
 
 // refreshToken decrypts and returns the stored refresh token.
@@ -145,10 +144,7 @@ func (s *trackerService) handleGoogleErr(ctx context.Context, userID string, err
 }
 
 func (s *trackerService) callbackRedirect(status, detail string) string {
-	u, err := url.Parse(s.nordlyCallbackURL)
-	if err != nil || u.Scheme == "" {
-		panic("invalid NORDLY_CALLBACK_URL configured at startup")
-	}
+	u := s.callbackBase
 	q := u.Query()
 	q.Set("google_calendar", status)
 	if detail != "" {

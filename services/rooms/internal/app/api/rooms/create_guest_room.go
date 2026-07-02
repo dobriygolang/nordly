@@ -3,7 +3,6 @@ package roomsapi
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
@@ -19,8 +18,7 @@ func (i *Implementation) CreateGuestRoom(ctx context.Context, req *roomsv1.Creat
 	}
 	if result.Invite != nil {
 		resp.Invite = &roomsv1.InviteLink{
-			Url:       result.Invite.URL,
-			ExpiresAt: timestamppb.New(result.Invite.ExpiresAt),
+			Url: result.Invite.URL,
 		}
 	}
 	return resp, nil

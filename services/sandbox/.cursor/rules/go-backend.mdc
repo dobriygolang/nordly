@@ -1,0 +1,12 @@
+---
+description: Go backend — sandbox service
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go backend — sandbox
+
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+
+- Billing gRPC + JWT validator always wired; LSP handler gets logger at startup.
+- `service.New()` trusts config defaults from `Load()` — no duplicate runtime defaults.

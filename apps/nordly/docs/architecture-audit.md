@@ -60,7 +60,7 @@ Legend: ✅ reviewed + clean | ⚠️ reviewed, known follow-up
 | File | Status | Notes |
 |------|--------|-------|
 | authSession.ts | ✅ | strict refresh tokens |
-| authToken.ts | ✅ | dev bearer dev-only |
+| authToken.ts | ✅ | requireAccessToken only |
 | config.ts | ✅ | |
 | device.ts | ✅ | |
 | http.ts | ✅ | |

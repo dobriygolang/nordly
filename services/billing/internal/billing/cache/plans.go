@@ -38,8 +38,8 @@ func NewPlans(src PlansSource) *Plans {
 
 // Reload rebuilds the plan snapshot from Postgres.
 func (p *Plans) Reload(ctx context.Context) error {
-	if p == nil || p.src == nil {
-		return nil
+	if p.src == nil {
+		return fmt.Errorf("plans cache: no source")
 	}
 	start := time.Now()
 	plans, err := p.src.ListActivePlans(ctx)

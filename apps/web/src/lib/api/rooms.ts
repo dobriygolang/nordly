@@ -1,29 +1,17 @@
-import { API_BASE, apiWithBearer, parseAuthTokens, parseResponse, readAccessToken } from '@/lib/apiClient'
-import { asArray } from '@/lib/api/normalize'
+import { API_BASE, apiWithBearer, parseGuestAccessToken, readAccessToken } from '@/lib/apiClient'
 import { normalizeProtoJson } from '@/lib/protoJson'
-
-export type RoomParticipant = {
-  user_id: string
-  role: string
-  joined_at?: string
-}
 
 export type CodeRoom = {
   id: string
   owner_id: string
   room_type: string
   language: string
-  visibility: string
-  ws_url: string
   expires_at?: string
   created_at?: string
-  is_guest_created?: boolean
-  participants: RoomParticipant[]
 }
 
 export type InviteLink = {
   url: string
-  expires_at?: string
 }
 
 export type GuestJoinResult = {
@@ -34,13 +22,6 @@ export type GuestJoinResult = {
 
 export type GuestCreateResult = GuestJoinResult & {
   invite: InviteLink
-}
-
-function normalizeRoom(raw: CodeRoom): CodeRoom {
-  return {
-    ...raw,
-    participants: asArray(raw.participants),
-  }
 }
 
 const guestTokenKey = (roomId: string) => `nordly_guest_token_${roomId}`
@@ -58,7 +39,7 @@ export function persistGuestToken(roomId: string, token: string): void {
   try {
     sessionStorage.setItem(guestTokenKey(roomId), token)
   } catch {
-    /* noop */
+    /* sessionStorage unavailable — non-critical */
   }
 }
 
@@ -66,7 +47,7 @@ export function readGuestRoom(roomId: string): CodeRoom | null {
   try {
     const raw = sessionStorage.getItem(guestRoomKey(roomId))
     if (!raw) return null
-    return normalizeRoom(JSON.parse(raw) as CodeRoom)
+    return JSON.parse(raw) as CodeRoom
   } catch {
     return null
   }
@@ -76,7 +57,7 @@ export function persistGuestRoom(roomId: string, room: CodeRoom): void {
   try {
     sessionStorage.setItem(guestRoomKey(roomId), JSON.stringify(room))
   } catch {
-    /* noop */
+    /* sessionStorage unavailable — non-critical */
   }
 }
 
@@ -84,34 +65,78 @@ function bearerForRoom(roomId: string): string | null {
   return readGuestToken(roomId) ?? readAccessToken()
 }
 
+function requireStringField(obj: Record<string, unknown>, key: string, label: string): string {
+  const v = obj[key]
+  if (typeof v !== 'string' || !v) {
+    throw new Error(`Invalid room response: missing ${label}`)
+  }
+  return v
+}
+
+function requireExpiresIn(body: Record<string, unknown>): number {
+  const v = body.expires_in
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    if (Number.isFinite(n)) return n
+  }
+  throw new Error('Invalid room auth response: missing expiresIn')
+}
+
+/** Expects grpc-gateway JSON already normalized to snake_case (see normalizeProtoJson). */
+function mapRoom(raw: Record<string, unknown>): CodeRoom {
+  const room = raw.room
+  if (!room || typeof room !== 'object') {
+    throw new Error('Invalid room response: missing room')
+  }
+  const r = room as Record<string, unknown>
+  const expiresAt = r.expires_at
+  const createdAt = r.created_at
+  return {
+    id: requireStringField(r, 'id', 'id'),
+    owner_id: requireStringField(r, 'owner_id', 'ownerId'),
+    room_type: requireStringField(r, 'room_type', 'roomType'),
+    language: requireStringField(r, 'language', 'language'),
+    expires_at: typeof expiresAt === 'string' && expiresAt ? expiresAt : undefined,
+    created_at: typeof createdAt === 'string' && createdAt ? createdAt : undefined,
+  }
+}
+
+function mapInvite(body: Record<string, unknown>): InviteLink {
+  const inviteRaw = body.invite
+  if (!inviteRaw || typeof inviteRaw !== 'object') {
+    throw new Error('Invalid guest create response: missing invite')
+  }
+  const invite = inviteRaw as Record<string, unknown>
+  return { url: requireStringField(invite, 'url', 'invite.url') }
+}
+
 export async function createGuestRoom(input: {
   displayName: string
   language?: string
   roomType?: string
 }): Promise<GuestCreateResult> {
-  const body = await parseResponse<Record<string, unknown>>('/rooms/guest-create', await fetch(`${API_BASE}/rooms/guest-create`, {
+  const res = await fetch(`${API_BASE}/rooms/guest-create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      display_name: input.displayName.trim() || 'guest',
+      displayName: input.displayName.trim() || 'guest',
       language: input.language ?? 'go',
-      room_type: input.roomType ?? 'practice',
+      roomType: input.roomType ?? 'practice',
     }),
-  }))
-  const tokens = parseAuthTokens(body)
-  const room = normalizeRoom(body.room as CodeRoom)
-  const inviteRaw = body.invite as { url?: string; expires_at?: string } | undefined
-  const invite: InviteLink = inviteRaw
-    ? {
-        url: inviteRaw.url ?? '',
-        expires_at: inviteRaw.expires_at,
-      }
-    : { url: '' }
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `guest create ${res.status}`)
+  }
+  const raw = (await res.json()) as Record<string, unknown>
+  const accessToken = parseGuestAccessToken(raw)
+  const body = normalizeProtoJson(raw) as Record<string, unknown>
   return {
-    access_token: tokens.access_token,
-    expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),
-    room,
-    invite,
+    access_token: accessToken,
+    expires_in: requireExpiresIn(body),
+    room: mapRoom(body),
+    invite: mapInvite(body),
   }
 }
 
@@ -123,7 +148,7 @@ export async function getRoom(roomId: string): Promise<CodeRoom> {
     { method: 'GET' },
     token,
   )
-  return normalizeRoom(res.room)
+  return mapRoom({ room: res.room } as Record<string, unknown>)
 }
 
 export async function guestJoin(
@@ -137,7 +162,7 @@ export async function guestJoin(
   const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(id)}/guest-join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ display_name: displayName }),
+    body: JSON.stringify({ displayName: displayName.trim() || 'guest' }),
     redirect: 'manual',
   })
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
@@ -147,13 +172,14 @@ export async function guestJoin(
     const text = await res.text().catch(() => '')
     throw new Error(text || `guest join ${res.status}`)
   }
-  const body = normalizeProtoJson(await res.json()) as Record<string, unknown>
-  const tokens = parseAuthTokens(body)
-  const room = normalizeRoom(body.room as CodeRoom)
+  const raw = (await res.json()) as Record<string, unknown>
+  const accessToken = parseGuestAccessToken(raw)
+  const body = normalizeProtoJson(raw) as Record<string, unknown>
+  const room = mapRoom(body)
   persistGuestRoom(id, room)
   return {
-    access_token: tokens.access_token,
-    expires_in: Number(body.expires_in ?? body.expiresIn ?? 0),
+    access_token: accessToken,
+    expires_in: requireExpiresIn(body),
     room,
   }
 }
@@ -167,10 +193,14 @@ export async function closeRoom(roomId: string): Promise<void> {
 export async function fetchInitialScene(roomId: string): Promise<string> {
   const token = bearerForRoom(roomId)
   if (!token) throw new Error('not authenticated')
-  const res = await apiWithBearer<{ scene_json?: string; sceneJson?: string }>(
+  const res = await apiWithBearer<{ scene_json?: string }>(
     `/rooms/${encodeURIComponent(roomId)}/initial-scene`,
     { method: 'GET' },
     token,
   )
-  return res.scene_json ?? res.sceneJson ?? ''
+  const scene = res.scene_json
+  if (typeof scene !== 'string') {
+    throw new Error('Invalid initial scene response: missing sceneJson')
+  }
+  return scene
 }

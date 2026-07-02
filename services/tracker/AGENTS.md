@@ -90,7 +90,7 @@ User OAuth scopes (`internal/adapter/zoom/oauth.go`): `meeting:write:meeting`, `
 
 `CreateWorkTaskConference` with `provider=zoom` creates a meeting via Zoom REST API and stores `conference_url` + `zoom_meeting_id` on the task. With `provider=meet`, adds a Google Meet link via Calendar API (`ConferenceData`); requires Google connected (not necessarily sync enabled).
 
-`PatchWorkTask` supports `epic_id`, `clear_epic`, `clear_conference`.
+`PatchWorkTask` JSON body: `epicId`, `clearEpic`, `clearConference` (grpc-gateway camelCase).
 
 Errors: `zoom_not_connected` / `zoom_reauth_required` (gRPC `FailedPrecondition`).
 

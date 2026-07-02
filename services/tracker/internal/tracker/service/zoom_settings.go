@@ -12,7 +12,7 @@ import (
 )
 
 func (s *trackerService) GetZoomAuthURL(ctx context.Context, userID string) (string, error) {
-	if s.zoom == nil || !s.zoom.Configured() {
+	if !s.zoom.Configured() {
 		return "", fmt.Errorf("%w: zoom not configured", model.ErrInvalidArgument)
 	}
 	state, err := randomState()
@@ -26,7 +26,7 @@ func (s *trackerService) GetZoomAuthURL(ctx context.Context, userID string) (str
 }
 
 func (s *trackerService) HandleZoomCallback(ctx context.Context, code, state string) (string, error) {
-	if s.zoom == nil || !s.zoom.Configured() {
+	if !s.zoom.Configured() {
 		return s.zoomCallbackRedirect("error", "not_configured"), nil
 	}
 	if code == "" || state == "" {
@@ -90,12 +90,9 @@ func (s *trackerService) zoomCallbackRedirect(status, detail string) string {
 	return u.String()
 }
 
-// zoomBridgeURL — web: /oauth/zoom on same host as NORDLY_CALLBACK_URL; desktop: nordly://settings.
-func (s *trackerService) zoomBridgeURL() *url.URL {
-	u, err := url.Parse(s.nordlyCallbackURL)
-	if err != nil || u.Scheme == "" {
-		panic("invalid NORDLY_CALLBACK_URL configured at startup")
-	}
+// zoomBridgeURL — web: /oauth/zoom on same host as callback base; desktop: nordly://settings.
+func (s *trackerService) zoomBridgeURL() url.URL {
+	u := s.callbackBase
 	if u.Scheme == "nordly" {
 		return u
 	}

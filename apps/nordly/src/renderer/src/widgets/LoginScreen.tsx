@@ -3,9 +3,6 @@ import { useEffect, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { authTelegram, getAuthConfig } from '@features/auth/api/auth';
-import { API_BASE_URL, TELEGRAM_BOT_USERNAME } from '@shared/api/config';
-import { apiFetch } from '@shared/api/http';
-import { DEV_LOGIN_ENABLED } from '@shared/model/features';
 import { useSessionStore } from '@shared/model/session';
 
 function TelegramIcon(): JSX.Element {
@@ -48,19 +45,25 @@ function formatLoginError(err: unknown, t: (key: string) => string): string {
 export function LoginScreen(): JSX.Element {
   const t = useT();
   const [code, setCode] = useState('');
-  const [botUsername, setBotUsername] = useState(TELEGRAM_BOT_USERNAME);
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [devUsername, setDevUsername] = useState('sergey');
-  const [devBusy, setDevBusy] = useState(false);
 
   useEffect(() => {
     getAuthConfig()
       .then((cfg) => {
-        setBotUsername(cfg.telegram_bot_username);
+        const username = cfg.telegramBotUsername.trim();
+        if (!username) {
+          throw new Error('Telegram bot username missing in auth config');
+        }
+        setBotUsername(username);
       })
       .catch((err: unknown) => {
         setError(formatLoginError(err, t));
+      })
+      .finally(() => {
+        setConfigLoading(false);
       });
   }, [t]);
 
@@ -109,42 +112,6 @@ export function LoginScreen(): JSX.Element {
 
   const hasCode = code.trim().length > 0;
 
-  async function devLogin(): Promise<void> {
-    setDevBusy(true);
-    try {
-      const resp = await apiFetch(`${API_BASE_URL}/api/v1/auth/dev/login`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username: devUsername.trim() || 'sergey' }),
-      });
-      if (!resp.ok) {
-        setError(
-          resp.status === 404
-            ? t('nordly.login.error_dev_auth')
-            : t('nordly.login.error_dev_failed', { status: resp.status }),
-        );
-        return;
-      }
-      const data = (await resp.json()) as {
-        access_token: string;
-        refresh_token: string;
-        expires_in: number;
-        user: { id: string };
-      };
-      await persistSession({
-        userId: data.user.id,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: Date.now() + data.expires_in * 1000,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDevBusy(false);
-    }
-  }
-
   return (
     <div className="login-screen">
       <div className="login-stack">
@@ -165,13 +132,13 @@ export function LoginScreen(): JSX.Element {
             autoComplete="one-time-code"
             maxLength={16}
             aria-label={t('nordly.login.code_aria')}
-            disabled={busy}
+            disabled={busy || configLoading}
           />
 
           <button
             type="submit"
             className="login-tg-btn"
-            disabled={busy}
+            disabled={busy || configLoading}
             aria-label={hasCode ? t('nordly.login.sign_in_aria') : t('nordly.login.open_bot_aria')}
           >
             <TelegramIcon />
@@ -180,28 +147,6 @@ export function LoginScreen(): JSX.Element {
           {error && <p className="login-status login-status--error">{error}</p>}
         </form>
       </div>
-
-      {DEV_LOGIN_ENABLED && (
-        <form
-          className="login-dev"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void devLogin();
-          }}
-        >
-          <input
-            className="login-dev-input"
-            value={devUsername}
-            onChange={(e) => setDevUsername(e.target.value)}
-            placeholder={t('nordly.login.dev_username_placeholder')}
-            aria-label={t('nordly.login.dev_username_aria')}
-            autoComplete="username"
-          />
-          <button type="submit" className="login-dev-btn" disabled={devBusy}>
-            {devBusy ? '…' : t('nordly.login.dev_btn')}
-          </button>
-        </form>
-      )}
     </div>
   );
 }

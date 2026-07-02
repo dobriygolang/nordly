@@ -3,7 +3,7 @@ import { requireJsonObject, requireJsonString } from '@shared/api/json';
 import { apiFetch } from '@shared/api/http';
 
 export type AuthConfig = {
-  telegram_bot_username: string;
+  telegramBotUsername: string;
 };
 
 function apiPath(path: string): string {
@@ -18,7 +18,7 @@ export async function getAuthConfig(): Promise<AuthConfig> {
   }
   const body = (await res.json()) as Record<string, unknown>;
   return {
-    telegram_bot_username: requireJsonString(body, 'telegram_bot_username'),
+    telegramBotUsername: requireJsonString(body, 'telegramBotUsername'),
   };
 }
 

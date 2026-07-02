@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -35,7 +34,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	}()
 
 	repo := roomrepo.New(a.Postgres)
-	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, slog.Default())
+	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, a.Logger)
 
 	go archive.Run(ctx, repo, a.Hub, a.Config.RoomArchiveInterval, a.Logger)
 

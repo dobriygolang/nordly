@@ -6,7 +6,16 @@ alwaysApply: false
 
 # Go backend
 
-Follow service-local `AGENTS.md` and [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc).
+Follow service-local `AGENTS.md`, [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc), and **[fail-fast-no-fallbacks.mdc](fail-fast-no-fallbacks.mdc)** (always apply).
+
+## Fail fast (every service)
+
+- Required env → error in `internal/config/config.go` `Load()`; wire deps in `cmd/<service>/app/run.go` only.
+- No `if s.repo == nil` / `if s.billing == nil` in service layer for required deps.
+- Transport mappers: no `if x == nil { return empty }` on success paths.
+- One wire format per RPC; remove deprecated proto fields and dead handlers with client grep.
+- Typed domain errors → gRPC codes in transport; no swallowed errors.
+- Tracker: `!google.Configured()` / `!zoom.Configured()` is the optional-integration pattern — not a nil guard on wired deps.
 
 ## Range loops (Go 1.22+)
 

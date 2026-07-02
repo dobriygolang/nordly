@@ -15,14 +15,9 @@ import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
-// Browser-mode dev persistence. В Electron production session
-// идёт через safeStorage keychain (main-process IPC). В Vite browser-mode
-// IPC bridge nil → reload terять токен. Persist в localStorage чтобы
-// dev-flow (LoginScreen DEV LOGIN button) survived page reload.
-//
-// Production safe: ключи под BROWSER_PERSIST_KEY namespace; Electron
-// instance bridge'ом приходит сильнее (main-keychain) и localStorage
-// шумом не используется.
+// Browser-mode session persistence. In Electron production the session lives in
+// safeStorage keychain (main-process IPC). In Vite browser-mode the IPC bridge
+// is nil — persist to localStorage so Telegram login survives page reload.
 const BROWSER_PERSIST_KEY = 'nordly:dev-session:v1';
 
 interface PersistedSession {
@@ -127,18 +122,6 @@ export const useSessionStore = create<SessionState>((set) => ({
           accessToken: persisted.accessToken,
           refreshToken: persisted.refreshToken,
           expiresAt: persisted.expiresAt,
-        });
-        return;
-      }
-      const devToken = import.meta.env.VITE_NORDLY_DEV_TOKEN?.trim();
-      if (devToken) {
-        setDbUserId('dev-preview-user');
-        set({
-          status: 'signed_in',
-          userId: 'dev-preview-user',
-          accessToken: devToken,
-          refreshToken: null,
-          expiresAt: 0,
         });
         return;
       }

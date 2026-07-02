@@ -2,7 +2,7 @@
 
 Work from `apps/nordly/` only. Monorepo index: [../../AGENTS.md](../../AGENTS.md). Web companion: [../web/AGENTS.md](../web/AGENTS.md).
 
-Agent rules (HTTP, Tauri): [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+Agent rules (HTTP, Tauri, fail-fast): [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc) + root [fail-fast-no-fallbacks.mdc](../../.cursor/rules/fail-fast-no-fallbacks.mdc).
 
 ## Purpose
 
@@ -31,9 +31,11 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Theme, locale, pomodoro, Google Calendar, vault, sign out |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
+
+Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on, at startup and on window focus (after 03:00 local, once/day via a `nordly:task-rollover-day` marker) unfinished tasks scheduled on earlier days are re-anchored onto today at the same clock time. End-bell sound on timer completion is gated by the `endBell` setting; default focus timer mode is seeded from `timerMode`.
 
 **Daily Planning** (`pages/DailyPlanning/`): 3-step triage wizard — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week; full-width, no timeline), Finalize (summary + obstacles + timeline preview). Open via Palette or `P`. On **Get started**: saves obstacles + plan snapshot to IndexedDB meta `daily_plan::{userId}::{YYYY-MM-DD}`, dispatches `nordly:daily-plan-changed`, navigates Home. **Home** shows today task list + obstacles (no plan progress header); **Stats** overlay shows plan vs actual when finalized today. Manual open only (no auto-open on launch).
 
@@ -43,11 +45,8 @@ Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `
 |----------|---------|--------|
 | `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no cloud sync, no publish, no Google Calendar API |
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8089/8090/8091) |
-| `VITE_NORDLY_DEV_LOGIN` | `true` in dev | Dev login panel (`POST /api/v1/auth/dev/login`) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
-| `VITE_NORDLY_DEV_TOKEN` | unset | Bearer fallback for API calls |
-| `VITE_NORDLY_WEB_BASE` | unset | Public web URL for share links |
-| `VITE_TELEGRAM_BOT_USERNAME` | `nordly_bot` | Fallback when `/v1/auth/config` fails |
+| `VITE_NORDLY_WEB_BASE` | **required for share** | Public web URL for live whiteboard links (`requireNordlyWebBaseUrl()`) |
 
 Prod builds should set `VITE_NORDLY_LOCAL_ONLY=false` for cloud features.
 
@@ -71,7 +70,7 @@ Billing is not called from Nordly.
 
 | Method | Path | Client |
 |--------|------|--------|
-| GET | `/v1/auth/config` | `features/auth/api/auth.ts` via `apiFetch` |
+| GET | `/v1/auth/config` | `features/auth/api/auth.ts` via `apiFetch` — sole source for Telegram bot username on login |
 | POST | `/v1/auth/telegram` | same |
 | POST | `/v1/auth/refresh` | `shared/api/authSession.ts` via raw HTTP (no 401 retry loop) |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
@@ -93,7 +92,7 @@ Billing is not called from Nordly.
 | GET | `/v1/tracker/integrations/google/url` |
 | POST | `/v1/tracker/integrations/google/disconnect` |
 | GET | `/v1/tracker/work/epics` |
-| PATCH | `/v1/tracker/work/tasks/{id}` (epic_id, clear_epic, clear_conference) |
+| PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference) |
 | POST | `/v1/tracker/work/tasks/{id}/conference` |
 
 **notes** — `features/notes/repository/notesRemote.ts`, `publishRemote.ts`, `vaultRemote.ts`, `shared/crypto/vault.ts`
@@ -222,7 +221,7 @@ Registered in `src-tauri/src/lib.rs`:
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open`, `note.open`, `settings?google_calendar=…` (Google Calendar OAuth result).
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth result).
 
 ## Commands
 

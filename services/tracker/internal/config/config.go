@@ -24,6 +24,7 @@ type Config struct {
 	ZoomClientSecret   string
 	ZoomRedirectURI    string
 	NordlyCallbackURL  string
+	CallbackURL        url.URL
 	TokenEncryptionKey string
 }
 
@@ -49,7 +50,8 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("TOKEN_ENCRYPTION_KEY is required")
 	}
 	callbackURL := getEnv("NORDLY_CALLBACK_URL", "nordly://settings")
-	if err := validateCallbackURL(callbackURL); err != nil {
+	parsedCallback, err := parseCallbackURL(callbackURL)
+	if err != nil {
 		return nil, err
 	}
 	return &Config{
@@ -68,19 +70,20 @@ func Load() (*Config, error) {
 		ZoomClientSecret:   os.Getenv("ZOOM_CLIENT_SECRET"),
 		ZoomRedirectURI:    os.Getenv("ZOOM_REDIRECT_URI"),
 		NordlyCallbackURL:  callbackURL,
+		CallbackURL:        parsedCallback,
 		TokenEncryptionKey: tokenKey,
 	}, nil
 }
 
-func validateCallbackURL(raw string) error {
+func parseCallbackURL(raw string) (url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid NORDLY_CALLBACK_URL: %w", err)
+		return url.URL{}, fmt.Errorf("invalid NORDLY_CALLBACK_URL: %w", err)
 	}
 	if u.Scheme == "" {
-		return fmt.Errorf("invalid NORDLY_CALLBACK_URL: missing scheme in %q", raw)
+		return url.URL{}, fmt.Errorf("invalid NORDLY_CALLBACK_URL: missing scheme in %q", raw)
 	}
-	return nil
+	return *u, nil
 }
 
 func getEnv(key, fallback string) string {

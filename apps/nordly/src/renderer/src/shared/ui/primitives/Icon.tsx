@@ -33,7 +33,12 @@ export type IconName =
   | 'copy'
   | 'video'
   | 'check'
-  | 'play-outline';
+  | 'play-outline'
+  | 'command'
+  | 'info'
+  | 'clock'
+  | 'image'
+  | 'bell';
 
 interface IconProps {
   name: IconName;
@@ -239,6 +244,42 @@ export function Icon({ name, size = 14, stroke = 'currentColor', strokeWidth = 1
       return (
         <svg {...p}>
           <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
+        </svg>
+      );
+    case 'command':
+      return (
+        <svg {...p}>
+          <path d="M6 3a3 3 0 0 1 3 3v12a3 3 0 1 1-3-3h12a3 3 0 1 1-3 3V6a3 3 0 1 1 3 3H6a3 3 0 0 1-3-3z" />
+        </svg>
+      );
+    case 'info':
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v5" />
+          <path d="M12 7.5h.01" />
+        </svg>
+      );
+    case 'clock':
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      );
+    case 'image':
+      return (
+        <svg {...p}>
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <circle cx="9" cy="9.5" r="1.6" />
+          <path d="M4 17l5-4 4 3 3-2.5L20 17" />
+        </svg>
+      );
+    case 'bell':
+      return (
+        <svg {...p}>
+          <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
       );
   }

@@ -3,6 +3,7 @@ import { translate } from '@nordly-i18n';
 import { endFocusSession, startFocusSession } from '@features/focus/api/focusClient';
 import { findOpenFocusSession } from '@features/focus/repository/focusStore';
 import { notify } from '@shared/api/notifications';
+import { readEndBell } from '@shared/model/settings';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
 
 export interface PomodoroPersistSnap {
@@ -84,7 +85,7 @@ export async function completePomodoroTimer(
   void notify(
     translate('nordly.notify.session_title'),
     translate('nordly.notify.session_body'),
-    { sound: true },
+    { sound: readEndBell() ? 'session' : false },
   );
   usePomodoroStore.getState().complete();
 }

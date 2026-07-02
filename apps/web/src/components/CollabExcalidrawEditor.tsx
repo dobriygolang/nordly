@@ -29,7 +29,6 @@ import type { LiveRoomTheme } from '@/lib/live/roomTheme'
 import { collabUserColors } from '@/lib/codemirror/collabColors'
 import { peersFromAwareness, type CollabPeer } from '@/lib/codemirror/collabPresence'
 import {
-  migrateLegacySceneText,
   observeSceneChanges,
   readSceneFromYjs,
   sceneHasContent,
@@ -209,8 +208,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       ydocRef.current = ydoc
       const awareness = new Awareness(ydoc)
       awarenessRef.current = awareness
-
-      migrateLegacySceneText(ydoc)
 
       void fetchInitialScene(roomId)
         .then((raw) => {

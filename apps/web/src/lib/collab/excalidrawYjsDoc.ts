@@ -8,13 +8,11 @@ export type ScenePayload = {
 const ELEM_MAP = 'elements'
 const ORDER_ARR = 'elementIds'
 const FILES_MAP = 'files'
-const LEGACY_TEXT = 'scene'
 
 export type ExcalidrawYjsDoc = {
   elementsMap: Y.Map<string>
   elementIds: Y.Array<string>
   filesMap: Y.Map<string>
-  legacyText: Y.Text
 }
 
 export function bindExcalidrawYjsDoc(ydoc: Y.Doc): ExcalidrawYjsDoc {
@@ -22,7 +20,6 @@ export function bindExcalidrawYjsDoc(ydoc: Y.Doc): ExcalidrawYjsDoc {
     elementsMap: ydoc.getMap<string>(ELEM_MAP),
     elementIds: ydoc.getArray<string>(ORDER_ARR),
     filesMap: ydoc.getMap<string>(FILES_MAP),
-    legacyText: ydoc.getText(LEGACY_TEXT),
   }
 }
 
@@ -130,25 +127,8 @@ export function writeSceneToYjs(
   }, origin)
 }
 
-/** One-time import from legacy Y.Text('scene') blob used in early collab builds. */
-export function migrateLegacySceneText(ydoc: Y.Doc): void {
-  const { legacyText, elementsMap } = bindExcalidrawYjsDoc(ydoc)
-  if (elementsMap.size > 0 || legacyText.length === 0) return
-  try {
-    const parsed = JSON.parse(legacyText.toString()) as {
-      elements?: unknown[]
-      files?: Record<string, unknown>
-    }
-    writeSceneToYjs(ydoc, parsed.elements ?? [], parsed.files ?? {}, 'migrate')
-    legacyText.delete(0, legacyText.length)
-  } catch {
-    legacyText.delete(0, legacyText.length)
-  }
-}
-
 export function sceneHasContent(ydoc: Y.Doc): boolean {
-  const { elementsMap, legacyText } = bindExcalidrawYjsDoc(ydoc)
-  return elementsMap.size > 0 || legacyText.length > 0
+  return bindExcalidrawYjsDoc(ydoc).elementsMap.size > 0
 }
 
 export function observeSceneChanges(

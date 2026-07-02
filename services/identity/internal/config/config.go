@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/ops"
@@ -80,6 +81,15 @@ func Load() (*Config, error) {
 		}
 	}
 
+	telegramToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if telegramToken == "" {
+		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
+	}
+	telegramUsername := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_USERNAME"))
+	if telegramUsername == "" {
+		return nil, fmt.Errorf("TELEGRAM_BOT_USERNAME is required")
+	}
+
 	return &Config{
 		AppEnv:              appEnv,
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
@@ -92,8 +102,8 @@ func Load() (*Config, error) {
 		JWTPublicKeyPEM:     publicKey,
 		JWTAccessTTL:        accessTTL,
 		JWTRefreshTTL:       refreshTTL,
-		TelegramBotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
-		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", ""),
+		TelegramBotToken:    telegramToken,
+		TelegramBotUsername: telegramUsername,
 		CORSAllowedOrigins:     ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		AuthRateLimitPerMinute: authRateLimit,
 		InternalAPIToken:       internalToken,

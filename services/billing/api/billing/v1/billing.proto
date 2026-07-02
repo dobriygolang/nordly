@@ -8,12 +8,6 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 service BillingService {
-  rpc GetMe(GetMeRequest) returns (GetMeResponse) {
-    option (google.api.http) = {
-      get: "/v1/billing/me"
-    };
-  }
-
   // Public catalog — plan cards for pricing UI (limits from plan_entitlements).
   rpc ListPlans(ListPlansRequest) returns (ListPlansResponse) {
     option (google.api.http) = {
@@ -21,13 +15,6 @@ service BillingService {
     };
   }
 
-  // One-time 14-day Pro trial (internal subscription, no payment).
-  rpc StartProTrial(StartProTrialRequest) returns (StartProTrialResponse) {
-    option (google.api.http) = {
-      post: "/v1/billing/trial/start"
-      body: "*"
-    };
-  }
 }
 
 service BillingInternalService {
@@ -59,8 +46,6 @@ service BillingAdminService {
   }
 }
 
-message GetMeRequest {}
-
 message GetMeResponse {
   string user_id = 1;
   string plan_slug = 2;
@@ -88,7 +73,8 @@ message PlanCatalog {
   string name = 2;
   string tagline = 3;
   bool highlight = 4;
-  repeated string highlights = 5;
+  reserved 5;
+  reserved "highlights";
   map<string, bool> features = 6;
   map<string, PlanEntitlementSpec> limits = 7;
   // Tribute checkout links from Creator dashboard (web + Telegram).
@@ -100,14 +86,6 @@ message PlanCatalog {
 
 message ListPlansResponse {
   repeated PlanCatalog plans = 1;
-}
-
-message StartProTrialRequest {}
-
-message StartProTrialResponse {
-  string plan_slug = 1;
-  google.protobuf.Timestamp trial_end = 2;
-  int32 trial_days = 3;
 }
 
 message UsageLimit {

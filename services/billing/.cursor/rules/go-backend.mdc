@@ -1,9 +1,12 @@
 ---
-description: Go backend conventions for template skeleton
+description: Go backend — billing service
 globs: "**/*.go"
 alwaysApply: false
 ---
 
-# Go backend — template
+# Go backend — billing
 
-Follow root [AGENTS.md](../../AGENTS.md#service-template-canonical). Transport thin; logic in `internal/<domain>/service/`.
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+
+- Identity gRPC always wired; plans cache `Reload` errors if source missing.
+- No cache→DB silent fallbacks for entitlements.

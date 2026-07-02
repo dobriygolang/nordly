@@ -8,7 +8,7 @@ export async function remoteEncryptNoteBody(noteId: string, ciphertextB64: strin
     {
       method: 'POST',
       headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ ciphertext_b64: ciphertextB64 }),
+      body: JSON.stringify({ ciphertextB64 }),
     },
   );
   if (!resp.ok) throw new Error(`encryptNote: ${resp.status}`);

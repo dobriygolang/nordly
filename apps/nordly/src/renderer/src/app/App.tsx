@@ -18,6 +18,7 @@ import { type PageId, type PaletteAction, isPageId } from '@shared/model/navigat
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
+import { runTaskRollover } from '@features/tasks/lib/taskRollover';
 import {
   parseDayKey,
   resolveScheduleStart,
@@ -182,7 +183,7 @@ export default function App() {
           return;
         }
         if (host === 'task.open') {
-          const taskId = u.searchParams.get('id') ?? u.searchParams.get('task');
+          const taskId = u.searchParams.get('id');
           if (taskId) {
             setStatsOpen(false);
             navigateTo('today');
@@ -191,7 +192,7 @@ export default function App() {
           return;
         }
         if (host === 'note.open') {
-          const noteId = u.searchParams.get('id') ?? u.searchParams.get('note');
+          const noteId = u.searchParams.get('id');
           if (noteId) {
             setStatsOpen(false);
             navigateTo('notes');
@@ -263,6 +264,25 @@ export default function App() {
       stopCalendarReminderWorker();
     };
   }, [status, userId]);
+
+  useEffect(() => {
+    if (status !== 'signed_in') return;
+    const roll = () => {
+      void runTaskRollover().catch((err: unknown) =>
+        setOperationError(err instanceof Error ? err : new Error(String(err))),
+      );
+    };
+    roll();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') roll();
+    };
+    window.addEventListener('focus', roll);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', roll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
@@ -502,6 +522,8 @@ export default function App() {
                 boardCanvas={boardCanvas}
                 onBoardCanvasChange={setBoardCanvas}
                 onPomoChange={(secs) => usePomodoroStore.getState().setDurationSec(secs)}
+                onTimerModeChange={(mode) => usePomodoroStore.getState().setMode(mode)}
+                onBack={() => navigateTo('home')}
               />
             );
           default:

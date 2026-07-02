@@ -11,27 +11,14 @@ import (
 )
 
 func toProtoRoom(view *roomservice.RoomView) *roomsv1.Room {
-	if view == nil {
-		return nil
-	}
 	room := view.Room
 	out := &roomsv1.Room{
-		Id:             room.ID.String(),
-		OwnerId:        room.OwnerID.String(),
-		RoomType:       room.Type.String(),
-		Language:       room.Language.String(),
-		Visibility:     string(room.Visibility),
-		WsUrl:          view.WSURL,
-		ExpiresAt:      timestamppb.New(room.ExpiresAt),
-		CreatedAt:      timestamppb.New(room.CreatedAt),
-		IsGuestCreated: room.IsGuestCreated,
-	}
-	for _, p := range view.Participants {
-		out.Participants = append(out.Participants, &roomsv1.Participant{
-			UserId:   p.UserID.String(),
-			Role:     p.Role.String(),
-			JoinedAt: timestamppb.New(p.JoinedAt),
-		})
+		Id:        room.ID.String(),
+		OwnerId:   room.OwnerID.String(),
+		RoomType:  room.Type.String(),
+		Language:  room.Language.String(),
+		ExpiresAt: timestamppb.New(room.ExpiresAt),
+		CreatedAt: timestamppb.New(room.CreatedAt),
 	}
 	return out
 }

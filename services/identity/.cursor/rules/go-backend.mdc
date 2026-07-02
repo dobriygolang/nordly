@@ -1,13 +1,12 @@
 ---
-description: Go conventions (service-local)
+description: Go backend — identity service
 globs: "**/*.go"
 alwaysApply: false
 ---
 
-# Go
+# Go backend — identity
 
-- Domain: `internal/user/`, `internal/auth/` — model, repository, service
-- Transport: `internal/app/api/identity/`
-- External clients: `internal/adapter/`
-- Wiring: `cmd/<service>/app/run.go` only
-- `make lint` / `make test` from service root
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, JWT keys required in `config.Load()`.
+- Auth flows use explicit `ErrNotFound` branches — not `user == nil` without error.

@@ -68,23 +68,16 @@ service RoomsService {
   }
 }
 
-message Participant {
-  string user_id = 1;
-  string role = 2;
-  google.protobuf.Timestamp joined_at = 3;
-}
-
+// Fields returned to clients for live room UI (CollabRoomPage).
 message Room {
   string id = 1;
   string owner_id = 2;
   string room_type = 3;
   string language = 4;
-  string visibility = 6;
-  string ws_url = 7;
   google.protobuf.Timestamp expires_at = 8;
-  repeated Participant participants = 9;
   google.protobuf.Timestamp created_at = 10;
-  bool is_guest_created = 11;
+  reserved 5, 6, 7, 9, 11;
+  reserved "visibility", "ws_url", "participants", "is_guest_created";
 }
 
 message GetRoomRequest {
@@ -98,7 +91,8 @@ message GetRoomResponse {
 message InviteLink {
   // Public guest URL: {PUBLIC_BASE_URL}/live/{room_id}
   string url = 1;
-  google.protobuf.Timestamp expires_at = 2;
+  reserved 2;
+  reserved "expires_at";
 }
 
 message GuestJoinRequest {
@@ -138,7 +132,7 @@ message ShareWhiteboardRequest {
 
 message ShareWhiteboardResponse {
   string access_token = 1;
-  Room room = 2;
+  string room_id = 2;
   int32 expires_in = 3;
   InviteLink invite = 4;
 }
@@ -159,7 +153,8 @@ message PublishWhiteboardRequest {
 message PublishWhiteboardResponse {
   string slug = 1;
   string url = 2;
-  google.protobuf.Timestamp published_at = 3;
+  reserved 3;
+  reserved "published_at";
 }
 
 message GetPublishedBoardRequest {
@@ -169,5 +164,6 @@ message GetPublishedBoardRequest {
 message GetPublishedBoardResponse {
   string title = 1;
   string scene_json = 2;
-  google.protobuf.Timestamp published_at = 3;
+  reserved 3;
+  reserved "published_at";
 }

@@ -10,7 +10,7 @@ Living tracker for `services/*` Go backends. Pair with [`.cursor/rules/fail-fast
 
 | Phase | Scope | Status |
 |-------|--------|--------|
-| **0** | Rules + this doc | ✅ |
+| **0** | Rules + this doc + [client matrix](./backend-client-matrix.md) | ✅ |
 | **1** | **tracker** | ✅ |
 | **2** | **focus**, **notes** | ✅ |
 | **3** | **identity** | ✅ |
@@ -25,8 +25,24 @@ Living tracker for `services/*` Go backends. Pair with [`.cursor/rules/fail-fast
 |---------|--------|
 | **notes** | Billing + `PUBLIC_BASE_URL` in `config.Load()` / `run.go`; no nil checks in `New()` |
 | **rooms** | Identity always dialed; no `s.identity == nil` |
-| **sandbox** | Billing always dialed |
-| **identity** | Yandex/GetMe/Logout removed; Telegram + s2s only |
+| **sandbox** | Billing always dialed; LSP JWT + logger wired at startup; service trusts config defaults |
+| **identity** | Yandex/GetMe/Logout removed; `TELEGRAM_BOT_*` required in `config.Load()`; auth/mapper nil guards removed |
+| **focus** | Mapper nil guard removed |
+| **billing** | `toProtoEntitlements` / identity adapter no empty-user fallbacks; plans cache `Reload` errors without source |
+| **tracker** | `userSettingsToProto` no nil → empty proto fallback |
+| **rooms** | WS hub/handler use wired `logger.Logger` (no `slog.Default`, no `Log != nil`) |
+
+**Nordly desktop:** dev login + dev bearer removed — Telegram code only.
+
+**Web companion:** rooms/publicBoards strict snake_case after `normalizeProtoJson`; guest vs identity token parsers split.
+
+**Identity DB:** migration `00002` drops unused `yandex_id` column.
+
+---
+
+## Wire-format debt
+
+None tracked for prod clients (2026-07-02). Web uses camelCase on wire → `normalizeProtoJson` → snake_case TS types; no dual `??` reads.
 
 ---
 

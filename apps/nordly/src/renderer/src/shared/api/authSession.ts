@@ -89,7 +89,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       const resp = await rawAuthFetch(apiPath('/v1/auth/refresh'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        body: JSON.stringify({ refreshToken }),
       });
       if (!resp.ok) {
         if (isSessionExpired()) setSessionReauthRequired(true);

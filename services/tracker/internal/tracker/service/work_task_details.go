@@ -67,7 +67,7 @@ func (s *trackerService) CreateWorkTaskConference(ctx context.Context, userID, t
 }
 
 func (s *trackerService) createZoomConference(ctx context.Context, userID string, task *model.WorkTask) (*WorkTask, error) {
-	if s.zoom == nil || !s.zoom.Configured() {
+	if !s.zoom.Configured() {
 		return nil, fmt.Errorf("%w: zoom not configured", model.ErrInvalidArgument)
 	}
 	settings, err := s.repo.GetUserSettings(ctx, userID)

@@ -1,0 +1,12 @@
+---
+description: Go backend — tracker service
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go backend — tracker
+
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+
+- Required: `TOKEN_ENCRYPTION_KEY`, `INTERNAL_API_TOKEN`, `NORDLY_CALLBACK_URL` in `config.Load()`.
+- Google/Zoom: optional when OAuth env unset — use `Configured()`, not nil guards on wired deps.

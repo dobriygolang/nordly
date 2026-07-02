@@ -14,7 +14,7 @@ HTTP `8080` | gRPC `9090` | Postgres `5432` / `nordly` | Redis `6379`
 
 ## Data
 
-**users** — `id`, `username`, `telegram_id`, `yandex_id` (legacy column, unused), `avatar_url`, `timezone`.
+**users** — `id`, `username`, `telegram_id`, `avatar_url`, `timezone`. Migration `00002` drops legacy `yandex_id`.
 
 **Redis:** `login_code:{code}` (5m), `refresh:{hash}` (720h).
 
@@ -52,5 +52,6 @@ make gen-proto | lint | test | build
 |----------|---------|
 | JWT_* | required (`make gen-jwt-keys` for dev) |
 | JWT_ACCESS_TTL / JWT_REFRESH_TTL | `15m` / `720h` |
-| TELEGRAM_BOT_TOKEN | bot only |
+| TELEGRAM_BOT_TOKEN | required (API avatar proxy + bot) |
+| TELEGRAM_BOT_USERNAME | required (`GET /v1/auth/config`) |
 | INTERNAL_API_TOKEN | required in production (s2s gRPC) |

@@ -21,9 +21,6 @@ func CheckoutFromConfig(cfg config.TributeCheckoutConfig) CheckoutConfig {
 
 // ProTrialFromConfig maps billing config to transport trial settings.
 func ProTrialFromConfig(cfg *config.Config) ProTrialConfig {
-	if cfg == nil {
-		return ProTrialConfig{Enabled: true, Days: 14}
-	}
 	return ProTrialConfig{Enabled: cfg.ProTrialEnabled, Days: cfg.ProTrialDays}
 }
 

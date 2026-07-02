@@ -90,20 +90,32 @@ export function clearTokens(): void {
   safeDelete(REFRESH_TOKEN_KEY)
 }
 
-/** grpc-gateway JSON uses camelCase; custom handlers may use snake_case. */
+/** grpc-gateway JSON uses camelCase field names (identity auth). */
 export function parseAuthTokens(body: Record<string, unknown>): {
   access_token: string
   refresh_token: string
 } {
-  const access = body.access_token ?? body.accessToken
-  const refresh = body.refresh_token ?? body.refreshToken
+  const access = body.accessToken
+  const refresh = body.refreshToken
   if (typeof access !== 'string' || !access) {
-    throw new Error('missing access token in auth response')
+    throw new Error('missing accessToken in auth response')
+  }
+  if (typeof refresh !== 'string' || !refresh) {
+    throw new Error('missing refreshToken in auth response')
   }
   return {
     access_token: access,
-    refresh_token: typeof refresh === 'string' ? refresh : '',
+    refresh_token: refresh,
   }
+}
+
+/** Guest room responses include accessToken only (no refresh). */
+export function parseGuestAccessToken(body: Record<string, unknown>): string {
+  const access = body.accessToken
+  if (typeof access !== 'string' || !access) {
+    throw new Error('missing accessToken in guest auth response')
+  }
+  return access
 }
 
 
@@ -145,16 +157,16 @@ async function performRefresh(): Promise<string | null> {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refresh }),
+      body: JSON.stringify({ refreshToken: refresh }),
     })
     if (!res.ok) {
       const waited = await waitForCrossTabRefresh()
       if (waited) return waited
       return null
     }
-    const body = normalizeProtoJson(await res.json()) as Record<string, unknown>
+    const body = (await res.json()) as Record<string, unknown>
     const tokens = parseAuthTokens(body)
-    persistTokens(tokens.access_token, tokens.refresh_token || refresh)
+    persistTokens(tokens.access_token, tokens.refresh_token)
     return tokens.access_token
   } catch {
     return null

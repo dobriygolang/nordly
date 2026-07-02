@@ -13,8 +13,5 @@ type CheckoutConfig struct {
 
 // URLsFor returns checkout links for a plan slug.
 func (c CheckoutConfig) URLsFor(planSlug string) PlanCheckoutURLs {
-	if c.ByPlan == nil {
-		return PlanCheckoutURLs{}
-	}
 	return c.ByPlan[planSlug]
 }

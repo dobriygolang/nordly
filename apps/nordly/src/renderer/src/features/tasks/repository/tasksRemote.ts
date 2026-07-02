@@ -51,7 +51,6 @@ function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
     epicId: optionalJsonString(raw, 'epicId'),
     conferenceUrl: optionalJsonString(raw, 'conferenceUrl'),
     conferenceProvider: conferenceProvider ? (conferenceProvider as ConferenceProvider) : undefined,
-    order: optionalJsonNumber(raw, 'order'),
   };
 }
 
@@ -139,9 +138,9 @@ export async function remotePatchTask(
   patch: { epicId?: string; clearEpic?: boolean; clearConference?: boolean },
 ): Promise<TaskCard> {
   const body: Record<string, unknown> = { id: taskId };
-  if (patch.clearEpic) body.clear_epic = true;
-  else if (patch.epicId) body.epic_id = patch.epicId;
-  if (patch.clearConference) body.clear_conference = true;
+  if (patch.clearEpic) body.clearEpic = true;
+  else if (patch.epicId) body.epicId = patch.epicId;
+  if (patch.clearConference) body.clearConference = true;
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },

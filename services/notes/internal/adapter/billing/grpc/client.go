@@ -52,7 +52,7 @@ func (c *Client) GetGaugeLimit(ctx context.Context, userID, key string) (billing
 		return billingadapter.GaugeLimit{}, err
 	}
 	ent := resp.GetEntitlements()
-	if ent == nil || ent.Limits == nil {
+	if ent == nil {
 		return billingadapter.GaugeLimit{}, fmt.Errorf("billing: no entitlements for user %s", userID)
 	}
 	lim, ok := ent.Limits[key]

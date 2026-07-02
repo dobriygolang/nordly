@@ -43,10 +43,6 @@ func (i *Implementation) UserAvatarHTTP() http.HandlerFunc {
 }
 
 func (i *Implementation) serveTelegramFile(w http.ResponseWriter, r *http.Request, filePath string) {
-	if i.telegramBotToken == "" {
-		writeHTTPError(w, errors.New("telegram bot not configured"))
-		return
-	}
 	body, contentType, err := telegram.OpenFile(r.Context(), i.telegramBotToken, filePath)
 	if err != nil {
 		if errors.Is(err, authservice.ErrNotFound) {

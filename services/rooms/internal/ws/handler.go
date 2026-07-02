@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/logger"
 )
 
 type RoomStore interface {
@@ -28,11 +28,13 @@ type Handler struct {
 	Hub      *Hub
 	JWT      *jwt.Validator
 	Store    RoomStore
-	Log      *slog.Logger
+	Log      logger.Logger
 	Upgrader websocket.Upgrader
 }
 
-func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log *slog.Logger) *Handler {
+func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger) *Handler {
+	hub.RoomResolver = store.GetRoom
+	hub.RoleResolver = store.GetRole
 	return &Handler{
 		Hub:   hub,
 		JWT:   v,
@@ -60,7 +62,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			token = strings.TrimPrefix(auth, "Bearer ")
 		}
 	}
-	if token == "" || h.JWT == nil {
+	if token == "" {
 		http.Error(w, "missing token", http.StatusUnauthorized)
 		return
 	}
@@ -131,17 +133,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ws, err := h.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		if h.Log != nil {
-			h.Log.Warn("ws upgrade failed", slog.Any("err", err))
-		}
+		h.Log.Warn("ws upgrade failed", "err", err)
 		return
-	}
-
-	if h.Hub.RoomResolver == nil {
-		h.Hub.RoomResolver = h.Store.GetRoom
-	}
-	if h.Hub.RoleResolver == nil {
-		h.Hub.RoleResolver = h.Store.GetRole
 	}
 
 	c := newWSConn(ws, roomID, uid, role, h.Log)

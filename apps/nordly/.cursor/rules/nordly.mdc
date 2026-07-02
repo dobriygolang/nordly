@@ -54,10 +54,13 @@ Full endpoint list: [apps/nordly/AGENTS.md](../AGENTS.md).
 
 Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fail-fast-no-fallbacks.mdc). Nordly-specific:
 
-- **Authenticated REST:** use `syncAuthHeaders()` from `shared/api/authToken.ts`. Never send unauthenticated requests when sync/cloud is expected. `DEV_BEARER_TOKEN` is **dev-only** (`import.meta.env.DEV`).
+- **Authenticated REST:** use `syncAuthHeaders()` / `requireAccessToken()` from `shared/api/authToken.ts`. No dev bearer bypass, no dev login panel.
 - **Settings:** single reader — `shared/model/settings.ts` (`readSettings`, `persistSettings`). Invalid/missing required fields **throw**; one-way migration only for missing new keys.
 - **Cloud mode:** `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter `LOCAL_ONLY` or duplicate guards.
 - **JSON API:** grpc-gateway protojson uses camelCase — use `shared/api/json.ts` (`requireJsonString`, etc.). No dual `camelCase ?? snake_case` reads.
+- **Login:** bot username from `GET /v1/auth/config` only — no `VITE_TELEGRAM_BOT_USERNAME` fallback.
+- **Share links:** `requireNordlyWebBaseUrl()` — set `VITE_NORDLY_WEB_BASE` (CI release sets prod URL).
+- **Deep links:** `task.open?id=…`, `note.open?id=…` only (no legacy `task` / `note` query aliases).
 - **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / `SyncStatusBanner` / throw). Do not `catch {}` and refresh silently.
 - **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
 

@@ -1,9 +1,9 @@
 ---
-description: Go backend conventions for ai service
+description: Go backend — ai (CI archive)
 globs: "**/*.go"
 alwaysApply: false
 ---
 
-# Go backend — ai
+# Go backend — ai (CI only, not prod)
 
-Transport thin; logic in `internal/evaluation/service/`. Mocks via mockery on interfaces.
+Follow [AGENTS.md](../../AGENTS.md). Root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc) applies to new edits; legacy LLM chain fallbacks in this service are **CI archive exceptions**.

@@ -26,12 +26,11 @@ export async function remoteShareWhiteboard(
   });
   if (!resp.ok) throw new Error(`shareWhiteboard: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
-  const room = requireJsonObject(j, 'room');
   const invite = requireJsonObject(j, 'invite');
   return {
     accessToken: requireJsonString(j, 'accessToken'),
     inviteUrl: requireJsonString(invite, 'url'),
-    roomId: requireJsonString(room, 'id'),
+    roomId: requireJsonString(j, 'roomId'),
     expiresIn: requireJsonNumber(j, 'expiresIn'),
   };
 }

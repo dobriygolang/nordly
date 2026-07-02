@@ -14,6 +14,7 @@ import {
   remoteShareWhiteboard,
 } from '@features/whiteboard/api/whiteboardRemote';
 import { isCloudEnabled } from '@shared/model/features';
+import { requireNordlyWebBaseUrl } from '@shared/api/config';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
@@ -235,7 +236,11 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
 
   const getScenePayload = useCallback(async (): Promise<string> => {
     await flushCanvas();
-    return canvasRef.current?.getSceneJson() ?? activeRef.current?.sceneJson ?? '';
+    const sceneJson = canvasRef.current?.getSceneJson() ?? activeRef.current?.sceneJson;
+    if (!sceneJson?.trim()) {
+      throw new Error('Whiteboard scene is empty');
+    }
+    return sceneJson;
   }, [flushCanvas]);
 
   const handleShareLive = useCallback(async () => {
@@ -245,7 +250,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title;
       const res = await remoteShareWhiteboard(sceneJson, title);
-      const url = `${import.meta.env.VITE_NORDLY_WEB_BASE ?? 'https://trynordly.app'}/live/${res.roomId}`;
+      const url = `${requireNordlyWebBaseUrl()}/live/${res.roomId}`;
       const outcome = await copyLinkAndOpen(url);
       if (outcome === 'copied') {
         const open = window.nordly?.shell.openExternal;

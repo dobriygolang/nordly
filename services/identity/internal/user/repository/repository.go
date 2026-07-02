@@ -10,7 +10,7 @@ import (
 	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
 )
 
-const userColumns = `id, username, telegram_id, yandex_id, avatar_url, timezone, created_at, updated_at`
+const userColumns = `id, username, telegram_id, avatar_url, timezone, created_at, updated_at`
 
 // Repository stores users in PostgreSQL.
 type Repository struct {
@@ -52,12 +52,11 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*model
 func (r *Repository) Create(ctx context.Context, user *model.User) (*model.User, error) {
 	now := time.Now().UTC()
 	row := r.pg.QueryRow(ctx, `
-		INSERT INTO users (username, telegram_id, yandex_id, avatar_url, timezone, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (username, telegram_id, avatar_url, timezone, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING `+userColumns,
 		user.Username,
 		user.TelegramID,
-		user.YandexID,
 		user.AvatarURL,
 		user.Timezone,
 		now,
@@ -78,16 +77,14 @@ func (r *Repository) Update(ctx context.Context, user *model.User) (*model.User,
 		UPDATE users
 		SET username = $2,
 		    telegram_id = $3,
-		    yandex_id = $4,
-		    avatar_url = $5,
-		    timezone = $6,
-		    updated_at = $7
+		    avatar_url = $4,
+		    timezone = $5,
+		    updated_at = $6
 		WHERE id = $1
 		RETURNING `+userColumns,
 		user.ID,
 		user.Username,
 		user.TelegramID,
-		user.YandexID,
 		user.AvatarURL,
 		user.Timezone,
 		time.Now().UTC(),
@@ -112,7 +109,6 @@ func scanUser(row pgx.Row) (*model.User, error) {
 		&user.ID,
 		&user.Username,
 		&user.TelegramID,
-		&user.YandexID,
 		&user.AvatarURL,
 		&user.Timezone,
 		&user.CreatedAt,

@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/logger"
 )
 
 const (
@@ -54,7 +54,7 @@ type cursorPayload struct {
 }
 
 type Hub struct {
-	Log          *slog.Logger
+	Log          logger.Logger
 	RoomResolver func(ctx context.Context, roomID uuid.UUID) (model.Room, error)
 	RoleResolver func(ctx context.Context, roomID, userID uuid.UUID) (model.Role, error)
 
@@ -63,7 +63,7 @@ type Hub struct {
 	seqCounters sync.Map
 }
 
-func NewHub(log *slog.Logger) *Hub {
+func NewHub(log logger.Logger) *Hub {
 	return &Hub{Log: log, rooms: make(map[uuid.UUID]*roomHub)}
 }
 
@@ -132,9 +132,7 @@ func (h *Hub) Broadcast(roomID uuid.UUID, kind string, data any) {
 	if data != nil {
 		b, err := json.Marshal(data)
 		if err != nil {
-			if h.Log != nil {
-				h.Log.Error("ws.Broadcast marshal", slog.Any("err", err))
-			}
+			h.Log.Error("ws.Broadcast marshal", "err", err)
 			return
 		}
 		raw = b
@@ -301,14 +299,14 @@ type wsConn struct {
 	role   atomic.Value
 	out    chan []byte
 	done   chan struct{}
-	log    *slog.Logger
+	log    logger.Logger
 
 	rlMu    sync.Mutex
 	rlStart time.Time
 	rlCount int
 }
 
-func newWSConn(ws *websocket.Conn, roomID, userID uuid.UUID, role model.Role, log *slog.Logger) *wsConn {
+func newWSConn(ws *websocket.Conn, roomID, userID uuid.UUID, role model.Role, log logger.Logger) *wsConn {
 	c := &wsConn{
 		ws:      ws,
 		roomID:  roomID,
@@ -334,11 +332,9 @@ func (c *wsConn) enqueue(msg []byte) {
 	select {
 	case c.out <- msg:
 	default:
-		if c.log != nil {
-			c.log.Warn("ws slow client, frame dropped",
-				slog.String("user", c.userID.String()),
-				slog.String("room", c.roomID.String()))
-		}
+		c.log.Warn("ws slow client, frame dropped",
+			"user", c.userID.String(),
+			"room", c.roomID.String())
 	}
 }
 

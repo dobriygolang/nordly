@@ -119,28 +119,6 @@ html.light .nordly-settings-group__body {
   color: var(--ink);
 }
 
-.nordly-settings-theme-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  width: 100%;
-  max-width: 520px;
-}
-@media (min-width: 560px) {
-  .nordly-settings-theme-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.nordly-setting-row:has(.nordly-settings-theme-grid) {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.nordly-setting-row:has(.nordly-settings-theme-grid) .nordly-setting-row__control {
-  width: 100%;
-}
-
 .nordly-settings-account {
   padding: 16px 18px;
   display: flex;
@@ -213,5 +191,346 @@ html.light .nordly-settings-group__body {
   padding: 16px 18px;
   font-size: 13px;
   color: var(--ink-60);
+}
+
+/* ── Sidebar-navigated settings shell ── */
+
+.nordly-settings-shell {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+}
+
+.nordly-settings-nav {
+  flex: 0 0 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 26px 16px;
+  border-right: 1px solid var(--ink-tint-08);
+}
+
+.nordly-settings-nav__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-40);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.nordly-settings-nav__back:hover:not(:disabled) {
+  color: var(--ink-90);
+}
+
+.nordly-settings-nav__back:disabled {
+  cursor: default;
+}
+
+.nordly-settings-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nordly-settings-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-60);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.nordly-settings-nav__item:hover {
+  background: rgb(var(--ink-rgb) / 0.05);
+  color: var(--ink-90);
+}
+
+.nordly-settings-nav__item.is-active {
+  background: rgb(var(--ink-rgb) / 0.1);
+  color: var(--ink);
+}
+
+.nordly-settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.nordly-settings-content__inner {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 44px 44px 96px;
+}
+
+.nordly-settings-content__title {
+  margin: 0 0 30px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.nordly-settings-block {
+  margin-bottom: 42px;
+}
+
+.nordly-settings-block:last-child {
+  margin-bottom: 0;
+}
+
+.nordly-settings-block__title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.nordly-settings-block__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.nordly-settings-empty {
+  margin: 0;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--ink-40);
+}
+
+.nordly-settings-change-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--ink-tint-12);
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink-90);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+
+.nordly-settings-change-btn:hover {
+  background: rgb(var(--ink-rgb) / 0.12);
+}
+
+.nordly-settings-rollover-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.nordly-settings-rollover-tz {
+  font-size: 10px;
+  color: var(--ink-40);
+}
+
+/* ── Shortcuts list ── */
+
+.nordly-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.nordly-shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 2px;
+  border-top: 1px solid var(--ink-tint-06);
+}
+
+.nordly-shortcut-row:first-child {
+  border-top: none;
+}
+
+.nordly-shortcut-row__label {
+  font-size: 13px;
+  color: var(--ink-90);
+}
+
+.nordly-shortcut-row__keys {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.nordly-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink-90);
+  font-size: 11px;
+}
+
+/* ── Wallpaper carousel overlay ── */
+
+.nordly-wallpaper-carousel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: rgb(0 0 0 / 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.nordly-wallpaper-carousel__hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.nordly-wallpaper-carousel__stage {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  max-width: 1100px;
+  padding: 0 24px;
+}
+
+.nordly-wallpaper-carousel__arrow {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+
+.nordly-wallpaper-carousel__arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.nordly-wallpaper-carousel__arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.nordly-wallpaper-carousel__viewport {
+  position: relative;
+  flex: 1;
+  height: 224px;
+  overflow: hidden;
+}
+
+.nordly-wallpaper-carousel__track {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  transition: transform var(--t-base);
+  will-change: transform;
+}
+
+.nordly-wallpaper-card {
+  flex: 0 0 300px;
+  width: 300px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--t-base), opacity var(--t-base);
+}
+
+.nordly-wallpaper-card__preview {
+  position: relative;
+  width: 262px;
+  height: 152px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.nordly-wallpaper-card.is-active .nordly-wallpaper-card__preview {
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55);
+}
+
+.nordly-wallpaper-card__label {
+  margin-top: 12px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.nordly-wallpaper-card.is-active .nordly-wallpaper-card__label {
+  color: #fff;
+}
+
+.nordly-wallpaper-carousel__dots {
+  display: flex;
+  gap: 8px;
+}
+
+.nordly-wallpaper-carousel__dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+
+.nordly-wallpaper-carousel__dot.is-active {
+  background: #fff;
+}
+
+.nordly-wallpaper-carousel__done {
+  padding: 9px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 

@@ -2,6 +2,8 @@
 
 Work from `apps/web/` only. Desktop app: [../nordly/AGENTS.md](../nordly/AGENTS.md). Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
+**Agent rules:** [.cursor/rules/web.mdc](.cursor/rules/web.mdc) + root [fail-fast-no-fallbacks.mdc](../../.cursor/rules/fail-fast-no-fallbacks.mdc).
+
 ## Purpose
 
 Thin public web surface for Nordly: landing + download, guest live collab (code + Excalidraw), public pricing, legal pages, published notes and whiteboards. **No user auth** on web — JWT cleared on boot; live rooms use scoped guest tokens.
@@ -98,7 +100,7 @@ WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_clo
 1. `/live/new` → `POST /v1/rooms/guest-create` → scoped JWT + room
 2. Token stored: `sessionStorage['nordly_guest_token_{roomId}']`
 3. Room REST + WS use guest token via `readGuestToken(roomId)`
-4. Joining is open: `/live/:roomId` shows a name prompt → `POST guest-join` → guest token. Legacy `?invite=` links still work; new shares use `/live/{roomId}` only (`lib/live/liveRoomUrl.ts`).
+4. Joining is open: `/live/:roomId` shows a name prompt → `POST guest-join` → guest token. Share URLs use `/live/{roomId}` only (`lib/live/liveRoomUrl.ts`).
 
 Share URLs: `publicLiveRoomUrl(roomId)` — client-side short link; Invite button copies without `POST /invite`.
 

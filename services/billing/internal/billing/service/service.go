@@ -18,7 +18,6 @@ import (
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/consume_usage"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/grant_subscription"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/release_usage"
-	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/start_pro_trial"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/update_plan_entitlement"
 )
 
@@ -42,7 +41,6 @@ type Service interface {
 	CheckAndConsumeUsage(ctx context.Context, userID, key string, amount int) (*model.ConsumeUsageResult, error)
 	ReleaseUsage(ctx context.Context, userID, key, idempotencyKey string, amount int) (*model.ReleaseUsageResult, error)
 	GrantSubscription(ctx context.Context, userID, planSlug string, periodEnd *time.Time) (*model.Subscription, error)
-	StartProTrial(ctx context.Context, userID string) (*model.Subscription, error)
 	UpdatePlanEntitlement(ctx context.Context, planSlug, key string, spec entitlement.Value) (entitlement.Value, error)
 	RevokeSubscription(ctx context.Context, userID string) error
 	HandleProviderWebhook(ctx context.Context, providerName string, headers map[string]string, body []byte) error
@@ -64,7 +62,6 @@ type billingService struct {
 	consumeUsage      *consume_usage.Handler
 	releaseUsage      *release_usage.Handler
 	grantSubscription *grant_subscription.Handler
-	startProTrial     *start_pro_trial.Handler
 	updatePlanEntitlement *update_plan_entitlement.Handler
 }
 
@@ -84,9 +81,7 @@ type Deps struct {
 func New(deps Deps) Service {
 	providerMap := make(map[string]providers.BillingProvider, len(deps.Providers))
 	for _, p := range deps.Providers {
-		if p != nil {
-			providerMap[p.ProviderName()] = p
-		}
+		providerMap[p.ProviderName()] = p
 	}
 	svc := &billingService{
 		repo:            deps.Repo,
@@ -100,7 +95,6 @@ func New(deps Deps) Service {
 		proTrialDays:    deps.ProTrialDays,
 	}
 	svc.grantSubscription = grant_subscription.New(deps.Repo)
-	svc.startProTrial = start_pro_trial.New(deps.Repo, deps.ProTrialDays)
 	svc.updatePlanEntitlement = update_plan_entitlement.New(deps.Repo)
 	svc.consumeUsage = consume_usage.New(deps.Repo, svc, svc)
 	svc.releaseUsage = release_usage.New(deps.Repo, svc, svc)
@@ -116,20 +110,16 @@ func (s *billingService) GetEntitlements(ctx context.Context, userID string) (*m
 	if userID == "" {
 		return nil, fmt.Errorf("user_id required: %w", ErrInvalidInput)
 	}
-	if s.entitlements != nil {
-		if cached, ok, err := s.entitlements.Get(ctx, userID); err != nil {
-			return nil, err
-		} else if ok {
-			return cached, nil
-		}
+	if cached, ok, err := s.entitlements.Get(ctx, userID); err != nil {
+		return nil, err
+	} else if ok {
+		return cached, nil
 	}
 	view, err := s.buildEntitlements(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if s.entitlements != nil {
-		_ = s.entitlements.Set(ctx, userID, view)
-	}
+	_ = s.entitlements.Set(ctx, userID, view)
 	return view, nil
 }
 
@@ -214,37 +204,11 @@ func (s *billingService) applyTrialState(ctx context.Context, view *model.Entitl
 
 // ListPlanEntitlements serves static plan entitlements from the in-memory snapshot when available.
 func (s *billingService) ListPlanEntitlements(ctx context.Context, planID string) ([]model.PlanEntitlement, error) {
-	if s.plansCache != nil {
-		if items, err := s.plansCache.ListPlanEntitlements(planID); err == nil {
-			return items, nil
-		}
-	}
-	return s.repo.ListPlanEntitlements(ctx, planID)
+	return s.plansCache.ListPlanEntitlements(planID)
 }
 
 func (s *billingService) ListPlans(ctx context.Context) ([]catalog.PlanCatalogItem, error) {
-	if s.plansCache != nil {
-		if items, err := s.plansCache.ListCatalog(); err == nil {
-			return items, nil
-		}
-	}
-	plans, err := s.repo.ListActivePlans(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]catalog.PlanCatalogItem, 0, len(plans))
-	for _, plan := range plans {
-		entitlements, err := s.repo.ListPlanEntitlements(ctx, plan.ID)
-		if err != nil {
-			return nil, err
-		}
-		item, err := catalog.BuildPlanCatalog(plan, entitlements)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, item)
-	}
-	return out, nil
+	return s.plansCache.ListCatalog()
 }
 
 func (s *billingService) CheckEntitlement(ctx context.Context, userID, key string) (*model.CheckEntitlementResult, error) {
@@ -267,7 +231,7 @@ func (s *billingService) CheckEntitlement(ctx context.Context, userID, key strin
 // CheckAndConsumeUsage delegates to the consume_usage CQRS command handler.
 func (s *billingService) CheckAndConsumeUsage(ctx context.Context, userID, key string, amount int) (*model.ConsumeUsageResult, error) {
 	result, err := s.consumeUsage.Handle(ctx, consume_usage.Command{UserID: userID, Key: key, Amount: amount})
-	if err == nil && s.entitlements != nil {
+	if err == nil {
 		s.entitlements.Invalidate(ctx, userID)
 	}
 	return result, err
@@ -281,7 +245,7 @@ func (s *billingService) ReleaseUsage(ctx context.Context, userID, key, idempote
 		Amount:         amount,
 		IdempotencyKey: idempotencyKey,
 	})
-	if err == nil && s.entitlements != nil {
+	if err == nil {
 		s.entitlements.Invalidate(ctx, userID)
 	}
 	return result, err
@@ -290,19 +254,7 @@ func (s *billingService) ReleaseUsage(ctx context.Context, userID, key, idempote
 // GrantSubscription delegates to the grant_subscription CQRS command handler.
 func (s *billingService) GrantSubscription(ctx context.Context, userID, planSlug string, periodEnd *time.Time) (*model.Subscription, error) {
 	sub, err := s.grantSubscription.Handle(ctx, grant_subscription.Command{UserID: userID, PlanSlug: planSlug, PeriodEnd: periodEnd})
-	if err == nil && s.entitlements != nil {
-		s.entitlements.Invalidate(ctx, userID)
-	}
-	return sub, err
-}
-
-// StartProTrial grants a one-time internal Pro trial.
-func (s *billingService) StartProTrial(ctx context.Context, userID string) (*model.Subscription, error) {
-	if !s.proTrialEnabled {
-		return nil, ErrTrialDisabled
-	}
-	sub, err := s.startProTrial.Handle(ctx, start_pro_trial.Command{UserID: userID})
-	if err == nil && s.entitlements != nil {
+	if err == nil {
 		s.entitlements.Invalidate(ctx, userID)
 	}
 	return sub, err
@@ -318,14 +270,10 @@ func (s *billingService) UpdatePlanEntitlement(ctx context.Context, planSlug, ke
 	if err != nil {
 		return entitlement.Value{}, err
 	}
-	if s.plansCache != nil {
-		if reloadErr := s.plansCache.Reload(ctx); reloadErr != nil {
-			return entitlement.Value{}, reloadErr
-		}
+	if reloadErr := s.plansCache.Reload(ctx); reloadErr != nil {
+		return entitlement.Value{}, reloadErr
 	}
-	if s.entitlements != nil {
-		_ = s.entitlements.InvalidateAll(ctx)
-	}
+	_ = s.entitlements.InvalidateAll(ctx)
 	return out, nil
 }
 
@@ -343,9 +291,7 @@ func (s *billingService) RevokeSubscription(ctx context.Context, userID string) 
 	if err := s.repo.CancelActiveSubscriptions(ctx, userID); err != nil {
 		return err
 	}
-	if s.entitlements != nil {
-		s.entitlements.Invalidate(ctx, userID)
-	}
+	s.entitlements.Invalidate(ctx, userID)
 	return nil
 }
 
@@ -364,9 +310,6 @@ func (s *billingService) HandleProviderWebhook(ctx context.Context, providerName
 
 	// Resolve the user before opening the transaction: the identity lookup is a
 	// read-only external call and must not hold a DB transaction open.
-	if s.identity == nil {
-		return fmt.Errorf("identity client not configured")
-	}
 	telegramID, err := parseTelegramID(event.ProviderUserID)
 	if err != nil {
 		return err
@@ -453,9 +396,7 @@ func (s *billingService) activateProviderSubscription(ctx context.Context, userI
 	if err := s.repo.UpsertSubscription(ctx, sub); err != nil {
 		return err
 	}
-	if s.entitlements != nil {
-		s.entitlements.Invalidate(ctx, userID)
-	}
+	s.entitlements.Invalidate(ctx, userID)
 	return nil
 }
 
@@ -488,21 +429,11 @@ func (s *billingService) resolvePlan(ctx context.Context, userID string) (*model
 }
 
 func (s *billingService) getPlanByID(ctx context.Context, id string) (*model.Plan, error) {
-	if s.plansCache != nil {
-		if plan, err := s.plansCache.GetPlanByID(id); err == nil {
-			return plan, nil
-		}
-	}
-	return s.repo.GetPlanByID(ctx, id)
+	return s.plansCache.GetPlanByID(id)
 }
 
 func (s *billingService) getPlanBySlug(ctx context.Context, slug string) (*model.Plan, error) {
-	if s.plansCache != nil {
-		if plan, err := s.plansCache.GetPlanBySlug(slug); err == nil {
-			return plan, nil
-		}
-	}
-	return s.repo.GetPlanBySlug(ctx, slug)
+	return s.plansCache.GetPlanBySlug(slug)
 }
 
 func parseTelegramID(raw string) (int64, error) {

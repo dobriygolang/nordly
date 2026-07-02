@@ -13,4 +13,6 @@ Services live in `services/<name>/`. Each is **independent**:
 
 When editing code, **cd into `services/<name>/`** and follow that service's `AGENTS.md`. New service: copy [services/template/](../services/template/). **Registry checklist:** [.cursor/rules/service-registry.mdc](service-registry.mdc) + [deploy/scripts/services.conf.sh](../deploy/scripts/services.conf.sh).
 
+**Fail-fast policy (all apps + services):** [.cursor/rules/fail-fast-no-fallbacks.mdc](fail-fast-no-fallbacks.mdc) — no silent fallbacks, legacy dual-reads, or nil guards on required wired deps.
+
 Keep `AGENTS.md` in sync with code — see [.cursor/rules/agents-md.mdc](agents-md.mdc).

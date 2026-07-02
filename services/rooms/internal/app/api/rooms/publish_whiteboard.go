@@ -3,7 +3,6 @@ package roomsapi
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
@@ -20,8 +19,7 @@ func (i *Implementation) PublishWhiteboard(
 		return nil, mapServiceError(err)
 	}
 	return &roomsv1.PublishWhiteboardResponse{
-		Slug:        result.Slug,
-		Url:         result.URL,
-		PublishedAt: timestamppb.New(result.PublishedAt.PublishedAt),
+		Slug: result.Slug,
+		Url:  result.URL,
 	}, nil
 }

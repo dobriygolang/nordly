@@ -29,7 +29,9 @@ HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
 
 WebSocket: `GET /ws/editor/{room_id}?token=JWT`.
 
-**Whiteboard (Hone):** `ShareWhiteboard` seeds an Excalidraw scene and returns a live room + invite. `PublishWhiteboard` stores a read-only snapshot; `GetPublishedBoard` serves it by slug.
+**Whiteboard (Nordly):** `ShareWhiteboard` seeds an Excalidraw scene and returns `room_id` + scoped JWT + invite URL. `PublishWhiteboard` stores a read-only snapshot; `GetPublishedBoard` serves `title` + `scene_json` by slug.
+
+**Public `Room` JSON:** `id`, `owner_id`, `room_type`, `language`, `expires_at`, `created_at` only (no ws_url, visibility, participants).
 
 Frontend: `/live/new` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. `/live/:roomId` → `CollabRoomPage.tsx` (CodeMirror or Excalidraw by `room_type`).
 

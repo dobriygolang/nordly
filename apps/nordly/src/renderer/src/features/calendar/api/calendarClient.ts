@@ -211,7 +211,7 @@ export async function listGoogleCalendars(): Promise<GoogleCalendarListEntry[]> 
 
 export async function getTrackerSettings(): Promise<TrackerSettings> {
   const resp = await apiFetch(SETTINGS_BASE, { headers: syncAuthHeaders() });
-  if (!resp.ok) throw new Error(`getTrackerSettings: ${resp.status}`);
+  if (!resp.ok) await throwForStatus(resp, 'getTrackerSettings');
   const j = (await resp.json()) as { settings?: Record<string, unknown> };
   if (!j.settings) throw new Error('Invalid tracker settings response: missing settings');
   return unwrapSettings(j.settings);

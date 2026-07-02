@@ -20,6 +20,13 @@ type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 // is nil — persist to localStorage so Telegram login survives page reload.
 const BROWSER_PERSIST_KEY = 'nordly:dev-session:v1';
 
+const USER_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isPersistedUserId(userId: string): boolean {
+  return USER_ID_RE.test(userId);
+}
+
 interface PersistedSession {
   userId: string;
   accessToken: string;
@@ -115,6 +122,12 @@ export const useSessionStore = create<SessionState>((set) => ({
     if (!bridge) {
       const persisted = readBrowserPersist();
       if (persisted) {
+        if (!isPersistedUserId(persisted.userId)) {
+          clearBrowserPersist();
+          setDbUserId(null);
+          set({ status: 'guest' });
+          return;
+        }
         setDbUserId(persisted.userId);
         set({
           status: 'signed_in',

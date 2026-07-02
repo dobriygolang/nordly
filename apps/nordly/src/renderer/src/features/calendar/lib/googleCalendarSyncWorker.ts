@@ -42,7 +42,13 @@ async function runCycle(force = false): Promise<void> {
   if (running) return;
   if (!force && isGoogleCalendarSnapshotFresh()) return;
 
-  const ok = await shouldSync();
+  let ok = false;
+  try {
+    ok = await shouldSync();
+  } catch (err) {
+    console.warn('[googleCalendarSync] tracker settings unavailable:', err);
+    return;
+  }
   if (!ok) return;
 
   running = true;

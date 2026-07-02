@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/google/uuid"
@@ -23,9 +22,9 @@ type UserSettingsPatch struct {
 }
 
 func (r *Repository) GetUserSettings(ctx context.Context, userID string) (*model.UserSettings, error) {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return nil, err
 	}
 	row := r.conn(ctx).QueryRow(ctx, `
 		SELECT `+userSettingsColumns+`
@@ -39,9 +38,9 @@ func (r *Repository) GetUserSettings(ctx context.Context, userID string) (*model
 }
 
 func (r *Repository) UpsertUserSettings(ctx context.Context, userID string, patch UserSettingsPatch) (*model.UserSettings, error) {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return nil, err
 	}
 	current, err := r.GetUserSettings(ctx, userID)
 	if err != nil {
@@ -68,9 +67,9 @@ func (r *Repository) UpsertUserSettings(ctx context.Context, userID string, patc
 }
 
 func (r *Repository) SaveGoogleOAuthState(ctx context.Context, userID, state string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		INSERT INTO user_settings (user_id, google_oauth_state)
@@ -99,9 +98,9 @@ func (r *Repository) ConsumeGoogleOAuthState(ctx context.Context, state string) 
 // SaveGoogleRefreshToken stores a fresh refresh token and resets connection
 // state so the next read performs a full incremental resync.
 func (r *Repository) SaveGoogleRefreshToken(ctx context.Context, userID, refreshToken string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		INSERT INTO user_settings (user_id, google_refresh_token, google_reauth_required)
@@ -120,9 +119,9 @@ func (r *Repository) SaveGoogleRefreshToken(ctx context.Context, userID, refresh
 // MarkGoogleReauthRequired drops the invalid token and flags the connection as
 // needing re-authentication.
 func (r *Repository) MarkGoogleReauthRequired(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET
@@ -139,9 +138,9 @@ func (r *Repository) MarkGoogleReauthRequired(ctx context.Context, userID string
 
 // ClearGoogleConnection wipes all Google state on disconnect.
 func (r *Repository) ClearGoogleConnection(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET
@@ -173,9 +172,9 @@ func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {
 }
 
 func (r *Repository) SaveZoomOAuthState(ctx context.Context, userID, state string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		INSERT INTO user_settings (user_id, zoom_oauth_state)
@@ -202,9 +201,9 @@ func (r *Repository) ConsumeZoomOAuthState(ctx context.Context, state string) (s
 }
 
 func (r *Repository) SaveZoomRefreshToken(ctx context.Context, userID, refreshToken string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		INSERT INTO user_settings (user_id, zoom_refresh_token, zoom_reauth_required)
@@ -218,9 +217,9 @@ func (r *Repository) SaveZoomRefreshToken(ctx context.Context, userID, refreshTo
 }
 
 func (r *Repository) MarkZoomReauthRequired(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET
@@ -233,9 +232,9 @@ func (r *Repository) MarkZoomReauthRequired(ctx context.Context, userID string) 
 }
 
 func (r *Repository) ClearZoomConnection(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET

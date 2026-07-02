@@ -32,6 +32,12 @@ migrate: ## Run migrations only
 reset-db: ## Drop and recreate all application databases (then run migrate)
 	@set -a && . ./.env && set +a && USE_DOCKER_POSTGRES=1 ENV_FILE=.env ./scripts/reset-databases.sh
 
+clean-slate: ## Wipe DBs, migrate, restart stack, prune legacy images (destructive)
+	@./scripts/prod-clean-slate.sh
+
+audit-env: ## Compare .env keys against .env.example
+	@./scripts/audit-env.sh
+
 ps: ## Show running containers
 	$(COMPOSE) ps
 

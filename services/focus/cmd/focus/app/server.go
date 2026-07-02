@@ -8,6 +8,7 @@ import (
 	"time"
 
 	focusapi "github.com/dobriygolang/project-nordly/services/focus/internal/app/api/focus"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/tools/ops"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -36,6 +37,7 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", focusapi.HealthzHTTP())
+	httpMux.Handle("/metrics", ops.MetricsHandler())
 
 	if err := focusapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()
@@ -45,7 +47,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           httpMux,
+		Handler:           ops.InstrumentHTTP("focus", httpMux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -198,10 +198,6 @@ export const ru = {
   'nordly.settings.update.auto_off': 'Выкл',
   'nordly.settings.update.notify_title': 'Доступно обновление',
   'nordly.settings.update.notify_body': '{{published}} · установлена {{version}}',
-  'nordly.settings.update.preview_notifications': 'Показать все уведомления',
-  'nordly.settings.update.preview_running': 'Уведомление {{current}} из {{total}}…',
-  'nordly.settings.update.preview_busy': 'Показ…',
-  'nordly.settings.update.preview_hint': 'Временная кнопка для проверки баннеров перед релизом.',
   'nordly.settings.google.sync_label': 'Синхронизация с Google Calendar',
   'nordly.settings.google.sync_hint':
     'Когда включено, запланированные задачи дублируются в выбранный Google Calendar. По умолчанию выкл. — включите после подключения Google.',
@@ -280,7 +276,6 @@ export const ru = {
   'nordly.calendar.editor.readonly': 'Это событие только для чтения.',
   'nordly.calendar.reminder.google_title': 'Событие начинается',
   'nordly.calendar.reminder.body': '{{title}} · {{time}}',
-  'nordly.calendar.reminder.preview_event': 'Созвон с командой',
   'nordly.settings.sign_out': 'Выйти',
   'nordly.settings.vault.label': 'Сквозное шифрование',
   'nordly.settings.vault.hint': 'По умолчанию выкл. — как в Obsidian. Включи, чтобы шифровать заметки перед sync.',

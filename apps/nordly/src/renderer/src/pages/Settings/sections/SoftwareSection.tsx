@@ -11,7 +11,6 @@ import {
   type UpdatePhase,
 } from '@shared/lib/updater';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { previewAllNotifications } from '@shared/lib/notificationPreview';
 import { patchSettings, readSettings } from '@shared/model/settings';
 
 import { SettingRow, SettingsGroup } from '../primitives/SettingRow';
@@ -28,8 +27,6 @@ export function SoftwareSection() {
   const [autoUpdate, setAutoUpdate] = useState(() => readSettings().autoUpdate);
   const [phase, setPhase] = useState<UpdatePhase>('idle');
   const [status, setStatus] = useState<string | null>(null);
-  const [previewBusy, setPreviewBusy] = useState(false);
-  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
   const desktop = isTauriRuntime();
 
   const refreshPublished = useCallback(() => {
@@ -112,22 +109,6 @@ export function SoftwareSection() {
     patchSettings({ autoUpdate: next });
   }, []);
 
-  const handlePreviewNotifications = useCallback(async () => {
-    if (previewBusy) return;
-    setPreviewBusy(true);
-    setPreviewStatus(null);
-    try {
-      await previewAllNotifications((current, total) => {
-        setPreviewStatus(t('nordly.settings.update.preview_running', { current, total }));
-      });
-      setPreviewStatus(null);
-    } catch (err) {
-      setPreviewStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPreviewBusy(false);
-    }
-  }, [previewBusy, t]);
-
   const busy = phase !== 'idle';
   const buttonLabel =
     phase === 'checking'
@@ -169,24 +150,6 @@ export function SoftwareSection() {
           label={autoUpdate ? t('nordly.settings.update.auto_on') : t('nordly.settings.update.auto_off')}
           disabled={!desktop}
         />
-      </SettingRow>
-      <SettingRow
-        label={t('nordly.settings.update.preview_notifications')}
-        hint={t('nordly.settings.update.preview_hint')}
-      >
-        <div className="nordly-settings-update">
-          <button
-            type="button"
-            className="nordly-settings-update__btn nordly-settings-update__btn--preview"
-            onClick={() => void handlePreviewNotifications()}
-            disabled={previewBusy}
-          >
-            {previewBusy
-              ? t('nordly.settings.update.preview_busy')
-              : t('nordly.settings.update.preview_notifications')}
-          </button>
-          {previewStatus ? <p className="nordly-settings-update__status">{previewStatus}</p> : null}
-        </div>
       </SettingRow>
     </SettingsGroup>
   );

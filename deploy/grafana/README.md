@@ -35,9 +35,11 @@ Import JSON dashboards from `deploy/grafana/dashboards/` via UI or API.
 
 | Metric | Use |
 |--------|-----|
-| `http_requests_total`, `http_request_duration_seconds` | RPS, latency |
+| `http_requests_total`, `http_request_duration_seconds` | RPS, latency (all prod services) |
 | `up` | service health (see `deploy/prometheus-alerts.yml`) |
-| `llm_calls_total` | LLM health (ai service, CI only) |
+| `billing_plans_*`, `billing_entitlements_*` | billing catalog + entitlements cache |
 | `node_memory_*` | host RAM (node_exporter) |
 
-Retired services (interview, recommendation, admin) are no longer scraped.
+Dashboards: **Platform**, **HTTP routes**, **Billing** (`deploy/grafana/dashboards/`).
+
+Retired services (interview, recommendation, admin, ai) are not scraped in prod.

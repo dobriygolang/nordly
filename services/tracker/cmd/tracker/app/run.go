@@ -13,6 +13,7 @@ import (
 	trackerapi "github.com/dobriygolang/project-nordly/services/tracker/internal/app/api/tracker"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/config"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/logger"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/ops"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tools/secretbox"
 	trackerrepo "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
 	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
@@ -93,6 +94,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	impl := trackerapi.NewImplementation(a.Service)
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", trackerapi.HealthzHTTP())
+	httpMux.Handle("/metrics", ops.MetricsHandler())
 	httpMux.HandleFunc("/v1/tracker/integrations/google/callback", impl.GoogleCallbackHTTP())
 	httpMux.HandleFunc("/v1/tracker/integrations/zoom/callback", impl.ZoomCallbackHTTP())
 	if err := trackerapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
@@ -100,7 +102,7 @@ func RunAPI(ctx context.Context, a *App) error {
 		return fmt.Errorf("register gateway: %w", err)
 	}
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
-	srv := &http.Server{Addr: httpAddr, Handler: httpMux, ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: httpAddr, Handler: ops.InstrumentHTTP("tracker", httpMux), ReadHeaderTimeout: 5 * time.Second}
 	a.Logger.Info("http server starting", "addr", httpAddr)
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()

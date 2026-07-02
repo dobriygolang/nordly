@@ -8,6 +8,7 @@ import (
 	"time"
 
 	roomsapi "github.com/dobriygolang/project-nordly/services/rooms/internal/app/api/rooms"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/ops"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/archive"
 	roomrepo "github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/ws"
@@ -40,6 +41,7 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", roomsapi.HealthzHTTP())
+	httpMux.Handle("/metrics", ops.MetricsHandler())
 	httpMux.Handle("GET /ws/editor/{roomId}", wsHandler)
 
 	if err := roomsapi.RegisterGateway(ctx, httpMux, grpcAddr); err != nil {
@@ -50,7 +52,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           httpMux,
+		Handler:           ops.InstrumentHTTP("rooms", httpMux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

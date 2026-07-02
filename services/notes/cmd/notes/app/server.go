@@ -8,6 +8,7 @@ import (
 	"time"
 
 	notesapi "github.com/dobriygolang/project-nordly/services/notes/internal/app/api/notes"
+	"github.com/dobriygolang/project-nordly/services/notes/internal/tools/ops"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -35,6 +36,7 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", notesapi.HealthzHTTP())
+	httpMux.Handle("/metrics", ops.MetricsHandler())
 
 	if err := notesapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()
@@ -44,7 +46,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           httpMux,
+		Handler:           ops.InstrumentHTTP("notes", httpMux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -198,10 +198,6 @@ export const en = {
   'nordly.settings.update.auto_off': 'Off',
   'nordly.settings.update.notify_title': 'Update available',
   'nordly.settings.update.notify_body': '{{published}} · installed {{version}}',
-  'nordly.settings.update.preview_notifications': 'Preview all notifications',
-  'nordly.settings.update.preview_running': 'Notification {{current}} of {{total}}…',
-  'nordly.settings.update.preview_busy': 'Showing…',
-  'nordly.settings.update.preview_hint': 'Temporary button to review banners before release.',
   'nordly.settings.google.sync_label': 'Google Calendar sync',
   'nordly.settings.google.sync_hint':
     'When on, scheduled tasks are mirrored to your target Google Calendar. Off by default — enable after connecting Google.',
@@ -280,7 +276,6 @@ export const en = {
   'nordly.calendar.editor.readonly': 'This event is read-only.',
   'nordly.calendar.reminder.google_title': 'Event starts now',
   'nordly.calendar.reminder.body': '{{title}} · {{time}}',
-  'nordly.calendar.reminder.preview_event': 'Team sync',
   'nordly.settings.sign_out': 'Sign out',
   'nordly.settings.vault.label': 'End-to-end encryption',
   'nordly.settings.vault.hint': 'Off by default — like Obsidian. Enable to encrypt notes before cloud sync.',

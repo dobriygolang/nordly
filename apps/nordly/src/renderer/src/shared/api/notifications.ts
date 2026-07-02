@@ -40,8 +40,6 @@ async function notifyWeb(title: string, body?: string): Promise<void> {
 export interface NotifyOptions {
   /** Play a built-in chime. */
   sound?: boolean | 'session' | 'calendar';
-  /** Dev preview — bypass the notifications setting toggle. */
-  force?: boolean;
 }
 
 /**
@@ -49,7 +47,7 @@ export interface NotifyOptions {
  */
 export async function notify(title: string, body?: string, options?: NotifyOptions): Promise<void> {
   if (typeof window === 'undefined') return;
-  if (!options?.force && !readSettings().notifications) return;
+  if (!readSettings().notifications) return;
 
   if (options?.sound === 'calendar') {
     void playCalendarReminderSound();

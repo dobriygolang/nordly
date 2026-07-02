@@ -173,11 +173,6 @@ html.light .nordly-settings-group__body {
   border: 1px solid rgb(var(--accent-rgb, 99 102 241) / 0.28);
 }
 
-.nordly-settings-update__btn--preview {
-  border-style: dashed;
-  opacity: 0.9;
-}
-
 .nordly-settings-update__btn {
   padding: 8px 16px;
   border: 1px solid var(--ink-20);

@@ -168,6 +168,10 @@ export const en = {
   'nordly.settings.shortcuts.home': 'Home / Close',
   'nordly.settings.update.label': 'Software',
   'nordly.settings.update.version': 'Current version: {{version}}',
+  'nordly.settings.update.version_available':
+    'Current version: {{version}} · update available: {{published}}',
+  'nordly.settings.update.version_mismatch':
+    'A newer build exists on GitHub but the updater manifest still lists the same version. Release with tag nordly-vX.Y.Z where X.Y.Z is higher than your installed app (e.g. nordly-v0.0.2).',
   'nordly.settings.update.check': 'Check for Updates',
   'nordly.settings.update.checking': 'Checking…',
   'nordly.settings.update.downloading': 'Downloading…',

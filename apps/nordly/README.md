@@ -33,10 +33,12 @@ npm run test
 
 CI: [`.github/workflows/nordly-release.yml`](../../.github/workflows/nordly-release.yml)
 
-1. Bump `version` in `src-tauri/tauri.conf.json` and `package.json`.
-2. Commit, then tag: `git tag nordly-v0.0.2 && git push origin nordly-v0.0.2`
+1. Bump `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` (optional if you only release via tag — CI syncs from the tag).
+2. Commit, then tag with **three-part semver**: `git tag nordly-v0.0.2 && git push origin nordly-v0.0.2`
 3. GitHub Actions builds **macOS** (Apple Silicon + Intel) and **Windows**, uploads installers + `latest.json` to the release.
 4. Installed apps check **Settings → Software → Check for Updates** (Tauri updater → GitHub Releases).
+
+**Important:** tags like `nordly-v0.0.1.1` are rejected by CI. The updater compares `version` in `latest.json` (from `tauri.conf.json`) — if you only push tags without bumping version, every release stays `0.0.1` and the app reports “already up to date”.
 
 **One-time setup (repo maintainer):**
 
@@ -47,7 +49,9 @@ CI: [`.github/workflows/nordly-release.yml`](../../.github/workflows/nordly-rele
 - **Do not** add `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` unless you generated the key with a password (our default key has none)
 - Public updater key is in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`)
 
-**Tag rule:** tag must match app version — `nordly-v` + semver from `tauri.conf.json` (e.g. `nordly-v0.0.1`).
+**Tag rule:** `nordly-v` + semver from `tauri.conf.json` (e.g. `nordly-v0.0.2`). CI sets the built app version from the tag automatically.
+
+**Apple Developer license** is only for Gatekeeper/notarization (first install). **In-app updates** use the Tauri updater keypair (`TAURI_SIGNING_PRIVATE_KEY` in GitHub secrets) — no Apple subscription required for “Check for Updates”.
 
 If CI fails on `npm ci` with `Exit handler never called`, ensure `package-lock.json` has no `artifactory` URLs (`grep artifactory apps/nordly/package-lock.json` → empty) and re-run the workflow from the latest `main` (workflow pins Node `22.14.0`).
 

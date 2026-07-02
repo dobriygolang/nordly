@@ -168,6 +168,10 @@ export const ru = {
   'nordly.settings.shortcuts.home': 'Домой / Закрыть',
   'nordly.settings.update.label': 'ПО',
   'nordly.settings.update.version': 'Текущая версия: {{version}}',
+  'nordly.settings.update.version_available':
+    'Текущая версия: {{version}} · доступно обновление: {{published}}',
+  'nordly.settings.update.version_mismatch':
+    'На GitHub есть более новая сборка, но в манифесте обновлений указана та же версия. Выпустите релиз с тегом nordly-vX.Y.Z, где X.Y.Z выше установленной (например nordly-v0.0.2).',
   'nordly.settings.update.check': 'Проверить обновления',
   'nordly.settings.update.checking': 'Проверка…',
   'nordly.settings.update.downloading': 'Загрузка…',

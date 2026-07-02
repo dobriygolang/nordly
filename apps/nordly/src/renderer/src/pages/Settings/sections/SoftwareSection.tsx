@@ -4,6 +4,8 @@ import { useT } from '@nordly-i18n';
 
 import {
   checkForUpdate,
+  compareSemver,
+  fetchPublishedVersion,
   isTauriRuntime,
   readAppVersion,
   type UpdatePhase,
@@ -18,6 +20,7 @@ function formatVersion(version: string): string {
 export function SoftwareSection() {
   const t = useT();
   const [version, setVersion] = useState('…');
+  const [publishedVersion, setPublishedVersion] = useState<string | null>(null);
   const [phase, setPhase] = useState<UpdatePhase>('idle');
   const [status, setStatus] = useState<string | null>(null);
   const desktop = isTauriRuntime();
@@ -28,7 +31,19 @@ export function SoftwareSection() {
       return;
     }
     void readAppVersion().then((v) => setVersion(v));
+    void fetchPublishedVersion().then(setPublishedVersion);
   }, [desktop]);
+
+  const versionHint =
+    desktop &&
+    publishedVersion &&
+    version !== '…' &&
+    compareSemver(publishedVersion, version) > 0
+      ? t('nordly.settings.update.version_available', {
+          version: formatVersion(version),
+          published: formatVersion(publishedVersion),
+        })
+      : t('nordly.settings.update.version', { version: formatVersion(version) });
 
   const handleCheck = useCallback(async () => {
     if (!desktop || phase !== 'idle') return;
@@ -40,6 +55,8 @@ export function SoftwareSection() {
       return;
     }
     if (result.kind === 'up_to_date') {
+      const published = await fetchPublishedVersion();
+      setPublishedVersion(published);
       setStatus(t('nordly.settings.update.up_to_date'));
       return;
     }
@@ -48,6 +65,8 @@ export function SoftwareSection() {
         setStatus(t('nordly.settings.update.no_release'));
       } else if (result.code === 'network') {
         setStatus(t('nordly.settings.update.network_error'));
+      } else if (result.message.includes('published') && result.message.includes('updater returned none')) {
+        setStatus(t('nordly.settings.update.version_mismatch'));
       } else {
         setStatus(t('nordly.settings.update.error', { message: result.message }));
       }
@@ -67,11 +86,17 @@ export function SoftwareSection() {
           ? t('nordly.settings.update.installing')
           : t('nordly.settings.update.check');
 
+  const updateReady =
+    desktop &&
+    publishedVersion &&
+    version !== '…' &&
+    compareSemver(publishedVersion, version) > 0;
+
   return (
     <SettingsGroup title={t('nordly.settings.section.software')}>
       <SettingRow
         label={t('nordly.settings.update.label')}
-        hint={t('nordly.settings.update.version', { version: formatVersion(version) })}
+        hint={versionHint}
       >
         <div className="nordly-settings-update">
           <button
@@ -79,6 +104,7 @@ export function SoftwareSection() {
             className="nordly-settings-update__btn"
             onClick={() => void handleCheck()}
             disabled={!desktop || busy}
+            data-update-ready={updateReady ? 'true' : undefined}
           >
             {buttonLabel}
           </button>

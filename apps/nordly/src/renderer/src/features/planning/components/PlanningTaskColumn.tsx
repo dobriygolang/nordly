@@ -1,12 +1,13 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useMemo } from 'react';
+import { useMemo, Fragment } from 'react';
 import { useT } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
+import { DayTaskInsertSlot } from '@features/tasks/components/DayTaskInsertSlot';
 import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
 import { formatDuration, sumDurationMin } from '@shared/lib/dates';
 
@@ -19,6 +20,8 @@ interface PlanningTaskColumnProps {
   taskIds: string[];
   taskById: Map<string, TaskCard>;
   dropHighlight: boolean;
+  insertPreviewAt?: number | null;
+  previewTask?: TaskCard | null;
   detailTaskId: string | null;
   epics: TaskEpic[];
   settings: TrackerSettings | null;
@@ -45,6 +48,8 @@ export function PlanningTaskColumn({
   taskIds,
   taskById,
   dropHighlight,
+  insertPreviewAt = null,
+  previewTask = null,
   detailTaskId,
   epics,
   settings,
@@ -110,26 +115,33 @@ export function PlanningTaskColumn({
 
         <div className="nordly-day-column__tasks">
           <SortableContext items={columnTaskIds} strategy={verticalListSortingStrategy}>
-            {tasks.map((task) => (
-              <SortableTaskRow
-                key={task.id}
-                containerId={dayKey}
-                task={task}
-                epics={epics}
-                settings={settings}
-                detailOpen={detailTaskId === task.id}
-                editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
-                onToggleDone={onToggleDone}
-                onDurationChange={onDurationChange}
-                onTitleChange={onTitleChange}
-                onOpenDetail={onOpenDetail}
-                onCloseDetail={onCloseDetail}
-                onEpicChange={onEpicChange}
-                onCreateConference={onCreateConference}
-                onClearConference={onClearConference}
-                onTaskTap={onTaskTap}
-              />
+            {tasks.map((task, index) => (
+              <Fragment key={task.id}>
+                {insertPreviewAt === index && previewTask ? (
+                  <DayTaskInsertSlot task={previewTask} epics={epics} settings={settings} />
+                ) : null}
+                <SortableTaskRow
+                  containerId={dayKey}
+                  task={task}
+                  epics={epics}
+                  settings={settings}
+                  detailOpen={detailTaskId === task.id}
+                  editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
+                  onToggleDone={onToggleDone}
+                  onDurationChange={onDurationChange}
+                  onTitleChange={onTitleChange}
+                  onOpenDetail={onOpenDetail}
+                  onCloseDetail={onCloseDetail}
+                  onEpicChange={onEpicChange}
+                  onCreateConference={onCreateConference}
+                  onClearConference={onClearConference}
+                  onTaskTap={onTaskTap}
+                />
+              </Fragment>
             ))}
+            {insertPreviewAt != null && insertPreviewAt >= tasks.length && previewTask ? (
+              <DayTaskInsertSlot task={previewTask} epics={epics} settings={settings} />
+            ) : null}
           </SortableContext>
         </div>
       </div>

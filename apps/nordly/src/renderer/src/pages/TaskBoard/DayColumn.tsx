@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, Fragment } from 'react';
 import { useT, useLocale } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
@@ -9,6 +9,7 @@ import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from '@shared/lib/dates';
 import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
 import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
+import { DayTaskInsertSlot } from '@features/tasks/components/DayTaskInsertSlot';
 
 const COL_W = 270;
 
@@ -19,6 +20,8 @@ interface DayColumnProps {
   taskIds: string[];
   taskById: Map<string, TaskCard>;
   dropHighlight: boolean;
+  insertPreviewAt: number | null;
+  previewTask: TaskCard | null;
   detailTaskId: string | null;
   epics: TaskEpic[];
   settings: TrackerSettings | null;
@@ -45,6 +48,8 @@ export const DayColumn = memo(function DayColumn({
   taskIds,
   taskById,
   dropHighlight,
+  insertPreviewAt,
+  previewTask,
   detailTaskId,
   epics,
   settings,
@@ -118,26 +123,33 @@ export const DayColumn = memo(function DayColumn({
 
         <div className="nordly-day-column__tasks">
           <SortableContext items={columnTaskIds} strategy={verticalListSortingStrategy}>
-            {tasks.map((task) => (
-              <SortableTaskRow
-                key={task.id}
-                containerId={dayKey}
-                task={task}
-                epics={epics}
-                settings={settings}
-                detailOpen={detailTaskId === task.id}
-                editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
-                onToggleDone={onToggleDone}
-                onDurationChange={onDurationChange}
-                onTitleChange={onTitleChange}
-                onOpenDetail={onOpenDetail}
-                onCloseDetail={onCloseDetail}
-                onEpicChange={onEpicChange}
-                onCreateConference={onCreateConference}
-                onClearConference={onClearConference}
-                onTaskTap={onTaskTap}
-              />
+            {tasks.map((task, index) => (
+              <Fragment key={task.id}>
+                {insertPreviewAt === index && previewTask ? (
+                  <DayTaskInsertSlot task={previewTask} epics={epics} settings={settings} />
+                ) : null}
+                <SortableTaskRow
+                  containerId={dayKey}
+                  task={task}
+                  epics={epics}
+                  settings={settings}
+                  detailOpen={detailTaskId === task.id}
+                  editRequestKey={editRequest?.taskId === task.id ? editRequest.key : 0}
+                  onToggleDone={onToggleDone}
+                  onDurationChange={onDurationChange}
+                  onTitleChange={onTitleChange}
+                  onOpenDetail={onOpenDetail}
+                  onCloseDetail={onCloseDetail}
+                  onEpicChange={onEpicChange}
+                  onCreateConference={onCreateConference}
+                  onClearConference={onClearConference}
+                  onTaskTap={onTaskTap}
+                />
+              </Fragment>
             ))}
+            {insertPreviewAt != null && insertPreviewAt >= tasks.length && previewTask ? (
+              <DayTaskInsertSlot task={previewTask} epics={epics} settings={settings} />
+            ) : null}
           </SortableContext>
         </div>
       </div>
@@ -162,6 +174,8 @@ function areDayColumnPropsEqual(prev: DayColumnProps, next: DayColumnProps): boo
     prev.taskIds === next.taskIds &&
     prev.taskById === next.taskById &&
     prev.dropHighlight === next.dropHighlight &&
+    prev.insertPreviewAt === next.insertPreviewAt &&
+    prev.previewTask === next.previewTask &&
     prev.epics === next.epics &&
     prev.settings === next.settings &&
     prev.selected === next.selected &&

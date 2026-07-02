@@ -75,6 +75,74 @@ export function pointerInsertOverId(
   return containerKey;
 }
 
+const NEAR_COLUMN_X_PX = 48;
+
+/** Closest column by horizontal distance while pointer Y is within the column band. */
+export function findNearestColumnByPointerX(
+  pointer: { x: number; y: number },
+  columnKeys: readonly string[],
+  droppableRects: DroppableRectMap,
+): string | null {
+  let bestKey: string | null = null;
+  let bestDist = Infinity;
+
+  for (const columnKey of columnKeys) {
+    const rect = droppableRects.get(columnKey);
+    if (!rect) continue;
+    if (pointer.y < rect.top || pointer.y > rect.bottom) continue;
+
+    const dist =
+      pointer.x < rect.left
+        ? rect.left - pointer.x
+        : pointer.x > rect.right
+          ? pointer.x - rect.right
+          : 0;
+
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestKey = columnKey;
+    }
+  }
+
+  return bestDist <= NEAR_COLUMN_X_PX ? bestKey : null;
+}
+
+export function isPointerInsideColumn(
+  pointer: { x: number; y: number },
+  columnKey: string,
+  droppableRects: DroppableRectMap,
+): boolean {
+  const rect = droppableRects.get(columnKey);
+  if (!rect) return false;
+  return (
+    pointer.x >= rect.left &&
+    pointer.x <= rect.right &&
+    pointer.y >= rect.top &&
+    pointer.y <= rect.bottom
+  );
+}
+
+/** Pointer inside a column body rect, nearest column in gap, else last resolved container. */
+export function resolveColumnFromPointer(
+  pointer: { x: number; y: number },
+  columnKeys: readonly string[],
+  droppableRects: DroppableRectMap,
+  fallbackContainer: string | null,
+): string | null {
+  for (const columnKey of columnKeys) {
+    if (isPointerInsideColumn(pointer, columnKey, droppableRects)) {
+      return columnKey;
+    }
+  }
+
+  // Between columns: keep the last target instead of flipping to the nearest edge.
+  if (fallbackContainer) {
+    return fallbackContainer;
+  }
+
+  return findNearestColumnByPointerX(pointer, columnKeys, droppableRects);
+}
+
 export function buildColumnItems(
   columnKeys: string[],
   tasksByDay: Map<string, TaskCard[]>,

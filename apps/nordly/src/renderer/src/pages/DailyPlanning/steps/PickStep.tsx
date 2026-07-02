@@ -30,6 +30,7 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
     detailTaskId: board.detailTaskId,
     editRequest: board.editRequest,
     isDragging: dnd.isDragging,
+    previewTask: dnd.activeTask,
     onToggleDone: board.handleToggleDone,
     onTitleChange: (task: TaskCard, title: string) => void board.handleTitleChange(task, title),
     onOpenDetail: board.handleOpenDetail,
@@ -48,9 +49,10 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
           dayKey={todayKey}
           title={t('nordly.planning.col_today')}
           subtitle={t('nordly.planning.col_today_hint')}
-          taskIds={dnd.items[todayKey] ?? []}
+          taskIds={dnd.getColumnTaskIds(todayKey)}
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === todayKey && dnd.isDragging}
+          insertPreviewAt={dnd.getColumnInsertPreviewAt(todayKey)}
           showAdd
           onAddClick={() => void board.handleAddTask(todayKey)}
           onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
@@ -60,9 +62,10 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
           dayKey={PLANNING_POOL_DAY_KEY}
           title={t('nordly.planning.col_all_tasks')}
           subtitle={t('nordly.planning.col_all_hint')}
-          taskIds={dnd.items[PLANNING_POOL_DAY_KEY] ?? []}
+          taskIds={dnd.getColumnTaskIds(PLANNING_POOL_DAY_KEY)}
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === PLANNING_POOL_DAY_KEY && dnd.isDragging}
+          insertPreviewAt={dnd.getColumnInsertPreviewAt(PLANNING_POOL_DAY_KEY)}
           onAddClick={() => undefined}
           onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
           {...columnProps}

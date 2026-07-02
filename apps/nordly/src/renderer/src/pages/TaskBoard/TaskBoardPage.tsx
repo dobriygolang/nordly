@@ -322,6 +322,7 @@ export function TaskBoardPage(): JSX.Element {
     tasksByDay,
     tasks,
     onDrop: handleDrop,
+    scrollContainerRef: scrollRef,
   });
 
   useHorizontalPanScroll(scrollRef, !dnd.isDragging);
@@ -472,9 +473,11 @@ export function TaskBoardPage(): JSX.Element {
                 dayKey={d.key}
                 date={d.date}
                 today={today}
-                taskIds={dnd.items[d.key] ?? []}
+                taskIds={dnd.getColumnTaskIds(d.key)}
                 taskById={dnd.taskById}
                 dropHighlight={dnd.overContainerId === d.key && dnd.isDragging}
+                insertPreviewAt={dnd.getColumnInsertPreviewAt(d.key)}
+                previewTask={dnd.activeTask}
                 isDragging={dnd.isDragging}
                 detailTaskId={detailTaskId}
                 epics={epics}

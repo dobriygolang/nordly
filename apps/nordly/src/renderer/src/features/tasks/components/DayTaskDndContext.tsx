@@ -1,6 +1,7 @@
 import {
   DndContext,
   DragOverlay,
+  MeasuringFrequency,
   MeasuringStrategy,
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
@@ -22,19 +23,17 @@ interface DayTaskDndContextProps {
 }
 
 const dropAnimation = {
-  duration: 250,
-  easing: 'ease',
+  duration: 200,
+  easing: 'ease-out',
   sideEffects: defaultDropAnimationSideEffects({
     styles: { active: { opacity: '0.5' } },
   }),
 };
 
-// Multi-container sortables need fresh droppable rects while items move between
-// columns. Without this, the first cross-column collision can use stale positions
-// and temporarily insert the preview at the top of the target list.
 const measuring = {
   droppable: {
-    strategy: MeasuringStrategy.Always,
+    strategy: MeasuringStrategy.WhileDragging,
+    frequency: MeasuringFrequency.Optimized,
   },
 };
 

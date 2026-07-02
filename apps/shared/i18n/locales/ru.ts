@@ -18,6 +18,8 @@ export const ru = {
   'nordly.login.sign_in_aria': 'Войти с кодом',
   'nordly.login.error_sign_in': 'Не удалось войти',
   'nordly.login.error_network': 'Нет связи с сервером. Проверь интернет и попробуй снова.',
+  'nordly.login.reauth_hint':
+    'Сессия истекла. Войди снова, чтобы возобновить синхронизацию. Локальные данные останутся на устройстве.',
   'nordly.notes.back': 'Назад',
   'nordly.notes.empty_cta': '+ Новая заметка',
   'nordly.notes.empty_dim': 'Выбери заметку или нажми ⌘N, чтобы писать.',
@@ -57,7 +59,12 @@ export const ru = {
   'nordly.sync.banner_error': 'Синхронизация приостановлена',
   'nordly.sync.banner_recovering': 'Снова в сети — синхронизация',
   'nordly.sync.banner_reauth_offline':
-    'Сессия истекла — работаем офлайн. Синхронизация возобновится автоматически, когда появится интернет.',
+    'Сессия истекла — работаем офлайн. Синхронизация возобновится, когда вы снова войдёте в аккаунт.',
+  'nordly.sync.banner_reauth_online':
+    'Сессия истекла — облачная синхронизация приостановлена. Локальные данные на устройстве сохранены.',
+  'nordly.sync.reauth_sign_in': 'Войти снова',
+  'nordly.sync.reauth_dialog_aria': 'Повторный вход',
+  'nordly.sync.reauth_close': 'Закрыть',
   'nordly.sync.retry': 'Повторить',
   'nordly.sync.error_no_network': 'Нет подключения к интернету',
   'nordly.sync.error_server_unreachable': 'Не удаётся связаться с сервером',
@@ -119,7 +126,7 @@ export const ru = {
   'nordly.settings.notifications.off': 'Выкл',
   'nordly.settings.notifications.on': 'Вкл',
   'nordly.settings.calendar_notifications.hint':
-    'Напоминать, когда наступает время запланированной задачи или события из календаря.',
+    'Напоминать, когда наступает время события из Google Calendar.',
   'nordly.settings.calendar_notifications.label': 'Уведомления календаря',
   'nordly.settings.pomodoro.hint': 'Длина таймера фокуса в доке.',
   'nordly.settings.pomodoro.label': 'Помодоро',
@@ -171,7 +178,7 @@ export const ru = {
   'nordly.settings.update.version_available':
     'Текущая версия: {{version}} · доступно обновление: {{published}}',
   'nordly.settings.update.version_mismatch':
-    'На GitHub есть более новая сборка, но в манифесте обновлений указана та же версия. Выпустите релиз с тегом nordly-vX.Y.Z, где X.Y.Z выше установленной (например nordly-v0.0.2).',
+    'На GitHub есть более новая сборка, но в манифесте обновлений указана та же версия. Выпустите релиз с тегом nordly-vX.Y.Z, где X.Y.Z выше установленной (например nordly-v0.0.1).',
   'nordly.settings.update.check': 'Проверить обновления',
   'nordly.settings.update.checking': 'Проверка…',
   'nordly.settings.update.downloading': 'Загрузка…',
@@ -183,6 +190,18 @@ export const ru = {
   'nordly.settings.update.installed': 'Обновлено до {{version}}. Перезапуск…',
   'nordly.settings.update.error': 'Не удалось обновить: {{message}}',
   'nordly.settings.update.unavailable': 'Обновления доступны только в установленном desktop-приложении.',
+  'nordly.settings.update.badge': 'Доступно {{published}}',
+  'nordly.settings.update.auto_label': 'Автообновление',
+  'nordly.settings.update.auto_hint':
+    'Раз в сутки проверяет новую версию и устанавливает её автоматически. Без тумблера — только тихое уведомление.',
+  'nordly.settings.update.auto_on': 'Вкл',
+  'nordly.settings.update.auto_off': 'Выкл',
+  'nordly.settings.update.notify_title': 'Доступно обновление',
+  'nordly.settings.update.notify_body': '{{published}} · установлена {{version}}',
+  'nordly.settings.update.preview_notifications': 'Показать все уведомления',
+  'nordly.settings.update.preview_running': 'Уведомление {{current}} из {{total}}…',
+  'nordly.settings.update.preview_busy': 'Показ…',
+  'nordly.settings.update.preview_hint': 'Временная кнопка для проверки баннеров перед релизом.',
   'nordly.settings.google.sync_label': 'Синхронизация с Google Calendar',
   'nordly.settings.google.sync_hint':
     'Когда включено, запланированные задачи дублируются в выбранный Google Calendar. По умолчанию выкл. — включите после подключения Google.',
@@ -260,8 +279,8 @@ export const ru = {
   'nordly.calendar.editor.open_in_google': 'Открыть в Google',
   'nordly.calendar.editor.readonly': 'Это событие только для чтения.',
   'nordly.calendar.reminder.google_title': 'Событие начинается',
-  'nordly.calendar.reminder.task_title': 'Задача начинается',
   'nordly.calendar.reminder.body': '{{title}} · {{time}}',
+  'nordly.calendar.reminder.preview_event': 'Созвон с командой',
   'nordly.settings.sign_out': 'Выйти',
   'nordly.settings.vault.label': 'Сквозное шифрование',
   'nordly.settings.vault.hint': 'По умолчанию выкл. — как в Obsidian. Включи, чтобы шифровать заметки перед sync.',
@@ -295,6 +314,8 @@ export const ru = {
   'nordly.settings.sign_out.busy': 'Выход…',
   'nordly.settings.signed_in': 'Вход: {{id}}',
   'nordly.settings.signed_out': 'Вы не авторизованы.',
+  'nordly.settings.session_reauth_hint':
+    'Сессия истекла — вы по-прежнему видите локальные данные, но облачная синхронизация приостановлена.',
   'nordly.settings.text_scale.hint': 'Увеличивает текст и элементы управления во всём приложении.',
   'nordly.settings.text_scale.label': 'Размер текста',
   'nordly.settings.text_scale.large': 'Крупный',

@@ -125,11 +125,12 @@ service TrackerService {
 message UserSettings {
   reserved 1;
   reserved "user_id";
+  // Deprecated: task→Google mirroring removed; always false.
   bool google_calendar_sync_enabled = 2;
   bool google_calendar_connected = 3;
   // Set when the stored Google token was revoked/expired and the user must reconnect.
   bool google_reauth_required = 4;
-  // Calendar used for reads and outbound task sync (defaults to "primary").
+  // Calendar used for Google Meet creation and inbound event sync (defaults to "primary").
   string google_calendar_id = 5;
   bool zoom_connected = 6;
   bool zoom_reauth_required = 7;
@@ -142,7 +143,8 @@ message GetSettingsResponse {
 }
 
 message UpdateSettingsRequest {
-  optional bool google_calendar_sync_enabled = 2;
+  reserved 2;
+  reserved "google_calendar_sync_enabled";
   optional string google_calendar_id = 3;
 }
 

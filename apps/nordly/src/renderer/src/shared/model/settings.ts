@@ -19,6 +19,7 @@ export interface NordlySettings {
   endBell: boolean;
   notifications: boolean;
   calendarNotifications: boolean;
+  autoUpdate: boolean;
   taskRollover: boolean;
   dailyGoalMin: number;
   textScale: TextScale;
@@ -44,6 +45,7 @@ export const DEFAULTS: NordlySettings = {
   endBell: true,
   notifications: true,
   calendarNotifications: true,
+  autoUpdate: false,
   taskRollover: true,
   dailyGoalMin: 120,
   textScale: 'normal',
@@ -85,7 +87,8 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     typeof parsed.taskRollover !== 'boolean' ||
     parsed.textScale === undefined ||
     parsed.boardCanvas === undefined ||
-    parsed.googleCalendarPollMinutes === undefined;
+    parsed.googleCalendarPollMinutes === undefined ||
+    typeof parsed.autoUpdate !== 'boolean';
 
   const settings: NordlySettings = {
     pomodoroMinutes: clampInt(parsed.pomodoroMinutes, 5, 90, 'pomodoroMinutes'),
@@ -96,6 +99,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       typeof parsed.calendarNotifications === 'boolean'
         ? parsed.calendarNotifications
         : DEFAULTS.calendarNotifications,
+    autoUpdate: typeof parsed.autoUpdate === 'boolean' ? parsed.autoUpdate : DEFAULTS.autoUpdate,
     taskRollover:
       typeof parsed.taskRollover === 'boolean' ? parsed.taskRollover : DEFAULTS.taskRollover,
     dailyGoalMin: clampInt(parsed.dailyGoalMin, 15, 720, 'dailyGoalMin'),

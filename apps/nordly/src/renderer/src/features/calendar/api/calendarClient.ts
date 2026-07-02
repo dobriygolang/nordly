@@ -218,12 +218,9 @@ export async function getTrackerSettings(): Promise<TrackerSettings> {
 }
 
 export async function updateTrackerSettings(
-  patch: Partial<Pick<TrackerSettings, 'googleCalendarSyncEnabled' | 'googleCalendarId'>>,
+  patch: Partial<Pick<TrackerSettings, 'googleCalendarId'>>,
 ): Promise<TrackerSettings> {
   const body: Record<string, unknown> = {};
-  if (patch.googleCalendarSyncEnabled !== undefined) {
-    body.googleCalendarSyncEnabled = patch.googleCalendarSyncEnabled;
-  }
   if (patch.googleCalendarId !== undefined) {
     body.googleCalendarId = patch.googleCalendarId;
   }

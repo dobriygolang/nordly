@@ -25,8 +25,7 @@ func (i *Implementation) UpdateSettings(ctx context.Context, req *trackerv1.Upda
 		return nil, err
 	}
 	settings, err := i.svc.UpdateSettings(ctx, userID, trackerservice.UpdateSettingsParams{
-		GoogleCalendarSyncEnabled: req.GoogleCalendarSyncEnabled,
-		GoogleCalendarID:          req.GoogleCalendarId,
+		GoogleCalendarID: req.GoogleCalendarId,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)

@@ -1,0 +1,62 @@
+.nordly-reauth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.nordly-reauth-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.nordly-reauth-overlay__panel {
+  position: relative;
+  z-index: 1;
+  width: min(420px, calc(100vw - 48px));
+  padding: 28px 24px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--hair-2);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 24px 64px -24px rgb(0 0 0 / 0.45);
+}
+
+.nordly-reauth-overlay__panel .login-screen {
+  min-height: auto;
+  padding: 0;
+}
+
+.nordly-reauth-overlay__panel .login-stack {
+  gap: 18px;
+}
+
+.nordly-reauth-overlay__panel .login-brand {
+  font-size: 28px;
+}
+
+.nordly-settings-account__reauth {
+  margin: 0 0 12px;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-60);
+}
+
+.nordly-settings-sign-out--primary {
+  margin-bottom: 8px;
+  border-color: rgb(var(--accent-rgb, 99 102 241) / 0.35);
+  background: rgb(var(--accent-rgb, 99 102 241) / 0.12);
+}
+
+.nordly-settings-sign-out--primary:hover:not(:disabled) {
+  background: rgb(var(--accent-rgb, 99 102 241) / 0.18);
+}

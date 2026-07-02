@@ -13,8 +13,7 @@ import (
 )
 
 type UpdateSettingsParams struct {
-	GoogleCalendarSyncEnabled *bool
-	GoogleCalendarID          *string
+	GoogleCalendarID *string
 }
 
 func (s *trackerService) GetSettings(ctx context.Context, userID string) (*model.UserSettingsView, error) {
@@ -28,7 +27,6 @@ func (s *trackerService) GetSettings(ctx context.Context, userID string) (*model
 
 func (s *trackerService) UpdateSettings(ctx context.Context, userID string, in UpdateSettingsParams) (*model.UserSettingsView, error) {
 	settings, err := s.repo.UpsertUserSettings(ctx, userID, repository.UserSettingsPatch{
-		GoogleSync:       in.GoogleCalendarSyncEnabled,
 		GoogleCalendarID: in.GoogleCalendarID,
 	})
 	if err != nil {

@@ -7,4 +7,6 @@ export const STORAGE_KEYS = {
   settings: 'nordly:settings',
   /** Theme id ('winter' | 'drift' | 'visor' | 'debris' | 'launch' | 'birthday-light' | 'particles'). */
   theme: 'nordly:theme',
+  /** Last background update check + notified version. */
+  updateCheck: 'nordly:update-check',
 } as const;

@@ -4,6 +4,7 @@ import { useT } from '@nordly-i18n';
 
 import { authTelegram, getAuthConfig } from '@features/auth/api/auth';
 import { useSessionStore } from '@shared/model/session';
+import { useSyncStore } from '@shared/model/sync';
 
 function TelegramIcon(): JSX.Element {
   return (
@@ -23,6 +24,7 @@ async function persistSession(session: {
   expiresAt: number;
 }): Promise<void> {
   useSessionStore.getState().hydrate(session);
+  useSyncStore.getState().setSessionReauthRequired(false);
   if (window.nordly) {
     await window.nordly.auth.persist(session);
   }
@@ -42,7 +44,13 @@ function formatLoginError(err: unknown, t: (key: string) => string): string {
   return message || t('nordly.login.error_sign_in');
 }
 
-export function LoginScreen(): JSX.Element {
+export function LoginScreen({
+  reauth = false,
+  onSuccess,
+}: {
+  reauth?: boolean;
+  onSuccess?: () => void;
+}): JSX.Element {
   const t = useT();
   const [code, setCode] = useState('');
   const [botUsername, setBotUsername] = useState<string | null>(null);
@@ -103,6 +111,7 @@ export function LoginScreen(): JSX.Element {
         refreshToken: auth.refreshToken,
         expiresAt: auth.expiresAt,
       });
+      onSuccess?.();
     } catch (err) {
       setError(formatLoginError(err, t));
     } finally {
@@ -120,7 +129,11 @@ export function LoginScreen(): JSX.Element {
 
         <form className="login-form" onSubmit={(e) => void onSubmit(e)}>
           <p className="login-hint">
-            {botLink ? t('nordly.login.hint_with_link') : t('nordly.login.hint_no_link')}
+            {reauth
+              ? t('nordly.login.reauth_hint')
+              : botLink
+                ? t('nordly.login.hint_with_link')
+                : t('nordly.login.hint_no_link')}
           </p>
 
           <input

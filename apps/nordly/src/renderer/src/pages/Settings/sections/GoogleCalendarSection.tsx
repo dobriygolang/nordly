@@ -20,7 +20,6 @@ import {
   type GoogleCalendarPollMinutes,
 } from '@shared/model/settings';
 import { SettingRow } from '../primitives/SettingRow';
-import { Toggle } from '../primitives/Toggle';
 
 const OAUTH_POLL_MS = 2_000;
 const OAUTH_POLL_MAX_MS = 3 * 60_000;
@@ -136,7 +135,6 @@ export function GoogleCalendarSection({
 
   const connected = settings?.googleCalendarConnected ?? false;
   const reauthNeeded = settings?.googleReauthRequired ?? false;
-  const syncEnabled = settings?.googleCalendarSyncEnabled ?? false;
   const calendarId = settings?.googleCalendarId ?? 'primary';
   const controlsDisabled = loading || busy || oauthPending;
 
@@ -145,18 +143,6 @@ export function GoogleCalendarSection({
     setError(null);
     try {
       setSettings(await updateTrackerSettings({ googleCalendarId: id }));
-    } catch {
-      setError(t('nordly.settings.google.error_save'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const setSync = async (enabled: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setSettings(await updateTrackerSettings({ googleCalendarSyncEnabled: enabled }));
     } catch {
       setError(t('nordly.settings.google.error_save'));
     } finally {
@@ -204,15 +190,6 @@ export function GoogleCalendarSection({
 
   return (
     <>
-      <SettingRow label={t('nordly.settings.google.sync_label')} hint={t('nordly.settings.google.sync_hint')}>
-        <Toggle
-          value={syncEnabled}
-          onChange={(v) => void setSync(v)}
-          label={syncEnabled ? t('nordly.settings.google.sync_on') : t('nordly.settings.google.sync_off')}
-          disabled={controlsDisabled}
-        />
-      </SettingRow>
-
       <SettingRow
         label={t('nordly.settings.google.poll_label')}
         hint={t('nordly.settings.google.poll_hint')}

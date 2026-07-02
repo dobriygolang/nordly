@@ -65,7 +65,7 @@ func (s *trackerService) UpdateWorkTaskStatus(ctx context.Context, userID, taskI
 	if !validWorkStatus(status) {
 		return nil, fmt.Errorf("%w: invalid status", model.ErrInvalidArgument)
 	}
-	before, err := s.repo.GetWorkTask(ctx, taskID, userID)
+	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,23 +77,17 @@ func (s *trackerService) UpdateWorkTaskStatus(ctx context.Context, userID, taskI
 	if err != nil {
 		return nil, err
 	}
-	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
-		return nil, err
-	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
 
 func (s *trackerService) DeleteWorkTask(ctx context.Context, userID, taskID string) error {
-	before, err := s.repo.GetWorkTask(ctx, taskID, userID)
+	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
 	if err != nil {
 		return err
 	}
-	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{Archived: true})
-	if err != nil {
-		return err
-	}
-	return s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task)
+	_, err = s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{Archived: true})
+	return err
 }
 
 func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, startISO string, durationMin int) (*WorkTask, error) {
@@ -104,7 +98,7 @@ func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, s
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid scheduled_start", model.ErrInvalidArgument)
 	}
-	before, err := s.repo.GetWorkTask(ctx, taskID, userID)
+	_, err = s.repo.GetWorkTask(ctx, taskID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,23 +109,17 @@ func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, s
 	if err != nil {
 		return nil, err
 	}
-	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
-		return nil, err
-	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
 
 func (s *trackerService) UnscheduleWorkTask(ctx context.Context, userID, taskID string) (*WorkTask, error) {
-	before, err := s.repo.GetWorkTask(ctx, taskID, userID)
+	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
 	if err != nil {
 		return nil, err
 	}
 	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{ClearSchedule: true})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.syncGoogleCalendarWorkTaskSchedule(ctx, userID, before, task); err != nil {
 		return nil, err
 	}
 	wt := workTaskFromModel(task)

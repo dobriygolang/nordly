@@ -4,6 +4,7 @@ import { useT } from '@nordly-i18n';
 
 import { isCloudEnabled } from '@shared/model/features';
 import { useOnlineStatus } from '@shared/hooks/useOnlineStatus';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSyncStore } from '@shared/model/sync';
 import { flushSync } from '@shared/sync/SyncEngine';
 
@@ -19,7 +20,7 @@ export function SyncStatusBanner(): JSX.Element | null {
 
   const kind = useMemo((): BannerKind => {
     if (!isCloudEnabled()) return null;
-    if (sessionReauthRequired && !online) return 'reauth';
+    if (sessionReauthRequired) return 'reauth';
     if (!online || status === 'offline') return 'offline';
     if (!serverReachable) return 'unreachable';
     if (status === 'error' && lastError) return 'error';
@@ -30,7 +31,9 @@ export function SyncStatusBanner(): JSX.Element | null {
 
   const message =
     kind === 'reauth'
-      ? t('nordly.sync.banner_reauth_offline')
+      ? online
+        ? t('nordly.sync.banner_reauth_online')
+        : t('nordly.sync.banner_reauth_offline')
       : kind === 'offline'
         ? t('nordly.sync.banner_offline')
         : kind === 'unreachable'
@@ -38,15 +41,25 @@ export function SyncStatusBanner(): JSX.Element | null {
           : t('nordly.sync.banner_error');
 
   const showRetry = kind === 'error' || kind === 'unreachable';
+  const showReauth = kind === 'reauth' && online;
 
   const detail = kind === 'error' && lastError ? lastError : null;
 
   return (
-    <div className="nordly-sync-banner" role="status" data-no-drag>
+    <div className="nordly-sync-banner" role="status" data-kind={kind} data-no-drag>
       <span className="nordly-sync-banner__text" title={detail ?? undefined}>
         {message}
         {detail ? <span className="nordly-sync-banner__detail"> — {detail}</span> : null}
       </span>
+      {showReauth ? (
+        <button
+          type="button"
+          className="nordly-sync-banner__btn focus-ring"
+          onClick={() => window.dispatchEvent(new Event(NORDLY_EVENTS.openReauthLogin))}
+        >
+          {t('nordly.sync.reauth_sign_in')}
+        </button>
+      ) : null}
       {showRetry ? (
         <button
           type="button"

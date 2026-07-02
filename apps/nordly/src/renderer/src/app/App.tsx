@@ -16,6 +16,7 @@ import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
 import { type PageId, type PaletteAction, isPageId } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
+import { ReauthLoginOverlay } from '@widgets/ReauthLoginOverlay';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
 import { runTaskRollover } from '@features/tasks/lib/taskRollover';
@@ -33,6 +34,7 @@ import { isTauriRuntime } from '@platform/runtime';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
+import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
@@ -46,6 +48,10 @@ import {
   startCalendarReminderWorker,
   stopCalendarReminderWorker,
 } from '@features/calendar/lib/calendarReminderWorker';
+import {
+  startUpdateCheckWorker,
+  stopUpdateCheckWorker,
+} from '@shared/lib/updateCheckWorker';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { MOTION_MS } from '@shared/lib/motionMs';
@@ -88,6 +94,7 @@ function boardCanvasForTheme(theme: ThemeId): BoardCanvasTheme {
 export default function App() {
   const status = useSessionStore((s) => s.status);
   const userId = useSessionStore((s) => s.userId);
+  const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
   const bootstrap = useSessionStore((s) => s.bootstrap);
   const hydrate = useSessionStore((s) => s.hydrate);
   const clear = useSessionStore((s) => s.clear);
@@ -133,6 +140,7 @@ export default function App() {
     () => boardCanvasForTheme(readStoredTheme()),
   );
   const [vaultGateActive, setVaultGateActive] = useState(false);
+  const [reauthOpen, setReauthOpen] = useState(false);
   const [operationError, setOperationError] = useState<Error | null>(null);
 
   useEffect(() => {
@@ -146,6 +154,22 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => initPomodoroLeader(), []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    startUpdateCheckWorker();
+    return () => stopUpdateCheckWorker();
+  }, []);
+
+  useEffect(() => {
+    const openReauth = (): void => setReauthOpen(true);
+    window.addEventListener(NORDLY_EVENTS.openReauthLogin, openReauth);
+    return () => window.removeEventListener(NORDLY_EVENTS.openReauthLogin, openReauth);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReauthRequired) setReauthOpen(false);
+  }, [sessionReauthRequired]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
@@ -575,6 +599,10 @@ export default function App() {
         <TitlebarDrag />
 
         <SyncStatusBanner />
+
+        {reauthOpen && sessionReauthRequired ? (
+          <ReauthLoginOverlay onClose={() => setReauthOpen(false)} />
+        ) : null}
 
         <TrafficLightsHover />
         <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>

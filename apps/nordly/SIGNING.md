@@ -168,7 +168,7 @@ npm run build
 3. **`write-signing-config.mjs`** — merges thumbprint / signing identity into `signing.ci.json`.
 4. **`tauri-action`** — builds signed + notarized artifacts.
 
-Release trigger unchanged: `git tag nordly-v0.0.2 && git push origin nordly-v0.0.2`.
+Release trigger unchanged: `git tag nordly-v0.0.1 && git push origin nordly-v0.0.1`.
 
 ---
 

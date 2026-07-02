@@ -182,15 +182,17 @@ export function googleToCalendarEntries(
   return out;
 }
 
+export function linkedGoogleEventIds(tasks: TaskCard[]): Set<string> {
+  return new Set(tasks.map((task) => task.googleEventId).filter((id): id is string => Boolean(id)));
+}
+
 export function mergeCalendarEntries(
   tasks: TaskCard[],
   googleEvents: GoogleCalendarEvent[],
   now = new Date(),
 ): CalendarEntry[] {
   const taskEntries = tasksToCalendarEntries(tasks, now);
-  const linked = new Set(
-    taskEntries.map((e) => e.googleEventId).filter((id): id is string => Boolean(id)),
-  );
+  const linked = linkedGoogleEventIds(tasks);
   const googleEntries = googleToCalendarEntries(googleEvents, linked);
   return [...taskEntries, ...googleEntries].sort((a, b) => a.start.getTime() - b.start.getTime());
 }

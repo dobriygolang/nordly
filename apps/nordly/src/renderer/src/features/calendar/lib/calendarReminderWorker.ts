@@ -1,8 +1,6 @@
 import { translate } from '@nordly-i18n';
 
 import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
-import { listTasks, type TaskCard } from '@features/tasks/api/tasks';
-import { taskScheduleStart } from '@shared/lib/dates';
 import { readSettings } from '@shared/model/settings';
 import { notify } from '@shared/api/notifications';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -53,32 +51,19 @@ function formatReminderTime(start: Date): string {
   }).format(start);
 }
 
-async function emitReminder(kind: 'task' | 'google', id: string, title: string, start: Date): Promise<void> {
-  const key = `${kind}:${id}:${start.toISOString()}`;
+async function emitReminder(id: string, title: string, start: Date): Promise<void> {
+  const key = `google:${id}:${start.toISOString()}`;
   if (seen.has(key)) return;
   seen.add(key);
   trimSeen();
 
   await notify(
-    translate(kind === 'task' ? 'nordly.calendar.reminder.task_title' : 'nordly.calendar.reminder.google_title'),
+    translate('nordly.calendar.reminder.google_title'),
     translate('nordly.calendar.reminder.body', {
       title: title || translate('nordly.calendar.title'),
       time: formatReminderTime(start),
     }),
     { sound: 'calendar' },
-  );
-}
-
-async function checkTasks(now = Date.now()): Promise<void> {
-  const tasks = await listTasks();
-  await Promise.all(
-    tasks
-      .filter((task) => task.status !== 'done')
-      .map(async (task: TaskCard) => {
-        const start = taskScheduleStart(task);
-        if (!start || !isDue(start, now)) return;
-        await emitReminder('task', task.id, task.title, start);
-      }),
   );
 }
 
@@ -92,7 +77,7 @@ async function checkGoogleEvents(now = Date.now()): Promise<void> {
       if (event.allDay) return;
       const start = new Date(event.start);
       if (!isDue(start, now)) return;
-      await emitReminder('google', `${event.calendarId}:${event.id}`, event.title, start);
+      await emitReminder(`${event.calendarId}:${event.id}`, event.title, start);
     }),
   );
 }
@@ -102,7 +87,7 @@ async function runCheck(): Promise<void> {
   checking = true;
   const now = Date.now();
   try {
-    await Promise.all([checkTasks(now), checkGoogleEvents(now)]);
+    await checkGoogleEvents(now);
   } catch (err) {
     console.error('[nordly:calendar-reminder]', err);
   } finally {
@@ -127,7 +112,6 @@ export function startCalendarReminderWorker(): void {
   schedule();
   void runCheck();
   window.addEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);
-  window.addEventListener(NORDLY_EVENTS.tasksChanged, onChanged);
   window.addEventListener(NORDLY_EVENTS.settingsChanged, onChanged);
   window.addEventListener('focus', onChanged);
   unsubscribeCache = subscribeGoogleCalendarCache(onChanged);
@@ -139,7 +123,6 @@ export function stopCalendarReminderWorker(): void {
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = null;
   window.removeEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);
-  window.removeEventListener(NORDLY_EVENTS.tasksChanged, onChanged);
   window.removeEventListener(NORDLY_EVENTS.settingsChanged, onChanged);
   window.removeEventListener('focus', onChanged);
   unsubscribeCache?.();

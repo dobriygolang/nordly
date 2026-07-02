@@ -26,6 +26,10 @@ export const NORDLY_EVENTS = {
   googleCalendarChanged: 'nordly:google-calendar-changed',
   /** Local app settings persisted (poll interval, etc.). */
   settingsChanged: 'nordly:settings-changed',
+  /** Background update worker found a newer published version. */
+  updateAvailable: 'nordly:update-available',
+  /** Sync banner → App: open re-login overlay. */
+  openReauthLogin: 'nordly:open-reauth-login',
   /** Daily planning finalized or obstacles updated. */
   dailyPlanChanged: 'nordly:daily-plan-changed',
   /** Home / hotkey → App: navigate to daily planning. */

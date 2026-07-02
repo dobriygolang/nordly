@@ -52,7 +52,7 @@ func (s *UserSettings) View() UserSettingsView {
 	connected := s.Connected()
 	zoomConnected := s.ZoomConnected()
 	return UserSettingsView{
-		GoogleCalendarSyncEnabled: s.GoogleCalendarSyncEnabled,
+		GoogleCalendarSyncEnabled: false,
 		GoogleCalendarConnected:   connected,
 		GoogleCalendarID:          s.CalendarID(),
 		GoogleReauthRequired:      connected && s.GoogleReauthRequired,

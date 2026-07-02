@@ -6,7 +6,7 @@ Module: `github.com/dobriygolang/project-nordly/services/tracker`
 
 ## Purpose
 
-Hone work task board: kanban columns + day schedule. User settings include optional **Google Calendar sync** for scheduled tasks.
+Hone work task board: kanban columns + day schedule. Optional **Google Calendar** integration for inbound events, Meet links, and calendar notifications.
 
 ## Ports
 
@@ -68,19 +68,23 @@ Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` 
 
 OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
 
-**Two-way sync.**
+**Google Calendar**
 
-- **Outbound (task → Google):** when `google_calendar_sync_enabled` + refresh token present, scheduled work tasks create/update/delete events via `google_event_id`. Writes go to `google_calendar_id` (default `primary`). Toggle defaults to **off** until the user enables it.
-- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view). Read is decoupled from the sync toggle.
+Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (callback path `/v1/tracker/integrations/google/callback`), `TOKEN_ENCRYPTION_KEY`.
+
+OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
+
+- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view).
 - **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
+- **Meet on tasks:** `CreateWorkTaskConference` with `provider=meet` creates/patches a Google Calendar event with Meet link (`google_event_id` on task). This is **not** automatic task mirroring — only explicit conference creation.
+
+**Task→Google schedule mirroring removed.** `google_calendar_sync_enabled` is deprecated (always false). Scheduling or completing a task does not create/update Google events.
 
 **Token security.** `TOKEN_ENCRYPTION_KEY` is **required** at startup. Refresh tokens are stored encrypted (AES-GCM). Plaintext tokens at rest are rejected — user must reconnect Google/Zoom after enabling encryption.
 
 **Reauth.** On `invalid_grant` / `401` the service sets `google_reauth_required` and clears sync state; clients surface a reconnect prompt. Errors map to gRPC `FailedPrecondition` (`google_reauth_required` / `google_not_connected`).
 
-**Disconnect.** `DisconnectGoogleCalendar` deletes mirrored events from Google (errors propagate), clears `google_event_id` on tasks, wipes the event cache, and clears all Google connection state.
-
-**Task→Google sync.** When sync is enabled, schedule/status/archive mutations return Google API errors to the client (reauth mapped to `ErrGoogleReauthRequired`).
+**Disconnect.** `DisconnectGoogleCalendar` deletes task-linked Google events (Meet conferences) from Google (errors propagate), clears `google_event_id` on tasks, wipes the event cache, and clears all Google connection state.
 
 ## Zoom meetings
 

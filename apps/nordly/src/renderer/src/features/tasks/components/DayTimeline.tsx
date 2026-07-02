@@ -7,6 +7,7 @@ import {
   allDayEntriesForDay,
   googleToCalendarEntries,
   layoutTimedEntriesForDay,
+  linkedGoogleEventIds,
   tasksPlannedForDay,
 } from '@features/calendar/lib/events';
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
@@ -76,13 +77,7 @@ export const DayTimeline = memo(function DayTimeline({
     events: googleEvents,
   } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
 
-  const linkedGoogleIds = useMemo(
-    () =>
-      new Set(
-        tasks.map((task) => task.googleEventId).filter((id): id is string => Boolean(id)),
-      ),
-    [tasks],
-  );
+  const linkedGoogleIds = useMemo(() => linkedGoogleEventIds(tasks), [tasks]);
 
   const googleEntries = useMemo(
     () => googleToCalendarEntries(googleEvents, linkedGoogleIds),

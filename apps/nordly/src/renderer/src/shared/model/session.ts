@@ -118,43 +118,62 @@ export const useSessionStore = create<SessionState>((set) => ({
   expiresAt: 0,
 
   bootstrap: async () => {
-    const bridge = window.nordly;
-    if (!bridge) {
-      const persisted = readBrowserPersist();
-      if (persisted) {
-        if (!isPersistedUserId(persisted.userId)) {
-          clearBrowserPersist();
-          setDbUserId(null);
-          set({ status: 'guest' });
-          return;
-        }
-        setDbUserId(persisted.userId);
-        set({
-          status: 'signed_in',
-          userId: persisted.userId,
-          accessToken: persisted.accessToken,
-          refreshToken: persisted.refreshToken,
-          expiresAt: persisted.expiresAt,
-        });
-        return;
+    const applySession = (s: PersistedSession): boolean => {
+      if (!isPersistedUserId(s.userId)) {
+        clearBrowserPersist();
+        setDbUserId(null);
+        set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
+        return false;
       }
-      setDbUserId(null);
-      set({ status: 'guest' });
-      return;
-    }
-    const s = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
-    if (s && s.userId && (s.accessToken || s.refreshToken)) {
-      if (typeof s.expiresAt !== 'number') throw new Error('Invalid native session: missing expiresAt');
       setDbUserId(s.userId);
       set({
         status: 'signed_in',
         userId: s.userId,
         accessToken: s.accessToken,
-        refreshToken: s.refreshToken ?? null,
+        refreshToken: s.refreshToken,
         expiresAt: s.expiresAt,
+      });
+      writeBrowserPersist(s);
+      return true;
+    };
+
+    const bridge = window.nordly;
+    if (!bridge) {
+      const persisted = readBrowserPersist();
+      if (persisted && applySession(persisted)) return;
+      setDbUserId(null);
+      set({ status: 'guest' });
+      return;
+    }
+
+    let native: Awaited<ReturnType<typeof bridge.auth.session>> | null = null;
+    try {
+      native = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
+    } catch {
+      native = null;
+    }
+
+    if (native?.userId && (native.accessToken || native.refreshToken)) {
+      if (typeof native.expiresAt !== 'number') throw new Error('Invalid native session: missing expiresAt');
+      applySession({
+        userId: native.userId,
+        accessToken: native.accessToken,
+        refreshToken: native.refreshToken ?? null,
+        expiresAt: native.expiresAt,
       });
       return;
     }
+
+    try {
+      const persisted = readBrowserPersist();
+      if (persisted && applySession(persisted)) {
+        void persistSessionToNative(persisted);
+        return;
+      }
+    } catch {
+      clearBrowserPersist();
+    }
+
     setDbUserId(null);
     set({ status: 'guest' });
   },

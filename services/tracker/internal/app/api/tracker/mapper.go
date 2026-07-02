@@ -9,7 +9,7 @@ import (
 
 func userSettingsToProto(s *model.UserSettingsView) *trackerv1.UserSettings {
 	return &trackerv1.UserSettings{
-		GoogleCalendarSyncEnabled: s.GoogleCalendarSyncEnabled,
+		GoogleCalendarSyncEnabled: false,
 		GoogleCalendarConnected:   s.GoogleCalendarConnected,
 		GoogleReauthRequired:      s.GoogleReauthRequired,
 		GoogleCalendarId:          s.GoogleCalendarID,

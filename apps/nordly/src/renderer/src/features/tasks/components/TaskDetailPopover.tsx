@@ -89,10 +89,7 @@ export function TaskDetailPopover({
     setError(null);
     setBusy(p);
     try {
-      const updated = await onCreateConference(p);
-      if (updated?.conferenceUrl) {
-        openConferenceLink(updated.conferenceUrl);
-      }
+      await onCreateConference(p);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg.includes('google_not_connected')) setError(t('nordly.taskboard.detail_connect_google'));

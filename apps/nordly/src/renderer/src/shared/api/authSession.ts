@@ -12,7 +12,6 @@ function canReachNetwork(): boolean {
 
 const REFRESH_SKEW_MS = 60_000;
 
-let clearingUnauthorized = false;
 let refreshInFlight: Promise<boolean> | null = null;
 
 function apiPath(path: string): string {
@@ -126,7 +125,7 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
   return refreshAccessToken();
 }
 
-/** Sign out only when online refresh fails; offline keeps local access. */
+/** Sign out on explicit logout only; failed refresh keeps local session for offline use. */
 export async function handleUnauthorized(): Promise<void> {
   if (clearingUnauthorized) return;
   const { status } = useSessionStore.getState();
@@ -138,16 +137,12 @@ export async function handleUnauthorized(): Promise<void> {
   }
 
   const refreshed = await refreshAccessToken();
-  if (refreshed) return;
-
-  clearingUnauthorized = true;
-  try {
-    const { stopSyncEngine } = await import('@shared/sync/SyncEngine');
-    stopSyncEngine();
-    await useSessionStore.getState().clear();
-  } finally {
-    clearingUnauthorized = false;
+  if (refreshed) {
+    setSessionReauthRequired(false);
+    return;
   }
+
+  setSessionReauthRequired(true);
 }
 
 export function startSessionRefreshLoop(): () => void {

@@ -18,6 +18,8 @@ export const en = {
   'nordly.login.sign_in_aria': 'Sign in with code',
   'nordly.login.error_sign_in': 'Could not sign in',
   'nordly.login.error_network': 'Cannot reach the server. Check your connection and try again.',
+  'nordly.login.reauth_hint':
+    'Your session expired. Sign in again to resume sync. Local data stays on this device.',
   'nordly.notes.back': 'Back',
   'nordly.notes.empty_cta': '+ New note',
   'nordly.notes.empty_dim': 'Pick a note or press ⌘N to write.',
@@ -57,7 +59,12 @@ export const en = {
   'nordly.sync.banner_error': 'Sync paused',
   'nordly.sync.banner_recovering': 'Back online — syncing',
   'nordly.sync.banner_reauth_offline':
-    'Session expired — working offline. Sync resumes automatically when online.',
+    'Session expired — working offline. Sign in again to resume cloud sync.',
+  'nordly.sync.banner_reauth_online':
+    'Session expired — cloud sync is paused. Your local data stays on this device.',
+  'nordly.sync.reauth_sign_in': 'Sign in again',
+  'nordly.sync.reauth_dialog_aria': 'Sign in again',
+  'nordly.sync.reauth_close': 'Close',
   'nordly.sync.retry': 'Retry',
   'nordly.sync.error_no_network': 'No internet connection',
   'nordly.sync.error_server_unreachable': 'Cannot reach server',
@@ -119,7 +126,7 @@ export const en = {
   'nordly.settings.notifications.off': 'Off',
   'nordly.settings.notifications.on': 'On',
   'nordly.settings.calendar_notifications.hint':
-    'Remind when a scheduled task or calendar event is due.',
+    'Remind when a Google Calendar event is about to start.',
   'nordly.settings.calendar_notifications.label': 'Calendar notifications',
   'nordly.settings.pomodoro.hint': 'Default focus timer length in the dock.',
   'nordly.settings.pomodoro.label': 'Pomodoro',
@@ -171,7 +178,7 @@ export const en = {
   'nordly.settings.update.version_available':
     'Current version: {{version}} · update available: {{published}}',
   'nordly.settings.update.version_mismatch':
-    'A newer build exists on GitHub but the updater manifest still lists the same version. Release with tag nordly-vX.Y.Z where X.Y.Z is higher than your installed app (e.g. nordly-v0.0.2).',
+    'A newer build exists on GitHub but the updater manifest still lists the same version. Release with tag nordly-vX.Y.Z where X.Y.Z is higher than your installed app (e.g. nordly-v0.0.1).',
   'nordly.settings.update.check': 'Check for Updates',
   'nordly.settings.update.checking': 'Checking…',
   'nordly.settings.update.downloading': 'Downloading…',
@@ -183,6 +190,18 @@ export const en = {
   'nordly.settings.update.installed': 'Updated to {{version}}. Restarting…',
   'nordly.settings.update.error': 'Update failed: {{message}}',
   'nordly.settings.update.unavailable': 'Updates are only available in the installed desktop app.',
+  'nordly.settings.update.badge': '{{published}} available',
+  'nordly.settings.update.auto_label': 'Automatic updates',
+  'nordly.settings.update.auto_hint':
+    'Checks once a day and installs new versions automatically. When off, you only get a quiet notification.',
+  'nordly.settings.update.auto_on': 'On',
+  'nordly.settings.update.auto_off': 'Off',
+  'nordly.settings.update.notify_title': 'Update available',
+  'nordly.settings.update.notify_body': '{{published}} · installed {{version}}',
+  'nordly.settings.update.preview_notifications': 'Preview all notifications',
+  'nordly.settings.update.preview_running': 'Notification {{current}} of {{total}}…',
+  'nordly.settings.update.preview_busy': 'Showing…',
+  'nordly.settings.update.preview_hint': 'Temporary button to review banners before release.',
   'nordly.settings.google.sync_label': 'Google Calendar sync',
   'nordly.settings.google.sync_hint':
     'When on, scheduled tasks are mirrored to your target Google Calendar. Off by default — enable after connecting Google.',
@@ -260,8 +279,8 @@ export const en = {
   'nordly.calendar.editor.open_in_google': 'Open in Google',
   'nordly.calendar.editor.readonly': 'This event is read-only.',
   'nordly.calendar.reminder.google_title': 'Event starts now',
-  'nordly.calendar.reminder.task_title': 'Task starts now',
   'nordly.calendar.reminder.body': '{{title}} · {{time}}',
+  'nordly.calendar.reminder.preview_event': 'Team sync',
   'nordly.settings.sign_out': 'Sign out',
   'nordly.settings.vault.label': 'End-to-end encryption',
   'nordly.settings.vault.hint': 'Off by default — like Obsidian. Enable to encrypt notes before cloud sync.',
@@ -295,6 +314,8 @@ export const en = {
   'nordly.settings.sign_out.busy': 'Signing out…',
   'nordly.settings.signed_in': 'Signed in as {{id}}',
   'nordly.settings.signed_out': 'You are signed out.',
+  'nordly.settings.session_reauth_hint':
+    'Session expired — you still see local data, but cloud sync is paused.',
   'nordly.settings.text_scale.hint': 'Makes text and controls larger across the app.',
   'nordly.settings.text_scale.label': 'Text size',
   'nordly.settings.text_scale.large': 'Large',

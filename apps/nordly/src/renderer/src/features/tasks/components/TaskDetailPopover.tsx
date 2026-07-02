@@ -6,12 +6,17 @@ import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
-import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
 import {
   conferenceDisplay,
   conferenceProvider,
 } from '@features/tasks/lib/taskUi';
+
+function openConferenceLink(url: string): void {
+  void navigator.clipboard.writeText(url).catch(() => undefined);
+  openExternalUrl(url);
+}
 
 interface TaskDetailPopoverProps {
   task: TaskCard;
@@ -20,7 +25,7 @@ interface TaskDetailPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
   closing?: boolean;
   onEpicChange: (selection: TaskEpicSelection) => void;
-  onCreateConference: (provider: ConferenceProvider) => Promise<void>;
+  onCreateConference: (provider: ConferenceProvider) => Promise<TaskCard | void>;
   onClearConference: () => void;
   onClose: () => void;
 }
@@ -84,7 +89,10 @@ export function TaskDetailPopover({
     setError(null);
     setBusy(p);
     try {
-      await onCreateConference(p);
+      const updated = await onCreateConference(p);
+      if (updated?.conferenceUrl) {
+        openConferenceLink(updated.conferenceUrl);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg.includes('google_not_connected')) setError(t('nordly.taskboard.detail_connect_google'));
@@ -170,6 +178,10 @@ export function TaskDetailPopover({
               target="_blank"
               rel="noopener noreferrer"
               title={task.conferenceUrl}
+              onClick={(e) => {
+                e.preventDefault();
+                openConferenceLink(task.conferenceUrl!);
+              }}
             >
               {conferenceDisplay(task.conferenceUrl)}
             </a>

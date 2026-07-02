@@ -34,7 +34,7 @@ interface TaskRowProps {
   onOpenDetail: (task: TaskCard) => void;
   onCloseDetail: () => void;
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
-  onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<void>;
+  onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
   onPointerDragStart: (taskId: string, e: React.PointerEvent) => void;
 }

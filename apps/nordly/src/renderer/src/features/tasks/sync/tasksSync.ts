@@ -1,5 +1,5 @@
 import { requireUserId } from '@shared/db/nordlyDb';
-import type { TaskKind, TaskStatus } from '@features/tasks/api/tasks';
+import type { TaskCard, TaskKind, TaskStatus } from '@features/tasks/api/tasks';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { findEpicByColor } from '@features/tasks/lib/epicColor';
 import { pullEpicsCache } from '@features/tasks/lib/useTaskEpics';
@@ -16,14 +16,55 @@ import {
   tasksStoreGet,
   tasksStoreMergeRemote,
   tasksStoreReplaceId,
+  reconcileTasksStore,
 } from '@features/tasks/repository/tasksStore';
 import { SyncDeferredError } from '@shared/sync/errors';
 import { getServerId, setServerId } from '@shared/sync/idMap';
-import { removeOutbox } from '@shared/sync/outbox';
+import { listOutbox, removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 
 function isRemoteNotFound(err: unknown): boolean {
   return err instanceof Error && err.message.includes(': 404');
+}
+
+function titleFromPayload(payload: Record<string, unknown>): string {
+  return typeof payload.title === 'string' ? payload.title.trim() : '';
+}
+
+async function resolveTaskTitle(
+  entityId: string,
+  userId: string,
+  local: TaskCard | null,
+  queue?: OutboxEntry[],
+): Promise<string | null> {
+  const fromLocal = local?.title?.trim();
+  if (fromLocal) return fromLocal;
+
+  const rows = queue ?? (await listOutbox(userId));
+  const createEntry = rows.find(
+    (e) => e.domain === 'tasks' && e.entityId === entityId && e.op === 'create',
+  );
+  if (createEntry) {
+    const fromCreate = titleFromPayload(createEntry.payload as Record<string, unknown>);
+    if (fromCreate) return fromCreate;
+  }
+  return null;
+}
+
+async function dropTasksOutboxForEntity(
+  entityId: string,
+  userId: string,
+  reason: string,
+): Promise<number> {
+  const rows = await listOutbox(userId);
+  const doomed = rows.filter((e) => e.domain === 'tasks' && e.entityId === entityId);
+  for (const e of doomed) await removeOutbox(e.id, userId);
+  if (doomed.length > 0) {
+    console.warn(
+      `[nordly:sync] Dropped ${doomed.length} tasks outbox entries for ${entityId}: ${reason}`,
+    );
+  }
+  return doomed.length;
 }
 
 async function resolveTaskServerId(entry: OutboxEntry, userId: string): Promise<string | null> {
@@ -36,7 +77,13 @@ async function resolveTaskServerId(entry: OutboxEntry, userId: string): Promise<
     return null;
   }
 
-  const created = await remoteCreateTask({ title: local.title, kind: local.kind });
+  const title = await resolveTaskTitle(entry.entityId, userId, local);
+  if (!title) {
+    await dropTasksOutboxForEntity(entry.entityId, userId, 'empty title');
+    return null;
+  }
+
+  const created = await remoteCreateTask({ title, kind: local.kind });
   await setServerId('tasks', entry.entityId, created.id, userId);
   await tasksStoreReplaceId(entry.entityId, created);
   return created.id;
@@ -63,12 +110,18 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   const payload = entry.payload as Record<string, unknown>;
 
   if (entry.op === 'create') {
-    if (typeof payload.title !== 'string' || payload.title.trim().length === 0) {
-      throw new Error(`Invalid tasks outbox payload: missing title (${entry.id})`);
+    const local = await tasksStoreGet(entry.entityId, userId);
+    const title = await resolveTaskTitle(entry.entityId, userId, local);
+    if (!title) {
+      await removeOutbox(entry.id, userId);
+      console.warn(
+        `[nordly:sync] Dropped tasks create outbox (${entry.id}): empty title for ${entry.entityId}`,
+      );
+      return;
     }
     const created = await remoteCreateTask({
-      title: payload.title.trim(),
-      kind: (payload.kind as TaskKind | undefined) ?? 'custom',
+      title,
+      kind: (payload.kind as TaskKind | undefined) ?? local?.kind ?? 'custom',
     });
     await setServerId('tasks', entry.entityId, created.id, userId);
     await tasksStoreReplaceId(entry.entityId, created);
@@ -91,19 +144,23 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
 
   if (entry.op === 'schedule') {
     if (typeof payload.startIso !== 'string' || payload.startIso.length === 0) {
-      throw new Error(`Invalid tasks outbox payload: missing startIso (${entry.id})`);
+      await removeOutbox(entry.id, userId);
+      console.warn(
+        `[nordly:sync] Dropped tasks schedule outbox (${entry.id}): missing startIso`,
+      );
+      return;
     }
     if (typeof payload.durationMin !== 'number' || !Number.isFinite(payload.durationMin)) {
-      throw new Error(`Invalid tasks outbox payload: missing durationMin (${entry.id})`);
+      await removeOutbox(entry.id, userId);
+      console.warn(
+        `[nordly:sync] Dropped tasks schedule outbox (${entry.id}): missing durationMin`,
+      );
+      return;
     }
     const startIso = payload.startIso;
     const durationMin = payload.durationMin;
     const updated = await runTaskRemote(entry, userId, () =>
-      remoteScheduleTask(
-        serverId,
-        startIso,
-        durationMin,
-      ),
+      remoteScheduleTask(serverId, startIso, durationMin),
     );
     if (!updated) return;
     await tasksStoreMergeRemote(updated);
@@ -146,10 +203,34 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   }
 }
 
+/** Drop tasks outbox entries that can never succeed (e.g. empty title). */
+export async function reconcileTasksOutbox(): Promise<number> {
+  const userId = requireUserId();
+  const queue = await listOutbox(userId);
+  let dropped = 0;
+
+  for (const entry of queue.filter((e) => e.domain === 'tasks')) {
+    const local = await tasksStoreGet(entry.entityId, userId);
+    if (entry.op === 'create' || !(await getServerId('tasks', entry.entityId, userId))) {
+      const title = await resolveTaskTitle(entry.entityId, userId, local, queue);
+      if (!title) {
+        await removeOutbox(entry.id, userId);
+        dropped++;
+      }
+    }
+  }
+
+  if (dropped > 0) {
+    console.warn(`[nordly:sync] Reconcile removed ${dropped} unrecoverable tasks outbox entries`);
+  }
+  return dropped;
+}
+
 export async function pullTasks(): Promise<void> {
   await pullEpicsCache();
   const remote = await remoteListTasks();
   for (const task of remote) {
     await tasksStoreMergeRemote(task);
   }
+  await reconcileTasksStore();
 }

@@ -101,11 +101,11 @@ async function runSync(options?: SyncOptions): Promise<void> {
   if (options?.retry) {
     store.setLastError(null);
     await resetOutboxAttempts();
-    await requireSyncHandlers().reconcileOutbox();
   }
 
   store.setStatus('syncing');
   try {
+    await requireSyncHandlers().reconcileOutbox();
     const queue = await listOutbox();
     store.setPendingCount(queue.length);
 

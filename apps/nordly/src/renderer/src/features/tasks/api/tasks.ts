@@ -53,12 +53,14 @@ export async function listTasks(): Promise<TaskCard[]> {
 }
 
 export async function createTask(input: { title: string; kind?: TaskKind }): Promise<TaskCard> {
+  const title = input.title.trim();
+  if (!title) throw new Error('Task title is required');
   const now = new Date().toISOString();
   const task: TaskCard = {
     id: crypto.randomUUID(),
     status: 'todo',
     kind: input.kind ?? 'custom',
-    title: input.title,
+    title,
     createdAt: now,
     updatedAt: now,
   };
@@ -99,9 +101,11 @@ export async function moveTaskStatus(taskId: string, status: TaskStatus): Promis
 export async function renameTask(taskId: string, title: string): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
+  const nextTitle = title.trim();
+  if (!nextTitle) throw new Error('Task title is required');
   const task: TaskCard = {
     ...prev,
-    title,
+    title: nextTitle,
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);

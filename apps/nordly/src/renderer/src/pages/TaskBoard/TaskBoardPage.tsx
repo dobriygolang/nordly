@@ -268,12 +268,14 @@ export function TaskBoardPage(): JSX.Element {
   );
 
   const handleCreateConference = useCallback(
-    async (task: TaskCard, provider: ConferenceProvider) => {
+    async (task: TaskCard, provider: ConferenceProvider): Promise<TaskCard> => {
       try {
         const updated = await createTaskConference(task.id, provider);
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+        return updated;
       } catch (err) {
         failTaskAction(err);
+        throw err;
       }
     },
     [failTaskAction],

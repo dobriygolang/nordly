@@ -6,6 +6,7 @@ import { isCloudEnabled } from '@shared/model/features';
 import { useOnlineStatus } from '@shared/hooks/useOnlineStatus';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSyncStore } from '@shared/model/sync';
+import { flushSync } from '@shared/sync/SyncEngine';
 import { openPricingPage } from '@shared/api/billingClient';
 
 type BannerKind = 'offline' | 'unreachable' | 'error' | 'reauth' | 'cloud_sync_blocked' | null;

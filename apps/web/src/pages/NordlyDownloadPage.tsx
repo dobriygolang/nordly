@@ -1,6 +1,12 @@
 import { useEffect } from 'react'
 import { RouteLoader } from '@/components/RouteLoader'
-import { detectPlatform, NORDLY_RELEASES_PAGE, resolveDownloadUrl, triggerDownload } from '@/lib/landing/downloads'
+import {
+  detectPlatform,
+  isDirectInstallerUrl,
+  NORDLY_DOWNLOAD_PATH,
+  resolveDownloadUrl,
+  triggerDownload,
+} from '@/lib/landing/downloads'
 
 /** Shareable link: trynordly.app/download → latest installer for this OS. */
 export default function NordlyDownloadPage() {
@@ -9,11 +15,11 @@ export default function NordlyDownloadPage() {
     void (async () => {
       const url = await resolveDownloadUrl(detectPlatform())
       if (cancelled) return
-      if (url && /\.(dmg|exe|msi)(\?|#|$)/i.test(url)) {
+      if (url && isDirectInstallerUrl(url)) {
         triggerDownload(url)
         return
       }
-      window.location.replace(url ?? NORDLY_RELEASES_PAGE)
+      window.location.replace(url ?? NORDLY_DOWNLOAD_PATH)
     })()
     return () => {
       cancelled = true

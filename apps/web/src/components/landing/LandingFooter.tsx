@@ -11,6 +11,9 @@ export function LandingFooter() {
         <div className="flex flex-col items-center justify-between gap-4 font-mono text-xs text-site-muted md:flex-row">
           <div className="text-center md:text-left">{t('welcome.footerCopyright', { year })}</div>
           <div className="flex flex-wrap justify-center gap-6">
+            <Link to="/download" className="no-underline transition-colors hover:text-site-text">
+              {t('welcome.navDownload')}
+            </Link>
             <Link to="/live/new" className="no-underline transition-colors hover:text-site-text">
               {t('public.liveCoding')}
             </Link>

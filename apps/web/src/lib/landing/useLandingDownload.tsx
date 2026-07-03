@@ -1,5 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { detectPlatform, NORDLY_RELEASES_PAGE, resolveDownloadUrl, triggerDownload } from '@/lib/landing/downloads'
+import {
+  detectPlatform,
+  isDirectInstallerUrl,
+  NORDLY_DOWNLOAD_PATH,
+  resolveDownloadUrl,
+  triggerDownload,
+} from '@/lib/landing/downloads'
 import { fetchLatestNordlyRelease } from '@/lib/landing/nordlyRelease'
 import { useI18n } from '@/lib/i18n'
 
@@ -8,7 +14,6 @@ type LandingDownloadContextValue = {
   downloaded: boolean
   label: string
   version: string | null
-  releasePageUrl: string
   onDownload: () => void
 }
 
@@ -19,7 +24,6 @@ export function LandingDownloadProvider({ children }: { children: ReactNode }) {
   const platform = useMemo(() => detectPlatform(), [])
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [version, setVersion] = useState<string | null>(null)
-  const [releasePageUrl, setReleasePageUrl] = useState(NORDLY_RELEASES_PAGE)
   const [downloaded, setDownloaded] = useState(false)
   const preparing = !downloadUrl
 
@@ -31,9 +35,8 @@ export function LandingDownloadProvider({ children }: { children: ReactNode }) {
         fetchLatestNordlyRelease(),
       ])
       if (cancelled) return
-      setDownloadUrl(url ?? release?.releasePageUrl ?? NORDLY_RELEASES_PAGE)
+      setDownloadUrl(url ?? NORDLY_DOWNLOAD_PATH)
       setVersion(release?.version ?? null)
-      if (release?.releasePageUrl) setReleasePageUrl(release.releasePageUrl)
     })()
     return () => {
       cancelled = true
@@ -50,13 +53,17 @@ export function LandingDownloadProvider({ children }: { children: ReactNode }) {
 
   const onDownload = useCallback(() => {
     if (!downloadUrl) return
-    triggerDownload(downloadUrl)
-    setDownloaded(true)
+    if (isDirectInstallerUrl(downloadUrl)) {
+      triggerDownload(downloadUrl)
+      setDownloaded(true)
+      return
+    }
+    window.location.assign(downloadUrl)
   }, [downloadUrl])
 
   const value = useMemo(
-    () => ({ preparing, downloaded, label, version, releasePageUrl, onDownload }),
-    [preparing, downloaded, label, version, releasePageUrl, onDownload],
+    () => ({ preparing, downloaded, label, version, onDownload }),
+    [preparing, downloaded, label, version, onDownload],
   )
 
   return <LandingDownloadContext.Provider value={value}>{children}</LandingDownloadContext.Provider>

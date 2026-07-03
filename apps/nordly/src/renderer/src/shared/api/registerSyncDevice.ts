@@ -3,8 +3,12 @@ import { requireAccessToken } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { getDeviceId } from '@shared/api/device';
 import { requireJsonBoolean, requireJsonNumber, requireJsonString } from '@shared/api/json';
+import type { SyncErrorCode } from '@shared/sync/errors';
 
-export type DeviceRegisterErrorCode = 'cloud_sync_disabled' | 'device_limit_exceeded';
+export type DeviceRegisterErrorCode = Extract<
+  SyncErrorCode,
+  'cloud_sync_disabled' | 'device_limit_exceeded'
+>;
 
 export class DeviceRegisterError extends Error {
   readonly code: DeviceRegisterErrorCode;

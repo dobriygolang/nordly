@@ -1,9 +1,12 @@
-export const NORDLY_CDN_DESKTOP_BASE = 'https://cdn.trynordly.app/desktop'
+export const NORDLY_CDN_DESKTOP_BASE = (
+  import.meta.env.VITE_NORDLY_CDN_DESKTOP_BASE ?? 'https://cdn.trynordly.app/desktop'
+).replace(/\/$/, '')
 
-export const NORDLY_DOWNLOAD_PAGE = 'https://trynordly.app/download'
+export const NORDLY_DOWNLOAD_PATH = '/download'
 
-/** @deprecated use NORDLY_DOWNLOAD_PAGE */
-export const NORDLY_RELEASES_PAGE = NORDLY_DOWNLOAD_PAGE
+const SITE_ORIGIN = (import.meta.env.VITE_SITE_ORIGIN ?? 'https://trynordly.app').replace(/\/$/, '')
+
+export const NORDLY_DOWNLOAD_PAGE = `${SITE_ORIGIN}${NORDLY_DOWNLOAD_PATH}`
 
 const RELEASES_JSON_URL = `${NORDLY_CDN_DESKTOP_BASE}/releases.json`
 const CACHE_KEY = 'nordly:latest-release'
@@ -12,7 +15,7 @@ const CACHE_MS = 15 * 60 * 1000
 export type NordlyReleaseInfo = {
   version: string
   tagName: string
-  releasePageUrl: string
+  downloadPageUrl: string
   macAarch64Url: string | null
   macX64Url: string | null
   windowsUrl: string | null
@@ -24,13 +27,14 @@ function parseRelease(body: unknown): NordlyReleaseInfo | null {
   if (typeof o.version !== 'string' || !o.version) return null
   if (typeof o.tagName !== 'string' || !/^nordly-v/i.test(o.tagName)) return null
   const strOrNull = (v: unknown) => (typeof v === 'string' && v ? v : null)
+  const downloadPage =
+    strOrNull(o.downloadPageUrl) ??
+    strOrNull(o.releasePageUrl) ??
+    NORDLY_DOWNLOAD_PAGE
   return {
     version: o.version,
     tagName: o.tagName,
-    releasePageUrl:
-      typeof o.releasePageUrl === 'string' && o.releasePageUrl
-        ? o.releasePageUrl
-        : NORDLY_DOWNLOAD_PAGE,
+    downloadPageUrl: downloadPage,
     macAarch64Url: strOrNull(o.macAarch64Url),
     macX64Url: strOrNull(o.macX64Url),
     windowsUrl: strOrNull(o.windowsUrl),

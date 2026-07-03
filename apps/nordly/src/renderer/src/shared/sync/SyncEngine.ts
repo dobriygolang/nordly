@@ -1,7 +1,7 @@
 import { HEALTH_CHECK_URL } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
-import { ensureDevice } from '@shared/api/device';
+import { ensureDevice, getDeviceId } from '@shared/api/device';
 import { DeviceRegisterError, registerSyncDevice } from '@shared/api/registerSyncDevice';
 import { usePlanUsageStore } from '@shared/model/planUsage';
 import { subscribeVault } from '@shared/crypto/vault';
@@ -11,7 +11,7 @@ import { useSyncStore } from '@shared/model/sync';
 import { bumpOutboxAttempts, listOutbox, outboxCount, resetOutboxAttempts } from '@shared/sync/outbox';
 import { requireSyncHandlers } from '@shared/sync/registry';
 import { isSyncDeferredError, SyncError } from '@shared/sync/errors';
-import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
+import { canReachNetwork, isCloudApiAvailable, isSyncEnabled } from '@shared/sync/syncConfig';
 import type { OutboxEntry } from '@shared/sync/types';
 
 type SyncOptions = {
@@ -67,7 +67,7 @@ function enqueueSync(options?: SyncOptions): Promise<void> {
 }
 
 async function runSync(options?: SyncOptions): Promise<void> {
-  if (!isSyncEnabled() || !getDbUserId()) return;
+  if (!isCloudApiAvailable() || !getDbUserId()) return;
 
   const store = useSyncStore.getState();
   if (!canReachNetwork()) {
@@ -90,18 +90,44 @@ async function runSync(options?: SyncOptions): Promise<void> {
     return;
   }
 
+  const planStore = usePlanUsageStore.getState();
+  const knownReg = planStore.deviceRegistration;
+  if (knownReg && !knownReg.cloudSyncEnabled) {
+    store.setStatus('idle');
+    store.setLastError(null);
+    return;
+  }
+
   try {
     await ensureDevice({ appVersion: '0.0.1' });
     const reg = await registerSyncDevice({ appVersion: '0.0.1' });
-    usePlanUsageStore.getState().setDeviceRegistration({
+    planStore.setDeviceRegistration({
       deviceId: reg.deviceId,
       devicesRegistered: reg.devicesRegistered,
       deviceLimit: reg.deviceLimit,
       cloudSyncEnabled: reg.cloudSyncEnabled,
     });
     store.setCloudSyncBlocked(false);
+
+    if (!reg.cloudSyncEnabled) {
+      store.setStatus('idle');
+      store.setLastError(null);
+      return;
+    }
   } catch (err) {
     if (err instanceof DeviceRegisterError) {
+      if (err.code === 'cloud_sync_disabled') {
+        const deviceId = getDeviceId();
+        planStore.setDeviceRegistration({
+          deviceId: deviceId ?? '',
+          devicesRegistered: 0,
+          deviceLimit: 0,
+          cloudSyncEnabled: false,
+        });
+        store.setStatus('idle');
+        store.setLastError(null);
+        return;
+      }
       store.setCloudSyncBlocked(true, err.code);
       store.setStatus('idle');
       store.setLastError(null);

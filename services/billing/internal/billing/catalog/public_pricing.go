@@ -5,12 +5,10 @@ import "github.com/dobriygolang/project-nordly/services/billing/internal/billing
 // PublicPricingKeys are entitlements shown on GET /v1/billing/plans (pricing UI).
 // Internal gates (code_runs_per_day, live_rooms_*) stay on the plan but are hidden here.
 var PublicPricingKeys = map[string]struct{}{
-	model.EntitlementCloudSyncEnabled:    {},
-	model.EntitlementCloudSyncDevices:    {},
-	model.EntitlementCloudNotesCount:     {},
+	model.EntitlementCloudSyncEnabled:     {},
+	model.EntitlementCloudSyncDevices:     {},
 	model.EntitlementPublishedNotesActive: {},
-	model.EntitlementPublishUnlisted:     {},
-	model.EntitlementPublishPassword:     {},
+	model.EntitlementPublishPassword:      {},
 }
 
 // PublicPricingView returns a catalog item with only pricing-visible entitlements.

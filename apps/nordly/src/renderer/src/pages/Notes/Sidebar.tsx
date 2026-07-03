@@ -4,7 +4,7 @@ import { useT } from '@nordly-i18n';
 
 import { Icon } from '@shared/ui/primitives/Icon';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import type { PublishStatus } from '@features/notes/api/notesClient';
+import type { PublishStatus, PublishToWebOptions } from '@features/notes/api/notesClient';
 import { NoteRow } from './NoteRow';
 import { type ListState } from './utils';
 
@@ -13,9 +13,9 @@ export interface SidebarProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
-  onPublish: (id: string) => Promise<PublishStatus | void>;
+  onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
-  onRegenerate: (id: string) => Promise<PublishStatus | void>;
+  onRegenerate: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onDelete: (id: string) => Promise<void>;
 }
 

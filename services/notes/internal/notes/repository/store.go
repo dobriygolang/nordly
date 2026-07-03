@@ -24,9 +24,10 @@ type Store interface {
 
 	UnpublishNote(ctx context.Context, userID, noteID string) error
 	GetPublishStatus(ctx context.Context, userID, noteID, publicBaseURL string) (*notesmodel.PublishStatus, error)
-	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext, publicBaseURL string) (*notesmodel.ShareToWebResult, error)
+	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext, publicBaseURL string, meta notesmodel.PublishMeta) (*notesmodel.ShareToWebResult, error)
 	MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error
 	GetPublishedNoteBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNote, error)
+	GetPublishedNoteRecordBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNoteRecord, error)
 }
 
 var _ Store = (*Repository)(nil)

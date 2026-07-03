@@ -4,9 +4,7 @@ import type { PlanCatalogEntry, PlanEntitlementSpec } from '@/lib/types'
 const PRICING_DISPLAY_ORDER = [
   'cloud_sync_enabled',
   'cloud_sync_devices',
-  'cloud_notes_count',
   'published_notes_active',
-  'publish_unlisted',
   'publish_password',
 ] as const
 

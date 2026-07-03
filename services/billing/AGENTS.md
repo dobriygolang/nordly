@@ -16,7 +16,7 @@ Does not own: users (identity), tasks (tracker), notes (notes service).
 
 `value_json`: `{"type":"bool","value":true}` or `{"type":"counter","limit":N,"period":"day"|"month"}` or `{"type":"gauge","limit":N}`.
 
-Seeded in migrations (`00001`, `00003_nordly_plan_entitlements.sql`). Plans: `free`, `pro_monthly`.
+Seeded in migrations (`00001`, `00003`, `00004`, `00005`). Plans: `free`, `pro_monthly`.
 
 Full matrix + enforcement status: [docs/billing-plans.md](../../docs/billing-plans.md).
 
@@ -26,10 +26,10 @@ Full matrix + enforcement status: [docs/billing-plans.md](../../docs/billing-pla
 |-----|------|------|-----|
 | cloud_sync_enabled | bool | false | true |
 | cloud_sync_devices | gauge | 0 | 5 |
-| cloud_notes_count | gauge | 50 | unlimited |
-| published_notes_active | gauge | 3 | 100 |
-| publish_unlisted | bool | false | true |
+| published_notes_active | gauge | 10 | 100 |
 | publish_password | bool | false | true |
+
+Notes are unlimited on all plans (not in pricing catalog).
 
 `GET /v1/billing/plans` returns only the rows above (`catalog.PublicPricingView`).
 
@@ -52,7 +52,7 @@ Full matrix + enforcement status: [docs/billing-plans.md](../../docs/billing-pla
 | Grant/Revoke subscription | admin HTTP | `x-internal-token` |
 | Tribute webhook | `POST /v1/billing/webhooks/tribute` | `trbt-signature` HMAC-SHA256 hex only |
 
-Consumers: **sandbox** (code_runs_per_day), **notes** (cloud_notes_count).
+Consumers: **sandbox** (code_runs_per_day), **notes** (`published_notes_active`, `publish_password`).
 
 ## Invariants
 

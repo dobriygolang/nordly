@@ -3,23 +3,26 @@ import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
 
-import type { NoteSummary, PublishStatus } from '@features/notes/api/notesClient';
+import type { NoteSummary, PublishStatus, PublishToWebOptions } from '@features/notes/api/notesClient';
 import { getPublishStatus, isNoteVaultLocked } from '@features/notes/api/notesClient';
+import { DEFAULT_PUBLISH_OPTIONS, type PublishFeatureEntitlements } from '@features/notes/model/publishOptions';
+import { fetchBillingMe } from '@shared/api/billingClient';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { isSyncEnabled } from '@shared/sync/syncConfig';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 
 import { NoteRowMenu } from './NoteRowMenu';
 
-const MENU_W = 160;
+const MENU_W = 240;
+const MENU_W_COMPACT = 168;
 
 export interface NoteRowProps {
   note: NoteSummary;
   active: boolean;
   onSelect: (id: string) => void;
-  onPublish: (id: string) => Promise<PublishStatus | void>;
+  onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
-  onRegenerate: (id: string) => Promise<PublishStatus | void>;
+  onRegenerate: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -36,8 +39,10 @@ export const NoteRow = memo(function NoteRow({
   const [hover, setHover] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
-  const [pubStatusLoadFailed, setPubStatusLoadFailed] = useState(false);
+  const [publishOptions, setPublishOptions] = useState<PublishToWebOptions>(DEFAULT_PUBLISH_OPTIONS);
+  const [publishEntitlements, setPublishEntitlements] = useState<PublishFeatureEntitlements | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const publishingAvailable = isCloudApiAvailable();
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
@@ -52,26 +57,40 @@ export const NoteRow = memo(function NoteRow({
     const el = moreRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setMenuPos({ top: r.bottom + 4, left: r.right - MENU_W });
-  }, []);
+    setMenuPos({ top: r.bottom + 4, left: r.right - (publishingAvailable ? MENU_W : MENU_W_COMPACT) });
+  }, [publishingAvailable]);
 
   useEffect(() => {
-    if (!menuOpen || !isSyncEnabled()) return;
+    if (!menuOpen || !publishingAvailable) return;
     let live = true;
-    setPubStatusLoadFailed(false);
-    void getPublishStatus(note.id)
-      .then((s) => {
-        if (live) setPubStatus(s);
+    void Promise.all([
+      getPublishStatus(note.id),
+      fetchBillingMe().catch(() => null),
+    ])
+      .then(([status, billing]) => {
+        if (!live) return;
+        setPubStatus(status);
+        if (billing) {
+          setPublishEntitlements({
+            publishPrivateLink: billing.features.publish_password === true,
+          });
+        }
       })
       .catch(() => {
         if (!live) return;
         setPubStatus(null);
-        setPubStatusLoadFailed(true);
       });
     return () => {
       live = false;
     };
-  }, [menuOpen, note.id]);
+  }, [menuOpen, note.id, publishingAvailable]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setPublishOptions(DEFAULT_PUBLISH_OPTIONS);
+      setPublishEntitlements(null);
+    }
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -124,12 +143,12 @@ export const NoteRow = memo(function NoteRow({
   const handlePublish = useCallback(async () => {
     setMenuOpen(false);
     try {
-      const res = await onPublish(note.id);
+      const res = await onPublish(note.id, publishOptions);
       if (res) setPubStatus(res);
     } catch {
       /* error surfaced in NotesPage */
     }
-  }, [note.id, onPublish]);
+  }, [note.id, onPublish, publishOptions]);
 
   const handleUnpublish = useCallback(async () => {
     setMenuOpen(false);
@@ -144,12 +163,12 @@ export const NoteRow = memo(function NoteRow({
   const handleRegenerate = useCallback(async () => {
     setMenuOpen(false);
     try {
-      const res = await onRegenerate(note.id);
+      const res = await onRegenerate(note.id, publishOptions);
       if (res) setPubStatus(res);
     } catch {
       /* error surfaced in NotesPage */
     }
-  }, [note.id, onRegenerate]);
+  }, [note.id, onRegenerate, publishOptions]);
 
   const handleDelete = useCallback(async () => {
     setMenuOpen(false);
@@ -199,10 +218,17 @@ export const NoteRow = memo(function NoteRow({
           <NoteRowMenu
             ref={menuRef}
             published={!!pubStatus?.published}
-            cloudEnabled={isSyncEnabled()}
+            publishingAvailable={publishingAvailable}
             vaultReady={isVaultReadyForPublish()}
-            publishStatusLoadFailed={pubStatusLoadFailed}
-            style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: MENU_W }}
+            publishOptions={publishOptions}
+            publishEntitlements={publishEntitlements}
+            style={{
+              position: 'fixed',
+              top: menuPos.top,
+              left: menuPos.left,
+              width: publishingAvailable ? MENU_W : MENU_W_COMPACT,
+            }}
+            onPublishOptionsChange={(patch) => setPublishOptions((prev) => ({ ...prev, ...patch }))}
             onPublish={() => void handlePublish()}
             onCopyLink={() => void copyLink()}
             onViewPublic={viewPublic}

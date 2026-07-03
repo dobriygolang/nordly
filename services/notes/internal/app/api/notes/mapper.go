@@ -40,6 +40,8 @@ func mapServiceError(err error) error {
 		return status.Error(codes.ResourceExhausted, "quota exceeded")
 	case notesservice.IsFeatureDisabled(err):
 		return status.Error(codes.PermissionDenied, "feature not available on your plan")
+	case notesservice.IsAccessDenied(err):
+		return unauthorized()
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

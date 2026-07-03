@@ -130,12 +130,16 @@ func (i *Implementation) GetPublishStatus(
 		return nil, mapServiceError(err)
 	}
 	out := &notesv1.GetPublishStatusResponse{
-		Published: st.Published,
-		Slug:      st.Slug,
-		Url:       st.URL,
+		Published:         st.Published,
+		Slug:              st.Slug,
+		Url:               st.URL,
+		PasswordProtected: st.PasswordProtected,
 	}
 	if st.PublishedAt != nil {
 		out.PublishedAt = timestamppb.New(*st.PublishedAt)
+	}
+	if st.ExpiresAt != nil {
+		out.ExpiresAt = timestamppb.New(*st.ExpiresAt)
 	}
 	return out, nil
 }
@@ -149,8 +153,9 @@ func (i *Implementation) ShareNoteToWeb(
 		return nil, err
 	}
 	res, err := i.service.ShareNoteToWeb(ctx, userID, req.GetNoteId(), req.GetPlaintextMd(), notesservice.PublishOptions{
-		Unlisted:          req.GetUnlisted(),
 		PasswordProtected: req.GetPasswordProtected(),
+		Password:          req.GetPassword(),
+		ExpiresInDays:     req.GetExpiresInDays(),
 	})
 	if err != nil {
 		return nil, mapServiceError(err)

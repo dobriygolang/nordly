@@ -43,6 +43,9 @@ export function resetAuthRefreshState(): void {
   refreshRejected = false;
   setSessionReauthRequired(false);
   useSyncStore.getState().setCloudSyncBlocked(false);
+  void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
+    resetDeviceRegisterCache();
+  });
 }
 
 export function isSessionExpired(): boolean {

@@ -11,10 +11,10 @@ Internal web gates (`code_runs_per_day`, `live_rooms_*`) remain on the plan for 
 |-----|------|------|-----|
 | `cloud_sync_enabled` | bool | `false` | `true` |
 | `cloud_sync_devices` | gauge | `0` | `5` |
-| `cloud_notes_count` | gauge | `50` | unlimited |
-| `published_notes_active` | gauge | `3` | `100` |
-| `publish_unlisted` | bool | `false` | `true` |
+| `published_notes_active` | gauge | `10` | `100` |
 | `publish_password` | bool | `false` | `true` |
+
+Notes are unlimited on all plans (`cloud_notes_count` gauge in DB, not shown in pricing, not enforced).
 
 ## Internal (not on pricing page)
 
@@ -28,12 +28,10 @@ Internal web gates (`code_runs_per_day`, `live_rooms_*`) remain on the plan for 
 
 | Key | Enforced today |
 |-----|----------------|
-| `cloud_notes_count` | yes — `notes` `CreateNote` |
 | `published_notes_active` | yes — `notes` `ShareNoteToWeb` (new publish) |
-| `publish_unlisted` | yes — `notes` `ShareNoteToWeb` when `unlisted=true` |
-| `publish_password` | yes — `notes` `ShareNoteToWeb` when `password_protected=true` |
+| `publish_password` | yes — private link (password + optional expiry + opaque slug) |
 | `cloud_sync_enabled` | yes — `identity` `POST /v1/devices/register` |
 | `cloud_sync_devices` | yes — `identity` device registration quota |
-| Desktop sync gate | yes — `registerSyncDevice` before sync; `X-Device-ID` on REST |
+| Desktop sync gate | yes — `registerSyncDevice` before multi-device sync; `X-Device-ID` on REST |
 
 Web reference UI: `apps/web` `/pricing` (`planPricingKeys`).

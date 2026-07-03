@@ -16,13 +16,14 @@ import {
   deleteNote,
   type Note,
   type PublishStatus,
+  type PublishToWebOptions,
   isNoteVaultLocked,
 } from '@features/notes/api/notesClient';
 import { getServerId } from '@shared/sync/idMap';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { subscribeVault } from '@shared/crypto/vault';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
-import { isSyncEnabled } from '@shared/sync/syncConfig';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
   INITIAL_LIST,
@@ -307,8 +308,8 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   );
 
   const handlePublish = useCallback(
-    async (id: string): Promise<PublishStatus | void> => {
-      if (!isSyncEnabled()) {
+    async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
+      if (!isCloudApiAvailable()) {
         setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
         return;
       }
@@ -322,7 +323,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
       }
       try {
         if (selectedIdRef.current === id) await flushNow();
-        return await publishNoteToWeb(id);
+        return await publishNoteToWeb(id, options);
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
       }
@@ -332,7 +333,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
 
   const handleUnpublish = useCallback(
     async (id: string) => {
-      if (!isSyncEnabled()) {
+      if (!isCloudApiAvailable()) {
         setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
         return;
       }
@@ -346,14 +347,14 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   );
 
   const handleRegenerate = useCallback(
-    async (id: string): Promise<PublishStatus | void> => {
-      if (!isSyncEnabled()) {
+    async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
+      if (!isCloudApiAvailable()) {
         setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
         return;
       }
       try {
         if (selectedIdRef.current === id) await flushNow();
-        return await regeneratePublicLink(id);
+        return await regeneratePublicLink(id, options);
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
       }

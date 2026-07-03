@@ -3,12 +3,19 @@ import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { optionalJsonNumber, requireJsonBoolean, requireJsonString } from '@shared/api/json';
 
+let cachedProCheckoutUrl: string | null | undefined;
+
+export interface BillingPlanCatalog {
+  slug: string;
+  name: string;
+  checkoutUrl: string | null;
+  telegramCheckoutUrl: string | null;
+}
+
 export const PLAN_ENTITLEMENT_KEYS = [
   'cloud_sync_enabled',
   'cloud_sync_devices',
-  'cloud_notes_count',
   'published_notes_active',
-  'publish_unlisted',
   'publish_password',
 ] as const;
 
@@ -92,12 +99,59 @@ export function pricingPageUrl(): string {
   return `${base}/pricing`;
 }
 
-export function openPricingPage(): void {
-  const url = pricingPageUrl();
+function openExternalUrl(url: string): void {
   const open = window.nordly?.shell.openExternal;
   if (open) {
     void open(url);
     return;
   }
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/** Public plan catalog (includes Tribute checkout URLs). */
+export async function fetchBillingPlans(): Promise<BillingPlanCatalog[]> {
+  const resp = await apiFetch(`${API_BASE_URL}/v1/billing/plans`);
+  if (!resp.ok) throw new Error(`billing plans: ${resp.status}`);
+  const body = (await resp.json()) as Record<string, unknown>;
+  const rawPlans = body.plans;
+  if (!Array.isArray(rawPlans)) throw new Error('billing plans: missing plans');
+  return rawPlans.map((item) => {
+    if (!item || typeof item !== 'object') throw new Error('billing plans: invalid plan');
+    const plan = item as Record<string, unknown>;
+    const checkoutUrl = typeof plan.checkoutUrl === 'string' ? plan.checkoutUrl : null;
+    const telegramCheckoutUrl =
+      typeof plan.telegramCheckoutUrl === 'string' ? plan.telegramCheckoutUrl : null;
+    return {
+      slug: requireJsonString(plan, 'slug'),
+      name: requireJsonString(plan, 'name'),
+      checkoutUrl,
+      telegramCheckoutUrl,
+    };
+  });
+}
+
+/** Tribute web checkout for Pro (falls back to /pricing). */
+export async function resolveProCheckoutUrl(): Promise<string> {
+  if (cachedProCheckoutUrl !== undefined) {
+    return cachedProCheckoutUrl ?? pricingPageUrl();
+  }
+  try {
+    const plans = await fetchBillingPlans();
+    const pro =
+      plans.find((p) => p.slug === 'pro_monthly') ??
+      plans.find((p) => p.slug !== 'free' && p.checkoutUrl);
+    cachedProCheckoutUrl = pro?.checkoutUrl ?? null;
+  } catch {
+    cachedProCheckoutUrl = null;
+  }
+  return cachedProCheckoutUrl ?? pricingPageUrl();
+}
+
+export function openPricingPage(): void {
+  openExternalUrl(pricingPageUrl());
+}
+
+/** Open Tribute checkout when configured, otherwise pricing page. */
+export function openProCheckout(): void {
+  void resolveProCheckoutUrl().then(openExternalUrl);
 }

@@ -96,6 +96,13 @@ service NotesService {
       get: "/v1/notes/public/{slug}"
     };
   }
+
+  rpc AccessPublishedNote(AccessPublishedNoteRequest) returns (AccessPublishedNoteResponse) {
+    option (google.api.http) = {
+      post: "/v1/notes/public/{slug}/access"
+      body: "*"
+    };
+  }
 }
 
 message Note {
@@ -190,13 +197,16 @@ message GetPublishStatusResponse {
   string slug = 2;
   string url = 3;
   google.protobuf.Timestamp published_at = 4;
+  bool password_protected = 5;
+  google.protobuf.Timestamp expires_at = 6;
 }
 
 message ShareNoteToWebRequest {
   string note_id = 1;
   string plaintext_md = 2;
-  bool unlisted = 3;
-  bool password_protected = 4;
+  bool password_protected = 3;
+  string password = 4;
+  int32 expires_in_days = 5;
 }
 
 message ShareNoteToWebResponse {
@@ -218,6 +228,18 @@ message GetPublishedNoteRequest {
 }
 
 message GetPublishedNoteResponse {
+  string title = 1;
+  string body_md = 2;
+  google.protobuf.Timestamp published_at = 3;
+  bool password_required = 4;
+}
+
+message AccessPublishedNoteRequest {
+  string slug = 1;
+  string password = 2;
+}
+
+message AccessPublishedNoteResponse {
   string title = 1;
   string body_md = 2;
   google.protobuf.Timestamp published_at = 3;

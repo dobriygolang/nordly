@@ -6,9 +6,7 @@ import (
 )
 
 const (
-	EntitlementCloudNotesCount     = "cloud_notes_count"
 	EntitlementPublishedNotesActive = "published_notes_active"
-	EntitlementPublishUnlisted     = "publish_unlisted"
 	EntitlementPublishPassword     = "publish_password"
 )
 

@@ -58,6 +58,11 @@ export const ru = {
       publishedNote: {
         title: '{{title}}',
         description: 'Опубликованная заметка на Nordly (trynordly.app).',
+        passwordTitle: 'Нужен пароль',
+        passwordHint: 'Введите пароль, который вам передали.',
+        passwordPlaceholder: 'Пароль',
+        passwordSubmit: 'Открыть',
+        passwordWrong: 'Неверный пароль.',
       },
       publishedBoard: {
         title: '{{title}}',
@@ -70,9 +75,8 @@ export const ru = {
       cloud_sync_enabled: 'Облачная синхронизация',
       cloud_sync_devices: 'Синхронизируемые устройства',
       cloud_notes_count: 'Облачные заметки',
-      published_notes_active: 'Опубликованные заметки (активные)',
-      publish_unlisted: 'Приватные ссылки',
-      publish_password: 'Ссылки с паролем / сроком',
+      published_notes_active: 'Публикация в интернет',
+      publish_password: 'Приватная ссылка',
     },
   },
   session: {

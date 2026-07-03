@@ -12,6 +12,8 @@ import { create } from 'zustand';
 import { setDbUserId } from '@shared/db/nordlyDb';
 import { lockVault } from '@shared/crypto/vault';
 import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
+import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useSyncStore } from '@shared/model/sync';
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
@@ -87,7 +89,7 @@ interface SessionState {
   }) => void;
 
   /** Clears in-memory + keychain. Used by logout. */
-  clear: () => Promise<void>;
+  clear: (opts?: { skipNativeLogout?: boolean }) => Promise<void>;
 
   /** Updates tokens after refresh — persists to browser + keychain. */
   applyTokens: (s: PersistedSession) => void;
@@ -209,15 +211,31 @@ export const useSessionStore = create<SessionState>((set) => ({
     void persistSessionToNative(session);
   },
 
-  clear: async () => {
+  clear: async (opts) => {
     clearBrowserPersist();
-    const bridge = window.nordly;
-    if (bridge) {
-      await bridge.auth.logout();
+    try {
+      const { resetAuthRefreshState } = await import('@shared/api/authSession');
+      resetAuthRefreshState();
+    } catch {
+      /* authSession may be unavailable in tests */
+    }
+    try {
+      const bridge = window.nordly;
+      if (bridge && !opts?.skipNativeLogout) {
+        await bridge.auth.logout();
+      }
+    } catch (err) {
+      console.error('[nordly:session] native logout failed', err);
     }
     setDbUserId(null);
     lockVault();
     clearVaultPrefsCache();
+    useSyncStore.getState().setSessionReauthRequired(false);
+    useSyncStore.getState().setCloudSyncBlocked(false);
+    usePlanUsageStore.getState().setDeviceRegistration(null);
+    void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
+      resetDeviceRegisterCache();
+    });
     set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
   },
 }));

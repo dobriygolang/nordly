@@ -14,15 +14,18 @@ import {
   remoteUnpublishNote,
   type PublishStatus,
 } from '@features/notes/repository/publishRemote';
+import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
+import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
 import { ensureNoteServerId } from '@features/notes/sync/notesSync';
-import { isSyncEnabled } from '@shared/sync/syncConfig';
+import { isCloudApiAvailable, isSyncEnabled } from '@shared/sync/syncConfig';
 import { usePlanUsageStore } from '@shared/model/planUsage';
 
+export type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 export type { PublishStatus };
 
 export interface Note {
@@ -86,32 +89,35 @@ export async function updateNote(id: string, title: string, bodyMd: string): Pro
   return note;
 }
 
-async function resolveServerNoteId(localId: string, forceSync = true): Promise<string | null> {
-  if (!isSyncEnabled()) return null;
+async function resolveServerNoteId(localId: string): Promise<string | null> {
+  if (!isCloudApiAvailable()) return null;
   if (!(await ensureAccessTokenForSync())) return null;
-  if (forceSync) await syncNow();
+  if (isSyncEnabled()) await syncNow();
   const mapped = await getServerId('notes', localId);
   if (mapped) return mapped;
   return ensureNoteServerId(localId);
 }
 
 async function mappedServerNoteId(localId: string): Promise<string | null> {
-  if (!isSyncEnabled()) return null;
+  if (!isCloudApiAvailable()) return null;
   return getServerId('notes', localId);
 }
 
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
   const serverId = await mappedServerNoteId(noteId);
-  if (!serverId) throw new Error('Cloud sync required to read publish status');
+  if (!serverId) throw new Error('Sign in required to read publish status');
   return remoteGetPublishStatus(serverId);
 }
 
-export async function publishNoteToWeb(noteId: string): Promise<PublishStatus> {
+export async function publishNoteToWeb(
+  noteId: string,
+  options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
+): Promise<PublishStatus> {
   const serverId = await resolveServerNoteId(noteId);
-  if (!serverId) throw new Error('Cloud sync required to publish notes');
+  if (!serverId) throw new Error('Sign in required to publish notes');
   const note = await getNote(noteId);
   await remoteUpdateNote(serverId, note.title, note.bodyMd);
-  const res = await remoteShareNoteToWeb(serverId, note.bodyMd);
+  const res = await remoteShareNoteToWeb(serverId, note.bodyMd, options);
   if (!res.alreadyPublished) {
     usePlanUsageStore.getState().adjustPublishedNotesCount(1);
   }
@@ -125,7 +131,7 @@ export async function publishNoteToWeb(noteId: string): Promise<PublishStatus> {
 
 export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   const serverId = await resolveServerNoteId(noteId);
-  if (!serverId) throw new Error('Cloud sync required to publish notes');
+  if (!serverId) throw new Error('Sign in required to publish notes');
   const note = await getNote(noteId);
   await remoteUnpublishNote(serverId);
   usePlanUsageStore.getState().adjustPublishedNotesCount(-1);
@@ -139,11 +145,14 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   }
 }
 
-export async function regeneratePublicLink(noteId: string): Promise<PublishStatus> {
+export async function regeneratePublicLink(
+  noteId: string,
+  options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
+): Promise<PublishStatus> {
   const serverId = await resolveServerNoteId(noteId);
-  if (!serverId) throw new Error('Cloud sync required to publish notes');
+  if (!serverId) throw new Error('Sign in required to publish notes');
   await remoteUnpublishNote(serverId);
-  return publishNoteToWeb(noteId);
+  return publishNoteToWeb(noteId, options);
 }
 
 export async function deleteNote(id: string): Promise<void> {

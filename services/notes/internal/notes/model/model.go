@@ -3,17 +3,19 @@ package model
 import "time"
 
 type Note struct {
-	ID          string
-	UserID      string
-	Title       string
-	BodyMD      string
-	Encrypted   bool
-	Published   bool
-	PublishSlug *string
-	PublishedAt *time.Time
-	SizeBytes   int
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                  string
+	UserID              string
+	Title               string
+	BodyMD              string
+	Encrypted           bool
+	Published           bool
+	PublishSlug         *string
+	PublishedAt         *time.Time
+	PublishPasswordHash *string
+	PublishExpiresAt    *time.Time
+	SizeBytes           int
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type NoteSummary struct {
@@ -24,10 +26,12 @@ type NoteSummary struct {
 }
 
 type PublishStatus struct {
-	Published   bool
-	Slug        string
-	URL         string
-	PublishedAt *time.Time
+	Published         bool
+	Slug              string
+	URL               string
+	PublishedAt       *time.Time
+	PasswordProtected bool
+	ExpiresAt         *time.Time
 }
 
 type ShareToWebResult struct {
@@ -39,7 +43,22 @@ type ShareToWebResult struct {
 
 // PublishedNote is a public read-only view (no auth).
 type PublishedNote struct {
-	Title       string
-	BodyMD      string
-	PublishedAt time.Time
+	Title            string
+	BodyMD           string
+	PublishedAt      time.Time
+	PasswordRequired bool
+}
+
+// PublishMeta is stored when sharing a note to the web.
+type PublishMeta struct {
+	PasswordHash  *string
+	ExpiresInDays int32
+}
+
+// PublishedNoteRecord includes fields needed for password verification (service layer only).
+type PublishedNoteRecord struct {
+	Title        string
+	BodyMD       string
+	PublishedAt  time.Time
+	PasswordHash *string
 }

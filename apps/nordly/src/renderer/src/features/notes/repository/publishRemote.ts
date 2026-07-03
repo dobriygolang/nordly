@@ -1,3 +1,5 @@
+import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
+import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
@@ -9,6 +11,7 @@ export interface PublishStatus {
   slug?: string;
   url?: string;
   publishedAt?: string;
+  passwordProtected?: boolean;
 }
 
 export interface ShareToWebResult {
@@ -31,19 +34,29 @@ export async function remoteGetPublishStatus(noteId: string): Promise<PublishSta
     slug: published ? requireJsonString(j, 'slug') : undefined,
     url: published ? requireJsonString(j, 'url') : undefined,
     publishedAt: published ? requireJsonString(j, 'publishedAt') : undefined,
+    passwordProtected: j.passwordProtected === true,
   };
 }
 
 export async function remoteShareNoteToWeb(
   noteId: string,
   plaintextMd: string,
+  options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
 ): Promise<ShareToWebResult> {
+  const body: Record<string, unknown> = {
+    plaintextMd,
+    passwordProtected: options.passwordProtected,
+    expiresInDays: options.expiresInDays,
+  };
+  if (options.passwordProtected && options.password) {
+    body.password = options.password;
+  }
   const resp = await apiFetch(
     `${API_BASE_URL}/v1/notes/${encodeURIComponent(noteId)}/share-to-web`,
     {
       method: 'POST',
       headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ plaintextMd }),
+      body: JSON.stringify(body),
     },
   );
   if (!resp.ok) {

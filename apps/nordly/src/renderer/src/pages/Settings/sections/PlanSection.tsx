@@ -1,103 +1,96 @@
-import { useCallback, useEffect, useState } from 'react';
-
 import { useT } from '@nordly-i18n';
 
-import { openPricingPage } from '@shared/api/billingClient';
+import { openProCheckout, openPricingPage } from '@shared/api/billingClient';
+import type { PlanEntitlementKey } from '@shared/api/billingClient';
 import { usePlanSnapshot } from '@features/plan/hooks/usePlanSnapshot';
-import { meterLabel, meterPercent, type PlanDisplayRow } from '@shared/lib/planSnapshot';
-import { patchSettings, readSettings } from '@shared/model/settings';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import {
+  formatFeatureValue,
+  type PlanFeature,
+  type PlanFeatureStatus,
+} from '@shared/lib/planSnapshot';
 
-import { SettingRow, SettingsBlock, SettingsGroup } from '../primitives/SettingRow';
-import { Toggle } from '../primitives/Toggle';
+import { SettingRow, SettingsGroup } from '../primitives/SettingRow';
 
-function entitlementLabelKey(key: string): string {
+function featureHintKey(key: PlanEntitlementKey): string {
+  return `nordly.settings.plan.feature_hint.${key}`;
+}
+
+function featureLabelKey(key: PlanEntitlementKey): string {
   return `nordly.settings.plan.entitlement.${key}`;
 }
 
-function PlanRow({ row }: { row: PlanDisplayRow }): JSX.Element {
+function FeatureValue({ status }: { status: PlanFeatureStatus }): JSX.Element {
   const t = useT();
-  const label = t(entitlementLabelKey(row.key));
-
-  if (row.kind === 'bool') {
-    return (
-      <SettingRow
-        label={label}
-        hint={row.enabled ? t('nordly.settings.plan.included') : t('nordly.settings.plan.pro_only')}
-      >
-        <span
-          className={`nordly-plan-badge${row.enabled ? ' nordly-plan-badge--on' : ' nordly-plan-badge--off'}`}
-        >
-          {row.enabled ? t('nordly.settings.plan.yes') : t('nordly.settings.plan.no')}
-        </span>
-      </SettingRow>
-    );
-  }
-
-  const pct = meterPercent(row);
+  const text = formatFeatureValue(status, t);
+  const isMeter = status.kind === 'meter';
   return (
-    <div className={`nordly-plan-meter${row.exhausted ? ' nordly-plan-meter--exhausted' : ''}`}>
-      <div className="nordly-plan-meter__head">
-        <span className="nordly-plan-meter__label">{label}</span>
-        <span className="nordly-plan-meter__value mono">{meterLabel(row, t)}</span>
-      </div>
-      {!row.unlimited && row.limit != null ? (
-        <div className="nordly-plan-meter__track" aria-hidden>
-          <div className="nordly-plan-meter__fill" style={{ width: `${pct}%` }} />
-        </div>
-      ) : null}
-      {row.exhausted ? (
-        <p className="nordly-plan-meter__exhausted">{t('nordly.settings.plan.limit_reached')}</p>
-      ) : null}
-    </div>
+    <span
+      className={`nordly-plan-value${isMeter ? ' nordly-plan-value--meter mono' : ''}${
+        status.kind === 'pro' ? ' nordly-plan-value--pro' : ''
+      }`}
+    >
+      {text}
+    </span>
+  );
+}
+
+function PlanFeatureRow({ feature }: { feature: PlanFeature }): JSX.Element {
+  const t = useT();
+  return (
+    <SettingRow
+      label={t(featureLabelKey(feature.key))}
+      hint={t(featureHintKey(feature.key))}
+    >
+      <FeatureValue status={feature.status} />
+    </SettingRow>
   );
 }
 
 export function PlanSection(): JSX.Element {
   const t = useT();
-  const { snapshot, loading, error, refresh } = usePlanSnapshot();
-  const [previewExhausted, setPreviewExhausted] = useState(() => readSettings().planPreviewExhausted);
-
-  useEffect(() => {
-    const onSettings = (): void => setPreviewExhausted(readSettings().planPreviewExhausted);
-    window.addEventListener(NORDLY_EVENTS.settingsChanged, onSettings);
-    return () => window.removeEventListener(NORDLY_EVENTS.settingsChanged, onSettings);
-  }, []);
-
-  const togglePreview = useCallback((on: boolean) => {
-    patchSettings({ planPreviewExhausted: on });
-    setPreviewExhausted(on);
-  }, []);
+  const { snapshot, loading, error } = usePlanSnapshot();
 
   return (
     <>
       <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.plan')}</h1>
 
-      <SettingsBlock title={t('nordly.settings.section.plan')}>
-        {loading ? <p className="nordly-plan-status">{t('nordly.settings.plan.loading')}</p> : null}
-        {error === 'session' ? (
-          <p className="nordly-plan-status">{t('nordly.settings.plan.session_required')}</p>
-        ) : null}
-        {error && error !== 'session' ? (
-          <p className="nordly-plan-status nordly-plan-status--error">{error}</p>
-        ) : null}
+      {loading ? <p className="nordly-plan-status">{t('nordly.settings.plan.loading')}</p> : null}
+      {error === 'session' ? (
+        <p className="nordly-plan-status">{t('nordly.settings.plan.session_required')}</p>
+      ) : null}
+      {error && error !== 'session' ? (
+        <p className="nordly-plan-status nordly-plan-status--error">{error}</p>
+      ) : null}
 
-        {snapshot ? (
-          <>
-            <div className="nordly-plan-header">
-              <div>
-                <p className="nordly-plan-header__eyebrow mono">{t('nordly.settings.plan.current')}</p>
-                <p className="nordly-plan-header__name">{snapshot.planName}</p>
-              </div>
-              {!snapshot.isPro ? (
+      {snapshot ? (
+        <>
+          <p className="nordly-plan-subtitle">{snapshot.planName}</p>
+
+          <SettingsGroup title={t('nordly.settings.plan.features_title')}>
+            {snapshot.features.map((feature) => (
+              <PlanFeatureRow key={feature.key} feature={feature} />
+            ))}
+          </SettingsGroup>
+
+          <div className="nordly-plan-actions">
+            {!snapshot.isPro ? (
+              <SettingRow
+                label={t('nordly.settings.plan.pro')}
+                hint={t('nordly.settings.plan.upgrade_hint')}
+              >
                 <button
                   type="button"
                   className="nordly-settings-change-btn focus-ring"
-                  onClick={() => openPricingPage()}
+                  onClick={() => openProCheckout()}
                 >
-                  {t('nordly.settings.plan.upgrade')}
+                  {t('nordly.settings.plan.view_pricing')}
                 </button>
-              ) : (
+              </SettingRow>
+            ) : (
+              <SettingRow
+                label={t('nordly.settings.plan.manage')}
+                hint={t('nordly.settings.plan.manage_hint')}
+              >
                 <button
                   type="button"
                   className="nordly-settings-change-btn focus-ring"
@@ -105,48 +98,11 @@ export function PlanSection(): JSX.Element {
                 >
                   {t('nordly.settings.plan.view_pricing')}
                 </button>
-              )}
-            </div>
-
-            {previewExhausted ? (
-              <p className="nordly-plan-preview-note">{t('nordly.settings.plan.preview_active')}</p>
-            ) : null}
-
-            <div className="nordly-plan-rows">
-              {snapshot.rows.map((row) => (
-                <PlanRow key={row.key} row={row} />
-              ))}
-            </div>
-          </>
-        ) : null}
-      </SettingsBlock>
-
-      <SettingsGroup title={t('nordly.settings.plan.preview_group')}>
-        <SettingRow
-          label={t('nordly.settings.plan.preview_label')}
-          hint={t('nordly.settings.plan.preview_hint')}
-        >
-          <Toggle
-            value={previewExhausted}
-            onChange={togglePreview}
-            label={
-              previewExhausted
-                ? t('nordly.settings.plan.preview_on')
-                : t('nordly.settings.plan.preview_off')
-            }
-          />
-        </SettingRow>
-        <SettingRow label={t('nordly.settings.plan.refresh_label')} hint={t('nordly.settings.plan.refresh_hint')}>
-          <button
-            type="button"
-            className="nordly-settings-change-btn focus-ring"
-            onClick={() => void refresh()}
-            disabled={loading}
-          >
-            {t('nordly.settings.plan.refresh')}
-          </button>
-        </SettingRow>
-      </SettingsGroup>
+              </SettingRow>
+            )}
+          </div>
+        </>
+      ) : null}
     </>
   );
 }

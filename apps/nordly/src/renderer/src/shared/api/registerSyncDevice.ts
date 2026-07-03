@@ -20,6 +20,12 @@ export class DeviceRegisterError extends Error {
   }
 }
 
+let knownRegisterBlock: DeviceRegisterErrorCode | null = null;
+
+export function resetDeviceRegisterCache(): void {
+  knownRegisterBlock = null;
+}
+
 export interface DeviceRegisterResult {
   deviceId: string;
   cloudSyncEnabled: boolean;
@@ -44,6 +50,10 @@ export async function registerSyncDevice(opts: {
   appVersion: string;
   name?: string;
 }): Promise<DeviceRegisterResult> {
+  if (knownRegisterBlock) {
+    throw new DeviceRegisterError(knownRegisterBlock, 'device register blocked');
+  }
+
   const deviceId = getDeviceId();
   if (!deviceId) throw new Error('device id missing — call ensureDevice first');
 
@@ -69,7 +79,9 @@ export async function registerSyncDevice(opts: {
       /* ignore */
     }
     if (resp.status === 403) {
-      throw parseDeviceRegisterError(resp.status, body);
+      const err = parseDeviceRegisterError(resp.status, body);
+      knownRegisterBlock = err.code;
+      throw err;
     }
     throw new Error(typeof body.message === 'string' ? body.message : `device register: ${resp.status}`);
   }

@@ -1,127 +1,103 @@
 import type { BillingMe, PlanEntitlementKey } from '@shared/api/billingClient';
 import type { DeviceRegistrationState } from '@shared/model/planUsage';
 
-export type PlanMeterRow = {
-  kind: 'meter';
-  key: PlanEntitlementKey;
-  used: number;
-  limit: number | null;
-  unlimited: boolean;
-  exhausted: boolean;
-};
+export type PlanFeatureStatus =
+  | { kind: 'meter'; used: number; limit: number | null; unlimited: boolean }
+  | { kind: 'included' }
+  | { kind: 'pro' };
 
-export type PlanBoolRow = {
-  kind: 'bool';
+export type PlanFeature = {
   key: PlanEntitlementKey;
-  enabled: boolean;
+  status: PlanFeatureStatus;
 };
-
-export type PlanDisplayRow = PlanMeterRow | PlanBoolRow;
 
 export interface PlanSnapshot {
   planSlug: string;
   planName: string;
   isPro: boolean;
-  rows: PlanDisplayRow[];
+  features: PlanFeature[];
 }
 
-const METER_KEYS: PlanEntitlementKey[] = [
-  'cloud_sync_devices',
-  'cloud_notes_count',
+const FEATURE_ORDER: PlanEntitlementKey[] = [
   'published_notes_active',
+  'cloud_sync_enabled',
+  'cloud_sync_devices',
+  'publish_password',
 ];
 
-const BOOL_KEYS: PlanEntitlementKey[] = ['cloud_sync_enabled', 'publish_unlisted', 'publish_password'];
-
-function isProPlan(slug: string): boolean {
-  return slug !== 'free';
-}
-
-function meterFromEntitlements(
+function publishedNotesFeature(
   me: BillingMe,
-  key: PlanEntitlementKey,
-  usedOverride: number | null,
-  previewExhausted: boolean,
-): PlanMeterRow | null {
-  if (key === 'cloud_sync_devices' && me.features.cloud_sync_enabled === false) {
-    return null;
-  }
-
-  const lim = me.limits[key];
+  publishedCount: number,
+): PlanFeature {
+  const lim = me.limits.published_notes_active;
   const unlimited = lim?.unlimited ?? false;
   const limit = lim?.limit ?? null;
-  let used = usedOverride ?? lim?.used ?? 0;
+  return {
+    key: 'published_notes_active',
+    status: { kind: 'meter', used: publishedCount, limit, unlimited },
+  };
+}
 
-  if (previewExhausted && !unlimited && limit != null) {
-    used = limit;
+function boolFeature(me: BillingMe, key: PlanEntitlementKey): PlanFeature {
+  const enabled = me.features[key] === true;
+  return { key, status: enabled ? { kind: 'included' } : { kind: 'pro' } };
+}
+
+function devicesFeature(
+  me: BillingMe,
+  deviceRegistration: DeviceRegistrationState | null,
+): PlanFeature | null {
+  if (me.features.cloud_sync_enabled !== true) {
+    return { key: 'cloud_sync_devices', status: { kind: 'pro' } };
   }
-
-  const exhausted = !unlimited && limit != null && used >= limit;
-
-  return { kind: 'meter', key, used, limit, unlimited, exhausted };
+  const lim = me.limits.cloud_sync_devices;
+  const unlimited = lim?.unlimited ?? false;
+  const limit = lim?.limit ?? null;
+  const used = deviceRegistration?.devicesRegistered ?? lim?.used ?? 0;
+  return {
+    key: 'cloud_sync_devices',
+    status: { kind: 'meter', used, limit, unlimited },
+  };
 }
 
 export function buildPlanSnapshot(input: {
   me: BillingMe;
-  notesCount: number;
   publishedCount: number;
   deviceRegistration: DeviceRegistrationState | null;
-  previewExhausted: boolean;
 }): PlanSnapshot {
-  const { me, notesCount, publishedCount, deviceRegistration, previewExhausted } = input;
+  const { me, publishedCount, deviceRegistration } = input;
 
-  const usedForKey = (key: PlanEntitlementKey): number | null => {
-    switch (key) {
-      case 'cloud_notes_count':
-        return notesCount;
-      case 'published_notes_active':
-        return publishedCount;
-      case 'cloud_sync_devices':
-        return deviceRegistration?.devicesRegistered ?? 0;
-      default:
-        return null;
+  const features: PlanFeature[] = [];
+
+  for (const key of FEATURE_ORDER) {
+    if (key === 'published_notes_active') {
+      features.push(publishedNotesFeature(me, publishedCount));
+      continue;
     }
-  };
-
-  const rows: PlanDisplayRow[] = [];
-
-  for (const key of BOOL_KEYS) {
-    let enabled = me.features[key] ?? false;
-    if (previewExhausted && key === 'cloud_sync_enabled') {
-      enabled = false;
+    if (key === 'cloud_sync_devices') {
+      const row = devicesFeature(me, deviceRegistration);
+      if (row) features.push(row);
+      continue;
     }
-    rows.push({ kind: 'bool', key, enabled });
-  }
-
-  for (const key of METER_KEYS) {
-    const row = meterFromEntitlements(me, key, usedForKey(key), previewExhausted);
-    if (row) rows.push(row);
+    features.push(boolFeature(me, key));
   }
 
   return {
     planSlug: me.planSlug,
     planName: me.planName,
-    isPro: isProPlan(me.planSlug),
-    rows,
+    isPro: me.planSlug !== 'free',
+    features,
   };
 }
 
-export function meterLabel(
-  row: PlanMeterRow,
+export function formatFeatureValue(
+  status: PlanFeatureStatus,
   t: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
-  if (row.unlimited || row.limit == null) {
-    return t('nordly.settings.plan.usage_unlimited', { used: row.used });
+  if (status.kind === 'included') return t('nordly.settings.plan.included');
+  if (status.kind === 'pro') return t('nordly.settings.plan.pro_badge');
+  if (status.unlimited || status.limit == null) {
+    return t('nordly.settings.plan.meter_unlimited');
   }
-  const remaining = Math.max(0, row.limit - row.used);
-  return t('nordly.settings.plan.usage_remaining', {
-    used: row.used,
-    limit: row.limit,
-    remaining,
-  });
-}
-
-export function meterPercent(row: PlanMeterRow): number {
-  if (row.unlimited || row.limit == null || row.limit <= 0) return 0;
-  return Math.min(100, Math.round((row.used / row.limit) * 100));
+  return t('nordly.settings.plan.meter', { used: status.used, limit: status.limit });
 }

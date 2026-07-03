@@ -11,6 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const noteSelectCols = `
+	id, user_id, title, body_md, encrypted, published, publish_slug,
+	published_at, publish_password_hash, publish_expires_at, size_bytes, created_at, updated_at`
+
 func (r *Repository) ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error) {
 	const maxNotes = 200
 	rows, err := r.pg.Query(ctx, `
@@ -38,8 +42,7 @@ func (r *Repository) ListNotes(ctx context.Context, userID string) ([]notesmodel
 
 func (r *Repository) GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error) {
 	row := r.pg.QueryRow(ctx, `
-		SELECT id, user_id, title, body_md, encrypted, published, publish_slug,
-		       published_at, size_bytes, created_at, updated_at
+		SELECT`+noteSelectCols+`
 		FROM notes
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 	`, id, userID)
@@ -54,8 +57,7 @@ func (r *Repository) CreateNote(
 	row := r.pg.QueryRow(ctx, `
 		INSERT INTO notes (user_id, title, body_md, size_bytes)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, user_id, title, body_md, encrypted, published, publish_slug,
-		          published_at, size_bytes, created_at, updated_at
+		RETURNING`+noteSelectCols+`
 	`, userID, title, body, size)
 	return scanNote(row)
 }
@@ -69,8 +71,7 @@ func (r *Repository) UpdateNote(
 		UPDATE notes
 		SET title = $3, body_md = $4, size_bytes = $5, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-		RETURNING id, user_id, title, body_md, encrypted, published, publish_slug,
-		          published_at, size_bytes, created_at, updated_at
+		RETURNING`+noteSelectCols+`
 	`, id, userID, title, body, size)
 	return scanNote(row)
 }
@@ -119,7 +120,8 @@ func (r *Repository) EncryptNote(ctx context.Context, userID, noteID, ciphertext
 	tag, err := r.pg.Exec(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = true, published = false, publish_slug = NULL,
-		    published_at = NULL, size_bytes = $4, updated_at = now()
+		    published_at = NULL, publish_password_hash = NULL,
+		    publish_expires_at = NULL, size_bytes = $4, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 	`, noteID, userID, ciphertext, size)
 	if err != nil {
@@ -135,9 +137,11 @@ func scanNote(row pgx.Row) (*notesmodel.Note, error) {
 	var n notesmodel.Note
 	var publishSlug *string
 	var publishedAt *time.Time
+	var passwordHash *string
+	var expiresAt *time.Time
 	err := row.Scan(
 		&n.ID, &n.UserID, &n.Title, &n.BodyMD, &n.Encrypted, &n.Published,
-		&publishSlug, &publishedAt, &n.SizeBytes, &n.CreatedAt, &n.UpdatedAt,
+		&publishSlug, &publishedAt, &passwordHash, &expiresAt, &n.SizeBytes, &n.CreatedAt, &n.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, notesmodel.ErrNotFound
@@ -147,34 +151,60 @@ func scanNote(row pgx.Row) (*notesmodel.Note, error) {
 	}
 	n.PublishSlug = publishSlug
 	n.PublishedAt = publishedAt
+	n.PublishPasswordHash = passwordHash
+	n.PublishExpiresAt = expiresAt
 	return &n, nil
 }
 
 func (r *Repository) GetPublishedNoteBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNote, error) {
+	rec, err := r.GetPublishedNoteRecordBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	out := &notesmodel.PublishedNote{
+		Title:            rec.Title,
+		BodyMD:           rec.BodyMD,
+		PublishedAt:      rec.PublishedAt,
+		PasswordRequired: rec.PasswordHash != nil && *rec.PasswordHash != "",
+	}
+	if out.PasswordRequired {
+		out.BodyMD = ""
+	}
+	return out, nil
+}
+
+func (r *Repository) GetPublishedNoteRecordBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNoteRecord, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return nil, notesmodel.ErrInvalidArgument
 	}
 	row := r.pg.QueryRow(ctx, `
-		SELECT title, body_md, published_at
+		SELECT title, body_md, published_at, publish_password_hash, publish_expires_at
 		FROM notes
 		WHERE publish_slug = $1
 		  AND published = true
 		  AND encrypted = false
 		  AND archived_at IS NULL
+		  AND (publish_expires_at IS NULL OR publish_expires_at > now())
 	`, slug)
-	var out notesmodel.PublishedNote
-	err := row.Scan(&out.Title, &out.BodyMD, &out.PublishedAt)
+	var out notesmodel.PublishedNoteRecord
+	var passwordHash *string
+	var expiresAt *time.Time
+	err := row.Scan(&out.Title, &out.BodyMD, &out.PublishedAt, &passwordHash, &expiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, notesmodel.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	out.PasswordHash = passwordHash
 	return &out, nil
 }
 
-func newPublishSlug(title string) string {
+func newPublishSlug(title string, privateLink bool) string {
+	if privateLink {
+		return uuid.NewString()
+	}
 	base := strings.ToLower(strings.TrimSpace(title))
 	var b strings.Builder
 	for _, r := range base {

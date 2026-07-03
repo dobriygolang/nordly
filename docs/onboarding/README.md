@@ -40,7 +40,7 @@ Plan matrix: [docs/billing-plans.md](../billing-plans.md).
 
 | From | To | Why |
 |------|-----|-----|
-| notes | billing | `cloud_notes_count` gate on create |
+| notes | billing | `published_notes_active` on share-to-web; `publish_password` for private links |
 | rooms | identity | scoped guest JWT mint |
 | sandbox | billing | code run quotas |
 

@@ -9,6 +9,7 @@ import (
 	billingadapter "github.com/dobriygolang/project-nordly/services/notes/internal/adapter/billing"
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	notesrepo "github.com/dobriygolang/project-nordly/services/notes/internal/notes/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -16,11 +17,13 @@ var (
 	ErrInvalidArgument = notesmodel.ErrInvalidArgument
 	ErrQuotaExceeded   = notesmodel.ErrQuotaExceeded
 	ErrFeatureDisabled = notesmodel.ErrFeatureDisabled
+	ErrAccessDenied    = notesmodel.ErrAccessDenied
 )
 
 type PublishOptions struct {
-	Unlisted          bool
 	PasswordProtected bool
+	Password          string
+	ExpiresInDays     int32
 }
 
 type Service interface {
@@ -40,6 +43,7 @@ type Service interface {
 	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext string, opts PublishOptions) (*notesmodel.ShareToWebResult, error)
 	MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error
 	GetPublishedNote(ctx context.Context, slug string) (*notesmodel.PublishedNote, error)
+	AccessPublishedNote(ctx context.Context, slug, password string) (*notesmodel.PublishedNote, error)
 }
 
 type notesService struct {
@@ -104,9 +108,6 @@ func (s *notesService) CreateNote(
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrInvalidArgument
 	}
-	if err := s.ensureCloudNotesQuota(ctx, userID); err != nil {
-		return nil, err
-	}
 	return s.repo.CreateNote(ctx, userID, strings.TrimSpace(title), body)
 }
 
@@ -153,15 +154,6 @@ func (s *notesService) ShareNoteToWeb(
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(noteID) == "" {
 		return nil, ErrInvalidArgument
 	}
-	if opts.Unlisted {
-		enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishUnlisted)
-		if err != nil {
-			return nil, err
-		}
-		if !enabled {
-			return nil, ErrFeatureDisabled
-		}
-	}
 	if opts.PasswordProtected {
 		enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishPassword)
 		if err != nil {
@@ -169,6 +161,24 @@ func (s *notesService) ShareNoteToWeb(
 		}
 		if !enabled {
 			return nil, ErrFeatureDisabled
+		}
+		if strings.TrimSpace(opts.Password) == "" {
+			return nil, ErrInvalidArgument
+		}
+		if len(opts.Password) < 4 {
+			return nil, ErrInvalidArgument
+		}
+	}
+	if opts.ExpiresInDays > 0 {
+		enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishPassword)
+		if err != nil {
+			return nil, err
+		}
+		if !enabled {
+			return nil, ErrFeatureDisabled
+		}
+		if opts.ExpiresInDays > 365 {
+			return nil, ErrInvalidArgument
 		}
 	}
 
@@ -188,7 +198,19 @@ func (s *notesService) ShareNoteToWeb(
 	if err := s.ensurePublishedNotesQuota(ctx, userID); err != nil {
 		return nil, err
 	}
-	return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL)
+
+	meta := notesmodel.PublishMeta{
+		ExpiresInDays: opts.ExpiresInDays,
+	}
+	if opts.PasswordProtected {
+		hash, err := bcrypt.GenerateFromPassword([]byte(opts.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		hashStr := string(hash)
+		meta.PasswordHash = &hashStr
+	}
+	return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL, meta)
 }
 
 func (s *notesService) MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error {
@@ -205,6 +227,38 @@ func (s *notesService) GetPublishedNote(ctx context.Context, slug string) (*note
 	return s.repo.GetPublishedNoteBySlug(ctx, slug)
 }
 
+func (s *notesService) AccessPublishedNote(ctx context.Context, slug, password string) (*notesmodel.PublishedNote, error) {
+	slug = strings.TrimSpace(slug)
+	if slug == "" || strings.TrimSpace(password) == "" {
+		return nil, ErrInvalidArgument
+	}
+	rec, err := s.repo.GetPublishedNoteRecordBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if rec.PasswordHash == nil || *rec.PasswordHash == "" {
+		return &notesmodel.PublishedNote{
+			Title:            rec.Title,
+			BodyMD:           rec.BodyMD,
+			PublishedAt:      rec.PublishedAt,
+			PasswordRequired: false,
+		}, nil
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*rec.PasswordHash), []byte(password)); err != nil {
+		return nil, ErrAccessDenied
+	}
+	return &notesmodel.PublishedNote{
+		Title:            rec.Title,
+		BodyMD:           rec.BodyMD,
+		PublishedAt:      rec.PublishedAt,
+		PasswordRequired: false,
+	}, nil
+}
+
+func IsAccessDenied(err error) bool {
+	return errors.Is(err, ErrAccessDenied)
+}
+
 func IsNotFound(err error) bool {
 	return errors.Is(err, ErrNotFound)
 }
@@ -219,27 +273,6 @@ func IsQuotaExceeded(err error) bool {
 
 func IsFeatureDisabled(err error) bool {
 	return errors.Is(err, ErrFeatureDisabled)
-}
-
-func (s *notesService) ensureCloudNotesQuota(ctx context.Context, userID string) error {
-	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementCloudNotesCount)
-	if err != nil {
-		return err
-	}
-	if limit.Unlimited {
-		return nil
-	}
-	if limit.Limit == nil {
-		return fmt.Errorf("billing: cloud_notes_count limit missing for user %s", userID)
-	}
-	count, err := s.repo.CountActiveNotes(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if count >= *limit.Limit {
-		return ErrQuotaExceeded
-	}
-	return nil
 }
 
 func (s *notesService) ensurePublishedNotesQuota(ctx context.Context, userID string) error {
@@ -262,3 +295,4 @@ func (s *notesService) ensurePublishedNotesQuota(ctx context.Context, userID str
 	}
 	return nil
 }
+

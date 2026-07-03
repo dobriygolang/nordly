@@ -23,7 +23,7 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 | Vault | `POST /v1/notes/vault/init`, `GET /v1/notes/vault/salt`, `POST /v1/notes/vault/notes/{id}/encrypt` |
 | Notes | `GET/POST /v1/notes`, `GET/PUT/DELETE /v1/notes/{id}` |
 | Publish | `POST /v1/notes/{id}/share-to-web`, `unpublish`, `make-private`, `GET publish-status` |
-| **Public** | `GET /v1/notes/public/{slug}` — no auth; published plaintext only |
+| **Public** | `GET /v1/notes/public/{slug}` — metadata only when password-protected; `POST /v1/notes/public/{slug}/access` with `{ password }` unlocks body |
 
 ## Env
 
@@ -34,19 +34,23 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 | `POSTGRES_DSN` | `postgres://postgres:postgres@localhost:5442/nordly_notes?sslmode=disable` |
 | `JWT_PUBLIC_KEY` or `JWT_PUBLIC_KEY_FILE` | required |
 | `BILLING_GRPC_ADDR` | default `127.0.0.1:9095` |
-| `INTERNAL_API_TOKEN` | **required** — billing gRPC for `cloud_notes_count` gate |
+| `INTERNAL_API_TOKEN` | **required** — billing gRPC for publish feature gates |
 | `PUBLIC_BASE_URL` | **required** — publish link base |
 
 ## Billing
 
-`CreateNote` checks active note count against billing gauge `cloud_notes_count`. Billing client is always wired at startup; missing entitlement or billing error fails the create (no noop/unlimited fallback).
+`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes (Free: 10, Pro: 100). Pro-only **private link** (`publish_password`):
 
-`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes. Optional request flags `unlisted` and `password_protected` gate `publish_unlisted` and `publish_password` entitlements.
+- `password_protected` + `password` — bcrypt hash; public GET omits body until `AccessPublishedNote`.
+- Optional `expires_in_days` — link stops working after 7/30/90 days.
+- Opaque UUID slug when password is set.
+
+`GetPublishStatus` returns `password_protected` and `expires_at` for the owner UI.
 
 ## Data model
 
 - `vault_salts` — per-user random 32-byte salt (base64 to client)
-- `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`
+- `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`, `publish_password_hash`, `publish_expires_at`
 
 Soft-delete: `archived_at` set on delete.
 

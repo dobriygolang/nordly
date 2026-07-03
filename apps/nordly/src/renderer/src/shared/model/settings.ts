@@ -53,7 +53,7 @@ export const DEFAULTS: NordlySettings = {
   textScale: 'normal',
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
-  planPreviewExhausted: true,
+  planPreviewExhausted: false,
 };
 
 function parseTimerMode(v: unknown): TimerMode {

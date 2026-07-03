@@ -191,7 +191,7 @@ export default function App() {
         });
         resetAuthRefreshState();
       } else {
-        void clear();
+        void clear({ skipNativeLogout: true });
       }
     });
 

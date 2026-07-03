@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import {
   ApiError,
+  accessPublishedNote,
   fetchPublishedNote,
   publishedNoteDisplayTitle,
   type PublishedNote,
@@ -36,12 +37,64 @@ function NoteBody({ bodyMd }: { bodyMd: string }) {
   )
 }
 
+function PasswordGate({
+  title,
+  password,
+  error,
+  busy,
+  onPasswordChange,
+  onSubmit,
+}: {
+  title: string
+  password: string
+  error: string | null
+  busy: boolean
+  onPasswordChange: (value: string) => void
+  onSubmit: () => void
+}) {
+  const { t } = useI18n()
+
+  return (
+    <div className="w-full max-w-md mx-auto px-6 sm:px-8 relative z-10">
+      <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
+      <p className="text-zinc-400 text-sm mb-6">{t('seo.pages.publishedNote.passwordHint')}</p>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          onSubmit()
+        }}
+      >
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => onPasswordChange(e.target.value)}
+          placeholder={t('seo.pages.publishedNote.passwordPlaceholder')}
+          className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+          autoComplete="current-password"
+        />
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        <button
+          type="submit"
+          disabled={busy || password.trim().length === 0}
+          className="inline-flex rounded-md bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+        >
+          {t('seo.pages.publishedNote.passwordSubmit')}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function PublishedNotePage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const { t } = useI18n()
   const [state, setState] = useState<
     { kind: 'loading' } | { kind: 'ok'; note: PublishedNote } | { kind: 'error'; status: number }
   >({ kind: 'loading' })
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [unlockBusy, setUnlockBusy] = useState(false)
 
   useEffect(() => {
     if (!slug) {
@@ -50,6 +103,8 @@ export default function PublishedNotePage() {
     }
     let live = true
     setState({ kind: 'loading' })
+    setPassword('')
+    setPasswordError(null)
     void fetchPublishedNote(slug)
       .then((note) => {
         if (live) setState({ kind: 'ok', note })
@@ -69,6 +124,7 @@ export default function PublishedNotePage() {
 
   useEffect(() => {
     document.documentElement.classList.add('dark')
+    const noIndex = state.kind === 'ok' && state.note.passwordRequired
     applyDocumentMeta({
       title:
         state.kind === 'ok'
@@ -77,11 +133,31 @@ export default function PublishedNotePage() {
       description: t('seo.pages.publishedNote.description'),
       keywords: t('seo.keywords'),
       path: slug ? `/notes/${slug}` : '/notes',
+      noIndex,
     })
     return () => {
       document.documentElement.classList.remove('dark')
     }
-  }, [state.kind, title, slug, t])
+  }, [state, title, slug, t])
+
+  const handleUnlock = () => {
+    if (!slug) return
+    setUnlockBusy(true)
+    setPasswordError(null)
+    void accessPublishedNote(slug, password)
+      .then((note) => {
+        setState({ kind: 'ok', note })
+      })
+      .catch((err: unknown) => {
+        const status = err instanceof ApiError ? err.status : 500
+        if (status === 401) {
+          setPasswordError(t('seo.pages.publishedNote.passwordWrong'))
+          return
+        }
+        setState({ kind: 'error', status })
+      })
+      .finally(() => setUnlockBusy(false))
+  }
 
   if (state.kind === 'loading') {
     return (
@@ -116,6 +192,25 @@ export default function PublishedNotePage() {
               {t('seo.goHome')}
             </Link>
           </div>
+        </main>
+        <MadeWithBadge />
+      </div>
+    )
+  }
+
+  if (state.note.passwordRequired) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans relative">
+        <main className="flex-1 flex flex-col py-16 sm:py-24 relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
+          <PasswordGate
+            title={t('seo.pages.publishedNote.passwordTitle')}
+            password={password}
+            error={passwordError}
+            busy={unlockBusy}
+            onPasswordChange={setPassword}
+            onSubmit={handleUnlock}
+          />
         </main>
         <MadeWithBadge />
       </div>

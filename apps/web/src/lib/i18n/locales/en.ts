@@ -59,6 +59,11 @@ export const en: Messages = {
       publishedNote: {
         title: '{{title}}',
         description: 'Published note on Nordly (trynordly.app).',
+        passwordTitle: 'Password required',
+        passwordHint: 'Enter the password shared by the note owner.',
+        passwordPlaceholder: 'Password',
+        passwordSubmit: 'Unlock',
+        passwordWrong: 'Incorrect password.',
       },
       publishedBoard: {
         title: '{{title}}',
@@ -71,9 +76,8 @@ export const en: Messages = {
       cloud_sync_enabled: 'Cloud sync',
       cloud_sync_devices: 'Synced devices',
       cloud_notes_count: 'Cloud notes',
-      published_notes_active: 'Published notes (active)',
-      publish_unlisted: 'Unlisted publish links',
-      publish_password: 'Password / expiry links',
+      published_notes_active: 'Publish to web',
+      publish_password: 'Private link',
     },
   },
   session: {

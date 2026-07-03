@@ -7,4 +7,5 @@ var (
 	ErrNotFound        = errors.New("not found")
 	ErrQuotaExceeded   = errors.New("quota exceeded")
 	ErrFeatureDisabled = errors.New("feature disabled")
+	ErrAccessDenied    = errors.New("access denied")
 )

@@ -114,7 +114,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: 160px;
+  width: 240px;
   padding: 6px;
   border-radius: 10px;
   background: #000000;
@@ -203,6 +203,118 @@
   height: 1px;
   margin: 4px 6px;
   background: var(--ink-tint-06);
+}
+.nordly-note-menu__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 4px;
+}
+.nordly-note-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-90);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--t-fast);
+}
+.nordly-note-menu__toggle:hover:not([data-disabled='true']) {
+  background: rgb(255 255 255 / 0.06);
+}
+.nordly-note-menu__toggle[data-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.nordly-note-menu__toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  transition: background-color var(--t-fast);
+}
+.nordly-note-menu__toggle[data-checked='true'] .nordly-note-menu__toggle-track {
+  background: rgb(255 255 255 / 0.72);
+}
+.nordly-note-menu__toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left var(--t-base), background-color var(--t-fast);
+}
+.nordly-note-menu__toggle[data-checked='true'] .nordly-note-menu__toggle-thumb {
+  left: 14px;
+  background: #000;
+}
+.nordly-note-menu__toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.nordly-note-menu__toggle-pro {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.nordly-note-menu__password {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px 6px;
+}
+.nordly-note-menu__password-label {
+  font-size: 10px;
+  color: var(--ink-40);
+}
+.nordly-note-menu__password-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--ink-90);
+  font-size: 12px;
+  outline: none;
+}
+.nordly-note-menu__password-input:focus {
+  border-color: rgb(255 255 255 / 0.28);
+}
+.nordly-note-menu__expiry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 8px 6px;
+}
+.nordly-note-menu__expiry-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--ink-90);
+  font-size: 12px;
+  outline: none;
+}
+.nordly-note-menu[data-compact='true'] {
+  width: 168px;
 }
 
 /* Notes editor meta (save status, timestamp) */

@@ -1,6 +1,9 @@
 import { HEALTH_CHECK_URL } from '@shared/api/config';
 import { apiFetch } from '@shared/api/http';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
+import { ensureDevice } from '@shared/api/device';
+import { DeviceRegisterError, registerSyncDevice } from '@shared/api/registerSyncDevice';
+import { usePlanUsageStore } from '@shared/model/planUsage';
 import { subscribeVault } from '@shared/crypto/vault';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -83,6 +86,34 @@ async function runSync(options?: SyncOptions): Promise<void> {
     store.setLastError(null);
     if (options?.explicit) {
       throw new SyncError('session_expired', 'Session expired');
+    }
+    return;
+  }
+
+  try {
+    await ensureDevice({ appVersion: '0.0.1' });
+    const reg = await registerSyncDevice({ appVersion: '0.0.1' });
+    usePlanUsageStore.getState().setDeviceRegistration({
+      deviceId: reg.deviceId,
+      devicesRegistered: reg.devicesRegistered,
+      deviceLimit: reg.deviceLimit,
+      cloudSyncEnabled: reg.cloudSyncEnabled,
+    });
+    store.setCloudSyncBlocked(false);
+  } catch (err) {
+    if (err instanceof DeviceRegisterError) {
+      store.setCloudSyncBlocked(true, err.code);
+      store.setStatus('idle');
+      store.setLastError(null);
+      if (options?.explicit) {
+        throw new SyncError(err.code, err.message);
+      }
+      return;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    store.setLastError(message);
+    if (options?.explicit) {
+      throw err instanceof Error ? err : new SyncError('device_register_failed', message);
     }
     return;
   }

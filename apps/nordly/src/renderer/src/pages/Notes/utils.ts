@@ -25,7 +25,10 @@ export function formatTime(d: string | Date | null | undefined): string {
   return dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function errorMessage(err: unknown): string {
+import { formatLimitError } from '@shared/api/limitErrors';
+
+function errorMessage(err: unknown, t?: (key: string) => string): string {
+  if (t) return formatLimitError(err, t);
   return err instanceof Error ? err.message : String(err);
 }
 

@@ -36,8 +36,6 @@ Plan matrix: [docs/billing-plans.md](../billing-plans.md).
 
 **Billing note:** `live_rooms_per_month` / `live_rooms_concurrent` entitlements exist in billing; **rooms does not consume them yet** (reserved for future wiring).
 
-**CI only (not prod):** ai — archived interview-era LLM gateway.
-
 ## gRPC dependencies (active)
 
 | From | To | Why |

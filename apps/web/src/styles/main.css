@@ -212,13 +212,13 @@
 }
 
 /* Excalidraw — sdvg.io light theme (Inter, warm surfaces, soft shadows) */
-.druzya-excalidraw,
-.druzya-excalidraw .excalidraw {
+.nordly-excalidraw,
+.nordly-excalidraw .excalidraw {
   height: 100%;
   width: 100%;
 }
 
-.druzya-excalidraw .excalidraw {
+.nordly-excalidraw .excalidraw {
   --theme-filter: none;
   --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
   --island-bg-color: rgb(var(--color-surface-1));
@@ -252,29 +252,29 @@
   --scrollbar-thumb-hover: rgb(var(--color-border-strong));
 }
 
-.druzya-excalidraw .excalidraw .layer-ui__wrapper__top-right,
-.druzya-excalidraw .excalidraw .scroll-back-to-content,
-.druzya-excalidraw .excalidraw .help-icon,
-.druzya-excalidraw .excalidraw .App-menu__left,
-.druzya-excalidraw .excalidraw .App-menu_left,
-.druzya-excalidraw .excalidraw .color-picker-container,
-.druzya-excalidraw .excalidraw .zoom-actions,
-.druzya-excalidraw .excalidraw .layer-ui__wrapper__footer-left {
+.nordly-excalidraw .excalidraw .layer-ui__wrapper__top-right,
+.nordly-excalidraw .excalidraw .scroll-back-to-content,
+.nordly-excalidraw .excalidraw .help-icon,
+.nordly-excalidraw .excalidraw .App-menu__left,
+.nordly-excalidraw .excalidraw .App-menu_left,
+.nordly-excalidraw .excalidraw .color-picker-container,
+.nordly-excalidraw .excalidraw .zoom-actions,
+.nordly-excalidraw .excalidraw .layer-ui__wrapper__footer-left {
   display: none !important;
 }
 
 /* Board canvas — no Excalidraw invert filter (true #000 / #fafaf8 backgrounds) */
-.druzya-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark,
-.druzya-excalidraw[data-board-theme='light'] .excalidraw.theme--light {
+.nordly-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark,
+.nordly-excalidraw[data-board-theme='light'] .excalidraw.theme--light {
   --theme-filter: none;
 }
 
-html.dark .druzya-excalidraw .excalidraw,
-.druzya-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark {
+html.dark .nordly-excalidraw .excalidraw,
+.nordly-excalidraw[data-board-theme='dark'] .excalidraw.theme--dark {
   --theme-filter: none;
 }
 
-html.dark .druzya-excalidraw .excalidraw {
+html.dark .nordly-excalidraw .excalidraw {
   --island-bg-color: rgb(var(--color-surface-1));
   --default-bg-color: rgb(var(--color-bg)) !important;
   --input-bg-color: rgb(var(--color-surface-2));
@@ -302,6 +302,6 @@ html.dark .druzya-excalidraw .excalidraw {
   --scrollbar-thumb-hover: rgb(var(--color-border-strong));
 }
 
-html.dark .druzya-excalidraw .excalidraw.excalidraw-container {
+html.dark .nordly-excalidraw .excalidraw.excalidraw-container {
   background-color: rgb(var(--color-bg)) !important;
 }

@@ -5,7 +5,12 @@ import (
 	"errors"
 )
 
-const EntitlementCloudNotesCount = "cloud_notes_count"
+const (
+	EntitlementCloudNotesCount     = "cloud_notes_count"
+	EntitlementPublishedNotesActive = "published_notes_active"
+	EntitlementPublishUnlisted     = "publish_unlisted"
+	EntitlementPublishPassword     = "publish_password"
+)
 
 var (
 	ErrQuotaExceeded   = errors.New("quota exceeded")
@@ -19,5 +24,6 @@ type GaugeLimit struct {
 }
 
 type Client interface {
+	CheckFeature(ctx context.Context, userID, key string) (bool, error)
 	GetGaugeLimit(ctx context.Context, userID, key string) (GaugeLimit, error)
 }

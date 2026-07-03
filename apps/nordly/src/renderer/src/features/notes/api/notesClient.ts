@@ -21,6 +21,7 @@ import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
 import { ensureNoteServerId } from '@features/notes/sync/notesSync';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
+import { usePlanUsageStore } from '@shared/model/planUsage';
 
 export type { PublishStatus };
 
@@ -111,6 +112,9 @@ export async function publishNoteToWeb(noteId: string): Promise<PublishStatus> {
   const note = await getNote(noteId);
   await remoteUpdateNote(serverId, note.title, note.bodyMd);
   const res = await remoteShareNoteToWeb(serverId, note.bodyMd);
+  if (!res.alreadyPublished) {
+    usePlanUsageStore.getState().adjustPublishedNotesCount(1);
+  }
   return {
     published: true,
     slug: res.slug,
@@ -124,6 +128,7 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   if (!serverId) throw new Error('Cloud sync required to publish notes');
   const note = await getNote(noteId);
   await remoteUnpublishNote(serverId);
+  usePlanUsageStore.getState().adjustPublishedNotesCount(-1);
   if (isVaultEnabledSync() && isVaultUnlocked()) {
     const encTitle = await encryptText(note.title);
     const encBody = await encryptText(note.bodyMd);

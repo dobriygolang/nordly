@@ -18,6 +18,7 @@ type Config struct {
 	GRPCPort           int
 	GRPCHost           string
 	PostgresDSN        string
+	JWTPublicKeyPEM  []byte
 	InternalAPIToken   string
 	IdentityGRPCAddr   string
 	TributeWebhookSecret string
@@ -68,6 +69,10 @@ func Load() (*Config, error) {
 	if internalToken == "" {
 		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
 	}
+	publicKey, err := loadPEM("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")
+	if err != nil {
+		return nil, fmt.Errorf("jwt public key: %w", err)
+	}
 	tributeSecret := getEnv("TRIBUTE_WEBHOOK_SECRET", "")
 	if err := validateProduction(getEnv("APP_ENV", "development"), internalToken); err != nil {
 		return nil, err
@@ -80,6 +85,7 @@ func Load() (*Config, error) {
 		GRPCPort:             grpcPort,
 		GRPCHost:             grpcListenHost(),
 		PostgresDSN:          getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5438/nordly_billing?sslmode=disable"),
+		JWTPublicKeyPEM:      publicKey,
 		InternalAPIToken:     internalToken,
 		IdentityGRPCAddr:     getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
 		TributeWebhookSecret: tributeSecret,
@@ -185,4 +191,19 @@ func validateProduction(appEnv, internalToken string) error {
 		return fmt.Errorf("INTERNAL_API_TOKEN must be changed in production")
 	}
 	return nil
+}
+
+func loadPEM(envKey, fileKey string) ([]byte, error) {
+	if path := os.Getenv(fileKey); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", fileKey, err)
+		}
+		return data, nil
+	}
+	value := os.Getenv(envKey)
+	if value == "" {
+		return nil, fmt.Errorf("%s or %s is required", envKey, fileKey)
+	}
+	return []byte(value), nil
 }

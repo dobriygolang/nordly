@@ -52,15 +52,15 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
-          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/hone-signing.p12
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/nordly-signing.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
-          security import /tmp/hone-signing.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security import /tmp/nordly-signing.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security find-identity -v -p codesigning build.keychain
-          rm -f /tmp/hone-signing.p12
+          rm -f /tmp/nordly-signing.p12
 
       - name: Prepare App Store Connect API key
         if: matrix.os == 'macos' && vars.NORDLY_CODE_SIGNING == 'true'
@@ -186,7 +186,7 @@ jobs:
         with:
           projectPath: apps/nordly
           tagName: ${{ steps.release.outputs.tag }}
-          releaseName: Hone ${{ steps.release.outputs.tag }}
+          releaseName: Nordly ${{ steps.release.outputs.tag }}
           releaseBody: |
             Signed desktop builds for macOS (Apple Silicon + Intel) and Windows.
 
@@ -195,3 +195,74 @@ jobs:
           prerelease: false
           updaterJsonPreferNsis: true
           args: ${{ steps.tauri_args.outputs.args }}
+
+  sync-cdn:
+    name: sync desktop CDN
+    needs: publish
+    runs-on: ubuntu-latest
+    if: success() && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            version=$(node -p "require('./apps/nordly/src-tauri/tauri.conf.json').version")
+            echo "name=nordly-v${version}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/desktop-release
+          gh release download "${{ steps.tag.outputs.name }}" \
+            --repo "${{ github.repository }}" \
+            --dir /tmp/desktop-release
+          ls -la /tmp/desktop-release
+
+      - name: Prepare CDN bundle
+        run: |
+          set -euo pipefail
+          node deploy/scripts/prepare-desktop-cdn.mjs \
+            --input /tmp/desktop-release \
+            --tag "${{ steps.tag.outputs.name }}" \
+            --cdn-base https://cdn.trynordly.app/desktop \
+            --output /tmp/cdn-upload
+          tar czf /tmp/desktop-cdn.tgz -C /tmp/cdn-upload desktop
+
+      - name: Upload CDN bundle
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          source: /tmp/desktop-cdn.tgz
+          target: /opt/project-nordly/
+          overwrite: true
+
+      - name: Install CDN bundle on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            REPO_DIR="/opt/project-nordly"
+            if [ -n "${{ secrets.DEPLOY_REPO_DIR }}" ]; then REPO_DIR="${{ secrets.DEPLOY_REPO_DIR }}"; fi
+            mkdir -p "$REPO_DIR/deploy/data/cdn"
+            tar xzf "$REPO_DIR/desktop-cdn.tgz" -C "$REPO_DIR/deploy/data/cdn"
+            rm -f "$REPO_DIR/desktop-cdn.tgz"
+            test -f "$REPO_DIR/deploy/data/cdn/desktop/latest.json"
+            test -f "$REPO_DIR/deploy/data/cdn/desktop/releases.json"
+            echo "CDN desktop bundle installed for tag ${{ steps.tag.outputs.name }}"

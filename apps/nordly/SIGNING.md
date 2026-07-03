@@ -167,8 +167,11 @@ npm run build
 2. **Windows job** — imports `.pfx` into runner cert store.
 3. **`write-signing-config.mjs`** — merges thumbprint / signing identity into `signing.ci.json`.
 4. **`tauri-action`** — builds signed + notarized artifacts.
+5. **`sync-cdn`** — downloads release assets, rewrites updater URLs to `cdn.trynordly.app`, SCP to VPS (`deploy/data/cdn/desktop/`).
 
 Release trigger unchanged: `git tag nordly-v0.0.1 && git push origin nordly-v0.0.1`.
+
+Requires GitHub secrets `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY` (same as backend deploy).
 
 ---
 

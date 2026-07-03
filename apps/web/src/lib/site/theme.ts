@@ -1,6 +1,6 @@
 export type SiteTheme = 'dark' | 'light'
 
-const STORAGE_KEY = 'hone-site-theme'
+const STORAGE_KEY = 'nordly-site-theme'
 
 export function readSiteTheme(): SiteTheme {
   try {

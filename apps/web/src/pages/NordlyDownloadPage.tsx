@@ -9,7 +9,7 @@ export default function NordlyDownloadPage() {
     void (async () => {
       const url = await resolveDownloadUrl(detectPlatform())
       if (cancelled) return
-      if (url?.includes('/releases/download/')) {
+      if (url && /\.(dmg|exe|msi)(\?|#|$)/i.test(url)) {
         triggerDownload(url)
         return
       }

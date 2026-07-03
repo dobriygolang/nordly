@@ -1,8 +1,8 @@
-> **Archived (2026):** Interview/AI SD room was removed from prod. Kept for historical reference only. Live rooms today: code collab + Excalidraw whiteboard via `rooms` service.
+> **Archived (2026):** Interview system-design room was removed from prod. Kept for historical reference only. Live rooms today: code collab + Excalidraw whiteboard via `rooms` service.
 
 # System Design Room
 
-Quality-first mock interview workspace for `system_design` tasks: phased flow, Excalidraw diagram, AI interviewer chat, checkpoint critique, multi-pass final evaluation.
+Quality-first mock interview workspace for `system_design` tasks: phased flow, Excalidraw diagram, interviewer chat, checkpoint critique, multi-pass final evaluation.
 
 ## Flow
 
@@ -11,7 +11,7 @@ flowchart LR
   Brief --> Clarification --> NFR --> Diagram --> API --> DataModel --> DeepDive --> WrapUp --> Submit --> Debrief
 ```
 
-| Phase | User work | AI (optional) |
+| Phase | User work | Interviewer (optional) |
 |-------|-----------|---------------|
 | brief | Read task brief | — |
 | clarification | Q&A with interviewer | `RunSystemDesignInterviewerTurn` |
@@ -61,19 +61,11 @@ HTTP prefix: `/v1/interview/session-tasks/{session_task_id}/system-design`
 | GetSystemDesignWorkspace | GET `.../workspace` | Load or create workspace |
 | PatchSystemDesignWorkspace | PATCH `.../workspace` | Autosave fields + phase; `expected_version` |
 | ListSystemDesignTurns | GET `.../turns` | Chat history |
-| PostSystemDesignTurn | POST `.../turns` | User message → AI interviewer reply |
+| PostSystemDesignTurn | POST `.../turns` | User message → interviewer reply |
 | RequestSystemDesignCheckpoint | POST `.../checkpoint` | Phase critique (diagram PNG optional) |
 | SubmitSystemDesign | POST `.../submit` | Creates attempt + outbox |
 
 Submit packs a JSON dossier into `attempts.answer_text` and stores diagram PNG reference in `attachments`.
-
-## RPCs (ai-service, internal)
-
-| RPC | llmchain task |
-|-----|---------------|
-| RunSystemDesignInterviewerTurn | `system_design_senior_mock` |
-| RunSystemDesignCheckpoint | `sysdesign_critique` (+ optional `vision` on PNG) |
-| RunEvaluation (existing) | SD branch: 3-pass dossier + diagram rubric |
 
 ## Content task metadata
 
@@ -93,8 +85,8 @@ Submit packs a JSON dossier into `attempts.answer_text` and stores diagram PNG r
 ## Billing (target)
 
 - 1 SD session ≈ 1 `mock_interviews` entitlement (debited at session start)
-- Interviewer turns + checkpoints: `sd_ai_turns_per_month` (Free 40, Pro 400)
-- Final eval: 1 `ai_evaluations_per_day`
+- Interviewer turns + checkpoints: `sd_turns_per_month` (Free 40, Pro 400)
+- Final eval: 1 `evaluations_per_day`
 - Diagram PNG attached on submit → vision pass in final eval + checkpoint
 
 ## Frontend
@@ -105,4 +97,4 @@ Submit packs a JSON dossier into `attempts.answer_text` and stores diagram PNG r
 
 ## Future: live human + voice
 
-Deferred v3: WebRTC room (`rooms-service`), human interviewer role, STT/TTS for AI fallback. SD workspace schema is interviewer-agnostic (`role` column supports human).
+Deferred v3: WebRTC room (`rooms-service`), human interviewer role, STT/TTS for automated fallback. SD workspace schema is interviewer-agnostic (`role` column supports human).

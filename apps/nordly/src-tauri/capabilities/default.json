@@ -25,10 +25,6 @@
         { "url": "https://trynordly.app/**" },
         { "url": "https://api.trynordly.app/**" },
         { "url": "https://cdn.trynordly.app/**" },
-        { "url": "https://druz9.online/**" },
-        { "url": "https://api.druz9.online/**" },
-        { "url": "https://cdn.druz9.online/**" },
-        { "url": "https://druz9.ru/**" },
         { "url": "http://localhost:8080/**" },
         { "url": "http://127.0.0.1:8080/**" }
       ]

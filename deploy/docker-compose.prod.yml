@@ -83,6 +83,7 @@ services:
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI}
       AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-60}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      BILLING_GRPC_ADDR: billing:9095
     volumes:
       - ./secrets/jwt:/run/secrets/jwt:ro
     healthcheck:
@@ -326,6 +327,7 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ${NORDLY_CDN_DIR:-./data/cdn}:/cdn:ro
     depends_on:
       identity:
         condition: service_healthy

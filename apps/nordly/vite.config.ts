@@ -30,6 +30,8 @@ export default defineConfig(({ mode }) => {
         '/v1/notes': { target: 'http://localhost:8090', changeOrigin: true },
         '/v1/focus': { target: 'http://localhost:8091', changeOrigin: true },
         '/v1/rooms': { target: 'http://localhost:8087', changeOrigin: true },
+        '/v1/billing': { target: 'http://localhost:8085', changeOrigin: true },
+        '/v1/devices': { target: 'http://localhost:8080', changeOrigin: true },
       }
     : {
         '/healthz': { target: prodApi, changeOrigin: true },
@@ -39,6 +41,8 @@ export default defineConfig(({ mode }) => {
         '/v1/notes': { target: prodApi, changeOrigin: true },
         '/v1/focus': { target: prodApi, changeOrigin: true },
         '/v1/rooms': { target: prodApi, changeOrigin: true },
+        '/v1/billing': { target: prodApi, changeOrigin: true },
+        '/v1/devices': { target: prodApi, changeOrigin: true },
       };
 
   return {

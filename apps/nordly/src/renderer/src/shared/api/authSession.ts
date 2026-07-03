@@ -42,6 +42,7 @@ function setSessionReauthRequired(required: boolean): void {
 export function resetAuthRefreshState(): void {
   refreshRejected = false;
   setSessionReauthRequired(false);
+  useSyncStore.getState().setCloudSyncBlocked(false);
 }
 
 export function isSessionExpired(): boolean {

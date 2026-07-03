@@ -12,6 +12,7 @@ import (
 	billingservice "github.com/dobriygolang/project-nordly/services/billing/internal/billing/service"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/config"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/tools/logger"
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	goredis "github.com/redis/go-redis/v9"
 )
 
@@ -22,6 +23,7 @@ type App struct {
 	Postgres     *billingrepo.Pool
 	Redis        *goredis.Client
 	IdentityConn *identitygrpc.Client
+	JWT          *jwt.Validator
 	Service      billingservice.Service
 }
 
@@ -80,12 +82,23 @@ func New(ctx context.Context) (*App, error) {
 		ProTrialDays:      cfg.ProTrialDays,
 	})
 
+	jwtValidator, err := jwt.NewValidator(cfg.JWTPublicKeyPEM)
+	if err != nil {
+		if redisClient != nil {
+			_ = redisClient.Close()
+		}
+		pg.Close()
+		_ = identityClient.Close()
+		return nil, fmt.Errorf("init jwt validator: %w", err)
+	}
+
 	return &App{
 		Config:       cfg,
 		Logger:       log,
 		Postgres:     pg,
 		Redis:        redisClient,
 		IdentityConn: identityClient,
+		JWT:          jwtValidator,
 		Service:      svc,
 	}, nil
 }

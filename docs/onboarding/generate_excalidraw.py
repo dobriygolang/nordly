@@ -319,13 +319,13 @@ def diagram_00_master() -> None:
     els: list = []
     sk = True
 
-    els.append(label(40, 10, "druzya — system design (onboarding)", size=22, sketch=sk))
+    els.append(label(40, 10, "Nordly — system design (onboarding)", size=22, sketch=sk))
 
     # ── top: user → caddy ──
     els += rect(40, 70, 70, 90, "User", bg=CLIENT, align="center", sketch=sk)
     els.append(arrow(110, 110, 50, 0, sketch=sk))
     els.append(label(120, 90, "HTTPS", size=11, sketch=sk))
-    els += rect(170, 80, 220, 70, "Caddy / Vite\n(druz9.online)\n/v1/*  /ws/*", bg=EDGE, align="center", sketch=sk)
+    els += rect(170, 80, 220, 70, "Caddy / Vite\n(trynordly.app)\n/v1/*  /ws/*", bg=EDGE, align="center", sketch=sk)
     els += rect(420, 95, 160, 40, "apps/web\nReact SPA", bg=CLIENT, align="center", font_size=11, sketch=sk)
     els.append(arrow(390, 115, 30, 0, stroke="#1971c2", sketch=sk))
 
@@ -529,7 +529,7 @@ code_room_participants {
 
 def diagram_01_overview() -> None:
     els: list = []
-    els.append(label(40, 10, "01 — Обзор платформы druzya", size=20))
+    els.append(label(40, 10, "01 — Обзор платформы Nordly", size=20))
     els += rect(520, 50, 260, 60, "User (браузер)", bg=CLIENT, align="center")
     els += rect(480, 140, 340, 55, "apps/web — React SPA", bg=CLIENT, align="center")
     els += rect(480, 220, 340, 55, "Caddy / Vite proxy\n/v1/*  /ws/*", bg=EDGE, align="center")
@@ -545,7 +545,7 @@ def diagram_01_overview() -> None:
     ]
     for x, y, text, bg in services:
         els += rect(x, y, 155, 75, text, bg=bg, font_size=12, align="center")
-    els += ellipse_db(380, 560, 190, 70, "Postgres\n8× druzya_*")
+    els += ellipse_db(380, 560, 190, 70, "Postgres\n7× nordly_*")
     els += ellipse_db(600, 560, 110, 70, "Redis")
     save("01-overview.excalidraw", els)
 

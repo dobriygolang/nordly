@@ -3,6 +3,7 @@ module github.com/dobriygolang/project-nordly/services/identity
 go 1.25.8
 
 require (
+	github.com/dobriygolang/project-nordly/services/billing v0.0.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -14,6 +15,8 @@ require (
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 )
+
+replace github.com/dobriygolang/project-nordly/services/billing => ../billing
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

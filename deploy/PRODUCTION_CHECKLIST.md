@@ -28,7 +28,7 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
-Optional: Tribute webhooks, CI-only `services/ai` LLM keys — see [RUNBOOK.md](./RUNBOOK.md).
+Optional: Tribute webhooks — see [RUNBOOK.md](./RUNBOOK.md).
 
 | `GRAFANA_ADMIN_PASSWORD` | required when using `--profile monitoring` (default in `make up`) |
 
@@ -50,9 +50,12 @@ cp .env.example .env && nano .env && make keys && make up
 
 Updates: merge to `main` → CI deploys automatically.
 
+**Desktop installers:** tag `nordly-vX.Y.Z` → `nordly-release.yml` builds GitHub Release (private OK) → job `sync-cdn` uploads `latest.json` + installers to `cdn.trynordly.app/desktop/` (needs same `DEPLOY_SSH_*` secrets).
+
 ## 4. Smoke test
 
 - [ ] `https://api.trynordly.app/healthz`
+- [ ] `https://cdn.trynordly.app/desktop/releases.json` (after first `nordly-v*` tag release)
 - [ ] Live room guest create + WS
 - [ ] Published note `/notes/{slug}` and board `/board/{slug}`
 - [ ] Nordly login (Telegram)

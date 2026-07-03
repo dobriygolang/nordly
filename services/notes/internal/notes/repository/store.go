@@ -17,6 +17,7 @@ type Store interface {
 	UpdateNote(ctx context.Context, userID, id, title, body string) (*notesmodel.Note, error)
 	DeleteNote(ctx context.Context, userID, id string) error
 	CountActiveNotes(ctx context.Context, userID string) (int, error)
+	CountPublishedNotes(ctx context.Context, userID string) (int, error)
 	SumActiveNoteBytes(ctx context.Context, userID string) (int64, error)
 
 	EncryptNote(ctx context.Context, userID, noteID, ciphertext string) error

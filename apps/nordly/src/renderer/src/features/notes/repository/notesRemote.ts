@@ -7,6 +7,7 @@ import {
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { throwIfLimitResponse } from '@shared/api/limitErrors';
 
 import type { Note, NoteSummary } from '../api/notesClient';
 import type { StoredNote } from './notesStore';
@@ -78,6 +79,7 @@ export async function remoteCreateNote(title: string, bodyMd: string): Promise<W
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ title, bodyMd }),
   });
+  await throwIfLimitResponse(resp, 'notes_create');
   if (!resp.ok) throw new Error(`createNote: ${resp.status}`);
   const j = (await resp.json()) as { note?: Record<string, unknown> };
   return unwrapNoteEnvelope(j, 'createNote');

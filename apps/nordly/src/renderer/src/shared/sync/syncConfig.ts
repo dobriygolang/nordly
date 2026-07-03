@@ -14,6 +14,7 @@ export function isSyncEnabled(): boolean {
   if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;
   if (useSyncStore.getState().sessionReauthRequired) return false;
+  if (useSyncStore.getState().cloudSyncBlocked) return false;
 
   const { accessToken, refreshToken } = useSessionStore.getState();
   if (!accessToken && !refreshToken) return false;

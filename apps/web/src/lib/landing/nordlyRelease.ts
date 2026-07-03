@@ -1,17 +1,13 @@
-export const NORDLY_REPO = 'dobriygolang/nordly'
+export const NORDLY_CDN_DESKTOP_BASE = 'https://cdn.trynordly.app/desktop'
 
-export const NORDLY_RELEASES_PAGE = `https://github.com/${NORDLY_REPO}/releases/latest`
+export const NORDLY_DOWNLOAD_PAGE = 'https://trynordly.app/download'
 
-const GITHUB_LATEST_API = `https://api.github.com/repos/${NORDLY_REPO}/releases/latest`
+/** @deprecated use NORDLY_DOWNLOAD_PAGE */
+export const NORDLY_RELEASES_PAGE = NORDLY_DOWNLOAD_PAGE
+
+const RELEASES_JSON_URL = `${NORDLY_CDN_DESKTOP_BASE}/releases.json`
 const CACHE_KEY = 'nordly:latest-release'
 const CACHE_MS = 15 * 60 * 1000
-
-type GitHubAsset = { name: string; browser_download_url: string }
-type GitHubRelease = {
-  tag_name: string
-  html_url: string
-  assets: GitHubAsset[]
-}
 
 export type NordlyReleaseInfo = {
   version: string
@@ -22,35 +18,22 @@ export type NordlyReleaseInfo = {
   windowsUrl: string | null
 }
 
-function parseVersion(tagName: string): string {
-  return tagName.replace(/^(nordly|hone)-v/i, '').trim() || tagName
-}
-
-function pickInstallerAssets(assets: GitHubAsset[]): {
-  macAarch64Url: string | null
-  macX64Url: string | null
-  windowsUrl: string | null
-} {
-  const installers = assets.filter((a) => !/\.(sig|tar\.gz)$/i.test(a.name))
-  const macAarch64 =
-    installers.find((a) => /_aarch64\.dmg$/i.test(a.name))?.browser_download_url ?? null
-  const macX64 = installers.find((a) => /_x64\.dmg$/i.test(a.name))?.browser_download_url ?? null
-  const windows =
-    installers.find((a) => /-setup\.exe$/i.test(a.name))?.browser_download_url ??
-    installers.find((a) => /\.msi$/i.test(a.name))?.browser_download_url ??
-    null
-  return { macAarch64Url: macAarch64, macX64Url: macX64, windowsUrl: windows }
-}
-
-function toReleaseInfo(release: GitHubRelease): NordlyReleaseInfo | null {
-  const tag = release.tag_name?.toLowerCase() ?? ''
-  if (!tag.startsWith('nordly-v') && !tag.startsWith('hone-v')) return null
-  const picks = pickInstallerAssets(release.assets ?? [])
+function parseRelease(body: unknown): NordlyReleaseInfo | null {
+  if (!body || typeof body !== 'object') return null
+  const o = body as Record<string, unknown>
+  if (typeof o.version !== 'string' || !o.version) return null
+  if (typeof o.tagName !== 'string' || !/^nordly-v/i.test(o.tagName)) return null
+  const strOrNull = (v: unknown) => (typeof v === 'string' && v ? v : null)
   return {
-    version: parseVersion(release.tag_name),
-    tagName: release.tag_name,
-    releasePageUrl: release.html_url || NORDLY_RELEASES_PAGE,
-    ...picks,
+    version: o.version,
+    tagName: o.tagName,
+    releasePageUrl:
+      typeof o.releasePageUrl === 'string' && o.releasePageUrl
+        ? o.releasePageUrl
+        : NORDLY_DOWNLOAD_PAGE,
+    macAarch64Url: strOrNull(o.macAarch64Url),
+    macX64Url: strOrNull(o.macX64Url),
+    windowsUrl: strOrNull(o.windowsUrl),
   }
 }
 
@@ -79,12 +62,9 @@ export async function fetchLatestNordlyRelease(): Promise<NordlyReleaseInfo | nu
   if (cached) return cached
 
   try {
-    const res = await fetch(GITHUB_LATEST_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    })
+    const res = await fetch(RELEASES_JSON_URL, { cache: 'no-store' })
     if (!res.ok) return null
-    const release = (await res.json()) as GitHubRelease
-    const info = toReleaseInfo(release)
+    const info = parseRelease(await res.json())
     if (info) writeCache(info)
     return info
   } catch {

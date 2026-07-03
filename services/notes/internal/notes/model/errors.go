@@ -6,4 +6,5 @@ var (
 	ErrInvalidArgument = errors.New("invalid argument")
 	ErrNotFound        = errors.New("not found")
 	ErrQuotaExceeded   = errors.New("quota exceeded")
+	ErrFeatureDisabled = errors.New("feature disabled")
 )

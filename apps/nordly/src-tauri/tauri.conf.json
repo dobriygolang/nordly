@@ -70,19 +70,19 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data: https://esm.sh https://cdn.trynordly.app; img-src 'self' data: https://trynordly.app https://cdn.trynordly.app; media-src 'self' https://trynordly.app https://cdn.trynordly.app blob:; connect-src 'self' https://trynordly.app https://cdn.trynordly.app https://api.trynordly.app https://druz9.online https://cdn.druz9.online https://druz9.ru https://esm.sh https://github.com https://objects.githubusercontent.com http://localhost:8080 http://localhost:5173 http://127.0.0.1:5173 ws: wss: ipc: http://ipc.localhost;"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data: https://esm.sh https://cdn.trynordly.app; img-src 'self' data: https://trynordly.app https://cdn.trynordly.app; media-src 'self' https://trynordly.app https://cdn.trynordly.app blob:; connect-src 'self' https://trynordly.app https://cdn.trynordly.app https://api.trynordly.app https://esm.sh http://localhost:8080 http://localhost:5173 http://127.0.0.1:5173 ws: wss: ipc: http://ipc.localhost;"
     }
   },
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["nordly", "druz9"]
+        "schemes": ["nordly"]
       }
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFMkU4NEYwOTAyRTI5NkIKUldScktTNlE4SVF1N3A5WS9RSmZKb09vWFB4N2NhWFdXZWpNbElKSEgyMklLd0IzQUI1T2lralgK",
       "endpoints": [
-        "https://github.com/dobriygolang/nordly/releases/latest/download/latest.json"
+        "https://cdn.trynordly.app/desktop/latest.json"
       ],
       "windows": {
         "installMode": "passive"

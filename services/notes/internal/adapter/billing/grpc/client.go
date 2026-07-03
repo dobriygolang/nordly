@@ -46,6 +46,22 @@ func (c *Client) authCtx(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, internalTokenHeader, c.token)
 }
 
+func (c *Client) CheckFeature(ctx context.Context, userID, key string) (bool, error) {
+	resp, err := c.client.GetEntitlements(c.authCtx(ctx), &billingv1.GetEntitlementsRequest{UserId: userID})
+	if err != nil {
+		return false, err
+	}
+	ent := resp.GetEntitlements()
+	if ent == nil {
+		return false, fmt.Errorf("billing: no entitlements for user %s", userID)
+	}
+	val, ok := ent.Features[key]
+	if !ok {
+		return false, fmt.Errorf("billing: feature %q not configured", key)
+	}
+	return val, nil
+}
+
 func (c *Client) GetGaugeLimit(ctx context.Context, userID, key string) (billingadapter.GaugeLimit, error) {
 	resp, err := c.client.GetEntitlements(c.authCtx(ctx), &billingv1.GetEntitlementsRequest{UserId: userID})
 	if err != nil {

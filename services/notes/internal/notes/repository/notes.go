@@ -97,6 +97,15 @@ func (r *Repository) CountActiveNotes(ctx context.Context, userID string) (int, 
 	return n, err
 }
 
+func (r *Repository) CountPublishedNotes(ctx context.Context, userID string) (int, error) {
+	var n int
+	err := r.pg.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM notes
+		WHERE user_id = $1 AND archived_at IS NULL AND published = true
+	`, userID).Scan(&n)
+	return n, err
+}
+
 func (r *Repository) SumActiveNoteBytes(ctx context.Context, userID string) (int64, error) {
 	var sum int64
 	err := r.pg.QueryRow(ctx, `

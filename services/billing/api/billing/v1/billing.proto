@@ -15,6 +15,13 @@ service BillingService {
     };
   }
 
+  // Authenticated — current user plan + entitlements (JWT).
+  rpc GetMe(GetMeRequest) returns (GetMeResponse) {
+    option (google.api.http) = {
+      get: "/v1/billing/me"
+    };
+  }
+
 }
 
 service BillingInternalService {
@@ -45,6 +52,8 @@ service BillingAdminService {
     };
   }
 }
+
+message GetMeRequest {}
 
 message GetMeResponse {
   string user_id = 1;

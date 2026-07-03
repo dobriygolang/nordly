@@ -10,7 +10,6 @@ TEMPLATE_SERVICE=template
 # go.work must include every entry (plus template).
 CI_SERVICES=(
   identity
-  ai
   billing
   sandbox
   rooms
@@ -47,7 +46,6 @@ DB_SERVICES=(
 db_name_for_service() {
   case "$1" in
     identity) echo nordly ;;
-    ai) echo nordly_ai ;;
     billing) echo nordly_billing ;;
     sandbox) echo nordly_sandbox ;;
     rooms) echo nordly_rooms ;;
@@ -61,7 +59,6 @@ db_name_for_service() {
 dsn_env_for_service() {
   case "$1" in
     identity) echo IDENTITY_POSTGRES_DSN ;;
-    ai) echo AI_POSTGRES_DSN ;;
     billing) echo BILLING_POSTGRES_DSN ;;
     sandbox) echo SANDBOX_POSTGRES_DSN ;;
     rooms) echo ROOMS_POSTGRES_DSN ;;
@@ -81,7 +78,6 @@ done
 service_http_port() {
   case "$1" in
     identity) echo 8080 ;;
-    ai) echo 8083 ;;
     billing) echo 8085 ;;
     sandbox) echo 8086 ;;
     rooms) echo 8087 ;;

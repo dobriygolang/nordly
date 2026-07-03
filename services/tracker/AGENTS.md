@@ -6,7 +6,7 @@ Module: `github.com/dobriygolang/project-nordly/services/tracker`
 
 ## Purpose
 
-Hone work task board: kanban columns + day schedule. Optional **Google Calendar** integration for inbound events, Meet links, and calendar notifications.
+Nordly work task board: kanban columns + day schedule. Optional **Google Calendar** integration for inbound events, Meet links, and calendar notifications.
 
 ## Ports
 

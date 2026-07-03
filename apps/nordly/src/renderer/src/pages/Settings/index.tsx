@@ -9,12 +9,13 @@ import type { TimerMode } from '@shared/model/settings';
 
 import { GeneralSection } from './sections/GeneralSection';
 import { IntegrationsSection } from './sections/IntegrationsSection';
+import { PlanSection } from './sections/PlanSection';
 import { ShortcutsSection } from './sections/ShortcutsSection';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
 import { VaultSection } from './sections/VaultSection';
 
-type SectionId = 'general' | 'integrations' | 'vault' | 'shortcuts' | 'about';
+type SectionId = 'general' | 'plan' | 'integrations' | 'vault' | 'shortcuts' | 'about';
 
 interface NavItem {
   id: SectionId;
@@ -24,6 +25,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { id: 'general', icon: 'settings', labelKey: 'nordly.settings.nav.general' },
+  { id: 'plan', icon: 'bars', labelKey: 'nordly.settings.nav.plan' },
   { id: 'integrations', icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
   { id: 'vault', icon: 'lock', labelKey: 'nordly.settings.nav.vault' },
   { id: 'shortcuts', icon: 'command', labelKey: 'nordly.settings.nav.shortcuts' },
@@ -77,6 +79,8 @@ export function SettingsPage(props: SettingsPageProps) {
       <div className="nordly-settings-content">
         <div className="nordly-settings-content__inner">
           {section === 'general' && <GeneralSection {...props} />}
+
+          {section === 'plan' && <PlanSection />}
 
           {section === 'integrations' && (
             <>

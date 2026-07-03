@@ -15,7 +15,13 @@ var (
 	ErrNotFound        = notesmodel.ErrNotFound
 	ErrInvalidArgument = notesmodel.ErrInvalidArgument
 	ErrQuotaExceeded   = notesmodel.ErrQuotaExceeded
+	ErrFeatureDisabled = notesmodel.ErrFeatureDisabled
 )
+
+type PublishOptions struct {
+	Unlisted          bool
+	PasswordProtected bool
+}
 
 type Service interface {
 	InitVault(ctx context.Context, userID string) (saltB64 string, initialized bool, err error)
@@ -31,7 +37,7 @@ type Service interface {
 
 	UnpublishNote(ctx context.Context, userID, noteID string) error
 	GetPublishStatus(ctx context.Context, userID, noteID string) (*notesmodel.PublishStatus, error)
-	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext string) (*notesmodel.ShareToWebResult, error)
+	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext string, opts PublishOptions) (*notesmodel.ShareToWebResult, error)
 	MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error
 	GetPublishedNote(ctx context.Context, slug string) (*notesmodel.PublishedNote, error)
 }
@@ -139,9 +145,48 @@ func (s *notesService) GetPublishStatus(ctx context.Context, userID, noteID stri
 	return s.repo.GetPublishStatus(ctx, userID, noteID, s.publicBaseURL)
 }
 
-func (s *notesService) ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext string) (*notesmodel.ShareToWebResult, error) {
+func (s *notesService) ShareNoteToWeb(
+	ctx context.Context,
+	userID, noteID, plaintext string,
+	opts PublishOptions,
+) (*notesmodel.ShareToWebResult, error) {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(noteID) == "" {
 		return nil, ErrInvalidArgument
+	}
+	if opts.Unlisted {
+		enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishUnlisted)
+		if err != nil {
+			return nil, err
+		}
+		if !enabled {
+			return nil, ErrFeatureDisabled
+		}
+	}
+	if opts.PasswordProtected {
+		enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishPassword)
+		if err != nil {
+			return nil, err
+		}
+		if !enabled {
+			return nil, ErrFeatureDisabled
+		}
+	}
+
+	st, err := s.repo.GetPublishStatus(ctx, userID, noteID, s.publicBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if st.Published && st.PublishedAt != nil {
+		return &notesmodel.ShareToWebResult{
+			Slug:             st.Slug,
+			URL:              st.URL,
+			PublishedAt:      *st.PublishedAt,
+			AlreadyPublished: true,
+		}, nil
+	}
+
+	if err := s.ensurePublishedNotesQuota(ctx, userID); err != nil {
+		return nil, err
 	}
 	return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL)
 }
@@ -172,6 +217,10 @@ func IsQuotaExceeded(err error) bool {
 	return errors.Is(err, ErrQuotaExceeded)
 }
 
+func IsFeatureDisabled(err error) bool {
+	return errors.Is(err, ErrFeatureDisabled)
+}
+
 func (s *notesService) ensureCloudNotesQuota(ctx context.Context, userID string) error {
 	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementCloudNotesCount)
 	if err != nil {
@@ -184,6 +233,27 @@ func (s *notesService) ensureCloudNotesQuota(ctx context.Context, userID string)
 		return fmt.Errorf("billing: cloud_notes_count limit missing for user %s", userID)
 	}
 	count, err := s.repo.CountActiveNotes(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if count >= *limit.Limit {
+		return ErrQuotaExceeded
+	}
+	return nil
+}
+
+func (s *notesService) ensurePublishedNotesQuota(ctx context.Context, userID string) error {
+	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementPublishedNotesActive)
+	if err != nil {
+		return err
+	}
+	if limit.Unlimited {
+		return nil
+	}
+	if limit.Limit == nil {
+		return fmt.Errorf("billing: published_notes_active limit missing for user %s", userID)
+	}
+	count, err := s.repo.CountPublishedNotes(ctx, userID)
 	if err != nil {
 		return err
 	}

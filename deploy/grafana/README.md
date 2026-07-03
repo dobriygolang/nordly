@@ -58,4 +58,4 @@ Dashboards: **Platform**, **HTTP routes**, **Billing**, **Product** (`deploy/gra
 - `focus_sessions_total`: `result=started|completed|abandoned`
 - `billing_usage_consume_total`: `result=allowed|limit_exceeded|not_usage_entitlement`
 
-Retired services (interview, recommendation, admin, ai) are not scraped in prod. No AI & LLM dashboard in prod.
+Retired services (interview, recommendation, admin) are not scraped in prod.

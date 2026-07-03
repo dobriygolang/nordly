@@ -140,7 +140,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
 | `VITE_IDENTITY_URL`, `VITE_BILLING_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
-Landing download: `lib/landing/nordlyRelease.ts` fetches [GitHub latest Nordly release](https://github.com/dobriygolang/nordly/releases/latest) (`.dmg` / `-setup.exe`). Cached 15m in `sessionStorage`. Hero + header CTA; short link `/download`.
+Landing download: `lib/landing/nordlyRelease.ts` reads `https://cdn.trynordly.app/desktop/releases.json` (cached 15m in `sessionStorage`). Hero + header CTA; short link `/download`.
 
 ## Commands
 

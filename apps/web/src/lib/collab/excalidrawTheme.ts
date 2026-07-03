@@ -2,7 +2,7 @@
 
 export type BoardCanvasTheme = 'light' | 'dark'
 
-export const EXCALIDRAW_MOUNT_CLASS = 'druzya-excalidraw'
+export const EXCALIDRAW_MOUNT_CLASS = 'nordly-excalidraw'
 
 export const EXCALIDRAW_CANVAS = {
   light: '#fafaf8',

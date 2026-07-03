@@ -112,14 +112,6 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 
 ---
 
-## ai (CI archive)
-
-| RPC | Clients | Notes |
-|-----|---------|-------|
-| All | — | **Not called** from nordly/web; CI + retired admin paths |
-
----
-
 ## Wire-format debt
 
 None tracked — single read path per field (2026-07-02):

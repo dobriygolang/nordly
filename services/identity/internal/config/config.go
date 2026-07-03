@@ -31,6 +31,7 @@ type Config struct {
 	CORSAllowedOrigins     []string
 	AuthRateLimitPerMinute int
 	InternalAPIToken       string
+	BillingGRPCAddr        string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -107,6 +108,7 @@ func Load() (*Config, error) {
 		CORSAllowedOrigins:     ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		AuthRateLimitPerMinute: authRateLimit,
 		InternalAPIToken:       internalToken,
+		BillingGRPCAddr:        getEnv("BILLING_GRPC_ADDR", "127.0.0.1:9095"),
 	}, nil
 }
 

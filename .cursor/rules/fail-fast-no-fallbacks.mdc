@@ -60,4 +60,3 @@ alwaysApply: true
 | Billing optional Redis entitlements cache | no-op inside type when Redis absent |
 | WS hub `room == nil` after unregister | concurrent lifecycle |
 | `Close()` idempotent nil conn | cleanup |
-| ai service (CI archive) | not prod |

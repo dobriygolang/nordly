@@ -7,8 +7,7 @@ import { isTauriRuntime } from '@platform/runtime';
 
 export { isTauriRuntime };
 
-const UPDATER_JSON_URL =
-  'https://github.com/dobriygolang/nordly/releases/latest/download/latest.json';
+const UPDATER_JSON_URL = 'https://cdn.trynordly.app/desktop/latest.json';
 
 export async function readAppVersion(): Promise<string> {
   if (!isTauriRuntime()) return 'dev';
@@ -29,7 +28,7 @@ export function compareSemver(a: string, b: string): number {
   return 0;
 }
 
-/** Version string from GitHub Release latest.json (what the in-app updater reads). */
+/** Version string from published updater manifest on CDN. */
 export async function fetchPublishedVersion(): Promise<string | null> {
   if (!isTauriRuntime()) return null;
   try {

@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { throwIfLimitResponse } from '@shared/api/limitErrors';
 import { requireJsonBoolean, requireJsonString } from '@shared/api/json';
 
 export interface PublishStatus {
@@ -45,7 +46,10 @@ export async function remoteShareNoteToWeb(
       body: JSON.stringify({ plaintextMd }),
     },
   );
-  if (!resp.ok) throw new Error(`shareToWeb: ${resp.status}`);
+  if (!resp.ok) {
+    await throwIfLimitResponse(resp, 'notes_publish');
+    throw new Error(`shareToWeb: ${resp.status}`);
+  }
   const j = (await resp.json()) as Record<string, unknown>;
   return {
     slug: requireJsonString(j, 'slug'),

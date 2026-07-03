@@ -90,12 +90,6 @@ Key metrics: `up`, `http_requests_total`, `http_request_duration_seconds`.
 
 **Business counters:** `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total`, `billing_usage_consume_total`, `billing_subscriptions_total`, `billing_webhook_events_total` — see Product dashboard and [grafana/README.md](grafana/README.md).
 
-AI LLM metrics apply to CI-only `ai` service only (not scraped in prod).
-
-## LLM (optional — ai service, CI only)
-
-The `ai` evaluation service is **not deployed in prod**. LLM env vars in `.env.example` are for local/CI runs of `services/ai` only.
-
 ## Rooms scale
 
 Single replica by default. Multiple pods need sticky `/ws/*` — see [services/rooms/AGENTS.md](../services/rooms/AGENTS.md).

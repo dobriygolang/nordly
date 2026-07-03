@@ -1,4 +1,5 @@
 import { useSessionStore } from '@shared/model/session';
+import { getDeviceId } from '@shared/api/device';
 
 /** Access token for authenticated REST calls. Fails if missing. */
 export function requireAccessToken(): string {
@@ -8,5 +9,8 @@ export function requireAccessToken(): string {
 }
 
 export function syncAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return { authorization: `Bearer ${requireAccessToken()}`, ...extra };
+  const headers: Record<string, string> = { authorization: `Bearer ${requireAccessToken()}`, ...extra };
+  const deviceId = getDeviceId();
+  if (deviceId) headers['X-Device-ID'] = deviceId;
+  return headers;
 }

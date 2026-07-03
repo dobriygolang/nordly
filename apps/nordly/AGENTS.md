@@ -247,11 +247,12 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 | Piece | Location |
 |-------|----------|
 | CI workflow | `.github/workflows/nordly-release.yml` — trigger: tag `nordly-v*` |
-| Updater endpoint | GitHub Release `latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
+| Updater endpoint | `https://cdn.trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
+| CDN sync | same workflow, job `sync-cdn` — rewrites manifests + SCP to VPS `deploy/data/cdn/desktop/` |
 | Settings UI | `pages/Settings/sections/SoftwareSection.tsx` |
 | Updater helper | `shared/lib/updater.ts` — `@tauri-apps/plugin-updater` + `plugin-process` relaunch |
 
-Release flow: bump `src-tauri/tauri.conf.json` version → tag `nordly-vX.Y.Z` → push tag → CI uploads `.dmg`/`.msi`/`.exe` + signed updater artifacts.
+Release flow: bump `src-tauri/tauri.conf.json` version → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts → `sync-cdn` publishes to CDN (works with a **private** GitHub repo).
 
 Default macOS bundle uses ad-hoc signing (`signingIdentity: "-"` in `tauri.conf.json`) so CI works without Apple certs. Set repo variable `NORDLY_CODE_SIGNING=true` + Apple secrets for Developer ID + notarization (see `SIGNING.md`).
 

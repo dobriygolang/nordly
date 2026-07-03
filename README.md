@@ -14,7 +14,6 @@ Monorepo of **independent microservices**. Each service is self-contained — op
 | tracker  | [services/tracker/](services/tracker/)   | yes                |
 | notes    | [services/notes/](services/notes/)       | yes                |
 | focus    | [services/focus/](services/focus/)       | yes                |
-| ai       | [services/ai/](services/ai/)             | CI only (post-MVP) |
 | template | [services/template/](services/template/) | skeleton only      |
 
 
@@ -48,7 +47,7 @@ cd apps/web && npm install && npm run dev   # :5173, proxies /v1
 
 ## Production
 
-Canonical site: **[https://trynordly.app](https://trynordly.app)** — API `api.trynordly.app`; legacy `druz9.*` redirects to trynordly.app.
+Canonical site: **[https://trynordly.app](https://trynordly.app)** — API `api.trynordly.app`.
 
 ```bash
 cd deploy && cp .env.example .env && make keys && make up

@@ -1,6 +1,6 @@
 export type Locale = 'en' | 'ru'
 
-export const LOCALE_STORAGE_KEY = 'druzya_locale'
+export const LOCALE_STORAGE_KEY = 'nordly_locale'
 
 export function readStoredLocale(): Locale {
   if (typeof window === 'undefined') return 'en'

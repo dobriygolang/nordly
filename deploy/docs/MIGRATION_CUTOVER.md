@@ -7,7 +7,6 @@ Each active prod service has a single forward-only `00001_init.sql`. Incremental
 | Database | Service |
 |----------|---------|
 | `nordly` | identity |
-| `nordly_ai` | ai (archived, CI only) |
 | `nordly_billing` | billing |
 | `nordly_sandbox` | sandbox |
 | `nordly_rooms` | rooms |
@@ -30,7 +29,7 @@ Retired services (`content`, `interview`, `recommendation`) are no longer in the
 1. **Backup all databases:** `cd deploy && make backup`
 2. Record goose versions per DB:
    ```bash
-   for db in nordly nordly_ai nordly_billing nordly_sandbox nordly_rooms nordly_tracker nordly_notes nordly_focus; do
+   for db in nordly nordly_billing nordly_sandbox nordly_rooms nordly_tracker nordly_notes nordly_focus; do
      echo "=== $db ==="
      docker compose -f docker-compose.prod.yml exec -T postgres \
        psql -U "$POSTGRES_USER" -d "$db" -c "SELECT version_id, is_applied FROM goose_db_version ORDER BY version_id;"

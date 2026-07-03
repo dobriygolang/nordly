@@ -18,6 +18,9 @@
 	handle /v1/jwt* {
 		reverse_proxy identity:8080
 	}
+	handle /v1/devices* {
+		reverse_proxy identity:8080
+	}
 	handle /v1/rooms* {
 		reverse_proxy rooms:8087
 	}
@@ -76,15 +79,6 @@ http://trynordly.app, http://app.trynordly.app {
 	}
 }
 
-# Legacy druz9 domains → canonical trynordly.app
-http://druz9.online, http://app.druz9.online, http://druz9.ru, http://app.druz9.ru {
-	redir https://trynordly.app{uri} permanent
-}
-
-http://api.druz9.online, http://api.druz9.ru {
-	redir https://api.trynordly.app{uri} permanent
-}
-
 # Grafana — monitoring UI (TLS at host nginx)
 http://grafana.trynordly.app {
 	encode gzip
@@ -95,6 +89,15 @@ http://grafana.trynordly.app {
 	}
 }
 
-http://grafana.druz9.online {
-	redir https://grafana.trynordly.app{uri} permanent
+# Static CDN — desktop installers + updater manifests (CI: nordly-release sync-cdn job)
+http://cdn.trynordly.app {
+	encode gzip
+	root * /cdn
+	header Cache-Control "public, max-age=3600"
+	@updater path /desktop/latest.json /desktop/releases.json
+	handle @updater {
+		header Cache-Control "public, max-age=60"
+		file_server
+	}
+	file_server
 }

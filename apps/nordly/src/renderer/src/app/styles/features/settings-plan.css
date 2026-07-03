@@ -1,0 +1,129 @@
+
+/* ── Plan & usage (Settings → Plan) ── */
+
+.nordly-plan-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--ink-tint-06);
+  margin-bottom: 8px;
+}
+
+.nordly-plan-header__eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-40);
+}
+
+.nordly-plan-header__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.nordly-plan-preview-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-80);
+  background: rgb(var(--accent-rgb, 99 102 241) / 0.1);
+  border: 1px solid rgb(var(--accent-rgb, 99 102 241) / 0.22);
+}
+
+.nordly-plan-status {
+  margin: 0;
+  padding: 6px 0 12px;
+  font-size: 13px;
+  color: var(--ink-60);
+}
+
+.nordly-plan-status--error {
+  color: var(--red, #e5484d);
+}
+
+.nordly-plan-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.nordly-plan-meter {
+  padding: 14px 0;
+  border-top: 1px solid var(--ink-tint-06);
+}
+
+.nordly-plan-meter:first-child {
+  border-top: none;
+}
+
+.nordly-plan-meter__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.nordly-plan-meter__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-90);
+}
+
+.nordly-plan-meter__value {
+  font-size: 11px;
+  color: var(--ink-50);
+  white-space: nowrap;
+}
+
+.nordly-plan-meter__track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  overflow: hidden;
+}
+
+.nordly-plan-meter__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: rgb(var(--accent-rgb, 99 102 241) / 0.85);
+  transition: width var(--t-fast);
+}
+
+.nordly-plan-meter--exhausted .nordly-plan-meter__fill {
+  background: var(--red, #e5484d);
+}
+
+.nordly-plan-meter__exhausted {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--red, #e5484d);
+}
+
+.nordly-plan-badge {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.nordly-plan-badge--on {
+  color: var(--ink-90);
+  background: rgb(var(--ink-rgb) / 0.08);
+  border: 1px solid var(--ink-tint-08);
+}
+
+.nordly-plan-badge--off {
+  color: var(--ink-40);
+  background: transparent;
+  border: 1px solid var(--ink-tint-06);
+}

@@ -106,7 +106,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         if (firstId) setSelectedId((cur) => cur ?? firstId);
       })
       .catch((err: unknown) => {
-        setList({ status: 'error', notes: [], error: errorMessage(err) });
+        setList({ status: 'error', notes: [], error: errorMessage(err, t) });
       });
   }, []);
 
@@ -132,7 +132,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         .catch((err: unknown) => {
           if (selectedIdRef.current !== id) return;
           setActive(null);
-          setActiveError(errorMessage(err));
+          setActiveError(errorMessage(err, t));
         });
     });
     return unsub;
@@ -181,7 +181,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
       .catch((err: unknown) => {
         if (cancelled) return;
         if (!activeRef.current) {
-          setActiveError(errorMessage(err));
+          setActiveError(errorMessage(err, t));
           setActive(null);
         }
       });
@@ -225,7 +225,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         setSaveStatus((cur) => (cur === 'saved' ? 'idle' : cur));
       }, SAVE_STATUS_FADE_MS);
     } catch (err: unknown) {
-      setActiveError(errorMessage(err));
+      setActiveError(errorMessage(err, t));
       setSaveStatus('idle');
     }
   }, []);
@@ -282,7 +282,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
       setDraftBody(n.bodyMd);
       setActiveError(null);
     } catch (err: unknown) {
-      setActiveError(errorMessage(err));
+      setActiveError(errorMessage(err, t));
     }
   }, [flushNow]);
 
@@ -324,7 +324,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         if (selectedIdRef.current === id) await flushNow();
         return await publishNoteToWeb(id);
       } catch (err: unknown) {
-        setActiveError(errorMessage(err));
+        setActiveError(errorMessage(err, t));
       }
     },
     [flushNow, t],
@@ -339,7 +339,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
       try {
         await unpublishNoteFromWeb(id);
       } catch (err: unknown) {
-        setActiveError(errorMessage(err));
+        setActiveError(errorMessage(err, t));
       }
     },
     [t],
@@ -355,7 +355,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         if (selectedIdRef.current === id) await flushNow();
         return await regeneratePublicLink(id);
       } catch (err: unknown) {
-        setActiveError(errorMessage(err));
+        setActiveError(errorMessage(err, t));
       }
     },
     [flushNow, t],
@@ -389,7 +389,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
           return { ...prev, notes };
         });
       } catch (err: unknown) {
-        setActiveError(errorMessage(err));
+        setActiveError(errorMessage(err, t));
       }
     },
     [flushNow],

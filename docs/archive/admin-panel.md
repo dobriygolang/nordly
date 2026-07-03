@@ -11,17 +11,17 @@ Operator BFF: `services/admin/` — **removed**.
 | Shape | Stateless BFF, no domain DB |
 | Auth | JWT + `ADMIN_USER_IDS` allowlist |
 | Content writes | Granular RPC + `ReplaceTemplateStructure` |
-| LLM config | Stored in ai DB; admin proxies ai gRPC |
+| LLM config | Stored in removed LLM service DB; admin proxied gRPC |
 
 ```
-/admin UI → /v1/admin/* → admin BFF → identity | content | billing | ai
+/admin UI → /v1/admin/* → admin BFF → identity | content | billing | LLM gateway (removed)
 ```
 
 Secrets stay on server (`CONTENT_ADMIN_TOKEN`, `INTERNAL_API_TOKEN`).
 
 ## Phases (all shipped)
 
-0–1 session + content CRUD · 2 templates · 3 billing · 4 AI/LLM · 5 dashboard · 6 articles/KB
+0–1 session + content CRUD · 2 templates · 3 billing · 4 LLM config · 5 dashboard · 6 articles/KB
 
 ## Dashboard snapshot
 

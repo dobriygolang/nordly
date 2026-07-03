@@ -16,7 +16,6 @@ When working on a service, **open only that service folder** and read its local 
 | **tracker** | [services/tracker/AGENTS.md](services/tracker/AGENTS.md) | task board, sprint/epic, Google Calendar |
 | **notes** | [services/notes/AGENTS.md](services/notes/AGENTS.md) | notes, E2EE vault, publish-to-web |
 | **focus** | [services/focus/AGENTS.md](services/focus/AGENTS.md) | pomodoro sessions, focus stats |
-| ai | [services/ai/AGENTS.md](services/ai/AGENTS.md) | **ARCHIVED — CI only, not prod** |
 
 **Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync). Frontend audit: [apps/nordly/docs/architecture-audit.md](apps/nordly/docs/architecture-audit.md).
 
@@ -30,7 +29,7 @@ Prod deploy: [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md), [
 
 Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Billing**, **Product**.
 
-**CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, ai, billing, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
+**CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, billing, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
 
 Future outbox relay design: [docs/architecture/outbox-relay.md](docs/architecture/outbox-relay.md)
 
@@ -145,7 +144,6 @@ func NewRegisteredImplementation(s *grpc.Server, svc exampleservice.Service) *Im
 | Service | HTTP | gRPC | Postgres port | DB name |
 |---------|------|------|---------------|---------|
 | identity | 8080 | 9090 | 5432 | nordly |
-| ai | 8083 | 9093 | 5435 | nordly_ai |
 | billing | 8085 | 9095 | 5438 | nordly_billing |
 | sandbox | 8086 | 9096 | 5439 | nordly_sandbox |
 | **rooms** | **8087** | **9097** | **5440** | **nordly_rooms** |

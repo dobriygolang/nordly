@@ -3,9 +3,9 @@ import { readStoredLocale } from '@/lib/i18n/localeStorage'
 
 export const API_BASE: string = import.meta.env.VITE_API_BASE ?? '/v1'
 
-export const ACCESS_TOKEN_KEY = 'druzya_access_token'
-const REFRESH_TOKEN_KEY = 'druzya_refresh_token'
-const REFRESH_LOCK_KEY = 'druzya_token_refresh_at'
+export const ACCESS_TOKEN_KEY = 'nordly_access_token'
+const REFRESH_TOKEN_KEY = 'nordly_refresh_token'
+const REFRESH_LOCK_KEY = 'nordly_token_refresh_at'
 
 let memAccessToken: string | null = null
 let inflightRefresh: Promise<string | null> | null = null

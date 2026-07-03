@@ -19,9 +19,6 @@ make migrate
 echo "==> Start stack"
 make up
 
-echo "==> Remove legacy druzya images (if any)"
-docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^druzya-" | xargs -r docker rmi -f || true
-
 echo "==> Prune dangling images"
 ./scripts/docker-prune.sh
 

@@ -6,11 +6,11 @@ Module: `github.com/dobriygolang/project-nordly/services/focus`
 
 ## Purpose
 
-Pomodoro timer and focus statistics for Hone (Tauri desktop):
+Pomodoro timer and focus statistics for Nordly (Tauri desktop):
 
 - `StartFocusSession` / `EndFocusSession` — JWT-protected
 - `GetStats` — streaks, heatmap, last 7 days, total focused seconds
-- Optional link to tracker task via `task_id` (Hone `planItemId`)
+- Optional link to tracker task via `task_id`
 
 ## Ports
 

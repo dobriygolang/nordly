@@ -29,6 +29,11 @@ Internal web gates (`code_runs_per_day`, `live_rooms_*`) remain on the plan for 
 | Key | Enforced today |
 |-----|----------------|
 | `cloud_notes_count` | yes — `notes` `CreateNote` |
-| `cloud_sync_*`, `published_notes_*`, `publish_*` | **catalog only** — wire in notes/identity/desktop next |
+| `published_notes_active` | yes — `notes` `ShareNoteToWeb` (new publish) |
+| `publish_unlisted` | yes — `notes` `ShareNoteToWeb` when `unlisted=true` |
+| `publish_password` | yes — `notes` `ShareNoteToWeb` when `password_protected=true` |
+| `cloud_sync_enabled` | yes — `identity` `POST /v1/devices/register` |
+| `cloud_sync_devices` | yes — `identity` device registration quota |
+| Desktop sync gate | yes — `registerSyncDevice` before sync; `X-Device-ID` on REST |
 
 Web reference UI: `apps/web` `/pricing` (`planPricingKeys`).

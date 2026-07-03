@@ -48,6 +48,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpMux.HandleFunc("/v1/auth/config", identityapi.AuthConfigHTTP(a.Config.TelegramBotUsername))
 	httpMux.HandleFunc("GET /v1/users/{id}/avatar", impl.UserAvatarHTTP())
 	httpMux.HandleFunc("/v1/jwt/public.pem", identityapi.PublicKeyHTTP(a.PublicKeyPEM))
+	httpMux.HandleFunc("/v1/devices/register", identityapi.RegisterDeviceHTTP(a.JWTValidator, a.DeviceService))
 
 	if err := identityapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()

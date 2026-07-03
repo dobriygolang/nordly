@@ -6,9 +6,13 @@ import (
 
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
+	billinggrpc "github.com/dobriygolang/project-nordly/services/identity/internal/adapter/billing/grpc"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/config"
+	devicerepo "github.com/dobriygolang/project-nordly/services/identity/internal/device/repository"
+	deviceservice "github.com/dobriygolang/project-nordly/services/identity/internal/device/service"
 	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/logger"
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
 
 // App holds adapters and the domain service for identity.
@@ -18,8 +22,11 @@ type App struct {
 	Postgres     *userrepo.Pool
 	Redis        *authrepo.Client
 	Service      authservice.Service
+	DeviceService deviceservice.Service
 	TokenManager *authservice.TokenManager
+	JWTValidator *jwt.Validator
 	PublicKeyPEM []byte
+	billingConn  *billinggrpc.Client
 }
 
 // New wires adapters and the domain service.
@@ -64,13 +71,29 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("encode public key: %w", err)
 	}
 
+	jwtValidator, err := jwt.NewValidator(cfg.JWTPublicKeyPEM)
+	if err != nil {
+		_ = redisClient.Close()
+		pg.Close()
+		return nil, fmt.Errorf("init jwt validator: %w", err)
+	}
+
+	billingConn, err := billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
+	if err != nil {
+		_ = redisClient.Close()
+		pg.Close()
+		return nil, fmt.Errorf("init billing client: %w", err)
+	}
+
 	a := &App{
 		Config:       cfg,
 		Logger:       log,
 		Postgres:     pg,
 		Redis:        redisClient,
 		TokenManager: tokenManager,
+		JWTValidator: jwtValidator,
 		PublicKeyPEM: publicKeyPEM,
+		billingConn:  billingConn,
 	}
 
 	a.Service = authservice.New(authservice.Deps{
@@ -81,11 +104,19 @@ func New(ctx context.Context) (*App, error) {
 		Log:           log,
 	})
 
+	a.DeviceService = deviceservice.New(deviceservice.Deps{
+		Repo:    devicerepo.New(pg),
+		Billing: billingConn,
+	})
+
 	return a, nil
 }
 
 // Close releases adapter resources.
 func (a *App) Close() {
+	if a.billingConn != nil {
+		_ = a.billingConn.Close()
+	}
 	if a.Redis != nil {
 		_ = a.Redis.Close()
 	}

@@ -6,7 +6,7 @@ Module: `github.com/dobriygolang/project-nordly/services/notes`
 
 ## Purpose
 
-Obsidian-like notes for Hone (Tauri desktop app):
+Obsidian-like notes for Nordly (Tauri desktop app):
 
 - Markdown notes (CRUD)
 - E2EE vault: server stores salt + ciphertext only (client PBKDF2 200k + AES-256-GCM)
@@ -41,6 +41,8 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 `CreateNote` checks active note count against billing gauge `cloud_notes_count`. Billing client is always wired at startup; missing entitlement or billing error fails the create (no noop/unlimited fallback).
 
+`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes. Optional request flags `unlisted` and `password_protected` gate `publish_unlisted` and `publish_password` entitlements.
+
 ## Data model
 
 - `vault_salts` — per-user random 32-byte salt (base64 to client)
@@ -61,4 +63,4 @@ Build: `GOWORK=off`
 
 `GET /metrics` — HTTP instrumentation only (no domain counters yet).
 
-Hone client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault in `apps/nordly/src/renderer/src/features/notes/repository/vaultRemote.ts`.
+Nordly client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault in `apps/nordly/src/renderer/src/features/notes/repository/vaultRemote.ts`.

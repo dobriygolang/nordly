@@ -3,6 +3,7 @@ package notesapi
 import (
 	"context"
 
+	notesservice "github.com/dobriygolang/project-nordly/services/notes/internal/notes/service"
 	notesv1 "github.com/dobriygolang/project-nordly/services/notes/pkg/api/notes/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -147,7 +148,10 @@ func (i *Implementation) ShareNoteToWeb(
 	if err != nil {
 		return nil, err
 	}
-	res, err := i.service.ShareNoteToWeb(ctx, userID, req.GetNoteId(), req.GetPlaintextMd())
+	res, err := i.service.ShareNoteToWeb(ctx, userID, req.GetNoteId(), req.GetPlaintextMd(), notesservice.PublishOptions{
+		Unlisted:          req.GetUnlisted(),
+		PasswordProtected: req.GetPasswordProtected(),
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

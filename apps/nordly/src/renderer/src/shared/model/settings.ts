@@ -25,6 +25,8 @@ export interface NordlySettings {
   textScale: TextScale;
   boardCanvas: BoardCanvasTheme;
   googleCalendarPollMinutes: GoogleCalendarPollMinutes;
+  /** UI preview — show plan meters as if limits are exhausted. */
+  planPreviewExhausted: boolean;
 }
 
 export const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -51,6 +53,7 @@ export const DEFAULTS: NordlySettings = {
   textScale: 'normal',
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
+  planPreviewExhausted: true,
 };
 
 function parseTimerMode(v: unknown): TimerMode {
@@ -88,7 +91,8 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     parsed.textScale === undefined ||
     parsed.boardCanvas === undefined ||
     parsed.googleCalendarPollMinutes === undefined ||
-    typeof parsed.autoUpdate !== 'boolean';
+    typeof parsed.autoUpdate !== 'boolean' ||
+    typeof parsed.planPreviewExhausted !== 'boolean';
 
   const settings: NordlySettings = {
     pomodoroMinutes: clampInt(parsed.pomodoroMinutes, 5, 90, 'pomodoroMinutes'),
@@ -109,6 +113,10 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       parsed.googleCalendarPollMinutes === undefined
         ? DEFAULTS.googleCalendarPollMinutes
         : parsePollMinutes(parsed.googleCalendarPollMinutes),
+    planPreviewExhausted:
+      typeof parsed.planPreviewExhausted === 'boolean'
+        ? parsed.planPreviewExhausted
+        : DEFAULTS.planPreviewExhausted,
   };
 
   return { settings, migrated };

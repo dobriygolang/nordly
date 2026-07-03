@@ -2,7 +2,7 @@
 
 # Mock progress & task picking
 
-How druz9 remembers what you passed, avoids repeats, and nudges section balance.
+How the platform remembers what you passed, avoids repeats, and nudges section balance.
 
 ## Data (recommendation-service)
 

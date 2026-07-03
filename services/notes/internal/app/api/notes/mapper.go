@@ -37,7 +37,9 @@ func mapServiceError(err error) error {
 	case notesservice.IsInvalidArgument(err):
 		return invalidArgument(err.Error())
 	case notesservice.IsQuotaExceeded(err):
-		return status.Error(codes.ResourceExhausted, "cloud notes quota exceeded")
+		return status.Error(codes.ResourceExhausted, "quota exceeded")
+	case notesservice.IsFeatureDisabled(err):
+		return status.Error(codes.PermissionDenied, "feature not available on your plan")
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

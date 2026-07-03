@@ -15,7 +15,6 @@ Living tracker for `services/*` Go backends. Pair with [`.cursor/rules/fail-fast
 | **2** | **focus**, **notes** | ✅ |
 | **3** | **identity** | ✅ |
 | **4** | **rooms**, **sandbox**, **billing** | ✅ |
-| **5** | **ai** (CI archive) | ✅ |
 
 ---
 
@@ -54,12 +53,6 @@ Required: `TOKEN_ENCRYPTION_KEY`, `INTERNAL_API_TOKEN`, `NORDLY_CALLBACK_URL`. `
 
 ---
 
-## Phase 5 — ai ✅
-
-CI-only archive. `run.go` does not wire interview/content clients; outbox worker idle. Proto/handlers kept for matrix builds. Fake evaluator when no LLM keys (dev/CI only).
-
----
-
 ## Verification
 
 ```bash
@@ -86,6 +79,6 @@ Scraped at `GET /metrics` on all prod HTTP services. Grafana **Product** dashboa
 | **billing** | `billing_webhook_events_total` | `provider`, `event`, `result` |
 | **billing** | cache | `billing_plans_*`, `billing_entitlements_*` |
 
-**notes**, **rooms**, **sandbox**: HTTP instrumentation only (no domain counters yet). **ai**: CI-only, not scraped in prod.
+**notes**, **rooms**, **sandbox**: HTTP instrumentation only (no domain counters yet).
 
 Plan entitlements (Free vs Pro): [billing-plans.md](./billing-plans.md).

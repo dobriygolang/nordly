@@ -21,6 +21,7 @@ import { brand } from '@/lib/brand/tokens'
 import { Button } from '@/components/ui/Button'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { useFormatCode } from '@/hooks/useFormatCode'
+import { useHorizontalResize } from '@/hooks/useHorizontalResize'
 import { useSandboxRun } from '@/hooks/useSandboxRun'
 import { normalizeEditorLang } from '@/lib/codemirror/langExtension'
 import {
@@ -41,6 +42,13 @@ import {
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
 import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
+import {
+  clampRunPanelWidth,
+  persistRunPanelWidth,
+  readRunPanelWidth,
+  RUN_PANEL_MIN,
+  runPanelMaxWidth,
+} from '@/lib/live/runPanelWidth'
 import { cn } from '@/lib/cn'
 
 function jwtSubject(token: string): string | null {
@@ -73,12 +81,27 @@ export default function CollabRoomPage() {
   const [peers, setPeers] = useState<CollabPeer[]>([])
   const [theme, setTheme] = useState<LiveRoomTheme>(() => readLiveRoomTheme())
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(true)
+  const [runPanelWidth, setRunPanelWidth] = useState(readRunPanelWidth)
+  const { isResizing: isRunPanelResizing, start: startRunPanelResize } =
+    useHorizontalResize(setRunPanelWidth)
   const hasSession = !!guestToken
 
   useEffect(() => {
     setGuestToken(readGuestToken(roomId))
     setGuestRoom(readGuestRoom(roomId))
   }, [roomId])
+
+  useEffect(() => {
+    const onResize = () => {
+      setRunPanelWidth((w) => clampRunPanelWidth(w))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (!isRunPanelResizing) persistRunPanelWidth(runPanelWidth)
+  }, [isRunPanelResizing, runPanelWidth])
 
   const roomQ = useQuery({
     queryKey: ['room', roomId],
@@ -327,7 +350,31 @@ export default function CollabRoomPage() {
               ) : null}
             </div>
 
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t('live.resizeOutput')}
+              aria-valuenow={runPanelWidth}
+              aria-valuemin={RUN_PANEL_MIN}
+              aria-valuemax={runPanelMaxWidth()}
+              onPointerDown={(e) =>
+                startRunPanelResize(e, {
+                  baseWidth: runPanelWidth,
+                  min: RUN_PANEL_MIN,
+                  max: runPanelMaxWidth(),
+                  onCommit: persistRunPanelWidth,
+                })
+              }
+              className={cn(
+                'group relative z-10 w-1.5 shrink-0 cursor-col-resize touch-none select-none',
+                'before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border',
+                'hover:before:bg-border-strong',
+                isRunPanelResizing && 'before:bg-border-strong',
+              )}
+            />
+
             <RunOutputPanel
+              width={runPanelWidth}
               tab={run.outputTab}
               onTabChange={run.setOutputTab}
               run={run.activeRun}

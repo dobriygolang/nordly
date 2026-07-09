@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 
 type Props = {
+  width: number
   tab: 'stdout' | 'stderr'
   onTabChange: (tab: 'stdout' | 'stderr') => void
   run?: CodeRun
@@ -46,6 +47,7 @@ function panelBody({
 }
 
 export function RunOutputPanel({
+  width,
   tab,
   onTabChange,
   run,
@@ -67,8 +69,9 @@ export function RunOutputPanel({
 
   return (
     <aside
+      style={{ width }}
       className={cn(
-        'flex h-full w-[min(420px,38%)] min-w-[280px] shrink-0 flex-col',
+        'flex h-full shrink-0 flex-col',
         'border-l border-border bg-surface-1 font-mono text-text-primary',
       )}
     >

@@ -163,6 +163,7 @@ export const en = {
     autocomplete: 'Autocomplete',
     runBy: 'Run by {{name}}',
     runHint: 'Press Run or ⌘↵ to execute code for everyone in the room.',
+    resizeOutput: 'Resize output panel',
     roomExpired: 'This room has expired and was removed.',
     run: 'Run',
     running: 'Running…',

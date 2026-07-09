@@ -20,7 +20,6 @@ import { SettingRow, SettingsBlock } from '../primitives/SettingRow';
 interface Shortcut {
   labelKey: string;
   keys: string[];
-  global?: boolean;
 }
 
 /** Mirrors the bindings in `useGlobalHotkeys`. Keep in sync when hotkeys change. */
@@ -117,9 +116,14 @@ export function ShortcutsSection() {
           />
         </SettingRow>
 
-        <div className="nordly-shortcuts-list">
-          <div className="nordly-shortcut-row">
-            <span className="nordly-shortcut-row__label">{t('nordly.settings.shortcuts.quick_capture')}</span>
+        <SettingRow
+          label={t('nordly.settings.shortcuts.quick_capture')}
+          hint={t('nordly.settings.quick_capture.note')}
+        >
+          <div
+            className="nordly-shortcuts-config"
+            data-disabled={!settings.quickCaptureEnabled ? 'true' : undefined}
+          >
             <span className="nordly-shortcut-row__keys">
               {quickCaptureKeys.map((k, i) => (
                 <span className="nordly-kbd mono" key={`qc-${i}`}>
@@ -127,45 +131,48 @@ export function ShortcutsSection() {
                 </span>
               ))}
             </span>
-          </div>
-        </div>
-
-        <div className="nordly-shortcuts-list__presets" role="radiogroup" aria-label={t('nordly.settings.quick_capture.preset_group')}>
-          {(Object.keys(QUICK_CAPTURE_SHORTCUT_PRESETS) as QuickCaptureShortcutPreset[]).map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className="nordly-shortcuts-list__preset focus-ring"
-              data-active={activePreset === preset ? 'true' : 'false'}
-              onClick={() => setPreset(preset)}
-              disabled={!settings.quickCaptureEnabled}
+            <div
+              className="nordly-shortcuts-list__presets"
+              role="radiogroup"
+              aria-label={t('nordly.settings.quick_capture.preset_group')}
             >
-              {t(QUICK_CAPTURE_SHORTCUT_PRESETS[preset].labelKey)}
-            </button>
-          ))}
-        </div>
+              {(Object.keys(QUICK_CAPTURE_SHORTCUT_PRESETS) as QuickCaptureShortcutPreset[]).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="nordly-shortcuts-list__preset focus-ring"
+                  data-active={activePreset === preset ? 'true' : 'false'}
+                  onClick={() => setPreset(preset)}
+                  disabled={!settings.quickCaptureEnabled}
+                >
+                  {t(QUICK_CAPTURE_SHORTCUT_PRESETS[preset].labelKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </SettingRow>
 
-        <p className="nordly-shortcuts-list__note">{t('nordly.settings.quick_capture.note')}</p>
-        {registrationError && <p className="nordly-shortcuts-list__error">{registrationError}</p>}
+        {registrationError ? <p className="nordly-shortcuts-block-error">{registrationError}</p> : null}
       </SettingsBlock>
 
-      <div className="nordly-shortcuts-list__section">
-        <h3 className="nordly-shortcuts-list__section-title">{t('nordly.settings.shortcuts.in_app')}</h3>
-        <div className="nordly-shortcuts-list">
-          {appShortcuts.map((s) => (
-            <div className="nordly-shortcut-row" key={s.labelKey}>
-              <span className="nordly-shortcut-row__label">{t(s.labelKey)}</span>
-              <span className="nordly-shortcut-row__keys">
-                {s.keys.map((k, i) => (
-                  <span className="nordly-kbd mono" key={`${s.labelKey}-${i}`}>
-                    {k}
-                  </span>
-                ))}
-              </span>
-            </div>
-          ))}
+      <SettingsBlock title={t('nordly.settings.shortcuts.in_app')}>
+        <div className="nordly-shortcuts-card">
+          <div className="nordly-shortcuts-list">
+            {appShortcuts.map((s) => (
+              <div className="nordly-shortcut-row" key={s.labelKey}>
+                <span className="nordly-shortcut-row__label">{t(s.labelKey)}</span>
+                <span className="nordly-shortcut-row__keys">
+                  {s.keys.map((k, i) => (
+                    <span className="nordly-kbd mono" key={`${s.labelKey}-${i}`}>
+                      {k}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </SettingsBlock>
     </>
   );
 }

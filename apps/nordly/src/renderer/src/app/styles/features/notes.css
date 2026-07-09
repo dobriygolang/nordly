@@ -311,44 +311,6 @@
   gap: 4px;
   padding: 2px 8px 6px;
 }
-.nordly-note-menu__expiry-select-wrap {
-  position: relative;
-  display: block;
-}
-.nordly-note-menu__expiry-select-wrap::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--ink-60);
-  transform: translateY(-35%);
-}
-.nordly-note-menu__expiry-select {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 6px 28px 6px 8px;
-  border: 1px solid rgb(var(--ink-rgb) / 0.14);
-  border-radius: 6px;
-  background: rgb(var(--ink-rgb) / 0.06);
-  color: var(--ink-90);
-  font-size: 12px;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-.nordly-note-menu__expiry-select:focus {
-  border-color: rgb(var(--ink-rgb) / 0.28);
-}
-.nordly-note-menu__expiry-select option {
-  color: var(--ink);
-  background: var(--surface);
-}
 /* Notes editor meta (save status, timestamp) */
 .nordly-notes-editor-meta {
   opacity: 0.45;

@@ -15,6 +15,7 @@
 @import './base/theme.css';
 @import './base/utilities.css';
 @import './components/surfaces.css';
+@import './components/select.css';
 @import './components/chrome.css';
 @import './components/odometer-timer.css';
 @import './components/transitions.css';

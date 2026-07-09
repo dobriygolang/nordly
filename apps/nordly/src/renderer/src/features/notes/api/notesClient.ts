@@ -147,13 +147,7 @@ export async function publishNoteToWeb(
   if (!res.alreadyPublished) {
     useFeatureUsageStore.getState().adjustPublishedNotesCount(1);
   }
-  return {
-    published: true,
-    slug: res.slug,
-    url: res.url,
-    publishedAt: res.publishedAt,
-    passwordProtected: options.passwordProtected,
-  };
+  return remoteGetPublishStatus(serverId);
 }
 
 export async function unpublishNoteFromWeb(noteId: string): Promise<void> {

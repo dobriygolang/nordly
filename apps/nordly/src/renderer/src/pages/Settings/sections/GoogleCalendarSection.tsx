@@ -194,18 +194,20 @@ export function GoogleCalendarSection({
         label={t('nordly.settings.google.poll_label')}
         hint={t('nordly.settings.google.poll_hint')}
       >
-        <select
-          className="nordly-settings-select focus-ring"
-          value={pollMinutes}
-          disabled={controlsDisabled}
-          onChange={(e) => onPollMinutesChange(Number(e.target.value) as GoogleCalendarPollMinutes)}
-        >
-          {GOOGLE_CALENDAR_POLL_MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {t('nordly.settings.google.poll_option', { minutes: m })}
-            </option>
-          ))}
-        </select>
+        <span className="nordly-select-wrap">
+          <select
+            className="nordly-settings-select focus-ring"
+            value={pollMinutes}
+            disabled={controlsDisabled}
+            onChange={(e) => onPollMinutesChange(Number(e.target.value) as GoogleCalendarPollMinutes)}
+          >
+            {GOOGLE_CALENDAR_POLL_MINUTES.map((m) => (
+              <option key={m} value={m}>
+                {t('nordly.settings.google.poll_option', { minutes: m })}
+              </option>
+            ))}
+          </select>
+        </span>
       </SettingRow>
 
       <SettingRow label={t('nordly.settings.google.account_label')} hint={t('nordly.settings.google.account_hint')}>
@@ -255,20 +257,22 @@ export function GoogleCalendarSection({
           label={t('nordly.settings.google.calendar_label')}
           hint={t('nordly.settings.google.calendar_hint')}
         >
-          <select
-            className="nordly-settings-select focus-ring"
-            value={calendarId}
-            disabled={controlsDisabled}
-            onChange={(e) => void setCalendar(e.target.value)}
-          >
-            {calendars.map((cal) => (
-              <option key={cal.id} value={cal.id} disabled={!cal.writable}>
-                {cal.summary || cal.id}
-                {cal.primary ? ' ★' : ''}
-                {cal.writable ? '' : ' (read-only)'}
-              </option>
-            ))}
-          </select>
+          <span className="nordly-select-wrap">
+            <select
+              className="nordly-settings-select focus-ring"
+              value={calendarId}
+              disabled={controlsDisabled}
+              onChange={(e) => void setCalendar(e.target.value)}
+            >
+              {calendars.map((cal) => (
+                <option key={cal.id} value={cal.id} disabled={!cal.writable}>
+                  {cal.summary || cal.id}
+                  {cal.primary ? ' ★' : ''}
+                  {cal.writable ? '' : ' (read-only)'}
+                </option>
+              ))}
+            </select>
+          </span>
         </SettingRow>
       )}
 

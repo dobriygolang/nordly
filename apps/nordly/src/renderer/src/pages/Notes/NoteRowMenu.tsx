@@ -140,9 +140,9 @@ function PublishOptionsSection({
           </label>
           <label className="nordly-note-menu__expiry">
             <span className="nordly-note-menu__password-label">{t('nordly.notes.menu.publish_expiry_label')}</span>
-            <span className="nordly-note-menu__expiry-select-wrap">
+            <span className="nordly-select-wrap nordly-select-wrap--block">
               <select
-                className="nordly-note-menu__expiry-select mono"
+                className="nordly-select nordly-select--block mono focus-ring"
                 value={publishOptions.expiresInDays}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => onPublishOptionsChange({ expiresInDays: Number(e.target.value) })}

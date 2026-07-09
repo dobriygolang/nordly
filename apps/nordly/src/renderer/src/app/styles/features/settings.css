@@ -364,6 +364,45 @@ html.light .nordly-settings-group__body {
 
 /* ── Shortcuts list ── */
 
+.nordly-shortcuts-config {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.nordly-shortcuts-config[data-disabled='true'] {
+  opacity: 0.55;
+}
+
+.nordly-shortcuts-card {
+  border: 1px solid var(--ink-tint-08);
+  border-radius: 14px;
+  background: rgb(var(--ink-rgb) / 0.03);
+  overflow: hidden;
+}
+
+html.light .nordly-shortcuts-card {
+  background: var(--surface);
+  border-color: var(--hair-2);
+  box-shadow:
+    0 1px 2px rgba(15, 15, 15, 0.04),
+    0 12px 28px -20px rgba(15, 15, 15, 0.16);
+}
+
+.nordly-shortcuts-card .nordly-shortcut-row {
+  padding: 14px 18px;
+}
+
+.nordly-shortcuts-block-error {
+  margin: -4px 0 0;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--red, #ff3b30);
+}
+
 .nordly-shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -389,6 +428,8 @@ html.light .nordly-settings-group__body {
 
 .nordly-shortcut-row__keys {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -404,6 +445,48 @@ html.light .nordly-settings-group__body {
   background: rgb(var(--ink-rgb) / 0.08);
   color: var(--ink-90);
   font-size: 11px;
+}
+
+.nordly-shortcuts-list__presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 280px;
+}
+
+.nordly-shortcuts-list__preset {
+  border: 1px solid var(--ink-tint-08);
+  background: rgb(var(--ink-rgb) / 0.04);
+  color: var(--ink-90);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.nordly-shortcuts-list__preset:hover:not(:disabled) {
+  border-color: var(--ink-tint-16);
+  background: rgb(var(--ink-rgb) / 0.08);
+}
+
+.nordly-shortcuts-list__preset[data-active='true'] {
+  border-color: rgb(var(--ink-rgb) / 0.35);
+  background: rgb(var(--ink-rgb) / 0.12);
+  color: var(--ink);
+}
+
+.nordly-shortcuts-list__preset:disabled {
+  cursor: not-allowed;
+}
+
+.nordly-shortcuts-list__preset:focus-visible {
+  outline: 2px solid rgb(var(--ink-rgb) / 0.35);
+  outline-offset: 2px;
 }
 
 /* ── Wallpaper carousel overlay ── */

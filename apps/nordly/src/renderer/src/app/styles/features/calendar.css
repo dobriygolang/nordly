@@ -571,15 +571,6 @@ button.nordly-calendar-event:hover {
   color: rgb(248 113 113);
   border-color: rgb(248 113 113 / 0.4);
 }
-.nordly-settings-select {
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--ink-tint-08);
-  background: rgb(var(--ink-rgb) / 0.04);
-  color: var(--ink);
-  font-size: 12px;
-  max-width: 260px;
-}
 .nordly-settings-google-actions {
   display: flex;
   flex-wrap: wrap;

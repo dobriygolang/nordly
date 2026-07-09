@@ -1,0 +1,94 @@
+/* Shared custom select — replaces native macOS chrome */
+.nordly-select-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.nordly-select-wrap--block {
+  display: block;
+  width: 100%;
+}
+
+.nordly-select-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--ink-60);
+  transform: translateY(-35%);
+}
+
+.nordly-select,
+.nordly-settings-select {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 7px 32px 7px 11px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--ink-tint-08);
+  border-radius: 8px;
+  background-color: rgb(var(--ink-rgb) / 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.nordly-select-wrap--block .nordly-select,
+.nordly-select--block {
+  width: 100%;
+}
+
+.nordly-settings-select {
+  min-width: 120px;
+  max-width: 260px;
+}
+
+.nordly-select:hover:not(:disabled),
+.nordly-settings-select:hover:not(:disabled) {
+  border-color: var(--ink-tint-16);
+  background-color: rgb(var(--ink-rgb) / 0.06);
+}
+
+.nordly-select:focus-visible,
+.nordly-settings-select:focus-visible {
+  border-color: rgb(var(--ink-rgb) / 0.28);
+  outline: none;
+}
+
+.nordly-select:disabled,
+.nordly-settings-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nordly-select option,
+.nordly-settings-select option {
+  color: var(--ink);
+  background: var(--surface, rgb(20 20 22));
+}
+
+html.light .nordly-select,
+html.light .nordly-settings-select {
+  background-color: var(--surface);
+  border-color: var(--hair-2);
+}
+
+html.light .nordly-select:hover:not(:disabled),
+html.light .nordly-settings-select:hover:not(:disabled) {
+  background-color: rgb(var(--ink-rgb) / 0.03);
+  border-color: var(--ink-tint-16);
+}

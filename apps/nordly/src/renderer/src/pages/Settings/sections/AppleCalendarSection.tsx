@@ -183,22 +183,24 @@ export function AppleCalendarSection(): JSX.Element | null {
         label={t('nordly.settings.apple.poll_label')}
         hint={t('nordly.settings.apple.poll_hint')}
       >
-        <select
-          className="nordly-settings-select focus-ring"
-          value={pollMinutes}
-          disabled={controlsDisabled}
-          onChange={(e) => {
-            const next = Number(e.target.value) as AppleCalendarPollMinutes;
-            setPollMinutes(next);
-            patchSettings({ appleCalendarPollMinutes: next });
-          }}
-        >
-          {APPLE_CALENDAR_POLL_MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {t('nordly.settings.apple.poll_option', { minutes: m })}
-            </option>
-          ))}
-        </select>
+        <span className="nordly-select-wrap">
+          <select
+            className="nordly-settings-select focus-ring"
+            value={pollMinutes}
+            disabled={controlsDisabled}
+            onChange={(e) => {
+              const next = Number(e.target.value) as AppleCalendarPollMinutes;
+              setPollMinutes(next);
+              patchSettings({ appleCalendarPollMinutes: next });
+            }}
+          >
+            {APPLE_CALENDAR_POLL_MINUTES.map((m) => (
+              <option key={m} value={m}>
+                {t('nordly.settings.apple.poll_option', { minutes: m })}
+              </option>
+            ))}
+          </select>
+        </span>
       </SettingRow>
 
       <SettingRow

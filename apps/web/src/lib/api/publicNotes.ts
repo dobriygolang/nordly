@@ -24,15 +24,15 @@ function requireBool(j: Record<string, unknown>, key: string): boolean {
 }
 
 function mapPublishedNote(j: Record<string, unknown>): PublishedNote {
-  const publishedAtRaw = j.publishedAt
+  const publishedAtRaw = j.published_at
   if (publishedAtRaw != null && typeof publishedAtRaw !== 'string') {
-    throw new Error('Invalid published note: publishedAt must be a string')
+    throw new Error('Invalid published note: published_at must be a string')
   }
   return {
     title: requireStr(j, 'title'),
-    bodyMd: typeof j.bodyMd === 'string' ? j.bodyMd : '',
+    bodyMd: typeof j.body_md === 'string' ? j.body_md : '',
     publishedAt: typeof publishedAtRaw === 'string' && publishedAtRaw ? publishedAtRaw : null,
-    passwordRequired: requireBool(j, 'passwordRequired'),
+    passwordRequired: requireBool(j, 'password_required'),
   }
 }
 
@@ -55,9 +55,9 @@ export async function accessPublishedNote(slug: string, password: string): Promi
   const body = await parseResponse<Record<string, unknown>>(path, res)
   return {
     title: requireStr(body, 'title'),
-    bodyMd: requireStr(body, 'bodyMd'),
+    bodyMd: requireStr(body, 'body_md'),
     publishedAt:
-      typeof body.publishedAt === 'string' && body.publishedAt ? body.publishedAt : null,
+      typeof body.published_at === 'string' && body.published_at ? body.published_at : null,
     passwordRequired: false,
   }
 }

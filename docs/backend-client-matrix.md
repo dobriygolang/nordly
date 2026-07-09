@@ -56,7 +56,7 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 | GET `/v1/notes/{id}/backlinks` | — | — | API only (no UI yet) |
 | Vault init/salt/encrypt | ✅ | — | |
 | Publish flow (status, share, unpublish, make-private) | ✅ | — | |
-| GET `/v1/notes/public/{slug}` | — | ✅ `title`, `bodyMd` | `publishedAt` parsed, **not shown** |
+| GET `/v1/notes/public/{slug}` | — | ✅ `title`, `body_md`, `password_required` | `published_at` parsed, **not shown** |
 
 **Removed:** ListNotes pagination (`limit`/`cursor`/`next_cursor`).
 

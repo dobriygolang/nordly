@@ -63,6 +63,11 @@ export default defineConfig(({ mode }) => {
       outDir: resolve(__dirname, 'dist'),
       emptyOutDir: true,
       target: 'esnext',
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, 'src/renderer/index.html'),
+        },
+      },
     },
     resolve: {
       alias: {

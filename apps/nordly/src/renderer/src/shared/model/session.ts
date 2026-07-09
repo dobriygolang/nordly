@@ -146,6 +146,9 @@ export const useSessionStore = create<SessionState>((set) => ({
         expiresAt: s.expiresAt,
       });
       writeBrowserPersist(s);
+      if (s.expiresAt > 0 && Date.now() > s.expiresAt) {
+        useSyncStore.getState().setSessionReauthRequired(true);
+      }
       return true;
     };
 

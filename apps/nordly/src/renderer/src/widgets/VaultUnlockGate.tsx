@@ -91,14 +91,25 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void probe(() => cancelled).catch((e) => {
-      if (cancelled) return;
-      const msg = e instanceof Error ? e.message : t('nordly.vault.err.unreachable');
-      setError(msg);
-      setState({ kind: 'failed', message: msg });
-    });
+    const run = () => {
+      void probe(() => cancelled).catch((e) => {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : t('nordly.vault.err.unreachable');
+        setError(msg);
+        setState({ kind: 'failed', message: msg });
+      });
+    };
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(run, { timeout: 4_000 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(id);
+      };
+    }
+    const timer = setTimeout(run, 0);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [userId, t]);
 
@@ -173,7 +184,7 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
   };
 
   if (state.kind === 'loading') {
-    return <CenterMsg text={t('nordly.vault.loading')} />;
+    return <>{children}</>;
   }
   if (state.kind === 'unlocked') {
     return <>{children}</>;
@@ -288,14 +299,6 @@ function GateShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="fadein nordly-vault-gate" style={{ animationDuration: 'var(--motion-dur-small)' }}>
       {children}
-    </div>
-  );
-}
-
-function CenterMsg({ text }: { text: string }) {
-  return (
-    <div className="nordly-vault-gate nordly-vault-gate--center mono">
-      {text}
     </div>
   );
 }

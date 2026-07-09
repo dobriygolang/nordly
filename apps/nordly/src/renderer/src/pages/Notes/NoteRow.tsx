@@ -12,7 +12,7 @@ import {
   serializePublishOptions,
   type PublishFeatureEntitlements,
 } from '@features/notes/model/publishOptions';
-import { fetchBillingMe } from '@shared/api/billingClient';
+import { fetchBillingMeCached } from '@shared/api/billingClient';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
@@ -23,7 +23,7 @@ import { NoteRowMenu } from './NoteRowMenu';
 
 const MENU_W = 168;
 const MENU_W_WIDE = 240;
-const PUBLISH_OPTIONS_SAVE_MS = 450;
+const PUBLISH_OPTIONS_SAVE_MS = 800;
 
 export interface NoteRowProps {
   note: NoteSummary;
@@ -32,6 +32,7 @@ export interface NoteRowProps {
   onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
+  onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
@@ -43,6 +44,7 @@ export const NoteRow = memo(function NoteRow({
   onMenuOpenChange,
   onSelect,
   onPublish,
+  onUpdatePublishOptions,
   onUnpublish,
   onDelete,
 }: NoteRowProps) {
@@ -106,7 +108,7 @@ export const NoteRow = memo(function NoteRow({
       }
       const [status, billing] = await Promise.all([
         getPublishStatus(note.id),
-        fetchBillingMe().catch(() => null),
+        fetchBillingMeCached().catch(() => null),
       ]);
       if (!live) return;
       setPubStatus(status);
@@ -147,7 +149,7 @@ export const NoteRow = memo(function NoteRow({
 
     const timer = window.setTimeout(() => {
       const snapshot = serializePublishOptions(publishOptions);
-      void onPublish(note.id, publishOptions)
+      void onUpdatePublishOptions(note.id, publishOptions)
         .then((res) => {
           if (!res) return;
           if (serializePublishOptions(publishOptionsRef.current) !== snapshot) return;
@@ -159,7 +161,7 @@ export const NoteRow = memo(function NoteRow({
     }, PUBLISH_OPTIONS_SAVE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [menuOpen, note.id, onPublish, pubStatus?.published, publishOptions, applyPublishResult]);
+  }, [menuOpen, note.id, onUpdatePublishOptions, pubStatus?.published, publishOptions, applyPublishResult]);
 
   useVaultRowMenuDismiss(menuOpen, closeMenu, rowRef, menuRef, updateMenuPos);
 

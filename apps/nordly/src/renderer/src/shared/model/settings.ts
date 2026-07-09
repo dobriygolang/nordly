@@ -17,29 +17,6 @@ export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[nu
 export const APPLE_CALENDAR_POLL_MINUTES = GOOGLE_CALENDAR_POLL_MINUTES;
 export type AppleCalendarPollMinutes = GoogleCalendarPollMinutes;
 
-export type QuickCaptureShortcutPreset = 'primary' | 'alt_option' | 'alt_space';
-
-export const QUICK_CAPTURE_SHORTCUT_PRESETS: Record<
-  QuickCaptureShortcutPreset,
-  { mac: string; other: string; labelKey: string }
-> = {
-  primary: {
-    mac: 'Command+Shift+N',
-    other: 'Control+Shift+N',
-    labelKey: 'nordly.settings.quick_capture.preset_primary',
-  },
-  alt_option: {
-    mac: 'Command+Option+N',
-    other: 'Control+Alt+N',
-    labelKey: 'nordly.settings.quick_capture.preset_alt_option',
-  },
-  alt_space: {
-    mac: 'Command+Shift+Space',
-    other: 'Control+Shift+Space',
-    labelKey: 'nordly.settings.quick_capture.preset_alt_space',
-  },
-};
-
 export interface NordlySettings {
   pomodoroMinutes: number;
   timerMode: TimerMode;
@@ -59,10 +36,6 @@ export interface NordlySettings {
   appleCalendarPollMinutes: AppleCalendarPollMinutes;
   /** UI preview — show plan meters as if limits are exhausted. */
   planPreviewExhausted: boolean;
-  /** OS-level quick note capture (global shortcut). Desktop only. */
-  quickCaptureEnabled: boolean;
-  /** Tauri global-shortcut string, e.g. Command+Shift+N */
-  quickCaptureShortcut: string;
 }
 
 export const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -76,31 +49,6 @@ export function clampInt(v: unknown, lo: number, hi: number, fieldName = 'value'
 }
 
 export const TEXT_SCALES: TextScale[] = ['normal', 'large', 'xlarge'];
-
-function isMacPlatform(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /mac/i.test(navigator.platform || navigator.userAgent);
-}
-
-export function defaultQuickCaptureShortcut(): string {
-  const preset = QUICK_CAPTURE_SHORTCUT_PRESETS.primary;
-  return isMacPlatform() ? preset.mac : preset.other;
-}
-
-export function resolveQuickCaptureShortcut(preset: QuickCaptureShortcutPreset): string {
-  const entry = QUICK_CAPTURE_SHORTCUT_PRESETS[preset];
-  return isMacPlatform() ? entry.mac : entry.other;
-}
-
-export function detectQuickCapturePreset(shortcut: string): QuickCaptureShortcutPreset {
-  const normalized = shortcut.trim();
-  for (const [id, entry] of Object.entries(QUICK_CAPTURE_SHORTCUT_PRESETS) as Array<
-    [QuickCaptureShortcutPreset, (typeof QUICK_CAPTURE_SHORTCUT_PRESETS)[QuickCaptureShortcutPreset]]
-  >) {
-    if (entry.mac === normalized || entry.other === normalized) return id;
-  }
-  return 'primary';
-}
 
 export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
@@ -118,8 +66,6 @@ export const DEFAULTS: NordlySettings = {
   appleCalendarIds: [],
   appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
-  quickCaptureEnabled: true,
-  quickCaptureShortcut: defaultQuickCaptureShortcut(),
 };
 
 function parseTimerMode(v: unknown): TimerMode {
@@ -181,8 +127,8 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     typeof parsed.appleCalendarEnabled !== 'boolean' ||
     parsed.appleCalendarIds === undefined ||
     parsed.appleCalendarPollMinutes === undefined ||
-    typeof parsed.quickCaptureEnabled !== 'boolean' ||
-    typeof parsed.quickCaptureShortcut !== 'string';
+    (parsed as { quickCaptureEnabled?: unknown }).quickCaptureEnabled !== undefined ||
+    (parsed as { quickCaptureShortcut?: unknown }).quickCaptureShortcut !== undefined;
 
   const settings: NordlySettings = {
     pomodoroMinutes: clampInt(parsed.pomodoroMinutes, 5, 90, 'pomodoroMinutes'),
@@ -216,14 +162,6 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       typeof parsed.planPreviewExhausted === 'boolean'
         ? parsed.planPreviewExhausted
         : DEFAULTS.planPreviewExhausted,
-    quickCaptureEnabled:
-      typeof parsed.quickCaptureEnabled === 'boolean'
-        ? parsed.quickCaptureEnabled
-        : DEFAULTS.quickCaptureEnabled,
-    quickCaptureShortcut:
-      typeof parsed.quickCaptureShortcut === 'string' && parsed.quickCaptureShortcut.trim()
-        ? parsed.quickCaptureShortcut.trim()
-        : defaultQuickCaptureShortcut(),
   };
 
   return { settings, migrated };

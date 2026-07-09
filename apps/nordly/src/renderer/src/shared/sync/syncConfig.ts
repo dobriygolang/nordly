@@ -19,11 +19,8 @@ export function isCloudApiAvailable(): boolean {
 
   const { accessToken, refreshToken } = useSessionStore.getState();
   if (!accessToken && !refreshToken) return false;
-
-  if (isSessionExpired()) {
-    if (!refreshToken) return false;
-    if (!canReachNetwork()) return false;
-  }
+  if (!accessToken) return false;
+  if (isSessionExpired()) return false;
 
   return true;
 }

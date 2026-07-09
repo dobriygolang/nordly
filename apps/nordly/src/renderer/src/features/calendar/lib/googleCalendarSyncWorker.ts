@@ -16,7 +16,9 @@ import {
 
 let started = false;
 let intervalId: number | null = null;
+let startupTimer: number | null = null;
 let running = false;
+const STARTUP_DEFER_MS = 5_000;
 
 function isAuthError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -86,14 +88,18 @@ export function startGoogleCalendarSyncWorker(): void {
   if (started || !isCloudEnabled()) return;
   started = true;
 
-  void runCycle(false);
-
   scheduleInterval();
 
   window.addEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
   window.addEventListener(NORDLY_EVENTS.syncChanged, onSyncChanged);
   window.addEventListener(NORDLY_EVENTS.settingsChanged, onSettingsChanged);
   window.addEventListener('focus', onFocus);
+
+  startupTimer = window.setTimeout(() => {
+    startupTimer = null;
+    if (!started) return;
+    void runCycle(false);
+  }, STARTUP_DEFER_MS);
 }
 
 function onOAuth(e: Event): void {
@@ -120,6 +126,8 @@ function onSettingsChanged(): void {
 export function stopGoogleCalendarSyncWorker(): void {
   if (!started) return;
   started = false;
+  if (startupTimer !== null) window.clearTimeout(startupTimer);
+  startupTimer = null;
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = null;
   window.removeEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);

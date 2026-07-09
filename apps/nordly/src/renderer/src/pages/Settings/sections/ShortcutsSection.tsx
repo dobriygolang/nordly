@@ -1,21 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { applyQuickCaptureConfig } from '@features/quickCapture/lib/quickCaptureBridge';
-import { formatQuickCaptureShortcutLabel } from '@features/quickCapture/lib/quickCaptureNote';
 import { isTauriRuntime } from '@shared/lib/updater';
-import {
-  QUICK_CAPTURE_SHORTCUT_PRESETS,
-  detectQuickCapturePreset,
-  patchSettings,
-  readSettings,
-  resolveQuickCaptureShortcut,
-  type NordlySettings,
-  type QuickCaptureShortcutPreset,
-} from '@shared/model/settings';
-import { Toggle } from '../primitives/Toggle';
-import { SettingRow, SettingsBlock } from '../primitives/SettingRow';
+import { SettingsBlock } from '../primitives/SettingRow';
 
 interface Shortcut {
   labelKey: string;
@@ -40,8 +28,6 @@ function buildAppShortcuts(mod: string): Shortcut[] {
 
 export function ShortcutsSection() {
   const t = useT();
-  const [settings, setSettings] = useState<NordlySettings>(() => readSettings());
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   const mod = useMemo(() => {
     const isMac =
@@ -52,127 +38,25 @@ export function ShortcutsSection() {
   }, []);
 
   const appShortcuts = useMemo(() => buildAppShortcuts(mod), [mod]);
-  const quickCaptureKeys = useMemo(
-    () => formatQuickCaptureShortcutLabel(settings.quickCaptureShortcut),
-    [settings.quickCaptureShortcut],
-  );
-  const activePreset = useMemo(
-    () => detectQuickCapturePreset(settings.quickCaptureShortcut),
-    [settings.quickCaptureShortcut],
-  );
-
-  const syncRegistration = useCallback(async (next: NordlySettings) => {
-    if (!isTauriRuntime()) {
-      setRegistrationError(null);
-      return;
-    }
-    const result = await applyQuickCaptureConfig(next);
-    if (result.ok) {
-      setRegistrationError(null);
-      return;
-    }
-    setRegistrationError(result.error ?? t('nordly.settings.quick_capture.register_failed'));
-  }, [t]);
-
-  const update = useCallback(
-    (patch: Partial<NordlySettings>) => {
-      const next = patchSettings(patch);
-      setSettings(next);
-      if (
-        patch.quickCaptureEnabled !== undefined ||
-        patch.quickCaptureShortcut !== undefined
-      ) {
-        void syncRegistration(next);
-      }
-    },
-    [syncRegistration],
-  );
-
-  const setPreset = useCallback(
-    (preset: QuickCaptureShortcutPreset) => {
-      update({
-        quickCaptureShortcut: resolveQuickCaptureShortcut(preset),
-      });
-    },
-    [update],
-  );
 
   return (
-    <>
-      <SettingsBlock title={t('nordly.settings.quick_capture.section')}>
-        <SettingRow
-          label={t('nordly.settings.quick_capture.enabled')}
-          hint={t('nordly.settings.quick_capture.enabled_desc')}
-        >
-          <Toggle
-            value={settings.quickCaptureEnabled}
-            onChange={(checked) => update({ quickCaptureEnabled: checked })}
-            label={
-              settings.quickCaptureEnabled
-                ? t('nordly.settings.notifications.on')
-                : t('nordly.settings.notifications.off')
-            }
-            disabled={!isTauriRuntime()}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('nordly.settings.shortcuts.quick_capture')}
-          hint={t('nordly.settings.quick_capture.note')}
-        >
-          <div
-            className="nordly-shortcuts-config"
-            data-disabled={!settings.quickCaptureEnabled ? 'true' : undefined}
-          >
-            <span className="nordly-shortcut-row__keys">
-              {quickCaptureKeys.map((k, i) => (
-                <span className="nordly-kbd mono" key={`qc-${i}`}>
-                  {k}
-                </span>
-              ))}
-            </span>
-            <div
-              className="nordly-shortcuts-list__presets"
-              role="radiogroup"
-              aria-label={t('nordly.settings.quick_capture.preset_group')}
-            >
-              {(Object.keys(QUICK_CAPTURE_SHORTCUT_PRESETS) as QuickCaptureShortcutPreset[]).map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  className="nordly-shortcuts-list__preset focus-ring"
-                  data-active={activePreset === preset ? 'true' : 'false'}
-                  onClick={() => setPreset(preset)}
-                  disabled={!settings.quickCaptureEnabled}
-                >
-                  {t(QUICK_CAPTURE_SHORTCUT_PRESETS[preset].labelKey)}
-                </button>
-              ))}
+    <SettingsBlock title={t('nordly.settings.shortcuts.in_app')}>
+      <div className="nordly-shortcuts-card">
+        <div className="nordly-shortcuts-list">
+          {appShortcuts.map((s) => (
+            <div className="nordly-shortcut-row" key={s.labelKey}>
+              <span className="nordly-shortcut-row__label">{t(s.labelKey)}</span>
+              <span className="nordly-shortcut-row__keys">
+                {s.keys.map((k, i) => (
+                  <span className="nordly-kbd mono" key={`${s.labelKey}-${i}`}>
+                    {k}
+                  </span>
+                ))}
+              </span>
             </div>
-          </div>
-        </SettingRow>
-
-        {registrationError ? <p className="nordly-shortcuts-block-error">{registrationError}</p> : null}
-      </SettingsBlock>
-
-      <SettingsBlock title={t('nordly.settings.shortcuts.in_app')}>
-        <div className="nordly-shortcuts-card">
-          <div className="nordly-shortcuts-list">
-            {appShortcuts.map((s) => (
-              <div className="nordly-shortcut-row" key={s.labelKey}>
-                <span className="nordly-shortcut-row__label">{t(s.labelKey)}</span>
-                <span className="nordly-shortcut-row__keys">
-                  {s.keys.map((k, i) => (
-                    <span className="nordly-kbd mono" key={`${s.labelKey}-${i}`}>
-                      {k}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
-      </SettingsBlock>
-    </>
+      </div>
+    </SettingsBlock>
   );
 }

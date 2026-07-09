@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, Position, WebviewWindow};
 
+use crate::aux_windows;
 use crate::tray;
 use crate::window_macos;
 
@@ -16,17 +17,8 @@ pub struct NotificationPayload {
     pub body: String,
 }
 
-pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(window) = app.get_webview_window(NOTIFICATION_LABEL) {
-        let _ = window_macos::set_content_corner_radius(&window, 16.0);
-    }
-    Ok(())
-}
-
 pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> {
-    let window = app
-        .get_webview_window(NOTIFICATION_LABEL)
-        .ok_or("notification window missing")?;
+    let window = aux_windows::ensure_notification(app)?;
 
     position_top_right(app, &window)?;
     let _ = window_macos::set_content_corner_radius(&window, 16.0);
@@ -43,9 +35,9 @@ pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> 
 }
 
 pub fn hide(app: &AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window(NOTIFICATION_LABEL)
-        .ok_or("notification window missing")?;
+    let Some(window) = app.get_webview_window(NOTIFICATION_LABEL) else {
+        return Ok(());
+    };
 
     window
         .emit("notification:hide", ())

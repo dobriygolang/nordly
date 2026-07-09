@@ -6,6 +6,7 @@ import { isCloudEnabled } from '@shared/model/features';
 import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
 let derivedKey: CryptoKey | null = null;
@@ -80,8 +81,11 @@ async function initLocalVaultSalt(): Promise<{ saltB64: string; isNew: boolean }
 }
 
 export async function fetchVaultSalt(): Promise<string | null> {
-  if (!isCloudEnabled()) {
-    const local = await dbGet<{ saltB64: string }>('meta', localSaltKey(requireUserId()));
+  const userId = requireUserId();
+  const localKey = localSaltKey(userId);
+  const local = await dbGet<{ saltB64: string }>('meta', localKey);
+
+  if (!isCloudApiAvailable()) {
     return local?.saltB64 ?? null;
   }
 

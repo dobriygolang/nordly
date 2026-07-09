@@ -168,8 +168,9 @@ npm run build
 3. **`write-signing-config.mjs`** — merges thumbprint / signing identity into `signing.ci.json`.
 4. **`tauri-action`** — builds signed + notarized artifacts.
 5. **`sync-cdn`** — downloads release assets, rewrites updater URLs to `trynordly.app/desktop`, SCP to VPS (`deploy/data/cdn/desktop/`).
+6. **`sync-main-version`** — writes tag version into `tauri.conf.json` / `Cargo.toml` / `package.json` on `main` (no manual bump needed).
 
-Release trigger unchanged: `git tag nordly-v0.0.1 && git push origin nordly-v0.0.1`.
+Release trigger: push `main`, then `git tag nordly-vX.Y.Z && git push origin nordly-vX.Y.Z`. Version in manifests is taken from the tag; CI syncs it back to `main` after a successful build.
 
 Requires GitHub secrets `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY` (same as backend deploy).
 

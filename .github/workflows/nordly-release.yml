@@ -105,8 +105,6 @@ jobs:
 
       - name: Sync app version from release tag
         if: github.ref_type == 'tag'
-        working-directory: apps/nordly
-        shell: bash
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
@@ -115,28 +113,7 @@ jobs:
             echo "Got: $tag — tags like nordly-v0.0.1.1 do not change the app version seen by the updater."
             exit 1
           fi
-          version="${tag#nordly-v}"
-          export VERSION="$version"
-          node <<'NODE'
-          const fs = require('fs');
-          const version = process.env.VERSION;
-          if (!version) throw new Error('VERSION env is required');
-          const tauriPath = 'src-tauri/tauri.conf.json';
-          const tauri = JSON.parse(fs.readFileSync(tauriPath, 'utf8'));
-          tauri.version = version;
-          fs.writeFileSync(tauriPath, JSON.stringify(tauri, null, 2) + '\n');
-          const cargoPath = 'src-tauri/Cargo.toml';
-          const cargo = fs.readFileSync(cargoPath, 'utf8');
-          fs.writeFileSync(
-            cargoPath,
-            cargo.replace(/^version = ".*"/m, `version = "${version}"`),
-          );
-          const pkgPath = 'package.json';
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          pkg.version = version;
-          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-          console.log('Synced app version to', version);
-          NODE
+          node deploy/scripts/sync-nordly-app-version.mjs --tag "$tag"
 
       - name: Resolve release tag
         id: release
@@ -235,7 +212,9 @@ jobs:
             --tag "${{ steps.tag.outputs.name }}" \
             --cdn-base https://trynordly.app/desktop \
             --output /tmp/cdn-upload
-          tar czf /tmp/desktop-cdn.tgz -C /tmp/cdn-upload desktop
+          tar czf desktop-cdn.tgz -C /tmp/cdn-upload desktop
+          test -s desktop-cdn.tgz
+          ls -la desktop-cdn.tgz
 
       - name: Upload CDN bundle
         uses: appleboy/scp-action@v0.1.7
@@ -244,7 +223,7 @@ jobs:
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
-          source: /tmp/desktop-cdn.tgz
+          source: desktop-cdn.tgz
           target: /opt/project-nordly/
           overwrite: true
 
@@ -266,3 +245,37 @@ jobs:
             test -f "$REPO_DIR/deploy/data/cdn/desktop/latest.json"
             test -f "$REPO_DIR/deploy/data/cdn/desktop/releases.json"
             echo "CDN desktop bundle installed for tag ${{ steps.tag.outputs.name }}"
+
+  sync-main-version:
+    name: sync version on main
+    needs: publish
+    runs-on: ubuntu-latest
+    if: success() && github.ref_type == 'tag'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Sync version files on main
+        run: node deploy/scripts/sync-nordly-app-version.mjs --tag "${{ github.ref_name }}"
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          version="${{ github.ref_name }}"
+          version="${version#nordly-v}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/nordly/src-tauri/tauri.conf.json \
+            apps/nordly/src-tauri/Cargo.toml \
+            apps/nordly/src-tauri/Cargo.lock \
+            apps/nordly/package.json \
+            apps/nordly/package-lock.json
+          if git diff --staged --quiet; then
+            echo "Version files on main already match ${{ github.ref_name }}."
+            exit 0
+          fi
+          git commit -m "chore(nordly): sync desktop version to v${version}."
+          git push origin main

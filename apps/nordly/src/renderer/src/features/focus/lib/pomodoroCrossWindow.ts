@@ -55,15 +55,12 @@ export function initPomodoroLeader(): () => void {
 
   const unsubStore = usePomodoroStore.subscribe((state, prev) => {
     if (syncing) return;
-    if (
-      state.remain === prev.remain &&
-      state.elapsed === prev.elapsed &&
+    const tickOnly =
       state.running === prev.running &&
       state.mode === prev.mode &&
-      state.durationSec === prev.durationSec
-    ) {
-      return;
-    }
+      state.durationSec === prev.durationSec &&
+      (state.remain !== prev.remain || state.elapsed !== prev.elapsed);
+    if (tickOnly) return;
     void emit(SYNC_EVENT, snapshot());
   });
   unsubs.push(unsubStore);
@@ -80,12 +77,27 @@ export function initPomodoroFollower(): () => void {
   if (!isTauriRuntime()) return () => undefined;
 
   const unsubs: Array<() => void> = [];
+  let tickId: number | null = null;
+
+  const syncLocalTick = (): void => {
+    if (tickId !== null) window.clearInterval(tickId);
+    tickId = null;
+    if (usePomodoroStore.getState().running) {
+      tickId = window.setInterval(() => usePomodoroStore.getState().tick(), 1000);
+    }
+  };
 
   void listen<PomodoroSyncPayload>(SYNC_EVENT, ({ payload }) => {
     syncing = true;
     applyPayload(payload);
     syncing = false;
+    syncLocalTick();
   }).then((off) => unsubs.push(off));
+
+  const unsubRunning = usePomodoroStore.subscribe((state, prev) => {
+    if (state.running !== prev.running) syncLocalTick();
+  });
+  unsubs.push(unsubRunning);
 
   const bridge = window.nordly;
   if (bridge) {
@@ -103,6 +115,7 @@ export function initPomodoroFollower(): () => void {
             durationSec: usePomodoroStore.getState().durationSec,
           });
           void emit(POMODORO_EXPIRED_EVENT, {});
+          syncLocalTick();
           return;
         }
         const adjusted = snap.running
@@ -115,6 +128,7 @@ export function initPomodoroFollower(): () => void {
           running: snap.running,
           durationSec: usePomodoroStore.getState().durationSec,
         });
+        syncLocalTick();
         return;
       }
       const adjusted = snap.running
@@ -127,10 +141,12 @@ export function initPomodoroFollower(): () => void {
         running: snap.running,
         durationSec: usePomodoroStore.getState().durationSec,
       });
+      syncLocalTick();
     });
   }
 
   return () => {
+    if (tickId !== null) window.clearInterval(tickId);
     for (const off of unsubs) off();
   };
 }

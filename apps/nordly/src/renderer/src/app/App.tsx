@@ -31,6 +31,7 @@ import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
+import { readAppVersion } from '@shared/lib/updater';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { startSessionRefreshLoop, resetAuthRefreshState } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
@@ -38,7 +39,6 @@ import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
-import { useQuickCaptureShortcutRegistration } from '@features/quickCapture/hooks/useQuickCaptureShortcutRegistration';
 import { isCloudEnabled } from '@shared/model/features';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
 import {
@@ -275,24 +275,35 @@ export default function App() {
       stopCalendarReminderWorker();
       return;
     }
+
     let cancelled = false;
-    startCalendarReminderWorker();
+
     void (async () => {
       await loadVaultPrefs(userId);
       if (cancelled) return;
       setVaultGateActive(isCloudEnabled() && isVaultEnabledSync());
+
+      if (sessionReauthRequired) {
+        stopSyncEngine();
+        stopGoogleCalendarSyncWorker();
+        stopCalendarReminderWorker();
+        return;
+      }
+
       if (isCloudEnabled()) {
+        startCalendarReminderWorker();
         startSyncEngine();
         startGoogleCalendarSyncWorker();
       }
     })();
+
     return () => {
       cancelled = true;
       stopSyncEngine();
       stopGoogleCalendarSyncWorker();
       stopCalendarReminderWorker();
     };
-  }, [status, userId]);
+  }, [status, userId, sessionReauthRequired]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
@@ -301,36 +312,33 @@ export default function App() {
         setOperationError(err instanceof Error ? err : new Error(String(err))),
       );
     };
-    roll();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') roll();
+    const startupTimer = window.setTimeout(roll, 2_000);
+    let focusTimer: number | null = null;
+    const onFocus = () => {
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(roll, 2_000);
     };
-    window.addEventListener('focus', roll);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onFocus();
+    };
+    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      window.removeEventListener('focus', roll);
+      window.clearTimeout(startupTimer);
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [status]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;
-    void import('@shared/api/device').then(({ ensureDevice }) => {
-      void ensureDevice({ appVersion: '0.0.1' }).catch((err: unknown) =>
+    void import('@shared/api/device').then(async ({ ensureDevice }) => {
+      const appVersion = await readAppVersion();
+      void ensureDevice({ appVersion }).catch((err: unknown) =>
         setOperationError(err instanceof Error ? err : new Error(String(err))),
       );
     });
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== 'signed_in') return;
-    void import('@pages/TaskBoard');
-    void import('@pages/Notes');
-    void import('@pages/Settings');
-    void import('@pages/Whiteboard');
-    void import('@widgets/Palette');
-    void import('@pages/Calendar/CalendarModal');
-    void import('@widgets/StatsOverlayCards');
   }, [status]);
 
   const startFocus = useCallback(
@@ -495,11 +503,6 @@ export default function App() {
   }, [openPlanning]);
 
   useEffect(() => {
-    if (status === 'unknown') return;
-    preloadPalettePages();
-  }, [status]);
-
-  useEffect(() => {
     const onOpenSettings = () => navigateTo('settings');
     window.addEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
     return () => window.removeEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
@@ -525,21 +528,6 @@ export default function App() {
     closePlanning,
     open: (id) => openImpl(id),
   });
-
-  useQuickCaptureShortcutRegistration();
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    let unlisten: (() => void) | undefined;
-    void listen<{ noteId?: string }>('quick-capture:saved', () => {
-      window.dispatchEvent(new Event(NORDLY_EVENTS.notesChanged));
-    }).then((fn) => {
-      unlisten = fn;
-    });
-    return () => {
-      unlisten?.();
-    };
-  }, []);
 
   const renderPage = useMemo(
     () =>

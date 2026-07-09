@@ -39,49 +39,6 @@
         "decorations": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
-      },
-      {
-        "label": "tray-popover",
-        "title": "Nordly",
-        "url": "index.html?view=tray",
-        "width": 264,
-        "height": 96,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "resizable": false,
-        "skipTaskbar": true,
-        "focus": true
-      },
-      {
-        "label": "notification",
-        "title": "Nordly",
-        "url": "index.html?view=notification",
-        "width": 360,
-        "height": 84,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "resizable": false,
-        "skipTaskbar": true,
-        "focus": false,
-        "acceptFirstMouse": true
-      },
-      {
-        "label": "quick-capture",
-        "title": "Nordly Quick Capture",
-        "url": "index.html?view=quick-capture",
-        "width": 520,
-        "height": 132,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "resizable": false,
-        "skipTaskbar": true,
-        "focus": true
       }
     ],
     "security": {

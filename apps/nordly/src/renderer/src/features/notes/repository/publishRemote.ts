@@ -3,6 +3,7 @@ import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { throwIfLimitResponse } from '@shared/api/limitErrors';
 import { requireJsonBoolean, requireJsonString } from '@shared/api/json';
 
@@ -22,11 +23,15 @@ export interface ShareToWebResult {
   alreadyPublished: boolean;
 }
 
-export async function remoteGetPublishStatus(noteId: string): Promise<PublishStatus> {
+export async function remoteGetPublishStatus(noteId: string): Promise<PublishStatus | null> {
+  if (!isCloudApiAvailable()) {
+    throw new Error('Cloud API unavailable');
+  }
   const resp = await apiFetch(
     `${API_BASE_URL}/v1/notes/${encodeURIComponent(noteId)}/publish-status`,
     { headers: syncAuthHeaders() },
   );
+  if (resp.status === 404) return null;
   if (!resp.ok) throw new Error(`publish status: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
   const published = requireJsonBoolean(j, 'published');

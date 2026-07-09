@@ -14,6 +14,7 @@ export interface SidebarProps {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
+  onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
@@ -24,6 +25,7 @@ export const Sidebar = memo(function Sidebar({
   onSelect,
   onCreate,
   onPublish,
+  onUpdatePublishOptions,
   onUnpublish,
   onDelete,
 }: SidebarProps) {
@@ -62,6 +64,7 @@ export const Sidebar = memo(function Sidebar({
             onMenuOpenChange={(open) => setOpenMenuId(open ? n.id : null)}
             onSelect={onSelect}
             onPublish={onPublish}
+            onUpdatePublishOptions={onUpdatePublishOptions}
             onUnpublish={onUnpublish}
             onDelete={onDelete}
           />

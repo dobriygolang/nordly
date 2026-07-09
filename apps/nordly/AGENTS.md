@@ -31,7 +31,7 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover`, `quickCaptureEnabled`, `quickCaptureShortcut` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -228,15 +228,11 @@ Registered in `src-tauri/src/lib.rs`:
 | `shell_open_external` | Open URL in browser |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |
-| `quick_capture_hide` | Hide quick-capture overlay window |
-| `quick_capture_apply_config` | Register/unregister OS global shortcut (`enabled`, `shortcut`) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-**Quick capture (desktop):** global shortcut (default `Command+Shift+N`, configurable in Settings → Shortcuts) toggles a small always-on-top `quick-capture` window. Enter saves a note (first line → title, rest → body); Shift+Enter newline; Esc dismiss. Empty blur auto-hides. Requires signed-in session. Emits `quick-capture:saved` → main dispatches `nordly:notes-changed`.
-
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `quick-capture:show|hide|blur|saved`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
 
 ## Commands
 
@@ -260,10 +256,11 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 | CI workflow | `.github/workflows/nordly-release.yml` — trigger: tag `nordly-v*` |
 | Updater endpoint | `https://trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
 | CDN sync | same workflow, job `sync-cdn` — rewrites manifests + SCP to VPS `deploy/data/cdn/desktop/` |
+| Main version sync | job `sync-main-version` — commits `tauri.conf.json` / `Cargo.toml` / `package.json` after release |
 | Settings UI | `pages/Settings/sections/SoftwareSection.tsx` |
 | Updater helper | `shared/lib/updater.ts` — `@tauri-apps/plugin-updater` + `plugin-process` relaunch |
 
-Release flow: bump `src-tauri/tauri.conf.json` version → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts → `sync-cdn` publishes to CDN (works with a **private** GitHub repo).
+Release flow: push `main` → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts, syncs version back to `main`, publishes CDN (works with a **private** GitHub repo). Manual version bump in the repo is optional — CI reads the version from the tag.
 
 Default macOS bundle uses ad-hoc signing (`signingIdentity: "-"` in `tauri.conf.json`) so CI works without Apple certs. Set repo variable `NORDLY_CODE_SIGNING=true` + Apple secrets for Developer ID + notarization (see `SIGNING.md`).
 

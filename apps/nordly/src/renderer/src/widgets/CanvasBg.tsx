@@ -32,6 +32,7 @@ const WAVES = [
 ];
 
 import { DEFAULT_THEME_ID, type ThemeId } from '@shared/model/theme';
+import { isTauriRuntime } from '@platform/runtime';
 
 export type CanvasMode = 'full' | 'quiet' | 'void';
 
@@ -52,6 +53,7 @@ export function CanvasBg({
   boost = false,
   animated = true,
 }: CanvasBgProps) {
+  const effectiveAnimated = animated && !isTauriRuntime();
   if (mode === 'void') return null;
   switch (theme) {
     case 'drift':
@@ -60,7 +62,7 @@ export function CanvasBg({
           mode={mode}
           src="/backgrounds/drift.png"
           boost={boost}
-          animated={animated}
+          animated={effectiveAnimated}
           extract="dark"
         />
       );
@@ -70,21 +72,21 @@ export function CanvasBg({
           mode={mode}
           src="/backgrounds/visor.png"
           boost={boost}
-          animated={animated}
+          animated={effectiveAnimated}
           extract="dark"
         />
       );
     case 'debris':
-      return <ImageBg mode={mode} src="/backgrounds/debris.png" boost={boost} animated={animated} />;
+      return <ImageBg mode={mode} src="/backgrounds/debris.png" boost={boost} animated={effectiveAnimated} />;
     case 'launch':
-      return <ImageBg mode={mode} src="/backgrounds/launch.png" boost={boost} animated={animated} />;
+      return <ImageBg mode={mode} src="/backgrounds/launch.png" boost={boost} animated={effectiveAnimated} />;
     case 'birthday-light':
       return (
         <ImageBg
           mode={mode}
           src="/backgrounds/birthday-light.png"
           boost={boost}
-          animated={animated}
+          animated={effectiveAnimated}
           extract="dark"
         />
       );
@@ -325,10 +327,8 @@ function ImageBg({
     gl.uniform4f(uPadding, 0, 0, 0, 0);
     gl.uniform1f(uOpacity, posterOpacityRef.current);
     gl.uniform1f(uExtractDark, extract === 'dark' ? 1 : 0);
-    {
-      const [r, g, b] = readInkRgb();
-      gl.uniform3f(uTint, r / 255, g / 255, b / 255);
-    }
+    const inkRgb = readInkRgb();
+    gl.uniform3f(uTint, inkRgb[0] / 255, inkRgb[1] / 255, inkRgb[2] / 255);
 
     const tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
@@ -405,13 +405,10 @@ function ImageBg({
     const render = () => {
       raf = requestAnimationFrame(render);
       if (!ready) return;
-      syncLayout();
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform1f(uTime, (performance.now() - t0) / 1000);
       gl.uniform1f(uOpacity, posterOpacityRef.current);
-      const [r, g, b] = readInkRgb();
-      gl.uniform3f(uTint, r / 255, g / 255, b / 255);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     raf = requestAnimationFrame(render);
@@ -597,6 +594,7 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
     let raf = 0;
     const t0 = performance.now();
     const DIST = 110;
+    const [ir, ig, ib] = readInkRgb();
 
     const loop = (now: number) => {
       const t = (now - t0) / 1000;
@@ -611,7 +609,6 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
         if (p.x < 0 || p.x > W) p.vx *= -1;
         if (p.y < 0 || p.y > H) p.vy *= -1;
       }
-      const [ir, ig, ib] = readInkRgb();
       // Lines first (under), then dots.
       const pulse = 0.5 + 0.5 * Math.sin(t * 0.8);
       for (let i = 0; i < N; i++) {

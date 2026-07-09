@@ -1,4 +1,4 @@
-import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
+import { dbDelete, dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
 import type { SyncDomain } from './types';
 
@@ -39,6 +39,19 @@ export async function getServerId(
   const uid = userId ?? requireUserId();
   const row = await dbGet<{ serverId: string }>('id_map', mapKey(uid, domain, localId));
   return row?.serverId ?? null;
+}
+
+export async function clearServerId(
+  domain: SyncDomain,
+  localId: string,
+  userId?: string,
+): Promise<void> {
+  const uid = userId ?? requireUserId();
+  const serverId = await getServerId(domain, localId, uid);
+  await dbDelete('id_map', mapKey(uid, domain, localId));
+  if (serverId && serverId !== localId) {
+    await dbDelete('id_map', mapKey(uid, domain, serverId));
+  }
 }
 
 export async function resolveEntityId(

@@ -36,13 +36,19 @@ export function PomodoroController(): null {
 
   useEffect(() => {
     void loadPersistedSnapshot();
+    let focusTimer: number | null = null;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      void loadPersistedSnapshot();
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(() => {
+        focusTimer = null;
+        void loadPersistedSnapshot();
+      }, 2_000);
     };
     window.addEventListener('focus', onVisible);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };

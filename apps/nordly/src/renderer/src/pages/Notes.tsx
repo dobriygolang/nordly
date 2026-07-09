@@ -12,6 +12,7 @@ import {
   updateNote,
   publishNoteToWeb,
   unpublishNoteFromWeb,
+  updatePublishedNoteOptions,
   deleteNote,
   openWikiLink,
   type Note,
@@ -338,6 +339,20 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     [flushNow, t],
   );
 
+  const handleUpdatePublishOptions = useCallback(
+    async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
+      if (!isCloudApiAvailable()) return;
+      if (!isVaultReadyForPublish()) return;
+      try {
+        if (selectedIdRef.current === id) await flushNow();
+        return await updatePublishedNoteOptions(id, options);
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+      }
+    },
+    [flushNow, t],
+  );
+
   const handleUnpublish = useCallback(
     async (id: string) => {
       if (!isCloudApiAvailable()) {
@@ -440,6 +455,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
             onSelect={onSelectNote}
             onCreate={handleCreate}
             onPublish={handlePublish}
+            onUpdatePublishOptions={handleUpdatePublishOptions}
             onUnpublish={handleUnpublish}
             onDelete={handleDeleteNote}
           />

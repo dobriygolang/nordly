@@ -6,6 +6,7 @@ use tauri::{
 };
 use tauri_plugin_positioner::{on_tray_event, WindowExt, Position};
 
+use crate::aux_windows;
 use crate::window_macos;
 
 const TRAY_ID: &str = "nordly-tray";
@@ -57,16 +58,6 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    if let Some(popover) = app.get_webview_window(POPOVER_LABEL) {
-        let _ = window_macos::set_content_corner_radius(&popover, 16.0);
-        let handle = app_handle.clone();
-        popover.on_window_event(move |event| {
-            if let WindowEvent::Focused(false) = event {
-                let _ = handle.get_webview_window(POPOVER_LABEL).and_then(|w| w.hide().ok());
-            }
-        });
-    }
-
     if let Some(main) = app.get_webview_window(MAIN_LABEL) {
         let handle = app_handle.clone();
         main.on_window_event(move |event| {
@@ -88,7 +79,7 @@ pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
 }
 
 fn toggle_popover(app: &tauri::AppHandle) {
-    let Some(popover) = app.get_webview_window(POPOVER_LABEL) else {
+    let Ok(popover) = aux_windows::ensure_tray_popover(app) else {
         return;
     };
 

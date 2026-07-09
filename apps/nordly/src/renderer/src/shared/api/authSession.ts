@@ -46,6 +46,9 @@ export function resetAuthRefreshState(): void {
   void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
     resetDeviceRegisterCache();
   });
+  void import('@shared/sync/SyncEngine').then(({ resetSyncDeviceSession }) => {
+    resetSyncDeviceSession();
+  });
 }
 
 export function isSessionExpired(): boolean {
@@ -178,6 +181,8 @@ export function startSessionRefreshLoop(): () => void {
     const { status } = useSessionStore.getState();
     if (status !== 'signed_in') return;
 
+    if (useSyncStore.getState().sessionReauthRequired) return;
+
     if (refreshRejected) {
       setSessionReauthRequired(true);
       return;
@@ -196,11 +201,13 @@ export function startSessionRefreshLoop(): () => void {
   };
 
   tick();
+  const startupTimer = window.setTimeout(tick, 2_000);
   const intervalId = window.setInterval(tick, 60_000);
   window.addEventListener('focus', tick);
   window.addEventListener('online', tick);
 
   return () => {
+    window.clearTimeout(startupTimer);
     window.clearInterval(intervalId);
     window.removeEventListener('focus', tick);
     window.removeEventListener('online', tick);

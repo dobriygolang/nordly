@@ -17,7 +17,7 @@ export const NORDLY_EVENTS = {
   openPaletteAddTask: 'nordly:open-palette-add-task',
   /** Palette → TaskBoard: refresh task list after create. */
   tasksChanged: 'nordly:tasks-changed',
-  /** Quick capture → Notes: note list changed. */
+  /** Notes → App: note list changed. */
   notesChanged: 'nordly:notes-changed',
   /** Calendar → App: navigate to task board task. */
   navOpenTask: 'nordly:nav-open-task',

@@ -1,28 +1,19 @@
 import { createRoot } from 'react-dom/client';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-// React namespace is auto-injected via tsconfig "jsx": "react-jsx", so we
-// deliberately do NOT `import React` here (an unused import in strict
-// mode breaks the build).
-import App from '@app/App';
-import { installSyncRegistry } from '@app/syncRegistry';
 import { ErrorBoundary } from '@shared/ui/ErrorBoundary';
 import { installNativeBridge } from '@platform/native-bridge';
 import { isTauriRuntime } from '@platform/runtime';
 import { applyTextScale, readTextScale } from '@shared/model/accessibility';
 import { readStoredTheme } from '@shared/model/theme';
 import { applyTheme } from '@shared/lib/applyTheme';
-import { NotificationOverlayApp } from '@widgets/NotificationOverlay';
-import { QuickCaptureApp } from '@widgets/QuickCaptureApp';
-import { TrayPopoverApp } from '@widgets/TrayPopover';
 import './styles/globals.css';
 
 installNativeBridge();
-installSyncRegistry();
 applyTextScale(readTextScale());
 applyTheme(readStoredTheme());
 
-type NordlyView = 'main' | 'tray' | 'notification' | 'quick-capture';
+type NordlyView = 'main' | 'tray' | 'notification';
 
 function resolveView(): NordlyView {
   if (typeof window === 'undefined') return 'main';
@@ -31,7 +22,6 @@ function resolveView(): NordlyView {
       const label = getCurrentWebviewWindow().label;
       if (label === 'tray-popover') return 'tray';
       if (label === 'notification') return 'notification';
-      if (label === 'quick-capture') return 'quick-capture';
     }
   } catch {
     /* ignore */
@@ -41,7 +31,6 @@ function resolveView(): NordlyView {
     const view = params.get('view');
     if (view === 'tray') return 'tray';
     if (view === 'notification') return 'notification';
-    if (view === 'quick-capture') return 'quick-capture';
   } catch {
     /* ignore */
   }
@@ -53,20 +42,43 @@ if (view !== 'main' && typeof document !== 'undefined') {
   document.documentElement.dataset.nordlyView = view;
 }
 
-const ROOT_META: Record<NordlyView, { component: () => JSX.Element; section: string }> = {
-  main: { component: App, section: 'Nordly' },
-  tray: { component: TrayPopoverApp, section: 'Nordly Tray' },
-  notification: { component: NotificationOverlayApp, section: 'Nordly Notification' },
-  'quick-capture': { component: QuickCaptureApp, section: 'Nordly Quick Capture' },
-};
+async function mountView(): Promise<void> {
+  let RootApp: () => JSX.Element;
+  let section: string;
 
-const { component: RootApp, section } = ROOT_META[view];
+  switch (view) {
+    case 'tray': {
+      const m = await import('@widgets/TrayPopover');
+      RootApp = m.TrayPopoverApp;
+      section = 'Nordly Tray';
+      break;
+    }
+    case 'notification': {
+      const m = await import('@widgets/NotificationOverlay');
+      RootApp = m.NotificationOverlayApp;
+      section = 'Nordly Notification';
+      break;
+    }
+    default: {
+      const [{ installSyncRegistry }, appModule] = await Promise.all([
+        import('@app/syncRegistry'),
+        import('@app/App'),
+      ]);
+      installSyncRegistry();
+      RootApp = appModule.default;
+      section = 'Nordly';
+      break;
+    }
+  }
 
-const mount = document.getElementById('root');
-if (!mount) throw new Error('nordly: #root missing');
+  const mount = document.getElementById('root');
+  if (!mount) throw new Error('nordly: #root missing');
 
-createRoot(mount).render(
-  <ErrorBoundary section={section}>
-    <RootApp />
-  </ErrorBoundary>,
-);
+  createRoot(mount).render(
+    <ErrorBoundary section={section}>
+      <RootApp />
+    </ErrorBoundary>,
+  );
+}
+
+void mountView();

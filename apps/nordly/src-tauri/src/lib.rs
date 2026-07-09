@@ -1,10 +1,8 @@
 mod auth;
+#[cfg(desktop)]
+mod aux_windows;
 mod eventkit;
-#[cfg(desktop)]
-mod global_shortcut;
 mod notification;
-#[cfg(desktop)]
-mod quick_capture;
 mod store;
 mod tray;
 mod vault;
@@ -14,28 +12,16 @@ use auth::AuthSession;
 use store::PomodoroSnapshot;
 use tauri::{AppHandle, Emitter, Manager};
 
-#[cfg(desktop)]
-fn with_desktop_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.plugin(tauri_plugin_global_shortcut::Builder::new().build())
-}
-
-#[cfg(not(desktop))]
-fn with_desktop_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    with_desktop_plugins(
-        tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_positioner::init()),
-    )
+        .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
             let handle = app.handle().clone();
             #[cfg(desktop)]
@@ -56,8 +42,6 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::setup(app)?;
-                notification::setup(app)?;
-                quick_capture::setup(app)?;
             }
             Ok(())
         })
@@ -83,10 +67,6 @@ pub fn run() {
             eventkit::apple_calendar_open_settings,
             eventkit::apple_calendar_list_calendars,
             eventkit::apple_calendar_list_events,
-            #[cfg(desktop)]
-            quick_capture::quick_capture_hide,
-            #[cfg(desktop)]
-            global_shortcut::quick_capture_apply_config,
         ])
         .build(tauri::generate_context!())
         .expect("error while building nordly")

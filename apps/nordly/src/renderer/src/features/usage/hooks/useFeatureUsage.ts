@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { fetchBillingMe, type BillingMe } from '@shared/api/billingClient';
+import { getPublishStatus } from '@features/notes/api/notesClient';
 import { notesStoreList } from '@features/notes/repository/notesStore';
-import { remoteGetPublishStatus } from '@features/notes/repository/publishRemote';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { getServerId } from '@shared/sync/idMap';
 import { buildFeatureUsage, type FeatureUsageSnapshot } from '@shared/lib/featureUsage';
@@ -23,7 +23,7 @@ async function countPublishedNotes(): Promise<number> {
       const serverId = await getServerId('notes', note.id);
       if (!serverId) return;
       try {
-        const st = await remoteGetPublishStatus(serverId);
+        const st = await getPublishStatus(note.id);
         if (st.published) count++;
       } catch {
         /* skip unreachable */
@@ -50,6 +50,11 @@ export function useFeatureUsage(): {
     setLoading(true);
     setError(null);
     try {
+      if (!isCloudApiAvailable()) {
+        setError('session');
+        setMe(null);
+        return;
+      }
       if (!(await ensureAccessTokenForSync())) {
         setError('session');
         setMe(null);

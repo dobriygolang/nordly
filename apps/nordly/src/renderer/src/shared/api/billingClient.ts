@@ -73,3 +73,16 @@ export async function fetchBillingMe(): Promise<BillingMe> {
   const body = (await resp.json()) as Record<string, unknown>;
   return parseBillingMe(body);
 }
+
+let billingMeCache: { expiresAt: number; value: BillingMe } | null = null;
+
+/** Cached billing/me for UI menus (entitlements rarely change mid-session). */
+export async function fetchBillingMeCached(ttlMs = 60_000): Promise<BillingMe> {
+  const now = Date.now();
+  if (billingMeCache && now < billingMeCache.expiresAt) {
+    return billingMeCache.value;
+  }
+  const value = await fetchBillingMe();
+  billingMeCache = { expiresAt: now + ttlMs, value };
+  return value;
+}

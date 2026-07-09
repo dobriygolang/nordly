@@ -10,6 +10,7 @@ const PAGE_FADE_MS = MOTION_MS.page;
 type LayerStatus = 'active' | 'entering' | 'leaving';
 
 interface Layer {
+  key: number;
   id: PageId;
   status: LayerStatus;
 }
@@ -28,7 +29,11 @@ export function PageStack({
   page: PageId;
   children: (id: PageId) => ReactNode;
 }): JSX.Element {
-  const [layers, setLayers] = useState<Layer[]>([{ id: page, status: 'active' }]);
+  const layerKeyRef = useRef(0);
+  const [layers, setLayers] = useState<Layer[]>(() => {
+    const key = ++layerKeyRef.current;
+    return [{ key, id: page, status: 'active' }];
+  });
   const timerRef = useRef<number>();
   const activeRef = useRef(page);
 
@@ -37,17 +42,19 @@ export function PageStack({
     activeRef.current = page;
 
     if (prefersReducedMotion()) {
-      setLayers([{ id: page, status: 'active' }]);
+      const key = ++layerKeyRef.current;
+      setLayers([{ key, id: page, status: 'active' }]);
       return;
     }
 
+    const key = ++layerKeyRef.current;
     setLayers((prev) => [
       ...prev.map((l) =>
         l.status === 'active' || l.status === 'entering'
           ? { ...l, status: 'leaving' as const }
           : l,
       ),
-      { id: page, status: 'entering' as const },
+      { key, id: page, status: 'entering' as const },
     ]);
 
     const enterRaf = requestAnimationFrame(() => {
@@ -71,7 +78,7 @@ export function PageStack({
     <>
       {layers.map((layer) => (
         <div
-          key={layer.id}
+          key={layer.key}
           className="nordly-page-layer"
           data-status={layer.status}
           aria-hidden={layer.status === 'leaving' ? true : undefined}

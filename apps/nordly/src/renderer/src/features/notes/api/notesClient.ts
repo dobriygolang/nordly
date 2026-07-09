@@ -20,7 +20,7 @@ import {
 import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
-import { getServerId } from '@shared/sync/idMap';
+import { clearServerId, getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
 import { ensureNoteServerId } from '@features/notes/sync/notesSync';
@@ -117,9 +117,11 @@ export async function openWikiLink(
 async function resolveServerNoteId(localId: string): Promise<string | null> {
   if (!isCloudApiAvailable()) return null;
   if (!(await ensureAccessTokenForSync())) return null;
-  if (isSyncEnabled()) await syncNow();
   const mapped = await getServerId('notes', localId);
   if (mapped) return mapped;
+  if (isSyncEnabled()) await syncNow();
+  const afterSync = await getServerId('notes', localId);
+  if (afterSync) return afterSync;
   return ensureNoteServerId(localId);
 }
 
@@ -131,7 +133,12 @@ async function mappedServerNoteId(localId: string): Promise<string | null> {
 export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
   const serverId = await mappedServerNoteId(noteId);
   if (!serverId) throw new Error('Sign in required to read publish status');
-  return remoteGetPublishStatus(serverId);
+  const status = await remoteGetPublishStatus(serverId);
+  if (status === null) {
+    await clearServerId('notes', noteId);
+    return { published: false };
+  }
+  return status;
 }
 
 export async function publishNoteToWeb(
@@ -147,7 +154,25 @@ export async function publishNoteToWeb(
   if (!res.alreadyPublished) {
     useFeatureUsageStore.getState().adjustPublishedNotesCount(1);
   }
-  return remoteGetPublishStatus(serverId);
+  const status = await remoteGetPublishStatus(serverId);
+  if (status === null) throw new Error('Note not found on server');
+  return status;
+}
+
+/** Update publish options / body on an already-published note — no full sync pass. */
+export async function updatePublishedNoteOptions(
+  noteId: string,
+  options: PublishToWebOptions,
+): Promise<PublishStatus> {
+  const serverId = await mappedServerNoteId(noteId);
+  if (!serverId) throw new Error('Sign in required to update published note');
+  const note = await getNote(noteId);
+  const wikiLinks = await wikiLinksForSave(note.bodyMd);
+  await remoteUpdateNote(serverId, note.title, note.bodyMd, wikiLinks);
+  await remoteShareNoteToWeb(serverId, note.bodyMd, options);
+  const status = await remoteGetPublishStatus(serverId);
+  if (status === null) throw new Error('Note not found on server');
+  return status;
 }
 
 export async function unpublishNoteFromWeb(noteId: string): Promise<void> {

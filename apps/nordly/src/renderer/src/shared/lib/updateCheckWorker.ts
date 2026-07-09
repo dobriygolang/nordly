@@ -14,6 +14,7 @@ import {
 } from './updater';
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const STARTUP_DEFER_MS = 30_000;
 
 interface UpdateCheckState {
   lastCheckAt: number;
@@ -22,6 +23,7 @@ interface UpdateCheckState {
 
 let started = false;
 let intervalId: number | null = null;
+let startupTimer: number | null = null;
 let checking = false;
 
 function readCheckState(): UpdateCheckState {
@@ -110,7 +112,11 @@ export function startUpdateCheckWorker(): void {
   if (started || !isTauriRuntime()) return;
   started = true;
   schedule();
-  void runCheck(true);
+  startupTimer = window.setTimeout(() => {
+    startupTimer = null;
+    if (!started) return;
+    void runCheck(true);
+  }, STARTUP_DEFER_MS);
   window.addEventListener('focus', onFocus);
   window.addEventListener(NORDLY_EVENTS.settingsChanged, onFocus);
 }
@@ -118,6 +124,8 @@ export function startUpdateCheckWorker(): void {
 export function stopUpdateCheckWorker(): void {
   if (!started) return;
   started = false;
+  if (startupTimer !== null) window.clearTimeout(startupTimer);
+  startupTimer = null;
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = null;
   window.removeEventListener('focus', onFocus);

@@ -1,5 +1,7 @@
 /** IndexedDB — local-first store scoped by userId. */
 
+import { useSessionStore } from '@shared/model/session';
+
 const DB_NAME = 'nordly-db';
 const DB_VERSION = 2;
 
@@ -18,13 +20,23 @@ export function setDbUserId(userId: string | null): void {
   currentUserId = userId;
 }
 
-export function getDbUserId(): string | null {
-  return currentUserId;
+/** Session store is source of truth — heals HMR / async logout desync. */
+function resolveUserId(): string | null {
+  const { status, userId } = useSessionStore.getState();
+  if (status !== 'signed_in' || !userId) {
+    currentUserId = null;
+    return null;
+  }
+  if (currentUserId !== userId) {
+    currentUserId = userId;
+  }
+  return userId;
 }
 
 function requireUserId(): string {
-  if (!currentUserId) throw new Error('nordlyDb: userId not set');
-  return currentUserId;
+  const uid = resolveUserId();
+  if (!uid) throw new Error('nordlyDb: userId not set');
+  return uid;
 }
 
 function scopedKey(userId: string, id: string): string {
@@ -105,6 +117,10 @@ export async function dbClearUser(store: NordlyStore, userId: string): Promise<v
         tx.onerror = () => reject(tx.error);
       }),
   );
+}
+
+export function getDbUserId(): string | null {
+  return resolveUserId();
 }
 
 export function entityKey(id: string, userId?: string): string {

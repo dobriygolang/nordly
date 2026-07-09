@@ -1,7 +1,6 @@
-import type { Messages } from './ru'
 import { legalEn } from './legal.en'
 
-export const en: Messages = {
+export const en = {
   locale: {
     label: 'Language',
   },
@@ -10,7 +9,6 @@ export const en: Messages = {
     guest: 'Guest',
   },
   public: {
-    pricing: 'Pricing',
     liveCoding: 'Live rooms',
     terms: 'Terms',
     privacy: 'Privacy',
@@ -30,10 +28,6 @@ export const en: Messages = {
         title: 'Calm workspace for builders',
         description:
           'Nordly — notes, daily plan, and pomodoro in one desktop workspace, plus guest live collab rooms in the browser. trynordly.app',
-      },
-      pricing: {
-        title: 'Plans & limits',
-        description: 'Free and Pro limits for the Nordly desktop app — cloud sync, notes, and publishing.',
       },
       legalTerms: {
         title: 'Terms of Service',
@@ -83,18 +77,8 @@ export const en: Messages = {
   session: {
     editorFormatGoOnly: 'Formatting is available for Go only',
     editorFormatAuthExpired: 'Your session expired. Refresh the page or sign in again.',
-    editorRunQuota: 'Daily code run limit reached. Upgrade at /pricing.',
-    editorRunProFeature: 'This feature is not available on your current plan.',
-  },
-  pricing: {
-    eyebrow: 'Pricing',
-    title: 'Plans & limits',
-    subtitle: 'Compare Free and Pro for the Nordly desktop app.',
-    limitColumn: 'Feature',
-    yes: 'Yes',
-    no: 'No',
-    unlimited: 'Unlimited',
-    desktopNote: 'Subscriptions are managed in the desktop app — this page is for reference only.',
+    editorRunQuota: 'Daily code run limit reached. Try again tomorrow.',
+    editorRunFeatureDisabled: 'This feature is not available for your account.',
   },
   welcome: {
     pill: 'EARLY ACCESS',

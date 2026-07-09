@@ -1,7 +1,7 @@
 import { isCloudEnabled } from '@shared/model/features';
 import { canUseLocalApp, isSessionExpired } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
-import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useFeatureUsageStore } from '@shared/model/featureUsage';
 import { useSyncStore } from '@shared/model/sync';
 
 export function canReachNetwork(): boolean {
@@ -28,12 +28,12 @@ export function isCloudApiAvailable(): boolean {
   return true;
 }
 
-/** Multi-device sync (tasks, focus, notes outbox) — Pro + registered device. */
+/** Multi-device sync (tasks, focus, notes outbox) — registered device required. */
 export function isSyncEnabled(): boolean {
   if (!isCloudApiAvailable()) return false;
   if (useSyncStore.getState().cloudSyncBlocked) return false;
 
-  const reg = usePlanUsageStore.getState().deviceRegistration;
+  const reg = useFeatureUsageStore.getState().deviceRegistration;
   if (reg != null && !reg.cloudSyncEnabled) return false;
 
   return true;

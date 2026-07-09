@@ -35,12 +35,16 @@
   align-items: center;
   gap: 8px;
   padding: 14px 10px 10px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 .nordly-vault-sidebar__btn {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
   border-radius: 8px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 .nordly-vault-sidebar__label {
   flex: 1;
@@ -59,9 +63,9 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 10px 6px 16px;
-  scroll-padding-block: 8px;
+  scroll-padding-block: 12px;
 }
 .nordly-vault-main {
   position: relative;

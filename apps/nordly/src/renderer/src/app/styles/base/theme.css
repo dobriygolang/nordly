@@ -7,8 +7,8 @@ html.dark {
   --ink-rgb: 255 255 255;
   --nordly-header-h: 40px;
   --nordly-page-top: 40px;
-  /* Draggable strip: overlay titlebar + wordmark row on home. */
-  --nordly-drag-h: 72px;
+  /* Draggable strip: matches page top inset so vault sidebars stay clickable. */
+  --nordly-drag-h: 40px;
   --ink-90: rgb(var(--ink-rgb) / 0.9);
   --ink-60: rgb(var(--ink-rgb) / 0.6);
   --ink-40: rgb(var(--ink-rgb) / 0.4);

@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { LegalLayout, LegalNavLink, LegalSection } from '@/components/legal/LegalLayout'
 import { useI18n } from '@/lib/i18n'
 
@@ -35,13 +34,7 @@ export default function LegalTermsPage() {
       </LegalSection>
 
       <LegalSection title={t('legal.terms.s5Title')}>
-        <p>
-          {t('legal.terms.s5BodyBefore')}{' '}
-          <Link to="/pricing" className="underline">
-            {t('legal.terms.s5PricingLink')}
-          </Link>{' '}
-          {t('legal.terms.s5BodyAfter')}
-        </p>
+        <p>{t('legal.terms.s5Body')}</p>
       </LegalSection>
 
       <LegalSection title={t('legal.terms.s6Title')}>

@@ -12,7 +12,6 @@ const CollabRoomPage = lazy(() => import('@/pages/CollabRoomPage'))
 const LiveNewPage = lazy(() =>
   import('@/components/live/LiveNewPage').then((m) => ({ default: m.LiveNewPage })),
 )
-const PricingPage = lazy(() => import('@/pages/PricingPage'))
 const LegalTermsPage = lazy(() => import('@/pages/LegalTermsPage'))
 const LegalPrivacyPage = lazy(() => import('@/pages/LegalPrivacyPage'))
 const NordlyDownloadPage = lazy(() => import('@/pages/NordlyDownloadPage'))
@@ -39,7 +38,6 @@ export function AnimatedRoutes() {
           <Route element={<PublicSiteLayout />}>
             <Route path="/" element={<WelcomePage />} />
             <Route path="/live/new" element={<LiveNewPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/legal/terms" element={<LegalTermsPage />} />
             <Route path="/legal/privacy" element={<LegalPrivacyPage />} />
           </Route>
@@ -56,9 +54,10 @@ export function AnimatedRoutes() {
           <Route path="/auth/callback" element={<RetiredRedirect />} />
           <Route path="/profile" element={<RetiredRedirect />} />
           <Route path="/settings" element={<RetiredRedirect />} />
-          <Route path="/checkout" element={<Navigate to="/pricing" replace />} />
-          <Route path="/checkout/:planSlug" element={<Navigate to="/pricing" replace />} />
-          <Route path="/billing/welcome" element={<Navigate to="/pricing" replace />} />
+          <Route path="/checkout" element={<Navigate to="/" replace />} />
+          <Route path="/checkout/:planSlug" element={<Navigate to="/" replace />} />
+          <Route path="/billing/welcome" element={<Navigate to="/" replace />} />
+          <Route path="/pricing" element={<Navigate to="/" replace />} />
 
           <Route path="/today" element={<RetiredRedirect />} />
           <Route path="/dashboard" element={<RetiredRedirect />} />

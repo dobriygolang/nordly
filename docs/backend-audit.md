@@ -81,4 +81,4 @@ Scraped at `GET /metrics` on all prod HTTP services. Grafana **Product** dashboa
 
 **notes**, **rooms**, **sandbox**: HTTP instrumentation only (no domain counters yet).
 
-Plan entitlements (Free vs Pro): [billing-plans.md](./billing-plans.md).
+Plan entitlements: [billing-features.md](./billing-features.md).

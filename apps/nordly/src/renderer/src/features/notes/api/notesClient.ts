@@ -23,7 +23,7 @@ import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync, syncNow } from '@shared/sync/SyncEngine';
 import { ensureNoteServerId } from '@features/notes/sync/notesSync';
 import { isCloudApiAvailable, isSyncEnabled } from '@shared/sync/syncConfig';
-import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useFeatureUsageStore } from '@shared/model/featureUsage';
 
 export type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 export type { PublishStatus };
@@ -119,7 +119,7 @@ export async function publishNoteToWeb(
   await remoteUpdateNote(serverId, note.title, note.bodyMd);
   const res = await remoteShareNoteToWeb(serverId, note.bodyMd, options);
   if (!res.alreadyPublished) {
-    usePlanUsageStore.getState().adjustPublishedNotesCount(1);
+    useFeatureUsageStore.getState().adjustPublishedNotesCount(1);
   }
   return {
     published: true,
@@ -134,7 +134,7 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   if (!serverId) throw new Error('Sign in required to publish notes');
   const note = await getNote(noteId);
   await remoteUnpublishNote(serverId);
-  usePlanUsageStore.getState().adjustPublishedNotesCount(-1);
+  useFeatureUsageStore.getState().adjustPublishedNotesCount(-1);
   if (isVaultEnabledSync() && isVaultUnlocked()) {
     const encTitle = await encryptText(note.title);
     const encBody = await encryptText(note.bodyMd);

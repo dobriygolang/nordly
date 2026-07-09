@@ -6,6 +6,7 @@ import { remoteListEpics } from '@features/tasks/repository/tasksRemote';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import { useSyncStore } from '@shared/model/sync';
+import { useSessionStore } from '@shared/model/session';
 
 function isAuthError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -17,7 +18,10 @@ export function useTaskEpics(): { epics: TaskEpic[]; refresh: () => Promise<void
   const [epics, setEpics] = useState<TaskEpic[]>([]);
 
   const refresh = useCallback(async () => {
-    const cached = await epicsStoreList();
+    const { status, userId } = useSessionStore.getState();
+    if (status !== 'signed_in' || !userId) return;
+
+    const cached = await epicsStoreList(userId);
 
     if (cached.length > 0) setEpics(cached);
 

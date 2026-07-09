@@ -39,7 +39,7 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Billing
 
-`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes (Free: 10, Pro: 100). Pro-only **private link** (`publish_password`):
+`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes (unlimited on `default` plan). **Private link** (`publish_password` entitlement):
 
 - `password_protected` + `password` — bcrypt hash; public GET omits body until `AccessPublishedNote`.
 - Optional `expires_in_days` — link stops working after 7/30/90 days.

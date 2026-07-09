@@ -177,7 +177,7 @@ func (r *Repository) HasUsedProTrial(ctx context.Context, userID string) (bool, 
 			SELECT 1 FROM subscriptions
 			WHERE user_id = $1 AND metadata->>'kind' = $2
 		)
-	`, uid, model.TrialKindPro).Scan(&used)
+	`, uid, "pro_trial").Scan(&used)
 	if err != nil {
 		return false, fmt.Errorf("HasUsedProTrial: %w", err)
 	}

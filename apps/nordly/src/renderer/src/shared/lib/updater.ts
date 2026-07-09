@@ -7,7 +7,7 @@ import { isTauriRuntime } from '@platform/runtime';
 
 export { isTauriRuntime };
 
-const UPDATER_JSON_URL = 'https://cdn.trynordly.app/desktop/latest.json';
+const UPDATER_JSON_URL = 'https://trynordly.app/desktop/latest.json';
 
 export async function readAppVersion(): Promise<string> {
   if (!isTauriRuntime()) return 'dev';

@@ -6,7 +6,7 @@ Work from `apps/web/` only. Desktop app: [../nordly/AGENTS.md](../nordly/AGENTS.
 
 ## Purpose
 
-Thin public web surface for Nordly: landing + download, guest live collab (code + Excalidraw), public pricing, legal pages, published notes and whiteboards. **No user auth** on web — JWT cleared on boot; live rooms use scoped guest tokens.
+Thin public web surface for Nordly: landing + download, guest live collab (code + Excalidraw), legal pages, published notes and whiteboards. **No user auth** on web — JWT cleared on boot; live rooms use scoped guest tokens.
 
 ## Scope (active)
 
@@ -16,10 +16,9 @@ Thin public web surface for Nordly: landing + download, guest live collab (code 
 | Live collab | `/live/new`, `/live/:roomId` |
 | Public notes | `/notes/:slug`, `/n/:slug` → redirect |
 | Public boards | `/board/:slug` |
-| Pricing | `/pricing` |
 | Legal | `/legal/terms`, `/legal/privacy` |
 
-Retired routes redirect to `/` or `/pricing` (see below).
+Retired routes redirect to `/` (see below).
 
 ## Routes
 
@@ -37,11 +36,10 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 | `/board/:slug` | `PublishedBoardPage` | — |
 | `/live/new` | `LiveNewPage` | — |
 | `/live/:roomId` | `CollabRoomPage` | guest JWT |
-| `/pricing` | `PricingPage` | — |
+| `/pricing`, `/checkout`, `/checkout/:planSlug`, `/billing/welcome` | → `/` | retired |
 | `/legal/terms` | `LegalTermsPage` | — |
 | `/legal/privacy` | `LegalPrivacyPage` | — |
 | `/login`, `/profile`, `/settings`, `/auth/callback` | → `/` | retired |
-| `/checkout`, `/billing/welcome` | → `/pricing` | retired |
 | `/today`, `/dashboard`, `/learn/*`, `/mock/*`, `/interview/*`, `/tasks`, `/admin/*` | → `/` | retired |
 
 ## Backend dependencies
@@ -51,18 +49,11 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 | Service | Port | Proxy prefix |
 |---------|------|--------------|
 | identity | 8080 | `/v1/auth` |
-| billing | 8085 | `/v1/billing` |
 | sandbox | 8086 | `/v1/sandbox`, `/ws/lsp` |
 | rooms | 8087 | `/v1/rooms`, `/ws` |
 | notes | 8090 | `/v1/notes` |
 
 ### REST endpoints (active)
-
-**billing** — `lib/api/billing.ts`
-
-| Method | Path | Used by |
-|--------|------|---------|
-| GET | `/v1/billing/plans` | `PricingPage` — Nordly desktop entitlements (cloud sync, notes, publish) |
 
 **rooms** — `lib/api/rooms.ts`
 
@@ -140,7 +131,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
 | `VITE_IDENTITY_URL`, `VITE_BILLING_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
-Landing download: `lib/landing/nordlyRelease.ts` reads `https://cdn.trynordly.app/desktop/releases.json` (cached 15m in `sessionStorage`). Hero + header CTA; short link `/download`.
+Landing download: `lib/landing/nordlyRelease.ts` reads `/desktop/releases.json` (same origin; cached 15m in `sessionStorage`). Hero + header CTA; short link `/download`.
 
 ## Commands
 

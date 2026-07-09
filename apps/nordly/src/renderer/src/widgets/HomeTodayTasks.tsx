@@ -13,6 +13,7 @@ import { defaultDurationMin, toDayKey } from '@shared/lib/dates';
 import { useFlipList } from '@shared/lib/useFlipList';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { usePomodoroStore } from '@shared/model/pomodoro';
+import { useSessionStore } from '@shared/model/session';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
@@ -53,6 +54,9 @@ export function HomeTodayTasks(): JSX.Element {
   const toggle = usePomodoroStore((s) => s.toggle);
 
   const refresh = useCallback(async () => {
+    const { status, userId } = useSessionStore.getState();
+    if (status !== 'signed_in' || !userId) return;
+
     const [taskList, sessions] = await Promise.all([listTasks(), focusStoreList()]);
     setTasks(taskList);
     setFocusSessions(sessions);

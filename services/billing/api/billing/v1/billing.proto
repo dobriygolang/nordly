@@ -8,14 +8,7 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 service BillingService {
-  // Public catalog — plan cards for pricing UI (limits from plan_entitlements).
-  rpc ListPlans(ListPlansRequest) returns (ListPlansResponse) {
-    option (google.api.http) = {
-      get: "/v1/billing/plans"
-    };
-  }
-
-  // Authenticated — current user plan + entitlements (JWT).
+  // Authenticated — current user features + usage limits (JWT).
   rpc GetMe(GetMeRequest) returns (GetMeResponse) {
     option (google.api.http) = {
       get: "/v1/billing/me"
@@ -57,17 +50,9 @@ message GetMeRequest {}
 
 message GetMeResponse {
   string user_id = 1;
-  string plan_slug = 2;
-  string plan_name = 3;
-  map<string, bool> features = 4;
-  map<string, UsageLimit> limits = 5;
-  bool is_trialing = 6;
-  google.protobuf.Timestamp trial_end = 7;
-  bool trial_available = 8;
-  int32 trial_days = 9;
+  map<string, bool> features = 2;
+  map<string, UsageLimit> limits = 3;
 }
-
-message ListPlansRequest {}
 
 message PlanEntitlementSpec {
   string type = 1;
@@ -75,26 +60,6 @@ message PlanEntitlementSpec {
   bool unlimited = 3;
   string period = 4;
   bool value = 5;
-}
-
-message PlanCatalog {
-  string slug = 1;
-  string name = 2;
-  string tagline = 3;
-  bool highlight = 4;
-  reserved 5;
-  reserved "highlights";
-  map<string, bool> features = 6;
-  map<string, PlanEntitlementSpec> limits = 7;
-  // Tribute checkout links from Creator dashboard (web + Telegram).
-  optional string checkout_url = 8;
-  optional string telegram_checkout_url = 9;
-  // Promo: free trial days before payment (0 = no trial offer).
-  int32 trial_days = 10;
-}
-
-message ListPlansResponse {
-  repeated PlanCatalog plans = 1;
 }
 
 message UsageLimit {

@@ -61,9 +61,6 @@ func BuildPlanCatalog(plan model.Plan, items []model.PlanEntitlement) (PlanCatal
 	}
 
 	name := plan.Name
-	if plan.Slug == model.PlanProMonthly && name == "Pro Monthly" {
-		name = "Pro"
-	}
 
 	tagline := pres.Tagline
 	if tagline == "" && plan.Description != nil {

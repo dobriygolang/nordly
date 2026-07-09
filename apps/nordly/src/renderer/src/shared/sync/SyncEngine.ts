@@ -3,7 +3,7 @@ import { apiFetch } from '@shared/api/http';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { ensureDevice, getDeviceId } from '@shared/api/device';
 import { DeviceRegisterError, registerSyncDevice } from '@shared/api/registerSyncDevice';
-import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useFeatureUsageStore } from '@shared/model/featureUsage';
 import { subscribeVault } from '@shared/crypto/vault';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -90,8 +90,8 @@ async function runSync(options?: SyncOptions): Promise<void> {
     return;
   }
 
-  const planStore = usePlanUsageStore.getState();
-  const knownReg = planStore.deviceRegistration;
+  const featureStore = useFeatureUsageStore.getState();
+  const knownReg = featureStore.deviceRegistration;
   if (knownReg && !knownReg.cloudSyncEnabled) {
     store.setStatus('idle');
     store.setLastError(null);
@@ -101,7 +101,7 @@ async function runSync(options?: SyncOptions): Promise<void> {
   try {
     await ensureDevice({ appVersion: '0.0.1' });
     const reg = await registerSyncDevice({ appVersion: '0.0.1' });
-    planStore.setDeviceRegistration({
+    featureStore.setDeviceRegistration({
       deviceId: reg.deviceId,
       devicesRegistered: reg.devicesRegistered,
       deviceLimit: reg.deviceLimit,
@@ -118,7 +118,7 @@ async function runSync(options?: SyncOptions): Promise<void> {
     if (err instanceof DeviceRegisterError) {
       if (err.code === 'cloud_sync_disabled') {
         const deviceId = getDeviceId();
-        planStore.setDeviceRegistration({
+        featureStore.setDeviceRegistration({
           deviceId: deviceId ?? '',
           devicesRegistered: 0,
           deviceLimit: 0,

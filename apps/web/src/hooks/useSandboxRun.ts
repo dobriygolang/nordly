@@ -39,7 +39,7 @@ export function useSandboxRun(accessToken?: string | null) {
       setRunError(
         formatSandboxRunError(err, {
           quota: t('session.editorRunQuota'),
-          proFeature: t('session.editorRunProFeature'),
+          featureDisabled: t('session.editorRunFeatureDisabled'),
         }),
       )
       setRunId(null)

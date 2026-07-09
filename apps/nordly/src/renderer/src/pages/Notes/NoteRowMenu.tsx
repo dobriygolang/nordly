@@ -107,7 +107,7 @@ function PublishOptionsSection({
   return (
     <div className="nordly-note-menu__options">
       <MenuToggle
-        label={t('nordly.settings.plan.entitlement.publish_password')}
+        label={t('nordly.settings.features.entitlement.publish_password')}
         checked={publishOptions.passwordProtected}
         onChange={(passwordProtected) =>
           onPublishOptionsChange({
@@ -184,10 +184,11 @@ export const NoteRowMenu = memo(
     return (
       <div
         ref={ref}
-        className="nordly-note-menu fadein"
+        className="nordly-note-menu"
         data-published={published ? 'true' : 'false'}
         data-compact={publishingAvailable ? 'false' : 'true'}
         style={style}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="menu"
       >

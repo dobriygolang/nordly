@@ -19,7 +19,7 @@ Legend: **nordly** | **web** | **none** | **s2s**
 
 | RPC / HTTP | nordly | web |
 |------------|--------|-----|
-| `GET /v1/billing/plans` | — | yes |
+| `GET /v1/billing/me` | yes | — |
 | gRPC CheckEntitlements, ConsumeUsage | s2s | s2s |
 
 ## tracker

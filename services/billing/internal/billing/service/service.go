@@ -11,7 +11,6 @@ import (
 	identityadapter "github.com/dobriygolang/project-nordly/services/billing/internal/adapter/identity"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/adapter/providers"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/cache"
-	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/catalog"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/product"
@@ -37,7 +36,6 @@ var (
 type Service interface {
 	GetCurrentPlan(ctx context.Context, userID string) (*model.Plan, error)
 	GetEntitlements(ctx context.Context, userID string) (*model.EntitlementsView, error)
-	ListPlans(ctx context.Context) ([]catalog.PlanCatalogItem, error)
 	CheckEntitlement(ctx context.Context, userID, key string) (*model.CheckEntitlementResult, error)
 	CheckAndConsumeUsage(ctx context.Context, userID, key string, amount int) (*model.ConsumeUsageResult, error)
 	ReleaseUsage(ctx context.Context, userID, key, idempotencyKey string, amount int) (*model.ReleaseUsageResult, error)
@@ -55,8 +53,6 @@ type billingService struct {
 	now          func() time.Time
 	plansCache   *cache.Plans
 	entitlements *cache.EntitlementsRedis
-	proTrialEnabled bool
-	proTrialDays    int
 
 	// CQRS usecase handlers. Reads + webhook stay in the service; the two clear
 	// write commands delegate here.
@@ -73,9 +69,7 @@ type Deps struct {
 	Providers          []providers.BillingProvider
 	TierToPlan         map[string]string
 	PlansCache         *cache.Plans
-	EntitlementsCache  *cache.EntitlementsRedis
-	ProTrialEnabled    bool
-	ProTrialDays       int
+	EntitlementsCache *cache.EntitlementsRedis
 }
 
 // New constructs billing service.
@@ -91,9 +85,7 @@ func New(deps Deps) Service {
 		tierToPlan:      deps.TierToPlan,
 		now:             time.Now,
 		plansCache:      deps.PlansCache,
-		entitlements:    deps.EntitlementsCache,
-		proTrialEnabled: deps.ProTrialEnabled,
-		proTrialDays:    deps.ProTrialDays,
+		entitlements: deps.EntitlementsCache,
 	}
 	svc.grantSubscription = grant_subscription.New(deps.Repo)
 	svc.updatePlanEntitlement = update_plan_entitlement.New(deps.Repo)
@@ -103,8 +95,7 @@ func New(deps Deps) Service {
 }
 
 func (s *billingService) GetCurrentPlan(ctx context.Context, userID string) (*model.Plan, error) {
-	plan, _, err := s.resolvePlan(ctx, userID)
-	return plan, err
+	return s.resolvePlan(ctx, userID)
 }
 
 func (s *billingService) GetEntitlements(ctx context.Context, userID string) (*model.EntitlementsView, error) {
@@ -125,7 +116,7 @@ func (s *billingService) GetEntitlements(ctx context.Context, userID string) (*m
 }
 
 func (s *billingService) buildEntitlements(ctx context.Context, userID string) (*model.EntitlementsView, error) {
-	plan, sub, err := s.resolvePlan(ctx, userID)
+	plan, err := s.resolvePlan(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +127,6 @@ func (s *billingService) buildEntitlements(ctx context.Context, userID string) (
 
 	view := &model.EntitlementsView{
 		UserID:   userID,
-		PlanSlug: plan.Slug,
-		PlanName: plan.Name,
 		Features: map[string]bool{},
 		Limits:   map[string]model.UsageLimitState{},
 	}
@@ -179,45 +168,12 @@ func (s *billingService) buildEntitlements(ctx context.Context, userID string) (
 			view.Limits[item.Key] = state
 		}
 	}
-	s.applyTrialState(ctx, view, sub)
 	return view, nil
-}
-
-func (s *billingService) applyTrialState(ctx context.Context, view *model.EntitlementsView, sub *model.Subscription) {
-	if sub != nil && sub.Status == model.SubStatusTrialing {
-		view.IsTrialing = true
-		view.TrialEndsAt = sub.CurrentPeriodEnd
-		return
-	}
-	if !s.proTrialEnabled || view.PlanSlug != model.PlanFree {
-		return
-	}
-	used, err := s.repo.HasUsedProTrial(ctx, view.UserID)
-	if err != nil || used {
-		return
-	}
-	view.TrialAvailable = true
-	view.TrialDays = s.proTrialDays
-	if view.TrialDays <= 0 {
-		view.TrialDays = 14
-	}
 }
 
 // ListPlanEntitlements serves static plan entitlements from the in-memory snapshot when available.
 func (s *billingService) ListPlanEntitlements(ctx context.Context, planID string) ([]model.PlanEntitlement, error) {
 	return s.plansCache.ListPlanEntitlements(planID)
-}
-
-func (s *billingService) ListPlans(ctx context.Context) ([]catalog.PlanCatalogItem, error) {
-	items, err := s.plansCache.ListCatalog()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]catalog.PlanCatalogItem, len(items))
-	for i, item := range items {
-		out[i] = catalog.PublicPricingView(item)
-	}
-	return out, nil
 }
 
 func (s *billingService) CheckEntitlement(ctx context.Context, userID, key string) (*model.CheckEntitlementResult, error) {
@@ -289,8 +245,7 @@ func (s *billingService) UpdatePlanEntitlement(ctx context.Context, planSlug, ke
 // ResolvePlan satisfies consume_usage.PlanResolver, keeping plan-resolution
 // rules shared with the read paths (GetEntitlements/GetCurrentPlan).
 func (s *billingService) ResolvePlan(ctx context.Context, userID string) (*model.Plan, error) {
-	plan, _, err := s.resolvePlan(ctx, userID)
-	return plan, err
+	return s.resolvePlan(ctx, userID)
 }
 
 func (s *billingService) RevokeSubscription(ctx context.Context, userID string) error {
@@ -442,17 +397,8 @@ func (s *billingService) cancelProviderSubscription(ctx context.Context, userID 
 	return s.RevokeSubscription(ctx, userID)
 }
 
-func (s *billingService) resolvePlan(ctx context.Context, userID string) (*model.Plan, *model.Subscription, error) {
-	sub, err := s.repo.GetActiveSubscription(ctx, userID)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return nil, nil, err
-	}
-	if sub != nil {
-		plan, err := s.getPlanByID(ctx, sub.PlanID)
-		return plan, sub, err
-	}
-	plan, err := s.getPlanBySlug(ctx, model.PlanFree)
-	return plan, nil, err
+func (s *billingService) resolvePlan(ctx context.Context, _ string) (*model.Plan, error) {
+	return s.getPlanBySlug(ctx, model.PlanDefault)
 }
 
 func (s *billingService) getPlanByID(ctx context.Context, id string) (*model.Plan, error) {

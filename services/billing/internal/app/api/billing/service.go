@@ -2,7 +2,6 @@ package billingapi
 
 import (
 	billingv1 "github.com/dobriygolang/project-nordly/services/billing/pkg/api/billing/v1"
-	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/catalog"
 	billingrepo "github.com/dobriygolang/project-nordly/services/billing/internal/billing/repository"
 	billingservice "github.com/dobriygolang/project-nordly/services/billing/internal/billing/service"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
@@ -15,16 +14,14 @@ type Implementation struct {
 	billingv1.UnimplementedBillingServiceServer
 	billingv1.UnimplementedBillingInternalServiceServer
 	billingv1.UnimplementedBillingAdminServiceServer
-	svc      billingservice.Service
-	repo     *billingrepo.Repository
-	pg       *billingrepo.Pool
-	checkout CheckoutConfig
-	proTrial ProTrialConfig
+	svc  billingservice.Service
+	repo *billingrepo.Repository
+	pg   *billingrepo.Pool
 }
 
 // NewImplementation constructs transport handlers.
-func NewImplementation(svc billingservice.Service, repo *billingrepo.Repository, pg *billingrepo.Pool, checkout CheckoutConfig, proTrial ProTrialConfig) *Implementation {
-	return &Implementation{svc: svc, repo: repo, pg: pg, checkout: checkout, proTrial: proTrial}
+func NewImplementation(svc billingservice.Service, repo *billingrepo.Repository, pg *billingrepo.Pool) *Implementation {
+	return &Implementation{svc: svc, repo: repo, pg: pg}
 }
 
 // Register mounts billing services on the gRPC server.
@@ -36,17 +33,9 @@ func Register(s *grpc.Server, impl *Implementation) {
 
 func toProtoEntitlements(view *model.EntitlementsView) *billingv1.GetMeResponse {
 	out := &billingv1.GetMeResponse{
-		UserId:         view.UserID,
-		PlanSlug:       view.PlanSlug,
-		PlanName:       view.PlanName,
-		Features:       map[string]bool{},
-		Limits:         map[string]*billingv1.UsageLimit{},
-		IsTrialing:     view.IsTrialing,
-		TrialAvailable: view.TrialAvailable,
-		TrialDays:      int32(view.TrialDays),
-	}
-	if view.TrialEndsAt != nil {
-		out.TrialEnd = timestamppb.New(*view.TrialEndsAt)
+		UserId:   view.UserID,
+		Features: map[string]bool{},
+		Limits:   map[string]*billingv1.UsageLimit{},
 	}
 	for k, v := range view.Features {
 		out.Features[k] = v
@@ -67,41 +56,6 @@ func toProtoEntitlements(view *model.EntitlementsView) *billingv1.GetMeResponse 
 			item.Remaining = &v
 		}
 		out.Limits[k] = item
-	}
-	return out
-}
-
-func toProtoPlanCatalog(item catalog.PlanCatalogItem, checkout PlanCheckoutURLs, trialDays int32) *billingv1.PlanCatalog {
-	out := &billingv1.PlanCatalog{
-		Slug:      item.Slug,
-		Name:      item.Name,
-		Tagline:   item.Tagline,
-		Highlight: item.Highlight,
-		Features:  map[string]bool{},
-		Limits:     map[string]*billingv1.PlanEntitlementSpec{},
-		TrialDays:  trialDays,
-	}
-	if checkout.WebURL != "" {
-		out.CheckoutUrl = &checkout.WebURL
-	}
-	if checkout.TelegramURL != "" {
-		out.TelegramCheckoutUrl = &checkout.TelegramURL
-	}
-	for k, v := range item.Features {
-		out.Features[k] = v
-	}
-	for k, lim := range item.Limits {
-		spec := &billingv1.PlanEntitlementSpec{
-			Type:      lim.Type,
-			Unlimited: lim.Unlimited,
-			Period:    lim.Period,
-			Value:     lim.Value,
-		}
-		if lim.Limit != nil {
-			v := int32(*lim.Limit)
-			spec.Limit = &v
-		}
-		out.Limits[k] = spec
 	}
 	return out
 }

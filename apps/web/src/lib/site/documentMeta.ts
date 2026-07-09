@@ -54,7 +54,7 @@ export function applyDocumentMeta(input: DocumentMetaInput): void {
   upsertMeta('property', 'og:description', description)
   upsertMeta('property', 'og:url', url)
   upsertMeta('property', 'og:image', imageUrl)
-  upsertMeta('property', 'og:locale', document.documentElement.lang === 'ru' ? 'ru_RU' : 'en_US')
+  upsertMeta('property', 'og:locale', 'en_US')
 
   upsertMeta('name', 'twitter:card', 'summary_large_image')
   upsertMeta('name', 'twitter:title', title)
@@ -66,7 +66,6 @@ export function applyDocumentMeta(input: DocumentMetaInput): void {
 
 type RouteMetaKey =
   | 'welcome'
-  | 'pricing'
   | 'legalTerms'
   | 'legalPrivacy'
   | 'liveNew'
@@ -75,7 +74,6 @@ type RouteMetaKey =
 
 function routeMetaKey(pathname: string): RouteMetaKey | null {
   if (pathname === '/') return 'welcome'
-  if (pathname === '/pricing') return 'pricing'
   if (pathname === '/legal/terms') return 'legalTerms'
   if (pathname === '/legal/privacy') return 'legalPrivacy'
   if (pathname === '/live/new') return 'liveNew'

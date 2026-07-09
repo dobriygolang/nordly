@@ -7,7 +7,7 @@ export interface DeviceRegistrationState {
   cloudSyncEnabled: boolean;
 }
 
-interface PlanUsageState {
+interface FeatureUsageState {
   deviceRegistration: DeviceRegistrationState | null;
   publishedNotesCount: number;
   setDeviceRegistration: (state: DeviceRegistrationState | null) => void;
@@ -15,7 +15,7 @@ interface PlanUsageState {
   adjustPublishedNotesCount: (delta: number) => void;
 }
 
-export const usePlanUsageStore = create<PlanUsageState>((set) => ({
+export const useFeatureUsageStore = create<FeatureUsageState>((set) => ({
   deviceRegistration: null,
   publishedNotesCount: 0,
   setDeviceRegistration: (deviceRegistration) => set({ deviceRegistration }),

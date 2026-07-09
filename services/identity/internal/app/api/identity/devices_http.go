@@ -87,9 +87,9 @@ func bearerToken(header string) string {
 func mapDeviceError(w http.ResponseWriter, err error) {
 	switch {
 	case deviceservice.IsCloudSyncDisabled(err):
-		writeDeviceError(w, http.StatusForbidden, "cloud_sync_disabled", "Cloud sync requires Pro")
+		writeDeviceError(w, http.StatusForbidden, "cloud_sync_disabled", "Cloud sync is disabled for this account")
 	case deviceservice.IsDeviceLimitExceeded(err):
-		writeDeviceError(w, http.StatusForbidden, "device_limit_exceeded", "Device limit reached for your plan")
+		writeDeviceError(w, http.StatusForbidden, "device_limit_exceeded", "Device limit reached")
 	case deviceservice.IsInvalidArgument(err):
 		writeDeviceError(w, http.StatusBadRequest, "invalid_argument", err.Error())
 	default:

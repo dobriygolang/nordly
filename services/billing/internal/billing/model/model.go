@@ -6,8 +6,7 @@ import (
 )
 
 const (
-	PlanFree       = "free"
-	PlanProMonthly = "pro_monthly"
+	PlanDefault = "default"
 
 	ProviderInternal = "internal"
 	ProviderTribute  = "tribute"
@@ -18,8 +17,6 @@ const (
 	SubStatusExpired   = "expired"
 	SubStatusPastDue   = "past_due"
 	SubStatusPaused    = "paused"
-
-	TrialKindPro = "pro_trial"
 
 	EntitlementCodeRunsPerDay        = "code_runs_per_day"
 	EntitlementCloudNotesCount       = "cloud_notes_count"
@@ -107,17 +104,11 @@ type UsageLimitState struct {
 	Unlimited   bool
 }
 
-// EntitlementsView is the aggregated billing state for a user.
+// EntitlementsView is the aggregated feature state for a user.
 type EntitlementsView struct {
-	UserID         string
-	PlanSlug       string
-	PlanName       string
-	Features       map[string]bool
-	Limits         map[string]UsageLimitState
-	IsTrialing     bool
-	TrialAvailable bool
-	TrialDays      int
-	TrialEndsAt    *time.Time
+	UserID   string
+	Features map[string]bool
+	Limits   map[string]UsageLimitState
 }
 
 // CheckEntitlementResult is the outcome of a feature gate.

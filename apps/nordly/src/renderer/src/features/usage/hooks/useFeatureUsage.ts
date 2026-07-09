@@ -6,13 +6,13 @@ import { notesStoreList } from '@features/notes/repository/notesStore';
 import { remoteGetPublishStatus } from '@features/notes/repository/publishRemote';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { getServerId } from '@shared/sync/idMap';
-import { buildPlanSnapshot, type PlanSnapshot } from '@shared/lib/planSnapshot';
+import { buildFeatureUsage, type FeatureUsageSnapshot } from '@shared/lib/featureUsage';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
-import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useFeatureUsageStore } from '@shared/model/featureUsage';
 
 async function countPublishedNotes(): Promise<number> {
   if (!isCloudApiAvailable() || !getDbUserId()) {
-    return usePlanUsageStore.getState().publishedNotesCount;
+    return useFeatureUsageStore.getState().publishedNotesCount;
   }
 
   const notes = await notesStoreList();
@@ -30,17 +30,17 @@ async function countPublishedNotes(): Promise<number> {
       }
     }),
   );
-  usePlanUsageStore.getState().setPublishedNotesCount(count);
+  useFeatureUsageStore.getState().setPublishedNotesCount(count);
   return count;
 }
 
-export function usePlanSnapshot(): {
-  snapshot: PlanSnapshot | null;
+export function useFeatureUsage(): {
+  snapshot: FeatureUsageSnapshot | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 } {
-  const deviceRegistration = usePlanUsageStore((s) => s.deviceRegistration);
+  const deviceRegistration = useFeatureUsageStore((s) => s.deviceRegistration);
   const [me, setMe] = useState<BillingMe | null>(null);
   const [publishedCount, setPublishedCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -72,7 +72,7 @@ export function usePlanSnapshot(): {
 
   const snapshot =
     me != null
-      ? buildPlanSnapshot({
+      ? buildFeatureUsage({
           me,
           publishedCount,
           deviceRegistration,

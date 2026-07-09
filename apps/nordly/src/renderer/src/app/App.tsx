@@ -637,7 +637,8 @@ export default function App() {
     return vaultGateActive ? <VaultUnlockGate>{signedInShell}</VaultUnlockGate> : signedInShell;
   };
 
-  const screen = status === 'unknown' ? 'loading' : status === 'guest' ? 'guest' : 'app';
+  const sessionReady = status === 'signed_in' && userId != null;
+  const screen = status === 'unknown' ? 'loading' : sessionReady ? 'app' : 'guest';
 
   return <ScreenFade screen={screen}>{renderScreen}</ScreenFade>;
 }

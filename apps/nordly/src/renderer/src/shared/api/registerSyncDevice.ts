@@ -45,7 +45,7 @@ function parseDeviceRegisterError(status: number, body: Record<string, unknown>)
   throw new Error(message);
 }
 
-/** Register this desktop for cloud sync (Pro plan + device quota). */
+/** Register this desktop for cloud sync (device quota). */
 export async function registerSyncDevice(opts: {
   appVersion: string;
   name?: string;

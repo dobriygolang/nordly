@@ -1,0 +1,26 @@
+
+/* ── Features (Settings → Features) ── */
+
+.nordly-features-status {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--ink-60);
+}
+
+.nordly-features-status--error {
+  color: var(--ink-60);
+}
+
+.nordly-features-value {
+  font-size: 12px;
+  color: var(--ink-60);
+}
+
+.nordly-features-value--meter {
+  font-size: 11px;
+  color: var(--ink-50);
+}
+
+.nordly-features-value--disabled {
+  color: var(--ink-40);
+}

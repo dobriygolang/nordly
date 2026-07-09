@@ -3,26 +3,8 @@ package billingapi
 import (
 	billingrepo "github.com/dobriygolang/project-nordly/services/billing/internal/billing/repository"
 	billingservice "github.com/dobriygolang/project-nordly/services/billing/internal/billing/service"
-	"github.com/dobriygolang/project-nordly/services/billing/internal/config"
 	"google.golang.org/grpc"
 )
-
-// CheckoutFromConfig maps billing config to transport checkout URLs.
-func CheckoutFromConfig(cfg config.TributeCheckoutConfig) CheckoutConfig {
-	out := CheckoutConfig{ByPlan: make(map[string]PlanCheckoutURLs, len(cfg.ByPlan))}
-	for slug, links := range cfg.ByPlan {
-		out.ByPlan[slug] = PlanCheckoutURLs{
-			WebURL:      links.WebURL,
-			TelegramURL: links.TelegramURL,
-		}
-	}
-	return out
-}
-
-// ProTrialFromConfig maps billing config to transport trial settings.
-func ProTrialFromConfig(cfg *config.Config) ProTrialConfig {
-	return ProTrialConfig{Enabled: cfg.ProTrialEnabled, Days: cfg.ProTrialDays}
-}
 
 // NewRegisteredImplementation constructs handlers and registers them on the gRPC server.
 func NewRegisteredImplementation(
@@ -30,10 +12,8 @@ func NewRegisteredImplementation(
 	svc billingservice.Service,
 	repo *billingrepo.Repository,
 	pg *billingrepo.Pool,
-	checkout CheckoutConfig,
-	proTrial ProTrialConfig,
 ) *Implementation {
-	impl := NewImplementation(svc, repo, pg, checkout, proTrial)
+	impl := NewImplementation(svc, repo, pg)
 	Register(s, impl)
 	return impl
 }

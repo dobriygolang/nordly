@@ -29,7 +29,7 @@
 @import './features/home-today.css';
 @import './features/palette.css';
 @import './features/settings.css';
-@import './features/settings-plan.css';
+@import './features/settings-features.css';
 @import './features/login.css';
 @import './features/tray-popover.css';
 @import './features/notification-overlay.css';

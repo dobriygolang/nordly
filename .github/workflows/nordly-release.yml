@@ -233,7 +233,7 @@ jobs:
           node deploy/scripts/prepare-desktop-cdn.mjs \
             --input /tmp/desktop-release \
             --tag "${{ steps.tag.outputs.name }}" \
-            --cdn-base https://cdn.trynordly.app/desktop \
+            --cdn-base https://trynordly.app/desktop \
             --output /tmp/cdn-upload
           tar czf /tmp/desktop-cdn.tgz -C /tmp/cdn-upload desktop
 

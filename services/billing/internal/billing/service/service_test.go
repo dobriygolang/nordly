@@ -153,45 +153,43 @@ func newTestPlansCache(repo *fakeRepo) *cache.Plans {
 
 func newTestService(repo *fakeRepo) Service {
 	return New(Deps{
-		Repo:            repo,
-		PlansCache:      newTestPlansCache(repo),
-		TierToPlan:      map[string]string{"tribute_pro_monthly": model.PlanProMonthly},
-		ProTrialEnabled: true,
-		ProTrialDays:    14,
+		Repo:       repo,
+		PlansCache: newTestPlansCache(repo),
+		TierToPlan: map[string]string{"tribute_default": model.PlanDefault},
 	})
 }
 
-func TestGetCurrentPlanDefaultsToFree(t *testing.T) {
+func TestGetCurrentPlanDefaultsToDefault(t *testing.T) {
 	t.Parallel()
-	repo := &fakeRepo{plan: &model.Plan{ID: "free-id", Slug: model.PlanFree, Name: "Free"}}
+	repo := &fakeRepo{plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"}}
 	plan, err := newTestService(repo).GetCurrentPlan(context.Background(), "user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Slug != model.PlanFree {
-		t.Fatalf("expected free, got %s", plan.Slug)
+	if plan.Slug != model.PlanDefault {
+		t.Fatalf("expected default, got %s", plan.Slug)
 	}
 }
 
-func TestGetCurrentPlanUsesActiveSubscription(t *testing.T) {
+func TestGetCurrentPlanIgnoresActiveSubscription(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan: &model.Plan{ID: "pro-id", Slug: model.PlanProMonthly, Name: "Pro"},
-		sub:  &model.Subscription{PlanID: "pro-id", Status: model.SubStatusActive},
+		plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
+		sub:  &model.Subscription{PlanID: "legacy-id", Status: model.SubStatusActive},
 	}
 	plan, err := newTestService(repo).GetCurrentPlan(context.Background(), "user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Slug != model.PlanProMonthly {
-		t.Fatalf("expected pro, got %s", plan.Slug)
+	if plan.Slug != model.PlanDefault {
+		t.Fatalf("expected default, got %s", plan.Slug)
 	}
 }
 
 func TestCheckEntitlementBool(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan: &model.Plan{ID: "free-id", Slug: model.PlanFree, Name: "Free"},
+		plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
 		entitlements: []model.PlanEntitlement{
 			{Key: "beta_feature", ValueJSON: json.RawMessage(`{"type":"bool","value":false}`)},
 		},
@@ -208,7 +206,7 @@ func TestCheckEntitlementBool(t *testing.T) {
 func TestCheckAndConsumeUsageIncrements(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan:  &model.Plan{ID: "free-id", Slug: model.PlanFree, Name: "Free"},
+		plan:  &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
 		usage: map[string]int{},
 		entitlements: []model.PlanEntitlement{
 			{Key: model.EntitlementCodeRunsPerDay, ValueJSON: json.RawMessage(`{"type":"counter","limit":5,"period":"day"}`)},
@@ -226,7 +224,7 @@ func TestCheckAndConsumeUsageIncrements(t *testing.T) {
 func TestCheckAndConsumeUsageRejectsOverLimit(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan:  &model.Plan{ID: "free-id", Slug: model.PlanFree, Name: "Free"},
+		plan:  &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
 		usage: map[string]int{model.EntitlementCodeRunsPerDay: 5},
 		entitlements: []model.PlanEntitlement{
 			{Key: model.EntitlementCodeRunsPerDay, ValueJSON: json.RawMessage(`{"type":"counter","limit":5,"period":"day"}`)},
@@ -247,7 +245,7 @@ func TestCheckAndConsumeUsageRejectsOverLimit(t *testing.T) {
 func TestReleaseUsageDecrementsConsumedQuota(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan:  &model.Plan{ID: "free-id", Slug: model.PlanFree, Name: "Free"},
+		plan:  &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
 		usage: map[string]int{model.EntitlementCodeRunsPerDay: 3},
 		entitlements: []model.PlanEntitlement{
 			{Key: model.EntitlementCodeRunsPerDay, ValueJSON: json.RawMessage(`{"type":"counter","limit":5,"period":"day"}`)},
@@ -272,8 +270,8 @@ func TestReleaseUsageDecrementsConsumedQuota(t *testing.T) {
 
 func TestGrantSubscriptionCreatesActiveSub(t *testing.T) {
 	t.Parallel()
-	repo := &fakeRepo{plan: &model.Plan{ID: "pro-id", Slug: model.PlanProMonthly, Name: "Pro"}}
-	sub, err := newTestService(repo).GrantSubscription(context.Background(), "user-1", model.PlanProMonthly, nil)
+	repo := &fakeRepo{plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"}}
+	sub, err := newTestService(repo).GrantSubscription(context.Background(), "user-1", model.PlanDefault, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +283,7 @@ func TestGrantSubscriptionCreatesActiveSub(t *testing.T) {
 func TestTributeWebhookCreatesSubscription(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{
-		plan: &model.Plan{ID: "pro-id", Slug: model.PlanProMonthly, Name: "Pro"},
+		plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
 	}
 	identity := &fakeIdentity{user: &identityadapter.User{ID: "user-1", Username: "tester"}}
 	provider := tribute.New(tribute.Config{WebhookSecret: "test-secret"})
@@ -294,7 +292,7 @@ func TestTributeWebhookCreatesSubscription(t *testing.T) {
 		Identity:   identity,
 		Providers:  []providers.BillingProvider{provider},
 		PlansCache: newTestPlansCache(repo),
-		TierToPlan: map[string]string{"tribute_pro_monthly": model.PlanProMonthly},
+		TierToPlan: map[string]string{"tribute_default": model.PlanDefault},
 	})
 	body := []byte(`{
 		"event_id":"evt-1",
@@ -302,15 +300,15 @@ func TestTributeWebhookCreatesSubscription(t *testing.T) {
 		"telegram_user_id":12345,
 		"username":"tester",
 		"subscription_id":"sub-1",
-		"tier":"tribute_pro_monthly",
+		"tier":"tribute_default",
 		"status":"active"
 	}`)
 	headers := map[string]string{"trbt-signature": tributeHMAC("test-secret", body)}
 	if err := svc.HandleProviderWebhook(context.Background(), "tribute", headers, body); err != nil {
 		t.Fatal(err)
 	}
-	if repo.lastSub == nil || repo.lastSub.PlanSlug != model.PlanProMonthly {
-		t.Fatalf("expected pro subscription, got %+v", repo.lastSub)
+	if repo.lastSub == nil || repo.lastSub.PlanSlug != model.PlanDefault {
+		t.Fatalf("expected default subscription, got %+v", repo.lastSub)
 	}
 }
 

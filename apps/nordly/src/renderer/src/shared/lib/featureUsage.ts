@@ -1,24 +1,21 @@
-import type { BillingMe, PlanEntitlementKey } from '@shared/api/billingClient';
-import type { DeviceRegistrationState } from '@shared/model/planUsage';
+import type { BillingMe, FeatureKey } from '@shared/api/billingClient';
+import type { DeviceRegistrationState } from '@shared/model/featureUsage';
 
-export type PlanFeatureStatus =
+export type FeatureStatus =
   | { kind: 'meter'; used: number; limit: number | null; unlimited: boolean }
-  | { kind: 'included' }
-  | { kind: 'pro' };
+  | { kind: 'enabled' }
+  | { kind: 'disabled' };
 
-export type PlanFeature = {
-  key: PlanEntitlementKey;
-  status: PlanFeatureStatus;
+export type FeatureRow = {
+  key: FeatureKey;
+  status: FeatureStatus;
 };
 
-export interface PlanSnapshot {
-  planSlug: string;
-  planName: string;
-  isPro: boolean;
-  features: PlanFeature[];
+export interface FeatureUsageSnapshot {
+  features: FeatureRow[];
 }
 
-const FEATURE_ORDER: PlanEntitlementKey[] = [
+const FEATURE_ORDER: FeatureKey[] = [
   'published_notes_active',
   'cloud_sync_enabled',
   'cloud_sync_devices',
@@ -28,7 +25,7 @@ const FEATURE_ORDER: PlanEntitlementKey[] = [
 function publishedNotesFeature(
   me: BillingMe,
   publishedCount: number,
-): PlanFeature {
+): FeatureRow {
   const lim = me.limits.published_notes_active;
   const unlimited = lim?.unlimited ?? false;
   const limit = lim?.limit ?? null;
@@ -38,17 +35,17 @@ function publishedNotesFeature(
   };
 }
 
-function boolFeature(me: BillingMe, key: PlanEntitlementKey): PlanFeature {
+function boolFeature(me: BillingMe, key: FeatureKey): FeatureRow {
   const enabled = me.features[key] === true;
-  return { key, status: enabled ? { kind: 'included' } : { kind: 'pro' } };
+  return { key, status: enabled ? { kind: 'enabled' } : { kind: 'disabled' } };
 }
 
 function devicesFeature(
   me: BillingMe,
   deviceRegistration: DeviceRegistrationState | null,
-): PlanFeature | null {
+): FeatureRow | null {
   if (me.features.cloud_sync_enabled !== true) {
-    return { key: 'cloud_sync_devices', status: { kind: 'pro' } };
+    return { key: 'cloud_sync_devices', status: { kind: 'disabled' } };
   }
   const lim = me.limits.cloud_sync_devices;
   const unlimited = lim?.unlimited ?? false;
@@ -60,14 +57,14 @@ function devicesFeature(
   };
 }
 
-export function buildPlanSnapshot(input: {
+export function buildFeatureUsage(input: {
   me: BillingMe;
   publishedCount: number;
   deviceRegistration: DeviceRegistrationState | null;
-}): PlanSnapshot {
+}): FeatureUsageSnapshot {
   const { me, publishedCount, deviceRegistration } = input;
 
-  const features: PlanFeature[] = [];
+  const features: FeatureRow[] = [];
 
   for (const key of FEATURE_ORDER) {
     if (key === 'published_notes_active') {
@@ -82,22 +79,17 @@ export function buildPlanSnapshot(input: {
     features.push(boolFeature(me, key));
   }
 
-  return {
-    planSlug: me.planSlug,
-    planName: me.planName,
-    isPro: me.planSlug !== 'free',
-    features,
-  };
+  return { features };
 }
 
 export function formatFeatureValue(
-  status: PlanFeatureStatus,
+  status: FeatureStatus,
   t: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
-  if (status.kind === 'included') return t('nordly.settings.plan.included');
-  if (status.kind === 'pro') return t('nordly.settings.plan.pro_badge');
+  if (status.kind === 'enabled') return t('nordly.settings.features.yes');
+  if (status.kind === 'disabled') return t('nordly.settings.features.no');
   if (status.unlimited || status.limit == null) {
-    return t('nordly.settings.plan.meter_unlimited');
+    return t('nordly.settings.features.meter_unlimited');
   }
-  return t('nordly.settings.plan.meter', { used: status.used, limit: status.limit });
+  return t('nordly.settings.features.meter', { used: status.used, limit: status.limit });
 }

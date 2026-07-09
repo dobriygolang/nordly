@@ -94,11 +94,11 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 
 | RPC / HTTP | Nordly | Web | Notes |
 |------------|--------|-----|-------|
-| GET `/v1/billing/plans` | — | ✅ `slug`, `name`, `tagline`, `limits` | |
+| GET `/v1/billing/me` | ✅ `features`, `limits` | — | JWT |
 | Admin grant/revoke/entitlement | — | — | **Ops only** |
-| BillingInternalService gRPC | — | — | notes, sandbox (required at startup) |
+| BillingInternalService gRPC | — | — | notes, identity, sandbox (required at startup) |
 
-**Removed (no client):** `GET /v1/billing/me`, `POST /v1/billing/trial/start`.
+**Removed (no client):** `GET /v1/billing/plans`, `POST /v1/billing/trial/start`.
 
 ---
 

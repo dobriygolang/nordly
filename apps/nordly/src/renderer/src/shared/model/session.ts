@@ -12,7 +12,7 @@ import { create } from 'zustand';
 import { setDbUserId } from '@shared/db/nordlyDb';
 import { lockVault } from '@shared/crypto/vault';
 import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
-import { usePlanUsageStore } from '@shared/model/planUsage';
+import { useFeatureUsageStore } from '@shared/model/featureUsage';
 import { useSyncStore } from '@shared/model/sync';
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
@@ -200,6 +200,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
 
   applyTokens: ({ userId, accessToken, refreshToken, expiresAt }) => {
+    setDbUserId(userId);
     const session: PersistedSession = {
       userId,
       accessToken,
@@ -213,6 +214,13 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   clear: async (opts) => {
     clearBrowserPersist();
+    setDbUserId(null);
+    lockVault();
+    clearVaultPrefsCache();
+    useSyncStore.getState().setSessionReauthRequired(false);
+    useSyncStore.getState().setCloudSyncBlocked(false);
+    useFeatureUsageStore.getState().setDeviceRegistration(null);
+    set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
     try {
       const { resetAuthRefreshState } = await import('@shared/api/authSession');
       resetAuthRefreshState();
@@ -227,15 +235,8 @@ export const useSessionStore = create<SessionState>((set) => ({
     } catch (err) {
       console.error('[nordly:session] native logout failed', err);
     }
-    setDbUserId(null);
-    lockVault();
-    clearVaultPrefsCache();
-    useSyncStore.getState().setSessionReauthRequired(false);
-    useSyncStore.getState().setCloudSyncBlocked(false);
-    usePlanUsageStore.getState().setDeviceRegistration(null);
     void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
       resetDeviceRegisterCache();
     });
-    set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
   },
 }));

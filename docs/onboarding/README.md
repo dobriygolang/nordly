@@ -32,7 +32,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 | sandbox | Code run, format | web (live rooms) |
 | billing | Plans, entitlements | web (pricing), notes/sandbox (gates) |
 
-Plan matrix: [docs/billing-plans.md](../billing-plans.md).
+Plan matrix: [docs/billing-features.md](../billing-features.md).
 
 **Billing note:** `live_rooms_per_month` / `live_rooms_concurrent` entitlements exist in billing; **rooms does not consume them yet** (reserved for future wiring).
 

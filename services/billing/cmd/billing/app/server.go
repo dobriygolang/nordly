@@ -32,8 +32,6 @@ func RunAPI(ctx context.Context, a *App) error {
 		a.Service,
 		billingrepo.New(a.Postgres),
 		a.Postgres,
-		billingapi.CheckoutFromConfig(a.Config.TributeCheckout),
-		billingapi.ProTrialFromConfig(a.Config),
 	)
 	reflection.Register(grpcSrv)
 

@@ -8,7 +8,8 @@ const SCREEN_FADE_MS = MOTION_MS.page;
 type LayerStatus = 'active' | 'entering' | 'leaving';
 
 interface Layer {
-  id: string;
+  key: string;
+  screen: string;
   status: LayerStatus;
 }
 
@@ -31,7 +32,10 @@ export function ScreenFade({
   screen: string;
   children: (id: string) => ReactNode;
 }): JSX.Element {
-  const [layers, setLayers] = useState<Layer[]>([{ id: screen, status: 'active' }]);
+  const layerKeyRef = useRef(0);
+  const [layers, setLayers] = useState<Layer[]>(() => [
+    { key: `layer-${layerKeyRef.current}`, screen, status: 'active' },
+  ]);
   const timerRef = useRef<number>();
   const activeRef = useRef(screen);
 
@@ -40,9 +44,13 @@ export function ScreenFade({
     activeRef.current = screen;
 
     if (prefersReducedMotion()) {
-      setLayers([{ id: screen, status: 'active' }]);
+      layerKeyRef.current += 1;
+      setLayers([{ key: `layer-${layerKeyRef.current}`, screen, status: 'active' }]);
       return;
     }
+
+    layerKeyRef.current += 1;
+    const nextKey = `layer-${layerKeyRef.current}`;
 
     setLayers((prev) => [
       ...prev.map((l) =>
@@ -50,7 +58,7 @@ export function ScreenFade({
           ? { ...l, status: 'leaving' as const }
           : l,
       ),
-      { id: screen, status: 'entering' as const },
+      { key: nextKey, screen, status: 'entering' as const },
     ]);
 
     const enterRaf = requestAnimationFrame(() => {
@@ -74,12 +82,12 @@ export function ScreenFade({
     <>
       {layers.map((layer) => (
         <div
-          key={layer.id}
+          key={layer.key}
           className="nordly-screen-layer"
           data-status={layer.status}
           aria-hidden={layer.status === 'leaving' ? true : undefined}
         >
-          {children(layer.id)}
+          {children(layer.screen)}
         </div>
       ))}
     </>

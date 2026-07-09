@@ -1,12 +1,4 @@
-import type { legalRu } from './legal.ru'
-
-type LegalMessages = {
-  [K in keyof typeof legalRu]: {
-    [P in keyof (typeof legalRu)[K]]: string
-  }
-}
-
-export const legalEn: LegalMessages = {
+export const legalEn = {
   layout: {
     updated: 'Last updated:',
   },
@@ -23,21 +15,19 @@ export const legalEn: LegalMessages = {
     s2Body:
       'Some features require sign-in via Telegram. Live rooms can be created without an account (guest access). You must keep your identity-provider account secure and not share credentials. One person — one account unless otherwise agreed in writing with support.',
     s3Title: '3. Acceptable use',
-    s3Li1: 'Do not abuse APIs, plan quotas, or automated scripts without the operator’s written consent.',
+    s3Li1: 'Do not abuse APIs, usage quotas, or automated scripts without the operator’s written consent.',
     s3Li2: 'Do not upload malicious code or disrupt sandbox runs or live rooms.',
     s3Li3: 'Do not publish or share third parties’ personal data without their consent.',
-    s3Li4: 'Do not attempt to bypass technical limits, plan quotas, or security measures.',
+    s3Li4: 'Do not attempt to bypass technical limits, usage quotas, or security measures.',
     s4Title: '4. Content and intellectual property',
     s4Body:
       'Nordly software, branding, and default materials belong to the operator or rights holders. Notes, tasks, and code you create remain yours; you grant the operator a non-exclusive license to process that content as needed to run the Service (sync, storage, collaboration). Optional encrypted vault content is processed according to your vault settings.',
-    s5Title: '5. Plans, trial, and payment',
-    s5BodyBefore: 'Free and Pro plan details, usage limits, and trial terms are on the',
-    s5PricingLink: 'pricing page',
-    s5BodyAfter:
-      '. Pro subscriptions are paid via our payment partner Tribute (web or Telegram). Billing, renewal, and cancellation follow Tribute’s rules and your payment method. Pro trial is one-time per account unless stated otherwise on the pricing page. If you do not subscribe after trial, limits revert to Free. Refunds for an already provided subscription period are not offered except where required by applicable law.',
+    s5Title: '5. Features and usage',
+    s5Body:
+      'All Nordly features are included for signed-in users. Fair-use limits may apply to protect the service (for example device sync, publishing, or code runs). The operator may adjust limits with notice when reasonably possible.',
     s6Title: '6. Limitation of liability',
     s6Body:
-      'The Service is provided “as is”. The operator is not liable for indirect damages, lost profits, data loss caused by third parties, failures of connectivity, hosting, payment providers, or force majeure. Total liability is limited to Pro fees you actually paid in the last 12 months (if applicable).',
+      'The Service is provided “as is”. The operator is not liable for indirect damages, lost profits, data loss caused by third parties, failures of connectivity, hosting, or force majeure.',
     s7Title: '7. Suspension and termination',
     s7Body:
       'You may stop using the Service at any time. The operator may restrict or terminate access for violations of these Terms, legal requirements, or security threats, with notice via account contacts when reasonably possible.',

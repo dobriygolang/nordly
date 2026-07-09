@@ -5,6 +5,8 @@ import { useT } from '@nordly-i18n';
 
 import type { BoardSummary } from '@features/whiteboard/api/whiteboardClient';
 import { Icon } from '@shared/ui/primitives/Icon';
+import { noteMenuPos } from '@shared/lib/noteMenuPos';
+import { useVaultRowMenuDismiss } from '@shared/lib/useVaultRowMenuDismiss';
 
 const MENU_W = 168;
 
@@ -12,6 +14,8 @@ export interface BoardRowProps {
   board: BoardSummary;
   active: boolean;
   cloudEnabled: boolean;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
   onShare?: () => void;
   onPublish?: () => void;
@@ -22,6 +26,8 @@ export const BoardRow = memo(function BoardRow({
   board,
   active,
   cloudEnabled,
+  menuOpen,
+  onMenuOpenChange,
   onSelect,
   onShare,
   onPublish,
@@ -29,63 +35,38 @@ export const BoardRow = memo(function BoardRow({
 }: BoardRowProps) {
   const t = useT();
   const [hover, setHover] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const closeMenu = useCallback(() => onMenuOpenChange(false), [onMenuOpenChange]);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
 
-  const showMore = hover || menuOpen;
+  const showMore = hover || menuOpen || active;
   const rowLabel = board.title || t('nordly.whiteboard.untitled');
 
   const updateMenuPos = useCallback(() => {
     const el = moreRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setMenuPos({ top: r.bottom + 4, left: r.right - MENU_W });
+    setMenuPos(noteMenuPos(r, MENU_W));
   }, []);
 
   useEffect(() => {
     if (!menuOpen) {
       setMenuPos(null);
-      return;
     }
-    updateMenuPos();
-    const onDoc = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (!rowRef.current?.contains(target) && !menuRef.current?.contains(target)) {
-        setMenuOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    const onScroll = (e: Event) => {
-      const target = e.target as Node;
-      if (menuRef.current?.contains(target)) return;
-      setMenuOpen(false);
-    };
-    // Use click (not mousedown) so menu item clicks register before the menu closes.
-    window.addEventListener('click', onDoc);
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', updateMenuPos);
-    return () => {
-      window.removeEventListener('click', onDoc);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', updateMenuPos);
-    };
-  }, [menuOpen, updateMenuPos]);
+  }, [menuOpen]);
+
+  useVaultRowMenuDismiss(menuOpen, closeMenu, rowRef, menuRef, updateMenuPos);
 
   const handleDelete = useCallback(async () => {
-    setMenuOpen(false);
+    closeMenu();
     try {
       await onDelete(board.id);
     } catch {
       /* surfaced in WhiteboardPage */
     }
-  }, [board.id, onDelete]);
+  }, [board.id, onDelete, closeMenu]);
 
   return (
     <>
@@ -110,9 +91,10 @@ export const BoardRow = memo(function BoardRow({
           data-visible={showMore ? 'true' : 'false'}
           data-open={menuOpen ? 'true' : 'false'}
           aria-label={t('nordly.whiteboard.menu.more')}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            setMenuOpen((o) => !o);
+            onMenuOpenChange(!menuOpen);
           }}
         >
           <Icon name="more" size={14} />
@@ -125,7 +107,7 @@ export const BoardRow = memo(function BoardRow({
           <div
             ref={menuRef}
             className="nordly-note-menu"
-            style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: MENU_W }}
+            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, width: MENU_W }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             role="menu"
@@ -135,7 +117,7 @@ export const BoardRow = memo(function BoardRow({
                 type="button"
                 className="nordly-note-menu__item"
                 onClick={() => {
-                  setMenuOpen(false);
+                  closeMenu();
                   onShare();
                 }}
               >
@@ -150,7 +132,7 @@ export const BoardRow = memo(function BoardRow({
                 type="button"
                 className="nordly-note-menu__item"
                 onClick={() => {
-                  setMenuOpen(false);
+                  closeMenu();
                   onPublish();
                 }}
               >

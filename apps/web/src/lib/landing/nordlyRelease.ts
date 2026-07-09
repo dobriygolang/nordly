@@ -1,5 +1,5 @@
-export const NORDLY_CDN_DESKTOP_BASE = (
-  import.meta.env.VITE_NORDLY_CDN_DESKTOP_BASE ?? 'https://cdn.trynordly.app/desktop'
+export const NORDLY_DESKTOP_BASE = (
+  import.meta.env.VITE_NORDLY_DESKTOP_BASE ?? '/desktop'
 ).replace(/\/$/, '')
 
 export const NORDLY_DOWNLOAD_PATH = '/download'
@@ -8,7 +8,12 @@ const SITE_ORIGIN = (import.meta.env.VITE_SITE_ORIGIN ?? 'https://trynordly.app'
 
 export const NORDLY_DOWNLOAD_PAGE = `${SITE_ORIGIN}${NORDLY_DOWNLOAD_PATH}`
 
-const RELEASES_JSON_URL = `${NORDLY_CDN_DESKTOP_BASE}/releases.json`
+/** Absolute base for installer URLs in releases.json (CI publish script). */
+export const NORDLY_DESKTOP_PUBLIC_BASE = NORDLY_DESKTOP_BASE.startsWith('http')
+  ? NORDLY_DESKTOP_BASE
+  : `${SITE_ORIGIN}${NORDLY_DESKTOP_BASE}`
+
+const RELEASES_JSON_URL = `${NORDLY_DESKTOP_BASE}/releases.json`
 const CACHE_KEY = 'nordly:latest-release'
 const CACHE_MS = 15 * 60 * 1000
 

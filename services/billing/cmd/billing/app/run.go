@@ -78,8 +78,6 @@ func New(ctx context.Context) (*App, error) {
 		TierToPlan:        cfg.TributeTierToPlan,
 		PlansCache:        plansCache,
 		EntitlementsCache: entitlementsCache,
-		ProTrialEnabled:   cfg.ProTrialEnabled,
-		ProTrialDays:      cfg.ProTrialDays,
 	})
 
 	jwtValidator, err := jwt.NewValidator(cfg.JWTPublicKeyPEM)

@@ -27,8 +27,9 @@ import {
   errorMessage,
   type ListState,
 } from './utils';
+import { VAULT_SIDEBAR_W } from '../vaultSidebar';
 
-const SIDEBAR_W = 252;
+const SIDEBAR_W = VAULT_SIDEBAR_W;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
 
 async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {

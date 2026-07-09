@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Rewrite Tauri updater manifest + landing releases.json for cdn.trynordly.app.
+ * Rewrite Tauri updater manifest + landing releases.json for trynordly.app/desktop.
  *
  * Usage:
  *   node deploy/scripts/prepare-desktop-cdn.mjs \
  *     --input /tmp/desktop-release \
  *     --tag nordly-v0.0.2 \
- *     --cdn-base https://cdn.trynordly.app/desktop \
+ *     --cdn-base https://trynordly.app/desktop \
  *     --output /tmp/cdn-upload
  */
 import fs from 'node:fs'
@@ -37,6 +37,35 @@ function parseArgs(argv) {
 function copyFile(src, dest) {
   fs.mkdirSync(path.dirname(dest), { recursive: true })
   fs.copyFileSync(src, dest)
+}
+
+function pickUpdaterAsset(platform, files) {
+  const byPlatform = {
+    'darwin-aarch64': () => files.find((f) => /_aarch64\.app\.tar\.gz$/i.test(f)),
+    'darwin-aarch64-app': () => files.find((f) => /_aarch64\.app\.tar\.gz$/i.test(f)),
+    'darwin-x86_64': () => files.find((f) => /_x64\.app\.tar\.gz$/i.test(f)),
+    'darwin-x86_64-app': () => files.find((f) => /_x64\.app\.tar\.gz$/i.test(f)),
+    'windows-x86_64-nsis': () => files.find((f) => /-setup\.exe$/i.test(f)),
+    'windows-x86_64': () => files.find((f) => /-setup\.exe$/i.test(f)),
+    'windows-x86_64-msi': () => files.find((f) => /\.msi$/i.test(f)),
+  }
+  const pick = byPlatform[platform]
+  if (!pick) return null
+  return pick() ?? null
+}
+
+function resolveAssetBasename(platform, info, files) {
+  try {
+    const fromUrl = path.basename(new URL(info.url).pathname)
+    if (fromUrl && files.includes(fromUrl)) return fromUrl
+  } catch {
+    /* GitHub API asset URLs have numeric path segments */
+  }
+  const mapped = pickUpdaterAsset(platform, files)
+  if (!mapped) {
+    throw new Error(`latest.json: no local asset for platform ${platform}`)
+  }
+  return mapped
 }
 
 function pickInstaller(files) {
@@ -84,7 +113,7 @@ for (const [platform, info] of Object.entries(latest.platforms)) {
   if (!info || typeof info !== 'object' || typeof info.url !== 'string') {
     throw new Error(`latest.json: invalid platform ${platform}`)
   }
-  const basename = path.basename(new URL(info.url).pathname)
+  const basename = resolveAssetBasename(platform, info, inputFiles)
   const localPath = path.join(outTagDir, basename)
   if (!fs.existsSync(localPath)) {
     throw new Error(`latest.json references missing asset: ${basename}`)

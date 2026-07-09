@@ -17,9 +17,6 @@ export function LandingFooter() {
             <Link to="/live/new" className="no-underline transition-colors hover:text-site-text">
               {t('public.liveCoding')}
             </Link>
-            <Link to="/pricing" className="no-underline transition-colors hover:text-site-text">
-              {t('public.pricing')}
-            </Link>
             <Link to="/legal/privacy" className="no-underline transition-colors hover:text-site-text">
               {t('public.privacy')}
             </Link>

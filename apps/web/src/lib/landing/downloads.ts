@@ -1,7 +1,8 @@
 import {
   detectMacArch,
   fetchLatestNordlyRelease,
-  NORDLY_CDN_DESKTOP_BASE,
+  NORDLY_DESKTOP_BASE,
+  NORDLY_DESKTOP_PUBLIC_BASE,
   NORDLY_DOWNLOAD_PAGE,
   NORDLY_DOWNLOAD_PATH,
   type NordlyReleaseInfo,
@@ -12,7 +13,7 @@ const WIN_URL = import.meta.env.VITE_NORDLY_DOWNLOAD_WIN ?? ''
 
 export type DownloadPlatform = 'mac' | 'windows' | 'other'
 
-export { NORDLY_CDN_DESKTOP_BASE, NORDLY_DOWNLOAD_PAGE, NORDLY_DOWNLOAD_PATH }
+export { NORDLY_DESKTOP_BASE, NORDLY_DESKTOP_PUBLIC_BASE, NORDLY_DOWNLOAD_PAGE, NORDLY_DOWNLOAD_PATH }
 
 export function detectPlatform(): DownloadPlatform {
   if (typeof navigator === 'undefined') return 'other'
@@ -44,7 +45,8 @@ function urlFromEnv(platform: DownloadPlatform): string | null {
 
 export function isDirectInstallerUrl(url: string): boolean {
   return (
-    url.startsWith(`${NORDLY_CDN_DESKTOP_BASE}/`) ||
+    url.startsWith(`${NORDLY_DESKTOP_PUBLIC_BASE}/`) ||
+    url.startsWith(`${NORDLY_DESKTOP_BASE}/`) ||
     /\.(dmg|exe|msi)(\?|#|$)/i.test(url)
   )
 }

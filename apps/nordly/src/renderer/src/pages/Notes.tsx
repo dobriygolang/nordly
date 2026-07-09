@@ -34,6 +34,7 @@ import {
 import { Sidebar } from './Notes/Sidebar';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { Editor } from './Notes/Editor';
+import { VAULT_SIDEBAR_W } from './vaultSidebar';
 
 const SAVE_STATUS_FADE_MS = 1200;
 const AUTOSAVE_DEBOUNCE_MS = 250;
@@ -396,7 +397,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     [flushNow],
   );
 
-  const SIDEBAR_W = 220;
+  const SIDEBAR_W = VAULT_SIDEBAR_W;
 
   return (
     <div className="nordly-vault">

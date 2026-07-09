@@ -6,59 +6,55 @@ Module: `github.com/dobriygolang/project-nordly/services/billing`
 
 ## Purpose
 
-**Entitlements, quotas, subscriptions.** Product services call billing before expensive work.
+**Entitlements, quotas, usage counters.** Product services call billing before expensive work.
 
-Owns: plans, entitlements, subscriptions, usage counters, Tribute webhooks.
+Owns: plan entitlements (single active `default` plan), usage counters, subscription/webhook infra for ops.
 
 Does not own: users (identity), tasks (tracker), notes (notes service).
 
 ## Entitlements
 
-`value_json`: `{"type":"bool","value":true}` or `{"type":"counter","limit":N,"period":"day"|"month"}` or `{"type":"gauge","limit":N}`.
+`value_json`: `{"type":"bool","value":true}` or `{"type":"counter","limit":N,"period":"day"|"month"}` or `{"type":"gauge","limit":N}`. Omit `limit` for unlimited.
 
-Seeded in migrations (`00001`, `00003`, `00004`, `00005`). Plans: `free`, `pro_monthly`.
+Seeded in migrations (`00001`–`00007`). Active plan: `default` (`pro_monthly` deactivated).
 
-Full matrix + enforcement status: [docs/billing-plans.md](../../docs/billing-plans.md).
+Full matrix + enforcement: [docs/billing-features.md](../../docs/billing-features.md).
 
-### Nordly desktop (public pricing catalog)
+### Nordly desktop (Settings → Features)
 
-| Key | Type | Free | Pro |
-|-----|------|------|-----|
-| cloud_sync_enabled | bool | false | true |
-| cloud_sync_devices | gauge | 0 | 5 |
-| published_notes_active | gauge | 10 | 100 |
-| publish_password | bool | false | true |
+| Key | Type | default plan |
+|-----|------|--------------|
+| cloud_sync_enabled | bool | true |
+| cloud_sync_devices | gauge | unlimited |
+| published_notes_active | gauge | unlimited |
+| publish_password | bool | true |
 
-Notes are unlimited on all plans (not in pricing catalog).
+Notes are unlimited (`cloud_notes_count` gauge in DB, not enforced).
 
-`GET /v1/billing/plans` returns only the rows above (`catalog.PublicPricingView`).
+### Internal
 
-### Internal (hidden from pricing API)
-
-| Key | Type | Free | Pro |
-|-----|------|------|-----|
-| code_runs_per_day | counter/day | unlimited | 500 |
-| live_rooms_per_month | counter/month | unlimited | 30 |
-| live_rooms_concurrent | gauge | unlimited | 5 |
-
-**Not seeded** (retired with interview/content/recommendation): `mock_interviews_per_month`, `ai_evaluations_per_day`, `ai_insights_per_day`, `company_templates_enabled`, `recommendations_enabled`, `advanced_feedback_enabled`, `sd_ai_turns_per_month`, `hidden_tests_enabled`.
+| Key | Type | default plan | Consumer |
+|-----|------|--------------|----------|
+| code_runs_per_day | counter/day | unlimited | sandbox |
+| live_rooms_per_month | counter/month | unlimited | (reserved) |
+| live_rooms_concurrent | gauge | unlimited | (reserved) |
 
 ## API
 
 | RPC | HTTP | Auth |
 |-----|------|------|
-| ListPlans | `GET /v1/billing/plans` | public |
+| GetMe | `GET /v1/billing/me` | JWT |
 | GetEntitlements, CheckEntitlement, CheckAndConsumeUsage, ReleaseUsage | gRPC | `x-internal-token` |
 | Grant/Revoke subscription | admin HTTP | `x-internal-token` |
 | Tribute webhook | `POST /v1/billing/webhooks/tribute` | `trbt-signature` HMAC-SHA256 hex only |
 
-Consumers: **sandbox** (code_runs_per_day), **notes** (`published_notes_active`, `publish_password`).
+Consumers: **identity** (cloud sync), **notes** (publish), **sandbox** (code runs). **Nordly desktop** reads `GET /v1/billing/me` for Settings → Features.
 
 ## Invariants
 
+- `resolvePlan` always returns active `default` plan (subscriptions do not change entitlements)
 - Atomic consume (`INSERT … ON CONFLICT … WHERE used+amount<=limit`)
 - Webhook + subscription changes in one tx; duplicate webhooks idempotent
-- One active subscription per user (partial unique index)
 - `ReleaseUsage` idempotent via `usage_release_dedup`
 
 ## Caches

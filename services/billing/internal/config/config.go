@@ -27,8 +27,6 @@ type Config struct {
 	CORSAllowedOrigins   []string
 	RedisAddr            string
 	EntitlementsCacheTTL time.Duration
-	ProTrialEnabled      bool
-	ProTrialDays         int
 }
 
 // TributeCheckoutConfig holds per-plan payment links from Tribute Creator dashboard.
@@ -59,12 +57,6 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid ENTITLEMENTS_CACHE_TTL: %w", err)
 	}
 
-	proTrialDays, err := strconv.Atoi(getEnv("PRO_TRIAL_DAYS", "14"))
-	if err != nil || proTrialDays <= 0 {
-		return nil, fmt.Errorf("invalid PRO_TRIAL_DAYS")
-	}
-	proTrialEnabled := parseBool(getEnv("PRO_TRIAL_ENABLED", "true"))
-
 	internalToken := os.Getenv("INTERNAL_API_TOKEN")
 	if internalToken == "" {
 		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
@@ -94,8 +86,6 @@ func Load() (*Config, error) {
 		CORSAllowedOrigins:   ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		RedisAddr:            getEnv("REDIS_ADDR", ""),
 		EntitlementsCacheTTL: entitlementsTTL,
-		ProTrialEnabled:      proTrialEnabled,
-		ProTrialDays:         proTrialDays,
 	}, nil
 }
 

@@ -3,7 +3,7 @@
 # Flow: browser → xray:443 (REALITY) → nginx:8123 (TLS by SNI) → Caddy:18080
 #
 # 1. Caddy in Docker: 127.0.0.1:18080 only (see docker-compose.prod.yml)
-# 2. certbot for trynordly.app
+# 2. certbot for trynordly.app (include app/api/grafana subdomains; cdn.* optional — desktop uses /desktop on main host)
 # 3. Enable this site + set xray realitySettings.target = 127.0.0.1:8123
 # 4. Do NOT bind Docker Caddy to host :80/:443
 

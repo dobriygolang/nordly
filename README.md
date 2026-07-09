@@ -25,7 +25,7 @@ Ports and DB names: [AGENTS.md](AGENTS.md#port-allocation-defaults).
 | Doc                                                              | For                                 |
 | ---------------------------------------------------------------- | ----------------------------------- |
 | [AGENTS.md](AGENTS.md)                                           | Monorepo index, service template    |
-| [docs/billing-plans.md](docs/billing-plans.md)                     | Free vs Pro entitlements            |
+| [docs/billing-features.md](docs/billing-features.md)               | Billing feature entitlements        |
 | [docs/onboarding/](docs/onboarding/)                             | Architecture diagrams + service map |
 | [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md) | First prod deploy                   |
 | [deploy/RUNBOOK.md](deploy/RUNBOOK.md)                           | Ops, incidents, monitoring          |

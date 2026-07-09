@@ -57,14 +57,21 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 | Service | Port (dev) | Used for |
 |---------|------------|----------|
 | identity | 8080 | Auth, healthz |
+| billing | 8085 | Feature usage (`GET /v1/billing/me`) for Settings → Features |
 | tracker | 8089 | Work tasks, Google Calendar |
 | notes | 8090 | Notes CRUD, vault, publish |
 | focus | 8091 | Sessions, stats |
 | rooms | 8087 | Whiteboard live share + publish |
 
-Billing is not called from Nordly.
+Billing: `GET /v1/billing/me` — Settings → Features (feature usage when signed in).
 
 ### HTTP endpoints (when sync enabled)
+
+**billing** — `shared/api/billingClient.ts`
+
+| Method | Path |
+|--------|------|
+| GET | `/v1/billing/me` |
 
 **identity**
 
@@ -247,7 +254,7 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 | Piece | Location |
 |-------|----------|
 | CI workflow | `.github/workflows/nordly-release.yml` — trigger: tag `nordly-v*` |
-| Updater endpoint | `https://cdn.trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
+| Updater endpoint | `https://trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
 | CDN sync | same workflow, job `sync-cdn` — rewrites manifests + SCP to VPS `deploy/data/cdn/desktop/` |
 | Settings UI | `pages/Settings/sections/SoftwareSection.tsx` |
 | Updater helper | `shared/lib/updater.ts` — `@tauri-apps/plugin-updater` + `plugin-process` relaunch |

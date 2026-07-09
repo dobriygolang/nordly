@@ -97,7 +97,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: var(--nordly-drag-h);
+  height: var(--nordly-page-top);
   z-index: 100;
   pointer-events: auto;
   -webkit-app-region: drag;

@@ -71,6 +71,16 @@ http://trynordly.app, http://app.trynordly.app {
 	route {
 		import api_v1
 		import api_ws
+		handle /desktop/* {
+			root * /cdn
+			header Cache-Control "public, max-age=3600"
+			@manifest path /desktop/latest.json /desktop/releases.json
+			handle @manifest {
+				header Cache-Control "public, max-age=60"
+				file_server
+			}
+			file_server
+		}
 		handle {
 			root * /srv
 			try_files {path} /index.html
@@ -89,7 +99,8 @@ http://grafana.trynordly.app {
 	}
 }
 
-# Static CDN — desktop installers + updater manifests (CI: nordly-release sync-cdn job)
+# Optional CDN host — requires TLS cert SAN for cdn.trynordly.app (see deploy/nginx-trynordly.conf.example).
+# Desktop downloads are served on trynordly.app/desktop/* (same cert as the landing).
 http://cdn.trynordly.app {
 	encode gzip
 	root * /cdn

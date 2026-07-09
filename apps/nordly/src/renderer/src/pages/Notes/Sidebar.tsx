@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -30,6 +30,8 @@ export const Sidebar = memo(function Sidebar({
   onDelete,
 }: SidebarProps) {
   const t = useT();
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   return (
     <aside className="nordly-vault-sidebar">
       <div className="nordly-vault-sidebar__toolbar">
@@ -58,6 +60,8 @@ export const Sidebar = memo(function Sidebar({
             key={n.id}
             note={n}
             active={selectedId === n.id}
+            menuOpen={openMenuId === n.id}
+            onMenuOpenChange={(open) => setOpenMenuId(open ? n.id : null)}
             onSelect={onSelect}
             onPublish={onPublish}
             onUnpublish={onUnpublish}

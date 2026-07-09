@@ -42,46 +42,55 @@ function writeJson(filePath, mutate) {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
+function replaceLineValue(text, pattern, replacement) {
+  if (!pattern.test(text)) {
+    return null
+  }
+  pattern.lastIndex = 0
+  return text.replace(pattern, replacement)
+}
+
 function syncVersion(version) {
   const tauriPath = path.join(appDir, 'src-tauri/tauri.conf.json')
   const tauri = fs.readFileSync(tauriPath, 'utf8')
-  if (!/^  "version": "/m.test(tauri)) {
-    throw new Error(`version field not found in ${tauriPath}`)
-  }
-  fs.writeFileSync(
-    tauriPath,
-    tauri.replace(/^  "version": ".*",/m, `  "version": "${version}",`),
+  const tauriNext = replaceLineValue(
+    tauri,
+    /^  "version": ".*",/m,
+    `  "version": "${version}",`,
   )
+  if (tauriNext == null) throw new Error(`version field not found in ${tauriPath}`)
+  fs.writeFileSync(tauriPath, tauriNext)
 
   const cargoPath = path.join(appDir, 'src-tauri/Cargo.toml')
   const cargo = fs.readFileSync(cargoPath, 'utf8')
-  fs.writeFileSync(
-    cargoPath,
-    cargo.replace(/^version = ".*"/m, `version = "${version}"`),
-  )
+  const cargoNext = replaceLineValue(cargo, /^version = ".*"/m, `version = "${version}"`)
+  if (cargoNext == null) throw new Error(`version field not found in ${cargoPath}`)
+  fs.writeFileSync(cargoPath, cargoNext)
 
   const pkgPath = path.join(appDir, 'package.json')
   const pkg = fs.readFileSync(pkgPath, 'utf8')
-  if (!/^  "version": "/m.test(pkg)) {
-    throw new Error(`version field not found in ${pkgPath}`)
-  }
-  fs.writeFileSync(
-    pkgPath,
-    pkg.replace(/^  "version": ".*",/m, `  "version": "${version}",`),
+  const pkgNext = replaceLineValue(
+    pkg,
+    /^  "version": ".*",/m,
+    `  "version": "${version}",`,
   )
+  if (pkgNext == null) throw new Error(`version field not found in ${pkgPath}`)
+  fs.writeFileSync(pkgPath, pkgNext)
 
   const cargoLockPath = path.join(appDir, 'src-tauri/Cargo.lock')
   const cargoLock = fs.readFileSync(cargoLockPath, 'utf8')
-  if (!/^name = "nordly"\nversion = "/m.test(cargoLock)) {
+  const cargoLockNext = replaceLineValue(
+    cargoLock,
+    /^name = "nordly"\r?\nversion = ".*"/m,
+    (match) => {
+      const nl = match.includes('\r\n') ? '\r\n' : '\n'
+      return `name = "nordly"${nl}version = "${version}"`
+    },
+  )
+  if (cargoLockNext == null) {
     throw new Error(`nordly package version not found in ${cargoLockPath}`)
   }
-  fs.writeFileSync(
-    cargoLockPath,
-    cargoLock.replace(
-      /^name = "nordly"\nversion = ".*"/m,
-      `name = "nordly"\nversion = "${version}"`,
-    ),
-  )
+  fs.writeFileSync(cargoLockPath, cargoLockNext)
 
   const lockPath = path.join(appDir, 'package-lock.json')
   writeJson(lockPath, (lock) => {

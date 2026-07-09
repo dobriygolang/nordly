@@ -401,10 +401,6 @@ func (s *billingService) resolvePlan(ctx context.Context, _ string) (*model.Plan
 	return s.getPlanBySlug(ctx, model.PlanDefault)
 }
 
-func (s *billingService) getPlanByID(ctx context.Context, id string) (*model.Plan, error) {
-	return s.plansCache.GetPlanByID(id)
-}
-
 func (s *billingService) getPlanBySlug(ctx context.Context, slug string) (*model.Plan, error) {
 	return s.plansCache.GetPlanBySlug(slug)
 }

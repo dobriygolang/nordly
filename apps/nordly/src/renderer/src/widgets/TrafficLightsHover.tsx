@@ -17,14 +17,11 @@
 // только при реальной смене visible/hidden.
 import { memo, useEffect, useRef, type CSSProperties } from 'react';
 
-// Hover-зона. ВАЖНО: должна совпадать с inline-style ниже — оба значения
-// используются и React-onMouseEnter (как fallback), и глобальным mousemove.
-const ZONE_WIDTH = 200;
-const ZONE_HEIGHT = 64;
+// Hover-зона — только левый верхний угол под traffic-light кнопки (не wordmark).
+const ZONE_WIDTH = 72;
+const ZONE_HEIGHT = 32;
 
-// Задержка перед скрытием. 350ms — комфортный буфер чтобы юзер успел
-// довести курсор от Wordmark'а до кнопки и не дёргать show/hide на
-// транзитном движении мыши.
+// Задержка перед скрытием — буфер чтобы довести курсор до кнопок.
 const HIDE_DELAY_MS = 350;
 
 const ZONE_STYLE = {

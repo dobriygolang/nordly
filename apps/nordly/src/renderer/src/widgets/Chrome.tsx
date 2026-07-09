@@ -7,7 +7,7 @@ export const NORDLY_HEADER_H = 40;
 
 const WORDMARK_ROOT_STYLE: CSSProperties = {
   position: 'absolute',
-  top: 24,
+  top: 36,
   left: 40,
   zIndex: 10,
   pointerEvents: 'none',
@@ -40,7 +40,7 @@ function formatVersionLabel(version: string): string {
 
 const VERSION_BADGE_STYLE: CSSProperties = {
   position: 'absolute',
-  top: 40,
+  top: 52,
   right: 40,
   zIndex: 10,
   pointerEvents: 'none',

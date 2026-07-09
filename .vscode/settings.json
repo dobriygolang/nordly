@@ -1,0 +1,12 @@
+{
+  "go.toolsEnvVars": {
+    "GOPROXY": "https://proxy.golang.org,direct",
+    "GOWORK": "off"
+  },
+  "gopls": {
+    "build.env": {
+      "GOPROXY": "https://proxy.golang.org,direct",
+      "GOWORK": "off"
+    }
+  }
+}

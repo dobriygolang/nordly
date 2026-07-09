@@ -154,15 +154,6 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func parseBool(raw string) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
-}
-
 func grpcListenHost() string {
 	if v := os.Getenv("GRPC_HOST"); v != "" {
 		return v

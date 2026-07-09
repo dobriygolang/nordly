@@ -36,8 +36,9 @@ function sortHomeTasks(a: TaskCard, b: TaskCard): number {
   return aOrder - bOrder;
 }
 
-export function HomeTodayTasks(): JSX.Element {
+export function HomeTodayTasks(): JSX.Element | null {
   const t = useT();
+  const sessionReady = useSessionStore((s) => s.status === 'signed_in' && s.userId != null);
   const todayKey = useMemo(() => toDayKey(new Date()), []);
   const { epics } = useTaskEpics();
   const [tasks, setTasks] = useState<TaskCard[]>([]);
@@ -64,14 +65,18 @@ export function HomeTodayTasks(): JSX.Element {
   }, []);
 
   const refreshPlan = useCallback(async () => {
+    const { status, userId } = useSessionStore.getState();
+    if (status !== 'signed_in' || !userId) return;
+
     setDailyPlan(await loadDailyPlan(todayKey));
     setLoadError(null);
   }, [todayKey]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
     void refreshPlan().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-  }, [refresh, refreshPlan]);
+  }, [sessionReady, refresh, refreshPlan]);
 
   useEffect(() => {
     const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
@@ -114,7 +119,12 @@ export function HomeTodayTasks(): JSX.Element {
     [],
   );
 
-  if (loadError) throw loadError;
+  if (!sessionReady) return null;
+
+  if (loadError) {
+    if (loadError.message.includes('userId not set')) return null;
+    throw loadError;
+  }
 
   if (todayTasks.length === 0 && !planFinalized) {
     return (

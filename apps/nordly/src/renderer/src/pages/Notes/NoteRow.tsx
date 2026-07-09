@@ -5,7 +5,13 @@ import { useT } from '@nordly-i18n';
 
 import type { NoteSummary, PublishStatus, PublishToWebOptions } from '@features/notes/api/notesClient';
 import { getPublishStatus, isNoteVaultLocked } from '@features/notes/api/notesClient';
-import { DEFAULT_PUBLISH_OPTIONS, type PublishFeatureEntitlements } from '@features/notes/model/publishOptions';
+import {
+  DEFAULT_PUBLISH_OPTIONS,
+  canApplyPublishOptions,
+  publishOptionsFromStatus,
+  serializePublishOptions,
+  type PublishFeatureEntitlements,
+} from '@features/notes/model/publishOptions';
 import { fetchBillingMe } from '@shared/api/billingClient';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
@@ -17,6 +23,7 @@ import { NoteRowMenu } from './NoteRowMenu';
 
 const MENU_W = 168;
 const MENU_W_WIDE = 240;
+const PUBLISH_OPTIONS_SAVE_MS = 450;
 
 export interface NoteRowProps {
   note: NoteSummary;
@@ -26,7 +33,6 @@ export interface NoteRowProps {
   onSelect: (id: string) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
-  onRegenerate: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -38,7 +44,6 @@ export const NoteRow = memo(function NoteRow({
   onSelect,
   onPublish,
   onUnpublish,
-  onRegenerate,
   onDelete,
 }: NoteRowProps) {
   const t = useT();
@@ -52,6 +57,8 @@ export const NoteRow = memo(function NoteRow({
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const serverPasswordProtectedRef = useRef(false);
+  const lastAppliedOptionsRef = useRef(serializePublishOptions(DEFAULT_PUBLISH_OPTIONS));
 
   const showMore = hover || menuOpen || active;
   const vaultLocked = isNoteVaultLocked(note);
@@ -59,7 +66,9 @@ export const NoteRow = memo(function NoteRow({
     ? t('nordly.notes.vault_locked_list')
     : note.title || t('nordly.notes.untitled');
 
-  const menuWide = publishingAvailable && publishOptions.passwordProtected;
+  const menuWide =
+    publishingAvailable &&
+    (publishEntitlements === null || publishEntitlements.publishPrivateLink === true);
   const menuW = menuWide ? MENU_W_WIDE : MENU_W;
 
   const updateMenuPos = useCallback(() => {
@@ -78,6 +87,10 @@ export const NoteRow = memo(function NoteRow({
       .then(([status, billing]) => {
         if (!live) return;
         setPubStatus(status);
+        const opts = publishOptionsFromStatus(status);
+        setPublishOptions(opts);
+        serverPasswordProtectedRef.current = status.passwordProtected === true;
+        lastAppliedOptionsRef.current = serializePublishOptions(opts);
         if (billing) {
           setPublishEntitlements({
             publishPrivateLink: billing.features.publish_password === true,
@@ -95,18 +108,39 @@ export const NoteRow = memo(function NoteRow({
 
   useEffect(() => {
     if (!menuOpen) {
-      setPublishOptions(DEFAULT_PUBLISH_OPTIONS);
-      setPublishEntitlements(null);
-    }
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!menuOpen) {
       setMenuPos(null);
       return;
     }
     updateMenuPos();
   }, [menuOpen, menuW, updateMenuPos]);
+
+  useEffect(() => {
+    if (!menuOpen || !pubStatus?.published) return;
+
+    const serialized = serializePublishOptions(publishOptions);
+    if (serialized === lastAppliedOptionsRef.current) return;
+    if (!canApplyPublishOptions(publishOptions, serverPasswordProtectedRef.current)) return;
+
+    const timer = window.setTimeout(() => {
+      void onPublish(note.id, publishOptions)
+        .then((res) => {
+          if (!res) return;
+          setPubStatus(res);
+          serverPasswordProtectedRef.current = res.passwordProtected === true;
+          const synced = publishOptionsFromStatus(res);
+          lastAppliedOptionsRef.current = serializePublishOptions(synced);
+          setPublishOptions((prev) => ({
+            ...synced,
+            password: prev.password,
+          }));
+        })
+        .catch(() => {
+          /* surfaced in NotesPage */
+        });
+    }, PUBLISH_OPTIONS_SAVE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [menuOpen, note.id, onPublish, pubStatus?.published, publishOptions]);
 
   useVaultRowMenuDismiss(menuOpen, closeMenu, rowRef, menuRef, updateMenuPos);
 
@@ -149,16 +183,6 @@ export const NoteRow = memo(function NoteRow({
       /* error surfaced in NotesPage */
     }
   }, [note.id, onUnpublish, closeMenu]);
-
-  const handleRegenerate = useCallback(async () => {
-    closeMenu();
-    try {
-      const res = await onRegenerate(note.id, publishOptions);
-      if (res) setPubStatus(res);
-    } catch {
-      /* error surfaced in NotesPage */
-    }
-  }, [note.id, onRegenerate, publishOptions, closeMenu]);
 
   const handleDelete = useCallback(async () => {
     closeMenu();
@@ -213,6 +237,7 @@ export const NoteRow = memo(function NoteRow({
             vaultReady={isVaultReadyForPublish()}
             publishOptions={publishOptions}
             publishEntitlements={publishEntitlements}
+            serverPasswordProtected={serverPasswordProtectedRef.current}
             style={{
               position: 'fixed',
               top: menuPos.top,
@@ -223,7 +248,6 @@ export const NoteRow = memo(function NoteRow({
             onPublish={() => void handlePublish()}
             onCopyLink={() => void copyLink()}
             onViewPublic={viewPublic}
-            onRegenerate={() => void handleRegenerate()}
             onUnpublish={() => void handleUnpublish()}
             onDelete={() => void handleDelete()}
           />,

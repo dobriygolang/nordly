@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>app.trynordly.desktop</string>
+  <key>CFBundleName</key>
+  <string>Nordly</string>
+  <key>CFBundleExecutable</key>
+  <string>nordly</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Nordly shows your Apple Calendar events alongside tasks in the day timeline.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Nordly shows your Apple Calendar events alongside tasks in the day timeline.</string>
+  <key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+  <string>Nordly needs calendar access to show your events in the day timeline.</string>
+</dict>
+</plist>

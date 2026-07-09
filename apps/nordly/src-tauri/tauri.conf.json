@@ -16,7 +16,8 @@
     "createUpdaterArtifacts": true,
     "macOS": {
       "signingIdentity": "-",
-      "entitlements": "Entitlements.plist"
+      "entitlements": "Entitlements.plist",
+      "infoPlist": "Info.plist"
     }
   },
   "build": {
@@ -67,6 +68,20 @@
         "skipTaskbar": true,
         "focus": false,
         "acceptFirstMouse": true
+      },
+      {
+        "label": "quick-capture",
+        "title": "Nordly Quick Capture",
+        "url": "index.html?view=quick-capture",
+        "width": 520,
+        "height": 132,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "focus": true
       }
     ],
     "security": {

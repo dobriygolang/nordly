@@ -21,6 +21,31 @@ func toProtoNote(n *notesmodel.Note) *notesv1.Note {
 	}
 }
 
+func fromProtoWikiLinks(links []*notesv1.WikiLinkRef) []notesmodel.WikiLinkRef {
+	if len(links) == 0 {
+		return nil
+	}
+	out := make([]notesmodel.WikiLinkRef, 0, len(links))
+	for _, l := range links {
+		if l == nil {
+			continue
+		}
+		out = append(out, notesmodel.WikiLinkRef{
+			TargetNoteID: l.GetTargetNoteId(),
+			LinkText:     l.GetLinkText(),
+		})
+	}
+	return out
+}
+
+func toProtoBacklinkEntry(e notesmodel.BacklinkEntry) *notesv1.BacklinkEntry {
+	return &notesv1.BacklinkEntry{
+		NoteId:    e.NoteID,
+		Title:     e.Title,
+		UpdatedAt: timestamppb.New(e.UpdatedAt),
+	}
+}
+
 func toProtoNoteSummary(n notesmodel.NoteSummary) *notesv1.NoteSummary {
 	return &notesv1.NoteSummary{
 		Id:        n.ID,

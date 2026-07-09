@@ -12,6 +12,7 @@ export interface PublishStatus {
   url?: string;
   publishedAt?: string;
   passwordProtected?: boolean;
+  expiresAt?: string;
 }
 
 export interface ShareToWebResult {
@@ -29,12 +30,17 @@ export async function remoteGetPublishStatus(noteId: string): Promise<PublishSta
   if (!resp.ok) throw new Error(`publish status: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
   const published = requireJsonBoolean(j, 'published');
+  const expiresAtRaw = j.expiresAt;
+  if (expiresAtRaw != null && typeof expiresAtRaw !== 'string') {
+    throw new Error('Invalid publish status: expiresAt must be a string');
+  }
   return {
     published,
     slug: published ? requireJsonString(j, 'slug') : undefined,
     url: published ? requireJsonString(j, 'url') : undefined,
     publishedAt: published ? requireJsonString(j, 'publishedAt') : undefined,
     passwordProtected: j.passwordProtected === true,
+    expiresAt: typeof expiresAtRaw === 'string' && expiresAtRaw ? expiresAtRaw : undefined,
   };
 }
 

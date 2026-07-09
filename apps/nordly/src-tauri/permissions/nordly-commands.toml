@@ -17,4 +17,12 @@ commands.allow = [
   "show_notification",
   "hide_notification",
   "focus_main_window",
+  "apple_calendar_auth_status",
+  "apple_calendar_runtime_info",
+  "apple_calendar_request_access",
+  "apple_calendar_open_settings",
+  "apple_calendar_list_calendars",
+  "apple_calendar_list_events",
+  "quick_capture_hide",
+  "quick_capture_apply_config",
 ]

@@ -408,6 +408,13 @@ export function TaskBoardPage(): JSX.Element {
     [handleReschedule],
   );
 
+  const handleTimelineDurationChange = useCallback(
+    (task: TaskCard, durationMin: number) => {
+      void handleDurationChange(task, durationMin, today);
+    },
+    [handleDurationChange, today],
+  );
+
   const handleBackToToday = useCallback(() => {
     scrollToToday();
     setSelectedDay(todayKey);
@@ -506,6 +513,7 @@ export function TaskBoardPage(): JSX.Element {
         tasks={tasks}
         epics={epics}
         onReschedule={handleTimelineReschedule}
+        onDurationChange={handleTimelineDurationChange}
       />
 
       {showBackToToday && (

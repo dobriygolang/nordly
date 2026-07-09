@@ -15,8 +15,10 @@ export interface EditorProps {
   draftTitle: string;
   draftBody: string;
   saveStatus: 'idle' | 'saving' | 'saved';
+  noteTitles: string[];
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
+  onWikiLinkClick: (linkText: string) => void;
   onCreate: () => void;
   onRetryList: () => void;
 }
@@ -28,8 +30,10 @@ export function Editor({
   draftTitle,
   draftBody,
   saveStatus,
+  noteTitles,
   onTitleChange,
   onBodyChange,
+  onWikiLinkClick,
   onCreate,
   onRetryList,
 }: EditorProps) {
@@ -49,8 +53,10 @@ export function Editor({
             key={active.id}
             title={draftTitle}
             body={draftBody}
+            noteTitles={noteTitles}
             onTitleChange={onTitleChange}
             onBodyChange={onBodyChange}
+            onWikiLinkClick={onWikiLinkClick}
           />
         )}
       </div>
@@ -90,13 +96,17 @@ function VaultLockedPane() {
 function ActiveEditor({
   title,
   body,
+  noteTitles,
   onTitleChange,
   onBodyChange,
+  onWikiLinkClick,
 }: {
   title: string;
   body: string;
+  noteTitles: string[];
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
+  onWikiLinkClick: (linkText: string) => void;
 }) {
   const t = useT();
   return (
@@ -112,6 +122,8 @@ function ActiveEditor({
         value={body}
         onChange={onBodyChange}
         placeholder={t('nordly.notes.editor.body_placeholder')}
+        noteTitles={noteTitles}
+        onWikiLinkClick={onWikiLinkClick}
       />
     </div>
   );

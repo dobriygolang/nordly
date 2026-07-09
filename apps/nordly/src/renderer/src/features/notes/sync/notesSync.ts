@@ -3,6 +3,7 @@ import {
   decryptNoteFromRemote,
   encryptNoteForRemote,
 } from '@features/notes/crypto/noteCrypto';
+import type { WikiLinkWire } from '@features/notes/lib/wikiLinks';
 import {
   noteToStored,
   remoteCreateNote,
@@ -14,6 +15,7 @@ import {
 import { remoteEncryptNoteBody } from '@features/notes/repository/vaultRemote';
 import {
   notesStoreGet,
+  notesStoreGetRow,
   notesStoreMergeRemote,
   notesStoreReplaceId,
 } from '@features/notes/repository/notesStore';
@@ -35,11 +37,33 @@ function requireOutboxString(payload: Record<string, unknown>, key: string, entr
   return payload[key];
 }
 
+function requireOutboxWikiLinks(payload: Record<string, unknown>, entryId: string): WikiLinkWire[] {
+  if (!('wikiLinks' in payload)) return [];
+  const raw = payload.wikiLinks;
+  if (!Array.isArray(raw)) {
+    throw new Error(`Invalid notes outbox payload: wikiLinks (${entryId})`);
+  }
+  return raw.map((item, index) => {
+    if (typeof item !== 'object' || item === null) {
+      throw new Error(`Invalid notes outbox payload: wikiLinks[${index}] (${entryId})`);
+    }
+    const row = item as Record<string, unknown>;
+    if (typeof row.linkText !== 'string') {
+      throw new Error(`Invalid notes outbox payload: wikiLinks[${index}].linkText (${entryId})`);
+    }
+    if (typeof row.targetNoteId !== 'string') {
+      throw new Error(`Invalid notes outbox payload: wikiLinks[${index}].targetNoteId (${entryId})`);
+    }
+    return { linkText: row.linkText, targetNoteId: row.targetNoteId };
+  });
+}
+
 async function resolveNoteServerId(
   entry: OutboxEntry,
   userId: string,
   title: string,
   bodyMd: string,
+  wikiLinks: WikiLinkWire[],
   e2ee: boolean,
 ): Promise<string | null> {
   const mapped = await getServerId('notes', entry.entityId, userId);
@@ -57,7 +81,7 @@ async function resolveNoteServerId(
 
   if (e2ee) {
     const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-    const created = await remoteCreateNote(encTitle, encBody);
+    const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
     await remoteEncryptNoteBody(created.id, encBody);
     await setServerId('notes', entry.entityId, created.id, userId);
     const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
@@ -65,7 +89,7 @@ async function resolveNoteServerId(
     return created.id;
   }
 
-  const created = await remoteCreateNote(title, bodyMd);
+  const created = await remoteCreateNote(title, bodyMd, wikiLinks);
   await setServerId('notes', entry.entityId, created.id, userId);
   await notesStoreReplaceId(entry.entityId, created);
   return created.id;
@@ -84,6 +108,9 @@ export async function ensureNoteServerId(localId: string): Promise<string | null
     throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
   }
 
+  const localRow = await notesStoreGetRow(localId, userId);
+  const wikiLinks = localRow?.wikiLinks ?? [];
+
   return resolveNoteServerId(
     {
       id: 'ensure',
@@ -91,13 +118,14 @@ export async function ensureNoteServerId(localId: string): Promise<string | null
       domain: 'notes',
       op: 'update',
       entityId: localId,
-      payload: { title: local.title, bodyMd: local.bodyMd },
+      payload: { title: local.title, bodyMd: local.bodyMd, wikiLinks },
       createdAt: Date.now(),
       attempts: 0,
     },
     userId,
     local.title,
     local.bodyMd,
+    wikiLinks,
     shouldPushE2ee(),
   );
 }
@@ -110,43 +138,24 @@ async function pushEncryptedNote(
   serverId: string,
   title: string,
   bodyMd: string,
+  wikiLinks: WikiLinkWire[],
 ): Promise<void> {
   const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-  await remoteUpdateNote(serverId, encTitle, encBody);
+  await remoteUpdateNote(serverId, encTitle, encBody, wikiLinks);
   await remoteEncryptNoteBody(serverId, encBody);
 }
 
-async function pushPlainNote(serverId: string, title: string, bodyMd: string): Promise<void> {
-  await remoteUpdateNote(serverId, title, bodyMd);
+async function pushPlainNote(
+  serverId: string,
+  title: string,
+  bodyMd: string,
+  wikiLinks: WikiLinkWire[],
+): Promise<void> {
+  await remoteUpdateNote(serverId, title, bodyMd, wikiLinks);
 }
 
 export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
   const userId = requireUserId();
-  const payload = entry.payload as Record<string, unknown>;
-  const title = requireOutboxString(payload, 'title', entry.id);
-  const bodyMd = requireOutboxString(payload, 'bodyMd', entry.id);
-  const e2ee = shouldPushE2ee();
-
-  if (isVaultEnabledSync() && !isVaultUnlocked()) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
-  }
-
-  if (entry.op === 'create') {
-    if (e2ee) {
-      const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-      const created = await remoteCreateNote(encTitle, encBody);
-      await remoteEncryptNoteBody(created.id, encBody);
-      await setServerId('notes', entry.entityId, created.id, userId);
-      const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
-      await notesStoreReplaceId(entry.entityId, plain);
-    } else {
-      const created = await remoteCreateNote(title, bodyMd);
-      await setServerId('notes', entry.entityId, created.id, userId);
-      await notesStoreReplaceId(entry.entityId, created);
-    }
-    await removeOutbox(entry.id, userId);
-    return;
-  }
 
   if (entry.op === 'delete') {
     const serverId = await resolveNotesServerId(entry.entityId, userId);
@@ -163,18 +172,45 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
     return;
   }
 
-  const serverId = await resolveNoteServerId(entry, userId, title, bodyMd, e2ee);
+  const payload = entry.payload as Record<string, unknown>;
+  const title = requireOutboxString(payload, 'title', entry.id);
+  const bodyMd = requireOutboxString(payload, 'bodyMd', entry.id);
+  const wikiLinks = requireOutboxWikiLinks(payload, entry.id);
+  const e2ee = shouldPushE2ee();
+
+  if (isVaultEnabledSync() && !isVaultUnlocked()) {
+    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+  }
+
+  if (entry.op === 'create') {
+    if (e2ee) {
+      const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
+      const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
+      await remoteEncryptNoteBody(created.id, encBody);
+      await setServerId('notes', entry.entityId, created.id, userId);
+      const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
+      await notesStoreReplaceId(entry.entityId, plain);
+    } else {
+      const created = await remoteCreateNote(title, bodyMd, wikiLinks);
+      await setServerId('notes', entry.entityId, created.id, userId);
+      await notesStoreReplaceId(entry.entityId, created);
+    }
+    await removeOutbox(entry.id, userId);
+    return;
+  }
+
+  const serverId = await resolveNoteServerId(entry, userId, title, bodyMd, wikiLinks, e2ee);
   if (!serverId) return;
 
   if (entry.op === 'update') {
     try {
       if (e2ee) {
-        await pushEncryptedNote(serverId, title, bodyMd);
+        await pushEncryptedNote(serverId, title, bodyMd, wikiLinks);
         const wire = await remoteGetNote(serverId);
         const plain = await decryptNoteFromRemote(wire);
         await notesStoreMergeRemote(noteToStored(plain, userId, true));
       } else {
-        await pushPlainNote(serverId, title, bodyMd);
+        await pushPlainNote(serverId, title, bodyMd, wikiLinks);
         const wire = await remoteGetNote(serverId);
         await notesStoreMergeRemote(noteToStored(wire, userId, false));
       }
@@ -218,6 +254,6 @@ export async function pushAllNotesEncrypted(): Promise<void> {
     if (row.deleted) continue;
     const plain = await decryptAtRest(row);
     const serverId = await resolveEntityId('notes', row.id, userId);
-    await pushEncryptedNote(serverId, plain.title, plain.bodyMd);
+    await pushEncryptedNote(serverId, plain.title, plain.bodyMd, row.wikiLinks ?? []);
   }
 }

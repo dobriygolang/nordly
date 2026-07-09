@@ -13,6 +13,7 @@ import { applyTextScale, readTextScale } from '@shared/model/accessibility';
 import { readStoredTheme } from '@shared/model/theme';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { NotificationOverlayApp } from '@widgets/NotificationOverlay';
+import { QuickCaptureApp } from '@widgets/QuickCaptureApp';
 import { TrayPopoverApp } from '@widgets/TrayPopover';
 import './styles/globals.css';
 
@@ -21,7 +22,7 @@ installSyncRegistry();
 applyTextScale(readTextScale());
 applyTheme(readStoredTheme());
 
-type NordlyView = 'main' | 'tray' | 'notification';
+type NordlyView = 'main' | 'tray' | 'notification' | 'quick-capture';
 
 function resolveView(): NordlyView {
   if (typeof window === 'undefined') return 'main';
@@ -30,6 +31,7 @@ function resolveView(): NordlyView {
       const label = getCurrentWebviewWindow().label;
       if (label === 'tray-popover') return 'tray';
       if (label === 'notification') return 'notification';
+      if (label === 'quick-capture') return 'quick-capture';
     }
   } catch {
     /* ignore */
@@ -39,6 +41,7 @@ function resolveView(): NordlyView {
     const view = params.get('view');
     if (view === 'tray') return 'tray';
     if (view === 'notification') return 'notification';
+    if (view === 'quick-capture') return 'quick-capture';
   } catch {
     /* ignore */
   }
@@ -54,6 +57,7 @@ const ROOT_META: Record<NordlyView, { component: () => JSX.Element; section: str
   main: { component: App, section: 'Nordly' },
   tray: { component: TrayPopoverApp, section: 'Nordly Tray' },
   notification: { component: NotificationOverlayApp, section: 'Nordly Notification' },
+  'quick-capture': { component: QuickCaptureApp, section: 'Nordly Quick Capture' },
 };
 
 const { component: RootApp, section } = ROOT_META[view];

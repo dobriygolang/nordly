@@ -31,7 +31,7 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover`, `quickCaptureEnabled`, `quickCaptureShortcut` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -140,7 +140,7 @@ Database: `nordly-db` v2. All entity stores use composite key `userId::id`.
 
 | Store | Purpose |
 |-------|---------|
-| `notes` | Note bodies + metadata |
+| `notes` | Note bodies + wiki-link metadata (`wikiLinks` on create/update) |
 | `tasks` | Work task cards |
 | `focus_sessions` | Local pomodoro sessions |
 | `whiteboards` | Excalidraw scene JSON |
@@ -228,11 +228,15 @@ Registered in `src-tauri/src/lib.rs`:
 | `shell_open_external` | Open URL in browser |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |
+| `quick_capture_hide` | Hide quick-capture overlay window |
+| `quick_capture_apply_config` | Register/unregister OS global shortcut (`enabled`, `shortcut`) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
+**Quick capture (desktop):** global shortcut (default `Command+Shift+N`, configurable in Settings → Shortcuts) toggles a small always-on-top `quick-capture` window. Enter saves a note (first line → title, rest → body); Shift+Enter newline; Esc dismiss. Empty blur auto-hides. Requires signed-in session. Emits `quick-capture:saved` → main dispatches `nordly:notes-changed`.
+
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `quick-capture:show|hide|blur|saved`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
 
 ## Commands
 

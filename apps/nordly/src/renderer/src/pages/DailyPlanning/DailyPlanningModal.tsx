@@ -8,9 +8,11 @@ import { isCloudEnabled } from '@shared/model/features';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
+  buildDefaultScheduleDate,
   defaultDurationMin,
   startOfLocalDay,
   sumDurationMin,
+  taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -20,11 +22,17 @@ import { zIndex } from '@shared/lib/z-index';
 import { finalizeDailyPlan, loadDailyPlan, saveDailyPlanObstacles } from '@features/planning/repository/dailyPlanStore';
 import { tasksForToday, totalDurationLabel } from '@features/planning/lib/planningTasks';
 import { usePlanningTaskBoard } from '@features/planning/hooks/usePlanningTaskBoard';
+import { useSyncStore } from '@shared/model/sync';
 import { PickStep } from './steps/PickStep';
 import { DeferStep } from './steps/DeferStep';
 import { FinalizeStep } from './steps/FinalizeStep';
 
 export type PlanningStep = 'pick' | 'defer' | 'finalize';
+
+function isAuthError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b401\b|unauthorized/i.test(message);
+}
 
 interface DailyPlanningModalProps {
   onClose: () => void;
@@ -47,37 +55,46 @@ export function DailyPlanningModal({
   const [trackerSettings, setTrackerSettings] = useState<TrackerSettings | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
 
+  const handleLoadError = useCallback((err: unknown) => {
+    if (isAuthError(err) || useSyncStore.getState().sessionReauthRequired) {
+      useSyncStore.getState().setSessionReauthRequired(true);
+      setLoadError(null);
+      return;
+    }
+    setLoadError(err instanceof Error ? err : new Error(String(err)));
+  }, []);
+
   const refresh = useCallback(async () => {
     setTasks(await listTasks());
     setLoadError(null);
   }, []);
 
   useEffect(() => {
-    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    void refresh().catch(handleLoadError);
     void loadDailyPlan(todayKey)
       .then((rec) => setObstacles(rec.obstacles ?? ''))
-      .catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-  }, [refresh, todayKey]);
+      .catch(handleLoadError);
+  }, [refresh, todayKey, handleLoadError]);
 
   useEffect(() => {
     if (!isCloudEnabled()) return;
     void getTrackerSettings()
       .then(setTrackerSettings)
-      .catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-  }, []);
+      .catch(handleLoadError);
+  }, [handleLoadError]);
 
   useEffect(() => {
-    const onTasksChanged = () => void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
+    const onTasksChanged = () => void refresh().catch(handleLoadError);
     window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
-  }, [refresh]);
+  }, [refresh, handleLoadError]);
 
   const board = usePlanningTaskBoard({
     todayKey,
     tasks,
     setTasks,
     refresh,
-    onActionError: (err) => setLoadError(err instanceof Error ? err : new Error(String(err))),
+    onActionError: handleLoadError,
   });
 
   const todayTasks = useMemo(() => tasksForToday(tasks, todayKey), [tasks, todayKey]);
@@ -208,6 +225,10 @@ export function DailyPlanningModal({
               className="nordly-day-timeline--planning"
               onReschedule={(task, start) => {
                 void scheduleTask(task.id, start, defaultDurationMin(task)).then(refresh);
+              }}
+              onDurationChange={(task, durationMin) => {
+                const start = taskScheduleStart(task) ?? buildDefaultScheduleDate(today);
+                void scheduleTask(task.id, start, durationMin).then(refresh);
               }}
             />
           ) : null}

@@ -13,6 +13,33 @@ export type TimerMode = 'pomodoro' | 'stopwatch';
 export const GOOGLE_CALENDAR_POLL_MINUTES = [1, 5, 15, 30] as const;
 export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[number];
 
+/** How often the macOS desktop app refetches Apple Calendar events locally. */
+export const APPLE_CALENDAR_POLL_MINUTES = GOOGLE_CALENDAR_POLL_MINUTES;
+export type AppleCalendarPollMinutes = GoogleCalendarPollMinutes;
+
+export type QuickCaptureShortcutPreset = 'primary' | 'alt_option' | 'alt_space';
+
+export const QUICK_CAPTURE_SHORTCUT_PRESETS: Record<
+  QuickCaptureShortcutPreset,
+  { mac: string; other: string; labelKey: string }
+> = {
+  primary: {
+    mac: 'Command+Shift+N',
+    other: 'Control+Shift+N',
+    labelKey: 'nordly.settings.quick_capture.preset_primary',
+  },
+  alt_option: {
+    mac: 'Command+Option+N',
+    other: 'Control+Alt+N',
+    labelKey: 'nordly.settings.quick_capture.preset_alt_option',
+  },
+  alt_space: {
+    mac: 'Command+Shift+Space',
+    other: 'Control+Shift+Space',
+    labelKey: 'nordly.settings.quick_capture.preset_alt_space',
+  },
+};
+
 export interface NordlySettings {
   pomodoroMinutes: number;
   timerMode: TimerMode;
@@ -25,8 +52,17 @@ export interface NordlySettings {
   textScale: TextScale;
   boardCanvas: BoardCanvasTheme;
   googleCalendarPollMinutes: GoogleCalendarPollMinutes;
+  /** macOS-only: show Apple Calendar events in the day timeline (read-only). */
+  appleCalendarEnabled: boolean;
+  /** Empty = all visible calendars. */
+  appleCalendarIds: string[];
+  appleCalendarPollMinutes: AppleCalendarPollMinutes;
   /** UI preview — show plan meters as if limits are exhausted. */
   planPreviewExhausted: boolean;
+  /** OS-level quick note capture (global shortcut). Desktop only. */
+  quickCaptureEnabled: boolean;
+  /** Tauri global-shortcut string, e.g. Command+Shift+N */
+  quickCaptureShortcut: string;
 }
 
 export const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -41,6 +77,31 @@ export function clampInt(v: unknown, lo: number, hi: number, fieldName = 'value'
 
 export const TEXT_SCALES: TextScale[] = ['normal', 'large', 'xlarge'];
 
+function isMacPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /mac/i.test(navigator.platform || navigator.userAgent);
+}
+
+export function defaultQuickCaptureShortcut(): string {
+  const preset = QUICK_CAPTURE_SHORTCUT_PRESETS.primary;
+  return isMacPlatform() ? preset.mac : preset.other;
+}
+
+export function resolveQuickCaptureShortcut(preset: QuickCaptureShortcutPreset): string {
+  const entry = QUICK_CAPTURE_SHORTCUT_PRESETS[preset];
+  return isMacPlatform() ? entry.mac : entry.other;
+}
+
+export function detectQuickCapturePreset(shortcut: string): QuickCaptureShortcutPreset {
+  const normalized = shortcut.trim();
+  for (const [id, entry] of Object.entries(QUICK_CAPTURE_SHORTCUT_PRESETS) as Array<
+    [QuickCaptureShortcutPreset, (typeof QUICK_CAPTURE_SHORTCUT_PRESETS)[QuickCaptureShortcutPreset]]
+  >) {
+    if (entry.mac === normalized || entry.other === normalized) return id;
+  }
+  return 'primary';
+}
+
 export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
   timerMode: 'pomodoro',
@@ -53,7 +114,12 @@ export const DEFAULTS: NordlySettings = {
   textScale: 'normal',
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
+  appleCalendarEnabled: false,
+  appleCalendarIds: [],
+  appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
+  quickCaptureEnabled: true,
+  quickCaptureShortcut: defaultQuickCaptureShortcut(),
 };
 
 function parseTimerMode(v: unknown): TimerMode {
@@ -70,6 +136,25 @@ function parseTextScale(v: unknown): TextScale {
 function parseBoardCanvas(v: unknown): BoardCanvasTheme {
   if (v === 'light' || v === 'dark') return v;
   throw new Error(`Invalid board canvas theme: ${String(v)}`);
+}
+
+function parseApplePollMinutes(v: unknown): AppleCalendarPollMinutes {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (APPLE_CALENDAR_POLL_MINUTES.includes(n as AppleCalendarPollMinutes)) {
+    return n as AppleCalendarPollMinutes;
+  }
+  throw new Error(`Invalid Apple Calendar poll interval: ${String(v)}`);
+}
+
+function parseCalendarIds(v: unknown): string[] {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) throw new Error('Invalid setting: appleCalendarIds');
+  return v.map((id) => {
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new Error('Invalid setting: appleCalendarIds');
+    }
+    return id;
+  });
 }
 
 function parsePollMinutes(v: unknown): GoogleCalendarPollMinutes {
@@ -92,7 +177,12 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     parsed.boardCanvas === undefined ||
     parsed.googleCalendarPollMinutes === undefined ||
     typeof parsed.autoUpdate !== 'boolean' ||
-    typeof parsed.planPreviewExhausted !== 'boolean';
+    typeof parsed.planPreviewExhausted !== 'boolean' ||
+    typeof parsed.appleCalendarEnabled !== 'boolean' ||
+    parsed.appleCalendarIds === undefined ||
+    parsed.appleCalendarPollMinutes === undefined ||
+    typeof parsed.quickCaptureEnabled !== 'boolean' ||
+    typeof parsed.quickCaptureShortcut !== 'string';
 
   const settings: NordlySettings = {
     pomodoroMinutes: clampInt(parsed.pomodoroMinutes, 5, 90, 'pomodoroMinutes'),
@@ -113,10 +203,27 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       parsed.googleCalendarPollMinutes === undefined
         ? DEFAULTS.googleCalendarPollMinutes
         : parsePollMinutes(parsed.googleCalendarPollMinutes),
+    appleCalendarEnabled:
+      typeof parsed.appleCalendarEnabled === 'boolean'
+        ? parsed.appleCalendarEnabled
+        : DEFAULTS.appleCalendarEnabled,
+    appleCalendarIds: parseCalendarIds(parsed.appleCalendarIds),
+    appleCalendarPollMinutes:
+      parsed.appleCalendarPollMinutes === undefined
+        ? DEFAULTS.appleCalendarPollMinutes
+        : parseApplePollMinutes(parsed.appleCalendarPollMinutes),
     planPreviewExhausted:
       typeof parsed.planPreviewExhausted === 'boolean'
         ? parsed.planPreviewExhausted
         : DEFAULTS.planPreviewExhausted,
+    quickCaptureEnabled:
+      typeof parsed.quickCaptureEnabled === 'boolean'
+        ? parsed.quickCaptureEnabled
+        : DEFAULTS.quickCaptureEnabled,
+    quickCaptureShortcut:
+      typeof parsed.quickCaptureShortcut === 'string' && parsed.quickCaptureShortcut.trim()
+        ? parsed.quickCaptureShortcut.trim()
+        : defaultQuickCaptureShortcut(),
   };
 
   return { settings, migrated };
@@ -146,6 +253,10 @@ export function patchSettings(patch: Partial<NordlySettings>): NordlySettings {
 
 export function googleCalendarPollIntervalMs(): number {
   return readSettings().googleCalendarPollMinutes * 60_000;
+}
+
+export function appleCalendarPollIntervalMs(): number {
+  return readSettings().appleCalendarPollMinutes * 60_000;
 }
 
 export function readPomodoroSeconds(): number {

@@ -15,7 +15,6 @@ export interface SidebarProps {
   onCreate: () => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
-  onRegenerate: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -26,7 +25,6 @@ export const Sidebar = memo(function Sidebar({
   onCreate,
   onPublish,
   onUnpublish,
-  onRegenerate,
   onDelete,
 }: SidebarProps) {
   const t = useT();
@@ -65,7 +63,6 @@ export const Sidebar = memo(function Sidebar({
             onSelect={onSelect}
             onPublish={onPublish}
             onUnpublish={onUnpublish}
-            onRegenerate={onRegenerate}
             onDelete={onDelete}
           />
         ))}

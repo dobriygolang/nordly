@@ -201,6 +201,10 @@
   background: rgb(66 133 244 / 0.22);
   border-color: rgb(66 133 244 / 0.4);
 }
+.nordly-calendar-allday-chip[data-source='apple'] {
+  background: rgb(255 59 48 / 0.18);
+  border-color: rgb(255 59 48 / 0.35);
+}
 .nordly-calendar-allday-chip:hover {
   filter: brightness(1.08);
 }
@@ -302,6 +306,10 @@
 .nordly-calendar-event[data-source='google'] {
   background: rgb(66 133 244 / 0.18);
   border-color: rgb(66 133 244 / 0.35);
+}
+.nordly-calendar-event[data-source='apple'] {
+  background: rgb(255 59 48 / 0.16);
+  border-color: rgb(255 59 48 / 0.32);
 }
 button.nordly-calendar-event {
   cursor: pointer;
@@ -483,6 +491,10 @@ button.nordly-calendar-event:hover {
   background: rgb(66 133 244 / 0.18);
   border-color: rgb(66 133 244 / 0.35);
 }
+.nordly-calendar-month__chip[data-source='apple'] {
+  background: rgb(255 59 48 / 0.16);
+  border-color: rgb(255 59 48 / 0.32);
+}
 
 /* Event editor popover */
 .nordly-calendar-editor-scrim {
@@ -611,6 +623,23 @@ button.nordly-calendar-event:hover {
   margin: 0 0 12px;
   font-size: 11px;
   color: var(--red);
+}
+.nordly-settings-apple-calendars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 260px;
+}
+.nordly-settings-apple-calendar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.nordly-settings-apple-calendar input {
+  margin: 0;
 }
 
 .nordly-floating-menu {

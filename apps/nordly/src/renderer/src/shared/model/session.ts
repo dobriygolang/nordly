@@ -22,6 +22,9 @@ type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 // is nil — persist to localStorage so Telegram login survives page reload.
 const BROWSER_PERSIST_KEY = 'nordly:dev-session:v1';
 
+/** Bumped on sign-out so in-flight native persist cannot restore keychain session. */
+let sessionPersistEpoch = 0;
+
 const USER_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,7 +54,7 @@ function readBrowserPersist(): PersistedSession | null {
   };
 }
 
-async function persistSessionToNative(session: PersistedSession): Promise<void> {
+async function persistSessionToNative(session: PersistedSession, epoch: number): Promise<void> {
   const bridge = window.nordly;
   if (!bridge) return;
   await bridge.auth.persist({
@@ -60,6 +63,13 @@ async function persistSessionToNative(session: PersistedSession): Promise<void> 
     refreshToken: session.refreshToken ?? '',
     expiresAt: session.expiresAt,
   });
+  if (epoch !== sessionPersistEpoch) {
+    try {
+      await bridge.auth.logout();
+    } catch {
+      /* best-effort: undo stale keychain write after sign-out */
+    }
+  }
 }
 
 function writeBrowserPersist(s: PersistedSession): void {
@@ -169,7 +179,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     try {
       const persisted = readBrowserPersist();
       if (persisted && applySession(persisted)) {
-        void persistSessionToNative(persisted);
+        void persistSessionToNative(persisted, sessionPersistEpoch);
         return;
       }
     } catch {
@@ -196,7 +206,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       expiresAt: expiresAt ?? 0,
     });
     writeBrowserPersist(session);
-    void persistSessionToNative(session);
+    void persistSessionToNative(session, sessionPersistEpoch);
   },
 
   applyTokens: ({ userId, accessToken, refreshToken, expiresAt }) => {
@@ -209,10 +219,11 @@ export const useSessionStore = create<SessionState>((set) => ({
     };
     set({ accessToken, refreshToken, expiresAt });
     writeBrowserPersist(session);
-    void persistSessionToNative(session);
+    void persistSessionToNative(session, sessionPersistEpoch);
   },
 
   clear: async (opts) => {
+    sessionPersistEpoch += 1;
     clearBrowserPersist();
     setDbUserId(null);
     lockVault();

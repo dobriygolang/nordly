@@ -25,6 +25,18 @@ type NoteSummary struct {
 	SizeBytes int
 }
 
+// WikiLinkRef is client-provided link metadata (plaintext even when body is E2EE).
+type WikiLinkRef struct {
+	TargetNoteID string
+	LinkText     string
+}
+
+type BacklinkEntry struct {
+	NoteID    string
+	Title     string
+	UpdatedAt time.Time
+}
+
 type PublishStatus struct {
 	Published         bool
 	Slug              string

@@ -76,7 +76,7 @@ func (i *Implementation) CreateNote(ctx context.Context, req *notesv1.CreateNote
 	if err != nil {
 		return nil, err
 	}
-	note, err := i.service.CreateNote(ctx, userID, req.GetTitle(), req.GetBodyMd())
+	note, err := i.service.CreateNote(ctx, userID, req.GetTitle(), req.GetBodyMd(), fromProtoWikiLinks(req.GetWikiLinks()))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -88,7 +88,7 @@ func (i *Implementation) UpdateNote(ctx context.Context, req *notesv1.UpdateNote
 	if err != nil {
 		return nil, err
 	}
-	note, err := i.service.UpdateNote(ctx, userID, req.GetId(), req.GetTitle(), req.GetBodyMd())
+	note, err := i.service.UpdateNote(ctx, userID, req.GetId(), req.GetTitle(), req.GetBodyMd(), fromProtoWikiLinks(req.GetWikiLinks()))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

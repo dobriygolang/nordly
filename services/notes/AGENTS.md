@@ -21,7 +21,7 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 | Area | Paths |
 |------|-------|
 | Vault | `POST /v1/notes/vault/init`, `GET /v1/notes/vault/salt`, `POST /v1/notes/vault/notes/{id}/encrypt` |
-| Notes | `GET/POST /v1/notes`, `GET/PUT/DELETE /v1/notes/{id}` |
+| Notes | `GET/POST /v1/notes`, `GET/PUT/DELETE /v1/notes/{id}`, `GET /v1/notes/{id}/backlinks` |
 | Publish | `POST /v1/notes/{id}/share-to-web`, `unpublish`, `make-private`, `GET publish-status` |
 | **Public** | `GET /v1/notes/public/{slug}` — metadata only when password-protected; `POST /v1/notes/public/{slug}/access` with `{ password }` unlocks body |
 
@@ -39,7 +39,7 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Billing
 
-`ShareNoteToWeb` enforces `published_notes_active` quota on new publishes (unlimited on `default` plan). **Private link** (`publish_password` entitlement):
+`ShareNoteToWeb` enforces `published_notes_active` quota on **new** publishes (unlimited on `default` plan). Re-sharing an already published note updates plaintext body + private-link settings in place (same slug). **Private link** (`publish_password` entitlement):
 
 - `password_protected` + `password` — bcrypt hash; public GET omits body until `AccessPublishedNote`.
 - Optional `expires_in_days` — link stops working after 7/30/90 days.
@@ -51,8 +51,9 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 - `vault_salts` — per-user random 32-byte salt (base64 to client)
 - `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`, `publish_password_hash`, `publish_expires_at`
+- `note_links` — wiki-link graph metadata (`source_note_id`, optional `target_note_id`, `link_text`); **client-provided** on create/update (server does not parse encrypted `body_md`)
 
-Soft-delete: `archived_at` set on delete.
+Soft-delete: `archived_at` set on delete (`note_links` removed via FK cascade).
 
 ## Commands
 

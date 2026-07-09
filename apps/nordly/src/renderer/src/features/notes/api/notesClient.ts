@@ -6,7 +6,10 @@ import {
   notesStoreList,
   notesStoreSoftDelete,
   notesStoreUpsert,
+  type StoredWikiLink,
 } from '@features/notes/repository/notesStore';
+import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
+import { buildWikiLinksWire, resolveWikiLinks } from '@features/notes/lib/wikiLinks';
 import {
   remoteGetPublishStatus,
   remoteMakeNotePrivate,
@@ -16,7 +19,6 @@ import {
 } from '@features/notes/repository/publishRemote';
 import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
-import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
@@ -51,6 +53,11 @@ export function isNoteVaultLocked(note: Pick<NoteSummary, 'vaultLocked'>): boole
   return note.vaultLocked === true;
 }
 
+async function wikiLinksForSave(bodyMd: string): Promise<StoredWikiLink[]> {
+  const notes = await notesStoreList();
+  return buildWikiLinksWire(bodyMd, notes);
+}
+
 export async function listNotes(): Promise<{ notes: NoteSummary[] }> {
   const notes = await notesStoreList();
   return { notes };
@@ -72,21 +79,39 @@ export async function getNote(id: string): Promise<Note> {
 
 export async function createNote(title: string, bodyMd: string): Promise<Note> {
   const id = crypto.randomUUID();
-  const note = await notesStoreUpsert(id, title, bodyMd);
+  const wikiLinks = await wikiLinksForSave(bodyMd);
+  const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks);
   if (isSyncEnabled()) {
-    await enqueueOutbox('notes', 'create', id, { title, bodyMd });
+    await enqueueOutbox('notes', 'create', id, { title, bodyMd, wikiLinks });
     scheduleSync();
   }
   return note;
 }
 
 export async function updateNote(id: string, title: string, bodyMd: string): Promise<Note> {
-  const note = await notesStoreUpsert(id, title, bodyMd);
+  const wikiLinks = await wikiLinksForSave(bodyMd);
+  const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks);
   if (isSyncEnabled()) {
-    await enqueueOutbox('notes', 'update', id, { title, bodyMd });
+    await enqueueOutbox('notes', 'update', id, { title, bodyMd, wikiLinks });
     scheduleSync();
   }
   return note;
+}
+
+export async function openWikiLink(
+  linkText: string,
+): Promise<{ noteId: string; created: boolean }> {
+  const trimmed = linkText.trim();
+  if (!trimmed) throw new Error('Wiki link title is empty');
+
+  const notes = await notesStoreList();
+  const [resolved] = resolveWikiLinks([{ linkText: trimmed }], notes);
+  if (resolved?.targetNoteId) {
+    return { noteId: resolved.targetNoteId, created: false };
+  }
+
+  const note = await createNote(trimmed, '');
+  return { noteId: note.id, created: true };
 }
 
 async function resolveServerNoteId(localId: string): Promise<string | null> {
@@ -116,7 +141,8 @@ export async function publishNoteToWeb(
   const serverId = await resolveServerNoteId(noteId);
   if (!serverId) throw new Error('Sign in required to publish notes');
   const note = await getNote(noteId);
-  await remoteUpdateNote(serverId, note.title, note.bodyMd);
+  const wikiLinks = await wikiLinksForSave(note.bodyMd);
+  await remoteUpdateNote(serverId, note.title, note.bodyMd, wikiLinks);
   const res = await remoteShareNoteToWeb(serverId, note.bodyMd, options);
   if (!res.alreadyPublished) {
     useFeatureUsageStore.getState().adjustPublishedNotesCount(1);
@@ -126,6 +152,7 @@ export async function publishNoteToWeb(
     slug: res.slug,
     url: res.url,
     publishedAt: res.publishedAt,
+    passwordProtected: options.passwordProtected,
   };
 }
 
@@ -133,26 +160,17 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
   const serverId = await resolveServerNoteId(noteId);
   if (!serverId) throw new Error('Sign in required to publish notes');
   const note = await getNote(noteId);
+  const wikiLinks = await wikiLinksForSave(note.bodyMd);
   await remoteUnpublishNote(serverId);
   useFeatureUsageStore.getState().adjustPublishedNotesCount(-1);
   if (isVaultEnabledSync() && isVaultUnlocked()) {
     const encTitle = await encryptText(note.title);
     const encBody = await encryptText(note.bodyMd);
     await remoteMakeNotePrivate(serverId, encBody);
-    await remoteUpdateNote(serverId, encTitle, encBody);
+    await remoteUpdateNote(serverId, encTitle, encBody, wikiLinks);
   } else {
-    await remoteUpdateNote(serverId, note.title, note.bodyMd);
+    await remoteUpdateNote(serverId, note.title, note.bodyMd, wikiLinks);
   }
-}
-
-export async function regeneratePublicLink(
-  noteId: string,
-  options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
-): Promise<PublishStatus> {
-  const serverId = await resolveServerNoteId(noteId);
-  if (!serverId) throw new Error('Sign in required to publish notes');
-  await remoteUnpublishNote(serverId);
-  return publishNoteToWeb(noteId, options);
 }
 
 export async function deleteNote(id: string): Promise<void> {

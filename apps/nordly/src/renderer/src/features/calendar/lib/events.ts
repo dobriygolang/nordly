@@ -1,3 +1,4 @@
+import type { AppleCalendarEvent } from '@features/calendar/api/appleCalendarClient';
 import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import { translate, type Locale } from '@nordly-i18n';
@@ -18,7 +19,7 @@ import {
   toDayKey,
 } from '@shared/lib/dates';
 
-export type CalendarEntrySource = 'task' | 'google';
+export type CalendarEntrySource = 'task' | 'google' | 'apple';
 
 export interface CalendarEntry {
   id: string;
@@ -36,6 +37,8 @@ export interface CalendarEntry {
   googleCalendarId?: string;
   googleEditable?: boolean;
   googleHtmlLink?: string;
+  appleEventId?: string;
+  appleCalendarId?: string;
 }
 
 export const CALENDAR_GRID_START_HOUR = 6;
@@ -186,15 +189,39 @@ export function linkedGoogleEventIds(tasks: TaskCard[]): Set<string> {
   return new Set(tasks.map((task) => task.googleEventId).filter((id): id is string => Boolean(id)));
 }
 
+export function appleToCalendarEntries(events: AppleCalendarEvent[]): CalendarEntry[] {
+  const out: CalendarEntry[] = [];
+  for (const ev of events) {
+    const start = new Date(ev.start);
+    const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 60 * 60_000);
+    if (Number.isNaN(start.getTime())) continue;
+    out.push({
+      id: `apple:${ev.id}`,
+      source: 'apple',
+      title: ev.title,
+      start,
+      end: Number.isNaN(end.getTime()) ? new Date(start.getTime() + 60 * 60_000) : end,
+      allDay: ev.allDay,
+      appleEventId: ev.id,
+      appleCalendarId: ev.calendarId,
+    });
+  }
+  return out;
+}
+
 export function mergeCalendarEntries(
   tasks: TaskCard[],
   googleEvents: GoogleCalendarEvent[],
+  appleEvents: AppleCalendarEvent[] = [],
   now = new Date(),
 ): CalendarEntry[] {
   const taskEntries = tasksToCalendarEntries(tasks, now);
   const linked = linkedGoogleEventIds(tasks);
   const googleEntries = googleToCalendarEntries(googleEvents, linked);
-  return [...taskEntries, ...googleEntries].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const appleEntries = appleToCalendarEntries(appleEvents);
+  return [...taskEntries, ...googleEntries, ...appleEntries].sort(
+    (a, b) => a.start.getTime() - b.start.getTime(),
+  );
 }
 
 export function entriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {

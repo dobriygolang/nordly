@@ -62,6 +62,12 @@ service NotesService {
     };
   }
 
+  rpc GetBacklinks(GetBacklinksRequest) returns (GetBacklinksResponse) {
+    option (google.api.http) = {
+      get: "/v1/notes/{id}/backlinks"
+    };
+  }
+
   // Publish
   rpc UnpublishNote(UnpublishNoteRequest) returns (UnpublishNoteResponse) {
     option (google.api.http) = {
@@ -122,6 +128,17 @@ message NoteSummary {
   int32 size_bytes = 4;
 }
 
+message WikiLinkRef {
+  string target_note_id = 1;
+  string link_text = 2;
+}
+
+message BacklinkEntry {
+  string note_id = 1;
+  string title = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
 message InitVaultRequest {}
 
 message InitVaultResponse {
@@ -160,6 +177,7 @@ message GetNoteResponse {
 message CreateNoteRequest {
   string title = 1;
   string body_md = 2;
+  repeated WikiLinkRef wiki_links = 3;
 }
 
 message CreateNoteResponse {
@@ -170,6 +188,15 @@ message UpdateNoteRequest {
   string id = 1;
   string title = 2;
   string body_md = 3;
+  repeated WikiLinkRef wiki_links = 4;
+}
+
+message GetBacklinksRequest {
+  string id = 1;
+}
+
+message GetBacklinksResponse {
+  repeated BacklinkEntry backlinks = 1;
 }
 
 message UpdateNoteResponse {

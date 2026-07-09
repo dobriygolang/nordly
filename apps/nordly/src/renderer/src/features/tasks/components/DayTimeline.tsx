@@ -5,17 +5,22 @@ import { useLocale, useT } from '@nordly-i18n';
 import { openExternalUrl } from '@features/calendar/api/calendarClient';
 import {
   allDayEntriesForDay,
+  appleToCalendarEntries,
   googleToCalendarEntries,
   layoutTimedEntriesForDay,
   linkedGoogleEventIds,
   tasksPlannedForDay,
+  type CalendarEntry,
 } from '@features/calendar/lib/events';
+import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
 import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
+import { readSettings } from '@shared/model/settings';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
+import { useVerticalResize } from '@shared/lib/useVerticalResize';
 import {
   defaultDurationMin,
   formatTimelineHeader,
@@ -33,12 +38,15 @@ const HOUR_PX_DEFAULT = 52;
 const HOUR_PX_MIN = 22;
 const GRID_PAD_TOP = 12;
 const GRID_PAD_BOTTOM = 24;
+const MIN_DURATION_MIN = 15;
+const MAX_DURATION_MIN = 480;
 
 interface DayTimelineProps {
   date: Date;
   tasks: TaskCard[];
   epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
+  onDurationChange?: (task: TaskCard, durationMin: number) => void;
   /** When false, use fixed hour height and scroll (full 06:00–23:00). Default: true (compress to fit). */
   fitToHeight?: boolean;
   className?: string;
@@ -53,6 +61,7 @@ export const DayTimeline = memo(function DayTimeline({
   tasks,
   epics,
   onReschedule,
+  onDurationChange,
   fitToHeight = true,
   className,
 }: DayTimelineProps) {
@@ -63,6 +72,7 @@ export const DayTimeline = memo(function DayTimeline({
   const now = new Date();
   const showNow = toDayKey(now) === dayKey;
   const { dragId, dragTop, start: startDrag } = useVerticalDrag();
+  const { resizeId, resizeHeight, start: startResize } = useVerticalResize();
 
   const dayStart = useMemo(() => startOfLocalDay(date), [date]);
   const dayEnd = useMemo(() => {
@@ -73,19 +83,28 @@ export const DayTimeline = memo(function DayTimeline({
 
   const { connected, ready: connectionReady } = useGoogleCalendarConnection();
   const googleEnabled = isCloudEnabled() && connected && connectionReady;
+  const appleCalendarEnabled = readSettings().appleCalendarEnabled;
   const {
     events: googleEvents,
   } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
+  const { events: appleEvents } = useAppleCalendarEvents(
+    dayStart,
+    dayEnd,
+    appleCalendarEnabled,
+  );
 
   const linkedGoogleIds = useMemo(() => linkedGoogleEventIds(tasks), [tasks]);
 
-  const googleEntries = useMemo(
-    () => googleToCalendarEntries(googleEvents, linkedGoogleIds),
-    [googleEvents, linkedGoogleIds],
+  const calendarEntries = useMemo(
+    () => [
+      ...googleToCalendarEntries(googleEvents, linkedGoogleIds),
+      ...appleToCalendarEntries(appleEvents),
+    ],
+    [googleEvents, appleEvents, linkedGoogleIds],
   );
-  const allDayGoogle = useMemo(
-    () => allDayEntriesForDay(googleEntries, dayKey),
-    [googleEntries, dayKey],
+  const allDayCalendar = useMemo(
+    () => allDayEntriesForDay(calendarEntries, dayKey),
+    [calendarEntries, dayKey],
   );
   const planned = useMemo(() => tasksPlannedForDay(dayKey, tasks), [dayKey, tasks]);
 
@@ -109,13 +128,13 @@ export const DayTimeline = memo(function DayTimeline({
     return () => ro.disconnect();
   }, [fitToHeight]);
 
-  const timedGoogleLayout = useMemo(
+  const timedCalendarLayout = useMemo(
     () =>
       layoutTimedEntriesForDay(
-        googleEntries.filter((e) => !e.allDay && toDayKey(e.start) === dayKey),
+        calendarEntries.filter((e) => !e.allDay && toDayKey(e.start) === dayKey),
         hourPx,
       ),
-    [googleEntries, dayKey, hourPx],
+    [calendarEntries, dayKey, hourPx],
   );
 
   const hoursHeight = HOUR_COUNT * hourPx;
@@ -127,7 +146,14 @@ export const DayTimeline = memo(function DayTimeline({
     el.scrollTop = 0;
   }, [dayKey]);
 
-  const hasBlocks = planned.length > 0 || timedGoogleLayout.length > 0 || allDayGoogle.length > 0;
+  const hasBlocks =
+    planned.length > 0 || timedCalendarLayout.length > 0 || allDayCalendar.length > 0;
+
+  const openCalendarEntry = (entry: CalendarEntry): void => {
+    if (entry.source === 'google' && entry.googleHtmlLink) {
+      openExternalUrl(entry.googleHtmlLink);
+    }
+  };
 
   return (
     <aside
@@ -146,17 +172,18 @@ export const DayTimeline = memo(function DayTimeline({
         {formatTimelineHeader(date, locale)}
       </header>
 
-      {allDayGoogle.length > 0 && (
+      {allDayCalendar.length > 0 && (
         <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {allDayGoogle.map((entry) => (
+          {allDayCalendar.map((entry) => (
             <button
               key={entry.id}
               type="button"
               className="nordly-calendar-allday-chip focus-ring"
-              data-source="google"
+              data-source={entry.source}
+              data-readonly={entry.source !== 'google' ? 'true' : undefined}
               style={{ width: '100%' }}
               title={entry.title}
-              onClick={() => entry.googleHtmlLink && openExternalUrl(entry.googleHtmlLink)}
+              onClick={() => openCalendarEntry(entry)}
             >
               {entry.title}
             </button>
@@ -244,22 +271,28 @@ export const DayTimeline = memo(function DayTimeline({
             </div>
           )}
 
-          {timedGoogleLayout.map(({ entry, top, height, column, columnCount }) => (
+          {timedCalendarLayout.map(({ entry, top, height, column, columnCount }) => (
             <button
               key={entry.id}
               type="button"
               className="nordly-calendar-event focus-ring"
-              data-source="google"
-              data-readonly={entry.googleEditable === false ? 'true' : undefined}
+              data-source={entry.source}
+              data-readonly={
+                entry.source === 'google'
+                  ? entry.googleEditable === false
+                    ? 'true'
+                    : undefined
+                  : 'true'
+              }
               title={entry.title}
-              onClick={() => entry.googleHtmlLink && openExternalUrl(entry.googleHtmlLink)}
+              onClick={() => openCalendarEntry(entry)}
               style={{
                 top: GRID_PAD_TOP + top,
                 height,
                 '--cal-col': column,
                 '--cal-cols': columnCount,
                 zIndex: column + 1,
-                cursor: entry.googleHtmlLink ? 'pointer' : 'default',
+                cursor: entry.source === 'google' && entry.googleHtmlLink ? 'pointer' : 'default',
               } as React.CSSProperties}
             >
               <span className="nordly-calendar-event__title">{entry.title}</span>
@@ -268,24 +301,40 @@ export const DayTimeline = memo(function DayTimeline({
 
           {planned.map(({ task, start }) => {
             const startMin = start.getHours() * 60 + start.getMinutes();
+            const durationMin = defaultDurationMin(task);
             const baseTop = GRID_PAD_TOP + (startMin / 60 - HOUR_START) * hourPx;
-            const height = Math.max(28, (defaultDurationMin(task) / 60) * hourPx);
+            const baseHeight = Math.max(28, (durationMin / 60) * hourPx);
             const minTop = GRID_PAD_TOP;
-            const maxTop = GRID_PAD_TOP + HOUR_COUNT * hourPx - height;
+            const maxTop = GRID_PAD_TOP + HOUR_COUNT * hourPx - baseHeight;
+            const gridBottom = GRID_PAD_TOP + HOUR_COUNT * hourPx;
             const isDragging = dragId === task.id;
+            const isResizing = resizeId === task.id;
             const top = Math.max(minTop, Math.min(isDragging ? dragTop : baseTop, maxTop));
+            const height = isResizing ? resizeHeight : baseHeight;
+            const minHeight = Math.max(28, (MIN_DURATION_MIN / 60) * hourPx);
+            const maxHeight = Math.max(minHeight, gridBottom - top);
             const done = task.status === 'done';
             const canDrag = Boolean(onReschedule);
+            const canResize = Boolean(onDurationChange);
             const epicColor = resolveTaskEpicColor(task, epics);
             const epicSurface = epicColor
-              ? epicTimelineSurfaceStyle(epicColor, { done, dragging: isDragging })
+              ? epicTimelineSurfaceStyle(epicColor, { done, dragging: isDragging || isResizing })
               : null;
 
-            const commit = (finalTop: number) => {
+            const commitMove = (finalTop: number) => {
               const min = snapMinutes(((finalTop - GRID_PAD_TOP) / hourPx + HOUR_START) * 60);
               const next = startOfLocalDay(date);
               next.setHours(Math.floor(min / 60), min % 60, 0, 0);
               onReschedule?.(task, next);
+            };
+
+            const commitResize = (finalHeight: number) => {
+              const snapped = snapMinutes((finalHeight / hourPx) * 60, 15);
+              const nextDuration = Math.max(
+                MIN_DURATION_MIN,
+                Math.min(MAX_DURATION_MIN, snapped),
+              );
+              onDurationChange?.(task, nextDuration);
             };
 
             return (
@@ -294,29 +343,15 @@ export const DayTimeline = memo(function DayTimeline({
                 className="nordly-timeline-task"
                 data-done={done ? 'true' : 'false'}
                 data-epic={epicColor ? 'true' : 'false'}
+                data-dragging={isDragging || isResizing ? 'true' : 'false'}
                 title={task.title}
-                onPointerDown={
-                  canDrag
-                    ? (e) => {
-                        e.stopPropagation();
-                        startDrag(e, {
-                          id: task.id,
-                          baseTop,
-                          min: minTop,
-                          max: maxTop,
-                          onCommit: commit,
-                        });
-                      }
-                    : undefined
-                }
                 style={{
                   position: 'absolute',
                   top,
                   left: 4,
                   right: 4,
                   height,
-                  zIndex: isDragging ? 4 : 2,
-                  cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'default',
+                  zIndex: isDragging || isResizing ? 4 : 2,
                   touchAction: 'none',
                   userSelect: 'none',
                   ...(epicSurface ?? {}),
@@ -325,7 +360,45 @@ export const DayTimeline = memo(function DayTimeline({
                     : {}),
                 } as React.CSSProperties}
               >
-                {task.title}
+                <div
+                  className="nordly-timeline-task__body"
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'default',
+                  }}
+                  onPointerDown={
+                    canDrag
+                      ? (e) => {
+                          startDrag(e, {
+                            id: task.id,
+                            baseTop,
+                            min: minTop,
+                            max: maxTop,
+                            onCommit: commitMove,
+                          });
+                        }
+                      : undefined
+                  }
+                >
+                  {task.title}
+                </div>
+                {canResize && (
+                  <div
+                    className="nordly-timeline-task__resize"
+                    aria-hidden
+                    onPointerDown={(e) => {
+                      startResize(e, {
+                        id: task.id,
+                        baseHeight,
+                        min: minHeight,
+                        max: maxHeight,
+                        onCommit: commitResize,
+                      });
+                    }}
+                  />
+                )}
               </div>
             );
           })}

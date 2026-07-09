@@ -25,9 +25,6 @@ async function persistSession(session: {
 }): Promise<void> {
   useSessionStore.getState().hydrate(session);
   resetAuthRefreshState();
-  if (window.nordly) {
-    await window.nordly.auth.persist(session);
-  }
 }
 
 function formatLoginError(err: unknown, t: (key: string) => string): string {

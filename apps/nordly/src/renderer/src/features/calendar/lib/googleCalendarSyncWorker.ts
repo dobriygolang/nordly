@@ -1,8 +1,10 @@
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
+import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { googleCalendarPollIntervalMs } from '@shared/model/settings';
-import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
+import { canReachNetwork, isCloudApiAvailable, isSyncEnabled } from '@shared/sync/syncConfig';
+import { useSyncStore } from '@shared/model/sync';
 
 import {
   defaultGoogleSyncWindow,
@@ -15,6 +17,11 @@ import {
 let started = false;
 let intervalId: number | null = null;
 let running = false;
+
+function isAuthError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b401\b|unauthorized/i.test(message);
+}
 
 function pollIntervalMs(): number {
   return googleCalendarPollIntervalMs();
@@ -32,27 +39,19 @@ function dispatchChanged(): void {
   window.dispatchEvent(new Event(NORDLY_EVENTS.googleCalendarChanged));
 }
 
-async function shouldSync(): Promise<boolean> {
-  if (!isSyncEnabled() || !canReachNetwork()) return false;
-  const s = await getTrackerSettings();
-  return s.googleCalendarConnected && !s.googleReauthRequired;
-}
-
 async function runCycle(force = false): Promise<void> {
   if (running) return;
+  if (!isCloudEnabled()) return;
   if (!force && isGoogleCalendarSnapshotFresh()) return;
-
-  let ok = false;
-  try {
-    ok = await shouldSync();
-  } catch (err) {
-    console.warn('[googleCalendarSync] tracker settings unavailable:', err);
-    return;
-  }
-  if (!ok) return;
+  if (!isSyncEnabled() || !canReachNetwork()) return;
+  if (!isCloudApiAvailable()) return;
+  if (!(await ensureAccessTokenForSync())) return;
 
   running = true;
   try {
+    const settings = await getTrackerSettings();
+    if (!settings.googleCalendarConnected || settings.googleReauthRequired) return;
+
     const { timeMin, timeMax } = defaultGoogleSyncWindow();
     await syncGoogleCalendarSnapshot(timeMin, timeMax, { force });
     dispatchChanged();
@@ -62,7 +61,11 @@ async function runCycle(force = false): Promise<void> {
       dispatchChanged();
       return;
     }
-    throw err;
+    if (isAuthError(err)) {
+      useSyncStore.getState().setSessionReauthRequired(true);
+      return;
+    }
+    console.warn('[googleCalendarSync] unexpected error:', err);
   } finally {
     running = false;
   }

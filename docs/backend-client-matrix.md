@@ -52,7 +52,8 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 
 | RPC / HTTP | Nordly | Web | Unused fields |
 |------------|--------|-----|----------------|
-| Notes CRUD | ✅ | — | |
+| Notes CRUD | ✅ | — | `CreateNote` / `UpdateNote` also accept `wikiLinks[]` (`linkText`, `targetNoteId`) |
+| GET `/v1/notes/{id}/backlinks` | — | — | API only (no UI yet) |
 | Vault init/salt/encrypt | ✅ | — | |
 | Publish flow (status, share, unpublish, make-private) | ✅ | — | |
 | GET `/v1/notes/public/{slug}` | — | ✅ `title`, `bodyMd` | `publishedAt` parsed, **not shown** |

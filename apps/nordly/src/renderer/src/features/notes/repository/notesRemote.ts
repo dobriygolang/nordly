@@ -12,7 +12,16 @@ import { throwIfLimitResponse } from '@shared/api/limitErrors';
 import type { Note, NoteSummary } from '../api/notesClient';
 import type { StoredNote } from './notesStore';
 
+import type { WikiLinkWire } from '../lib/wikiLinks';
+
 export type WireNote = Note & { encrypted: boolean };
+
+function wikiLinksBody(links: WikiLinkWire[]): Record<string, unknown>[] {
+  return links.map((l) => ({
+    linkText: l.linkText,
+    targetNoteId: l.targetNoteId,
+  }));
+}
 
 function unwrapNoteSummary(raw: Record<string, unknown>): NoteSummary {
   return {
@@ -73,11 +82,15 @@ export async function remoteGetNote(id: string): Promise<WireNote> {
   return unwrapNoteEnvelope(j, 'getNote');
 }
 
-export async function remoteCreateNote(title: string, bodyMd: string): Promise<WireNote> {
+export async function remoteCreateNote(
+  title: string,
+  bodyMd: string,
+  wikiLinks: WikiLinkWire[] = [],
+): Promise<WireNote> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes`, {
     method: 'POST',
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ title, bodyMd }),
+    body: JSON.stringify({ title, bodyMd, wikiLinks: wikiLinksBody(wikiLinks) }),
   });
   await throwIfLimitResponse(resp, 'notes_create');
   if (!resp.ok) throw new Error(`createNote: ${resp.status}`);
@@ -89,11 +102,12 @@ export async function remoteUpdateNote(
   id: string,
   title: string,
   bodyMd: string,
+  wikiLinks: WikiLinkWire[] = [],
 ): Promise<WireNote> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ id, title, bodyMd }),
+    body: JSON.stringify({ id, title, bodyMd, wikiLinks: wikiLinksBody(wikiLinks) }),
   });
   if (!resp.ok) throw new Error(`updateNote: ${resp.status}`);
   const j = (await resp.json()) as { note?: Record<string, unknown> };

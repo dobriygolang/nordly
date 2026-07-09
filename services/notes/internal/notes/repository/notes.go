@@ -52,28 +52,68 @@ func (r *Repository) GetNote(ctx context.Context, userID, id string) (*notesmode
 func (r *Repository) CreateNote(
 	ctx context.Context,
 	userID, title, body string,
+	links []notesmodel.WikiLinkRef,
 ) (*notesmodel.Note, error) {
+	if err := r.validateWikiLinkTargets(ctx, userID, links); err != nil {
+		return nil, err
+	}
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
 	size := len(body)
-	row := r.pg.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		INSERT INTO notes (user_id, title, body_md, size_bytes)
 		VALUES ($1, $2, $3, $4)
 		RETURNING`+noteSelectCols+`
 	`, userID, title, body, size)
-	return scanNote(row)
+	note, err := scanNote(row)
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceNoteLinksTx(ctx, tx, userID, note.ID, links); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return note, nil
 }
 
 func (r *Repository) UpdateNote(
 	ctx context.Context,
 	userID, id, title, body string,
+	links []notesmodel.WikiLinkRef,
 ) (*notesmodel.Note, error) {
+	if err := r.validateWikiLinkTargets(ctx, userID, links); err != nil {
+		return nil, err
+	}
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
 	size := len(body)
-	row := r.pg.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		UPDATE notes
 		SET title = $3, body_md = $4, size_bytes = $5, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 		RETURNING`+noteSelectCols+`
 	`, id, userID, title, body, size)
-	return scanNote(row)
+	note, err := scanNote(row)
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceNoteLinksTx(ctx, tx, userID, note.ID, links); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return note, nil
 }
 
 func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {

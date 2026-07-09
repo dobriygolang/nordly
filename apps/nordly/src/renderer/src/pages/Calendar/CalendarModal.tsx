@@ -10,6 +10,7 @@ import {
   updateGoogleCalendarEvent,
   GoogleReauthError,
 } from '@features/calendar/api/calendarClient';
+import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
 import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import {
@@ -114,6 +115,11 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     error: googleFetchError,
     reauthRequired: fetchReauth,
   } = useGoogleCalendarEvents(googleRange.padStart, googleRange.padEnd, googleEnabled);
+  const { events: appleEvents } = useAppleCalendarEvents(
+    googleRange.padStart,
+    googleRange.padEnd,
+    true,
+  );
 
   const reauthNeeded = connectionReauth || fetchReauth;
   const googleError =
@@ -138,7 +144,10 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasks);
   }, [refreshTasks]);
 
-  const entries = useMemo(() => mergeCalendarEntries(tasks, googleEvents), [tasks, googleEvents]);
+  const entries = useMemo(
+    () => mergeCalendarEntries(tasks, googleEvents, appleEvents),
+    [tasks, googleEvents, appleEvents],
+  );
 
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
   const weekEntries = useMemo(() => entriesForWeek(entries, weekStart), [entries, weekStart]);
@@ -660,15 +669,15 @@ function AllDayEventChip({
   onActivate: () => void;
 }): JSX.Element {
   const { epics } = useTaskEpics();
-  const isGoogle = entry.source === 'google';
+  const isExternal = entry.source === 'google' || entry.source === 'apple';
   const epicSurface = calendarEpicSurface(entry, epics);
   return (
     <button
       type="button"
       className="nordly-calendar-allday-chip focus-ring"
-      data-source={isGoogle ? 'google' : 'task'}
+      data-source={entry.source}
       data-epic={epicSurface ? 'true' : undefined}
-      data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
+      data-readonly={isExternal ? 'true' : undefined}
       style={epicSurface ?? undefined}
       onClick={onActivate}
       title={entry.title}
@@ -719,10 +728,14 @@ function CalendarEventBlock({
     <button
       type="button"
       className="nordly-calendar-event focus-ring"
-      data-source={isGoogle ? 'google' : 'task'}
+      data-source={entry.source}
       data-done={done ? 'true' : undefined}
       data-epic={epicSurface ? 'true' : undefined}
-      data-readonly={isGoogle && !entry.googleEditable ? 'true' : undefined}
+      data-readonly={
+        entry.source === 'apple' || (entry.source === 'google' && entry.googleEditable === false)
+          ? 'true'
+          : undefined
+      }
       style={style}
       onPointerDown={(e) => {
         e.stopPropagation();

@@ -56,12 +56,7 @@ func (r *Repository) ShareNoteToWeb(
 		return nil, err
 	}
 	if note.Published && note.PublishSlug != nil && note.PublishedAt != nil {
-		return &notesmodel.ShareToWebResult{
-			Slug:             *note.PublishSlug,
-			URL:              publishURL(publicBaseURL, *note.PublishSlug),
-			PublishedAt:      *note.PublishedAt,
-			AlreadyPublished: true,
-		}, nil
+		return r.updatePublishedShare(ctx, userID, noteID, plaintext, publicBaseURL, meta)
 	}
 
 	privateLink := meta.PasswordHash != nil && *meta.PasswordHash != ""
@@ -93,6 +88,41 @@ func (r *Repository) ShareNoteToWeb(
 		Slug:        outSlug,
 		URL:         publishURL(publicBaseURL, outSlug),
 		PublishedAt: publishedAt,
+	}, nil
+}
+
+func (r *Repository) updatePublishedShare(
+	ctx context.Context,
+	userID, noteID, plaintext, publicBaseURL string,
+	meta notesmodel.PublishMeta,
+) (*notesmodel.ShareToWebResult, error) {
+	var expiresAt *time.Time
+	if meta.ExpiresInDays > 0 {
+		t := time.Now().UTC().AddDate(0, 0, int(meta.ExpiresInDays))
+		expiresAt = &t
+	}
+	size := len(plaintext)
+	row := r.pg.QueryRow(ctx, `
+		UPDATE notes
+		SET body_md = $3, encrypted = false,
+		    publish_password_hash = $4, publish_expires_at = $5,
+		    size_bytes = $6, updated_at = now()
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND published = true
+		RETURNING publish_slug, published_at
+	`, noteID, userID, plaintext, meta.PasswordHash, expiresAt, size)
+	var outSlug string
+	var publishedAt time.Time
+	if err := row.Scan(&outSlug, &publishedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, notesmodel.ErrNotFound
+		}
+		return nil, err
+	}
+	return &notesmodel.ShareToWebResult{
+		Slug:             outSlug,
+		URL:              publishURL(publicBaseURL, outSlug),
+		PublishedAt:      publishedAt,
+		AlreadyPublished: true,
 	}, nil
 }
 

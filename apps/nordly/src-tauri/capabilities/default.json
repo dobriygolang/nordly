@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default Nordly capabilities (bundled + Vite dev server)",
-  "windows": ["main", "tray-popover", "notification"],
+  "windows": ["main", "tray-popover", "notification", "quick-capture"],
   "remote": {
     "urls": [
       "http://localhost:5173",
@@ -19,6 +19,9 @@
     "deep-link:default",
     "store:default",
     "allow-nordly-commands",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
     {
       "identifier": "http:default",
       "allow": [

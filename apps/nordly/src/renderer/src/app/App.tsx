@@ -38,6 +38,7 @@ import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
+import { useQuickCaptureShortcutRegistration } from '@features/quickCapture/hooks/useQuickCaptureShortcutRegistration';
 import { isCloudEnabled } from '@shared/model/features';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
 import {
@@ -183,6 +184,8 @@ export default function App() {
 
     const offAuth = bridge.on('authChanged', (session) => {
       if (session) {
+        // Ignore stale auth_persist emissions after explicit sign-out.
+        if (useSessionStore.getState().status === 'guest') return;
         hydrate({
           userId: session.userId,
           accessToken: session.accessToken,
@@ -266,6 +269,7 @@ export default function App() {
 
   useEffect(() => {
     if (status !== 'signed_in' || !userId) {
+      setVaultGateActive(false);
       stopSyncEngine();
       stopGoogleCalendarSyncWorker();
       stopCalendarReminderWorker();
@@ -522,6 +526,21 @@ export default function App() {
     open: (id) => openImpl(id),
   });
 
+  useQuickCaptureShortcutRegistration();
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let unlisten: (() => void) | undefined;
+    void listen<{ noteId?: string }>('quick-capture:saved', () => {
+      window.dispatchEvent(new Event(NORDLY_EVENTS.notesChanged));
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
   const renderPage = useMemo(
     () =>
       function renderPage(id: PageId) {
@@ -580,6 +599,11 @@ export default function App() {
           </div>
         </div>
       );
+    }
+
+    // ScreenFade keeps the signed-in layer mounted briefly during logout crossfade.
+    if (status !== 'signed_in' || !userId) {
+      return <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)' }} aria-hidden />;
     }
 
     const signedInShell = (

@@ -11,7 +11,7 @@ export function LandingHero() {
   const isDark = theme === 'dark'
 
   return (
-    <section className="relative overflow-hidden pb-20 pt-28 md:pb-32 md:pt-44">
+    <section className="relative overflow-hidden pb-20 pt-20 md:pb-32 md:pt-32">
       <div className="pointer-events-none absolute right-0 top-0 z-0 h-full w-full opacity-20">
         <div
           className={cn(

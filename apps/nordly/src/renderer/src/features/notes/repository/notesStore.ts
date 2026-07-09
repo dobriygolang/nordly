@@ -11,6 +11,9 @@ import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 
 import { decryptNoteFields, encryptNoteFields } from '../crypto/noteCrypto';
 import type { Note, NoteSummary } from '../api/notesClient';
+import type { WikiLinkWire } from '../lib/wikiLinks';
+
+export type StoredWikiLink = WikiLinkWire;
 
 export interface StoredNote {
   userId: string;
@@ -23,6 +26,8 @@ export interface StoredNote {
   deleted?: boolean;
   /** Plaintext fields encrypted at rest in IndexedDB. */
   atRestEncrypted?: boolean;
+  /** Outgoing wiki-link metadata (plaintext). */
+  wikiLinks?: StoredWikiLink[];
 }
 
 function parseTs(raw: string | undefined): Date | null {
@@ -122,6 +127,7 @@ export async function notesStoreUpsert(
   title: string,
   bodyMd: string,
   timestamps?: { createdAt?: string; updatedAt?: string },
+  wikiLinks?: StoredWikiLink[],
 ): Promise<Note> {
   const userId = requireUserId();
   const existing = await dbGet<StoredNote>('notes', entityKey(id, userId));
@@ -136,6 +142,7 @@ export async function notesStoreUpsert(
     createdAt: timestamps?.createdAt ?? existing?.createdAt ?? now,
     updatedAt: timestamps?.updatedAt ?? now,
     deleted: false,
+    wikiLinks,
   });
   await dbPut('notes', row);
   return toNote(await decryptAtRest(row));

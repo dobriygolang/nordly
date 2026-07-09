@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+macos-dev/
 src-tauri/target/
 src-tauri/signing.ci.json
 .tauri/nordly.key

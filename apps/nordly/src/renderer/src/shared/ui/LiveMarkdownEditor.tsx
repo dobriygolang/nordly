@@ -4,21 +4,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 
-import { codeBlockField, livePreviewPlugin, notesEditorTheme } from '@shared/lib/codemirror/livePreview';
+import { wikiLinkAtPosition, noteTitlesSet } from '@features/notes/lib/wikiLinks';
+import {
+  codeBlockField,
+  livePreviewPlugin,
+  notesEditorTheme,
+  wikiLinkTitlesFacet,
+} from '@shared/lib/codemirror/livePreview';
 import {
   notesCodeSyntaxHighlighting,
   notesMarkdownSupport,
 } from '@shared/lib/codemirror/notesCodeLanguages';
 import { notesKeymap, fenceAutoCloseInput } from '@shared/lib/codemirror/notesKeymap';
+import { wikiLinkAutocomplete } from '@shared/lib/codemirror/wikiLinkAutocomplete';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
+  noteTitles?: string[];
+  onWikiLinkClick?: (linkText: string) => void;
 }
 
 function findSlashTrigger(state: EditorState): { slashStart: number; query: string } | null {
@@ -46,12 +55,24 @@ function findSlashTrigger(state: EditorState): { slashStart: number; query: stri
   return { slashStart, query: before.slice(i + 1) };
 }
 
-export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdownEditorProps) {
+export function LiveMarkdownEditor({
+  value,
+  onChange,
+  placeholder,
+  noteTitles = [],
+  onWikiLinkClick,
+}: LiveMarkdownEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
+  const onWikiLinkClickRef = useRef(onWikiLinkClick);
   const syncingRef = useRef(false);
+  const titlesCompartmentRef = useRef(new Compartment());
+  const autocompleteCompartmentRef = useRef(new Compartment());
   onChangeRef.current = onChange;
+  onWikiLinkClickRef.current = onWikiLinkClick;
+
+  const resolvedTitles = useMemo(() => noteTitlesSet(noteTitles.map((t) => ({ id: '', title: t }))), [noteTitles]);
 
   const [slash, setSlash] = useState<{ x: number; y: number; query: string; slashStart: number } | null>(
     null,
@@ -96,7 +117,25 @@ export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdow
           livePreviewPlugin,
           notesEditorTheme,
           fenceAutoCloseInput,
+          titlesCompartmentRef.current.of(wikiLinkTitlesFacet.of(resolvedTitles)),
+          autocompleteCompartmentRef.current.of(wikiLinkAutocomplete(noteTitles)),
           EditorView.lineWrapping,
+          EditorView.domEventHandlers({
+            mousedown(event, view) {
+              if (event.button !== 0) return false;
+              const target = event.target as HTMLElement | null;
+              if (!target?.closest('.nordly-md-wiki-link')) return false;
+              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+              if (pos == null) return false;
+              const line = view.state.doc.lineAt(pos);
+              const column = pos - line.from;
+              const hit = wikiLinkAtPosition(line.text, column);
+              if (!hit || !onWikiLinkClickRef.current) return false;
+              event.preventDefault();
+              void onWikiLinkClickRef.current(hit.linkText);
+              return true;
+            },
+          }),
           keymap.of([...notesKeymap, ...defaultKeymap, ...historyKeymap]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
@@ -120,6 +159,17 @@ export function LiveMarkdownEditor({ value, onChange, placeholder }: LiveMarkdow
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: [
+        titlesCompartmentRef.current.reconfigure(wikiLinkTitlesFacet.of(resolvedTitles)),
+        autocompleteCompartmentRef.current.reconfigure(wikiLinkAutocomplete(noteTitles)),
+      ],
+    });
+  }, [noteTitles, resolvedTitles]);
 
   useEffect(() => {
     const view = viewRef.current;

@@ -1,7 +1,7 @@
 // Notes — Obsidian-minimal vault: file list + markdown editor (local-only).
 // Sidebar instant-create (⌘N), debounced autosave to IndexedDB.
 //
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -12,8 +12,8 @@ import {
   updateNote,
   publishNoteToWeb,
   unpublishNoteFromWeb,
-  regeneratePublicLink,
   deleteNote,
+  openWikiLink,
   type Note,
   type PublishStatus,
   type PublishToWebOptions,
@@ -114,6 +114,12 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
 
   useEffect(() => {
     loadList();
+  }, [loadList]);
+
+  useEffect(() => {
+    const onNotesChanged = () => loadList();
+    window.addEventListener(NORDLY_EVENTS.notesChanged, onNotesChanged);
+    return () => window.removeEventListener(NORDLY_EVENTS.notesChanged, onNotesChanged);
   }, [loadList]);
 
   useEffect(() => {
@@ -347,22 +353,6 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     [t],
   );
 
-  const handleRegenerate = useCallback(
-    async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
-      if (!isCloudApiAvailable()) {
-        setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
-        return;
-      }
-      try {
-        if (selectedIdRef.current === id) await flushNow();
-        return await regeneratePublicLink(id, options);
-      } catch (err: unknown) {
-        setActiveError(errorMessage(err, t));
-      }
-    },
-    [flushNow, t],
-  );
-
   const handleDeleteNote = useCallback(
     async (id: string) => {
       try {
@@ -397,6 +387,43 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     [flushNow],
   );
 
+  const noteTitles = useMemo(
+    () => list.notes.map((n) => n.title).filter((title) => title.trim().length > 0),
+    [list.notes],
+  );
+
+  const handleWikiLinkClick = useCallback(
+    async (linkText: string) => {
+      await flushNow();
+      try {
+        const { noteId, created } = await openWikiLink(linkText);
+        const note = await getNote(noteId);
+        if (created) {
+          setList((prev) => ({
+            ...prev,
+            notes: [
+              {
+                id: note.id,
+                title: note.title,
+                updatedAt: note.updatedAt,
+                sizeBytes: note.sizeBytes,
+              },
+              ...prev.notes,
+            ],
+          }));
+        }
+        setSelectedId(noteId);
+        setActive(note);
+        setDraftTitle(note.title);
+        setDraftBody(note.bodyMd);
+        setActiveError(null);
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+      }
+    },
+    [flushNow, t],
+  );
+
   const SIDEBAR_W = VAULT_SIDEBAR_W;
 
   return (
@@ -414,7 +441,6 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
             onCreate={handleCreate}
             onPublish={handlePublish}
             onUnpublish={handleUnpublish}
-            onRegenerate={handleRegenerate}
             onDelete={handleDeleteNote}
           />
         </div>
@@ -434,8 +460,10 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
           draftTitle={draftTitle}
           draftBody={draftBody}
           saveStatus={saveStatus}
+          noteTitles={noteTitles}
           onTitleChange={setDraftTitle}
           onBodyChange={setDraftBody}
+          onWikiLinkClick={(linkText) => void handleWikiLinkClick(linkText)}
           onCreate={handleCreate}
           onRetryList={loadList}
         />

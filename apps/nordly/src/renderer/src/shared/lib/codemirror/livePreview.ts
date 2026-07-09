@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, StateField, type EditorState, type Range } from '@codemirror/state';
+import { Facet, RangeSetBuilder, StateField, type EditorState, type Range } from '@codemirror/state';
 import {
   Decoration,
   DecorationSet,
@@ -10,6 +10,14 @@ import {
 } from '@codemirror/view';
 
 import { notesCodeLangLabel } from './notesCodeLanguages';
+
+/** Normalized note titles that resolve [[wiki-links]] in live preview. */
+export const wikiLinkTitlesFacet = Facet.define<ReadonlySet<string>, ReadonlySet<string>>({
+  combine(values) {
+    if (values.length === 0) return new Set();
+    return values[values.length - 1] ?? new Set();
+  },
+});
 
 function rangeTouches(from: number, to: number, start: number, end: number): boolean {
   return from < end && to > start;
@@ -177,6 +185,43 @@ function applyDelimitedInline(
   }
 }
 
+function applyWikiLinkInline(
+  builder: RangeSetBuilder<Decoration>,
+  state: EditorState,
+  lineFrom: number,
+  text: string,
+  occupied: [number, number][],
+  resolvedTitles: ReadonlySet<string>,
+): void {
+  const re = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+  let match = re.exec(text);
+  while (match != null) {
+    const relStart = match.index;
+    const relEnd = relStart + match[0].length;
+    if (!overlapsRange(occupied, relStart, relEnd)) {
+      const targetTitle = match[1].trim();
+      const alias = match[2]?.trim();
+      const displayOffset = alias ? 2 + match[1].length + 1 : 2;
+      const start = lineFrom + relStart;
+      const end = lineFrom + relEnd;
+      const contentStart = start + displayOffset;
+      const contentEnd = end - 2;
+      const resolved = resolvedTitles.has(targetTitle.toLowerCase());
+      const className = resolved ? 'nordly-md-wiki-link' : 'nordly-md-wiki-link nordly-md-wiki-link--unresolved';
+      const showSyntax = showRangeSyntax(state, start, end);
+      if (showSyntax) {
+        addMark(builder, contentStart, contentEnd, { class: className });
+      } else {
+        addMark(builder, start, start + 2, { class: SYNTAX_HIDDEN });
+        addMark(builder, contentStart, contentEnd, { class: className });
+        addMark(builder, end - 2, end, { class: SYNTAX_HIDDEN });
+      }
+      occupied.push([relStart, relEnd]);
+    }
+    match = re.exec(text);
+  }
+}
+
 function applyLinkInline(
   builder: RangeSetBuilder<Decoration>,
   state: EditorState,
@@ -216,8 +261,10 @@ function decorateInlines(
   text: string,
 ): void {
   const occupied: [number, number][] = [];
+  const resolvedTitles = state.facet(wikiLinkTitlesFacet);
   applyDelimitedInline(builder, state, lineFrom, text, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
   applyLinkInline(builder, state, lineFrom, text, occupied);
+  applyWikiLinkInline(builder, state, lineFrom, text, occupied, resolvedTitles);
   applyDelimitedInline(builder, state, lineFrom, text, /\*\*([^*\n]+)\*\*/g, 'nordly-md-bold', 2, 2, occupied);
   applyDelimitedInline(builder, state, lineFrom, text, /__([^_\n]+)__/g, 'nordly-md-bold', 2, 2, occupied);
   applyDelimitedInline(builder, state, lineFrom, text, /~~([^~\n]+)~~/g, 'nordly-md-strike', 2, 2, occupied);

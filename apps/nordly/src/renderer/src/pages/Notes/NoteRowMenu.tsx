@@ -2,7 +2,11 @@ import { forwardRef, memo, useCallback } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import type { PublishFeatureEntitlements, PublishToWebOptions } from '@features/notes/model/publishOptions';
+import {
+  canApplyPublishOptions,
+  type PublishFeatureEntitlements,
+  type PublishToWebOptions,
+} from '@features/notes/model/publishOptions';
 import { PUBLISH_EXPIRY_OPTIONS } from '@features/notes/model/publishOptions';
 import { Icon } from '@shared/ui/primitives/Icon';
 
@@ -12,12 +16,12 @@ export interface NoteRowMenuProps {
   vaultReady: boolean;
   publishOptions: PublishToWebOptions;
   publishEntitlements: PublishFeatureEntitlements | null;
+  serverPasswordProtected: boolean;
   style?: React.CSSProperties;
   onPublishOptionsChange: (patch: Partial<PublishToWebOptions>) => void;
   onPublish: () => void;
   onCopyLink: () => void;
   onViewPublic: () => void;
-  onRegenerate: () => void;
   onUnpublish: () => void;
   onDelete: () => void;
 }
@@ -136,20 +140,22 @@ function PublishOptionsSection({
           </label>
           <label className="nordly-note-menu__expiry">
             <span className="nordly-note-menu__password-label">{t('nordly.notes.menu.publish_expiry_label')}</span>
-            <select
-              className="nordly-note-menu__expiry-select mono"
-              value={publishOptions.expiresInDays}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onPublishOptionsChange({ expiresInDays: Number(e.target.value) })}
-            >
-              {PUBLISH_EXPIRY_OPTIONS.map((days) => (
-                <option key={days} value={days}>
-                  {days === 0
-                    ? t('nordly.notes.menu.publish_expiry_never')
-                    : t('nordly.notes.menu.publish_expiry_days', { days })}
-                </option>
-              ))}
-            </select>
+            <span className="nordly-note-menu__expiry-select-wrap">
+              <select
+                className="nordly-note-menu__expiry-select mono"
+                value={publishOptions.expiresInDays}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onPublishOptionsChange({ expiresInDays: Number(e.target.value) })}
+              >
+                {PUBLISH_EXPIRY_OPTIONS.map((days) => (
+                  <option key={days} value={days}>
+                    {days === 0
+                      ? t('nordly.notes.menu.publish_expiry_never')
+                      : t('nordly.notes.menu.publish_expiry_days', { days })}
+                  </option>
+                ))}
+              </select>
+            </span>
           </label>
         </>
       ) : null}
@@ -165,20 +171,19 @@ export const NoteRowMenu = memo(
       vaultReady,
       publishOptions,
       publishEntitlements,
+      serverPasswordProtected,
       style,
       onPublishOptionsChange,
       onPublish,
       onCopyLink,
       onViewPublic,
-      onRegenerate,
       onUnpublish,
       onDelete,
     },
     ref,
   ) {
     const t = useT();
-    const passwordInvalid =
-      publishOptions.passwordProtected && publishOptions.password.trim().length < 4;
+    const passwordInvalid = !canApplyPublishOptions(publishOptions, serverPasswordProtected);
     const proOptions = publishEntitlements?.publishPrivateLink;
 
     return (
@@ -214,12 +219,6 @@ export const NoteRowMenu = memo(
                     onPublishOptionsChange={onPublishOptionsChange}
                   />
                 ) : null}
-                <MenuItem
-                  icon={<Icon name="reset" size={14} strokeWidth={1.5} />}
-                  label={t('nordly.notes.menu.regenerate')}
-                  onClick={onRegenerate}
-                  disabled={passwordInvalid}
-                />
                 <MenuItem
                   icon={<Icon name="unlink" size={14} strokeWidth={1.5} />}
                   label={t('nordly.notes.menu.unpublish')}

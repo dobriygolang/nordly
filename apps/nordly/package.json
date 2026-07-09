@@ -1,7 +1,7 @@
 {
   "name": "nordly",
   "productName": "Nordly",
-  "version": "0.0.1",
+  "version": "0.0.12",
   "description": "Nordly — calm desktop focus workspace",
   "private": true,
   "scripts": {

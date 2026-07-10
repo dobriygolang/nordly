@@ -306,10 +306,12 @@ async function runSync(options?: SyncOptions): Promise<void> {
     }
 
     if (exhausted > 0) {
+      const stuck = queue.filter((e) => e.attempts >= MAX_ATTEMPTS);
+      const describe = (e: OutboxEntry) => `${e.domain}/${e.op}`;
       const msg =
         exhausted === 1
-          ? `Sync paused — one change failed after ${MAX_ATTEMPTS} attempts. Tap Retry.`
-          : `Sync paused — ${exhausted} changes failed after ${MAX_ATTEMPTS} attempts. Tap Retry.`;
+          ? `One change failed after ${MAX_ATTEMPTS} attempts (${describe(stuck[0]!)}). Tap Retry.`
+          : `${exhausted} changes failed after ${MAX_ATTEMPTS} attempts (${stuck.map(describe).join(', ')}). Tap Retry.`;
       store.setLastError(msg);
       return;
     }

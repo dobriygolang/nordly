@@ -58,16 +58,18 @@ export function SyncStatusBanner(): JSX.Element | null {
           ? t('nordly.sync.banner_unreachable')
           : t('nordly.sync.banner_error');
 
+  const text =
+    kind === 'error' && lastError
+      ? lastError
+      : message;
+
   const showRetry = kind === 'error' || kind === 'unreachable';
   const showReauth = kind === 'reauth' && online;
 
-  const detail = kind === 'error' && lastError ? lastError : null;
-
   return (
     <div className="nordly-sync-banner" role="status" data-kind={kind} data-no-drag>
-      <span className="nordly-sync-banner__text" title={detail ?? undefined}>
-        {message}
-        {detail ? <span className="nordly-sync-banner__detail"> — {detail}</span> : null}
+      <span className="nordly-sync-banner__text" title={text}>
+        {text}
       </span>
       <div className="nordly-sync-banner__actions">
         {showReauth ? (

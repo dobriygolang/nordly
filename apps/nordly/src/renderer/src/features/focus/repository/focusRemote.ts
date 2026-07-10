@@ -2,6 +2,7 @@ import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { API_BASE_URL } from '@shared/api/config';
 import {
   optionalJsonDate,
+  optionalJsonStringOrEmpty,
   requireJsonNumber,
   requireJsonString,
 } from '@shared/api/json';
@@ -48,7 +49,7 @@ function focusJsonHeaders(): HeadersInit {
 function unwrapSession(raw: Record<string, unknown>): FocusSession {
   return {
     id: requireJsonString(raw, 'id'),
-    planItemId: requireJsonString(raw, 'taskId'),
+    planItemId: optionalJsonStringOrEmpty(raw, 'taskId'),
     pinnedTitle: requireJsonString(raw, 'pinnedTitle'),
     startedAt: optionalJsonDate(raw.startedAt),
     endedAt: optionalJsonDate(raw.endedAt),

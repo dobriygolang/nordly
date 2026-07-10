@@ -25,7 +25,8 @@ type AccessClaims struct {
 }
 
 // ParseScoped validates RS256 token and optional scope binding.
-// Empty token scope means unrestricted user access token.
+// When expectedScope is empty, any valid access token is accepted (scoped guest or unrestricted user).
+// When expectedScope is non-empty, token scope must match exactly.
 func (v *Validator) ParseScoped(tokenString, expectedScope string) (AccessClaims, error) {
 	token, err := jwtlib.Parse(tokenString, func(token *jwtlib.Token) (any, error) {
 		if token.Method != jwtlib.SigningMethodRS256 {
@@ -61,7 +62,7 @@ func (v *Validator) ParseScoped(tokenString, expectedScope string) (AccessClaims
 		out.DisplayName = dn
 	}
 
-	if out.Scope != "" && out.Scope != expectedScope {
+	if expectedScope != "" && out.Scope != expectedScope {
 		return AccessClaims{}, fmt.Errorf("token scope mismatch")
 	}
 	return out, nil

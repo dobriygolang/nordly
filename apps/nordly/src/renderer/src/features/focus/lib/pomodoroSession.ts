@@ -43,7 +43,7 @@ export async function finishFocusSession(
     override?.pomodorosCompleted ?? (mode === 'pomodoro' && remain === 0 ? 1 : 0);
 
   const id = await resolveSessionId(sessionRef);
-  if (!id) throw new Error('No focus session to finish');
+  if (!id) return;
 
   sessionRef.current = null;
   await endFocusSession({

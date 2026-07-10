@@ -153,14 +153,6 @@ export function PomodoroController(): null {
     });
   }, []);
 
-  useEffect(() => {
-    return usePomodoroStore.subscribe((state, prev) => {
-      if (state.resetToken !== prev.resetToken) {
-        void finishSession().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
-      }
-    });
-  }, [finishSession]);
-
   if (error) throw error;
 
   return null;

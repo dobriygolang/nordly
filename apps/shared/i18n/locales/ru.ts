@@ -74,6 +74,7 @@ export const ru = {
   'nordly.sync.reauth_dialog_aria': 'Повторный вход',
   'nordly.sync.reauth_close': 'Закрыть',
   'nordly.sync.retry': 'Повторить',
+  'nordly.sync.banner_dismiss': 'Скрыть',
   'nordly.sync.error_no_network': 'Нет подключения к интернету',
   'nordly.sync.error_server_unreachable': 'Не удаётся связаться с сервером',
   'nordly.vault.loading': 'Загрузка vault…',

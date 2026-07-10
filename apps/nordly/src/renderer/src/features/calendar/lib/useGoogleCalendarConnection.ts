@@ -48,8 +48,13 @@ export function useGoogleCalendarConnection(): {
     } catch (err) {
       if (isAuthError(err)) {
         useSyncStore.getState().setSessionReauthRequired(true);
+        settingsCache = {
+          connected: false,
+          reauthRequired: false,
+          fetchedAt: Date.now(),
+        };
         setConnected(false);
-        setReauthRequired(true);
+        setReauthRequired(false);
         setReady(true);
         setError(null);
         return;

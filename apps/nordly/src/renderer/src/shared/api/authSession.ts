@@ -42,6 +42,7 @@ function setSessionReauthRequired(required: boolean): void {
 export function resetAuthRefreshState(): void {
   refreshRejected = false;
   setSessionReauthRequired(false);
+  useSyncStore.getState().setDismissedSyncBannerKey(null);
   useSyncStore.getState().setCloudSyncBlocked(false);
   void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
     resetDeviceRegisterCache();

@@ -18,13 +18,12 @@ html[data-nordly-view='notification'] #root {
 }
 
 .nordly-notification {
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  align-items: stretch;
   width: 100%;
   min-height: 84px;
-  padding: 14px 16px;
   border: 1px solid var(--hair-2);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -35,13 +34,54 @@ html[data-nordly-view='notification'] #root {
     0 18px 40px -18px rgb(0 0 0 / 0.55),
     0 4px 14px -6px rgb(0 0 0 / 0.35);
   color: var(--ink);
-  text-align: left;
-  cursor: pointer;
   opacity: 0;
   transform: translateY(-10px) scale(0.96);
   transition:
     opacity 280ms var(--motion-ease-emphasized),
     transform 320ms var(--motion-ease-emphasized);
+}
+
+.nordly-notification__main {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 84px;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nordly-notification__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-60);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nordly-notification__close:hover {
+  background: var(--ink-tint-08);
+  color: var(--ink-90);
+}
+
+.nordly-notification.is-dragging .nordly-notification__main {
+  cursor: grabbing;
 }
 
 html.light .nordly-notification {
@@ -65,7 +105,10 @@ html.light .nordly-notification {
 
 .nordly-notification.is-dragging {
   transition: none;
-  cursor: grabbing;
+}
+
+.nordly-notification.is-dragging .nordly-notification__main {
+  transition: none;
 }
 
 .nordly-notification.is-swipe-out {

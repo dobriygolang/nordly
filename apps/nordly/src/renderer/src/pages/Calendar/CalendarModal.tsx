@@ -51,6 +51,7 @@ import { refreshGoogleCalendarCache } from '@features/calendar/lib/googleCalenda
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isCloudEnabled } from '@shared/model/features';
+import { useSyncStore } from '@shared/model/sync';
 
 type ViewMode = 'week' | 'month' | 'year';
 
@@ -83,6 +84,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
   const [operationError, setOperationError] = useState<Error | null>(null);
+  const [googleReauthDismissed, setGoogleReauthDismissed] = useState(false);
+  const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
 
   const {
     connected,
@@ -122,9 +125,15 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   );
 
   const reauthNeeded = connectionReauth || fetchReauth;
+  const showGoogleReauthBanner =
+    isCloudEnabled() && connected && reauthNeeded && !sessionReauthRequired && !googleReauthDismissed;
   const googleError =
     googleFetchError === 'fetch' && !reauthNeeded ? t('nordly.calendar.google_error') : null;
   const showGridLoading = !tasksLoaded;
+
+  useEffect(() => {
+    if (!reauthNeeded) setGoogleReauthDismissed(false);
+  }, [reauthNeeded]);
 
   useEffect(() => {
     if (viewMode === 'year') setViewYear(weekStart.getFullYear());
@@ -445,14 +454,24 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           />
         </header>
 
-        {reauthNeeded && isCloudEnabled() && (
+        {showGoogleReauthBanner ? (
           <div className="nordly-calendar-banner" role="status">
             <span>{t('nordly.calendar.google_reauth')}</span>
-            <button type="button" className="nordly-calendar-banner__btn focus-ring" onClick={() => void reconnect()}>
-              {t('nordly.calendar.reconnect')}
-            </button>
+            <div className="nordly-calendar-banner__actions">
+              <button type="button" className="nordly-calendar-banner__btn focus-ring" onClick={() => void reconnect()}>
+                {t('nordly.calendar.reconnect')}
+              </button>
+              <button
+                type="button"
+                className="nordly-calendar-banner__close focus-ring"
+                aria-label={t('nordly.sync.banner_dismiss')}
+                onClick={() => setGoogleReauthDismissed(true)}
+              >
+                ×
+              </button>
+            </div>
           </div>
-        )}
+        ) : null}
 
         <div className="nordly-calendar-body" data-loading={showGridLoading ? 'true' : undefined}>
         {viewMode === 'week' ? (

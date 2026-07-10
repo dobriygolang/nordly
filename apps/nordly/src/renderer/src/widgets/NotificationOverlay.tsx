@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { useT } from '@nordly-i18n';
 
 import { Icon } from '@shared/ui/primitives/Icon';
 import { NOTIFY_AUTO_DISMISS_MS } from '@shared/api/notifications';
@@ -18,6 +19,7 @@ const SWIPE_DISMISS_PX = 72;
 const CLOSE_ANIM_MS = 320;
 
 export function NotificationOverlayApp(): JSX.Element {
+  const t = useT();
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const [swipeOut, setSwipeOut] = useState(false);
@@ -130,8 +132,7 @@ export function NotificationOverlayApp(): JSX.Element {
 
   return (
     <div className="nordly-notification-shell">
-      <button
-        type="button"
+      <div
         className={[
           'nordly-notification',
           visible ? 'is-visible' : '',
@@ -143,24 +144,40 @@ export function NotificationOverlayApp(): JSX.Element {
           .join(' ')}
         style={dragStyle}
         data-visible={visible ? 'true' : undefined}
-        onClick={openApp}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
         aria-live="polite"
       >
-        <span className="nordly-notification__icon" aria-hidden>
-          <Icon name="pomodoro" size={18} strokeWidth={2} />
-        </span>
-        <span className="nordly-notification__copy">
-          <span className="nordly-notification__app">Nordly</span>
-          <span className="nordly-notification__title">{payload.title}</span>
-          {payload.body ? (
-            <span className="nordly-notification__body">{payload.body}</span>
-          ) : null}
-        </span>
-      </button>
+        <button
+          type="button"
+          className="nordly-notification__close focus-ring"
+          aria-label={t('nordly.sync.banner_dismiss')}
+          onClick={(event) => {
+            event.stopPropagation();
+            requestDismiss();
+          }}
+        >
+          ×
+        </button>
+        <button
+          type="button"
+          className="nordly-notification__main focus-ring"
+          onClick={openApp}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={finishDrag}
+          onPointerCancel={finishDrag}
+        >
+          <span className="nordly-notification__icon" aria-hidden>
+            <Icon name="pomodoro" size={18} strokeWidth={2} />
+          </span>
+          <span className="nordly-notification__copy">
+            <span className="nordly-notification__app">Nordly</span>
+            <span className="nordly-notification__title">{payload.title}</span>
+            {payload.body ? (
+              <span className="nordly-notification__body">{payload.body}</span>
+            ) : null}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

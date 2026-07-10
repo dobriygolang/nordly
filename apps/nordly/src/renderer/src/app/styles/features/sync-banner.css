@@ -30,6 +30,35 @@
   color: var(--ink-60);
 }
 
+.nordly-sync-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.nordly-sync-banner__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-60);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.nordly-sync-banner__close:hover {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink-90);
+}
+
 .nordly-sync-banner__btn {
   flex-shrink: 0;
   padding: 6px 12px;

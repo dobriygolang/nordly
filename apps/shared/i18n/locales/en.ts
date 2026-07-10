@@ -74,6 +74,7 @@ export const en = {
   'nordly.sync.reauth_dialog_aria': 'Sign in again',
   'nordly.sync.reauth_close': 'Close',
   'nordly.sync.retry': 'Retry',
+  'nordly.sync.banner_dismiss': 'Dismiss',
   'nordly.sync.error_no_network': 'No internet connection',
   'nordly.sync.error_server_unreachable': 'Cannot reach server',
   'nordly.vault.loading': 'Loading vault…',

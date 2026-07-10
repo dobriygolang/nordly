@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,15 +43,15 @@ func (r *Repository) Create(ctx context.Context, run *model.CodeRun) error {
 
 	_, err = r.pg.Exec(ctx, `
 		INSERT INTO code_runs (
-			id, user_id, language, code, stdin, status, run_type,
+			id, user_id, room_id, language, code, stdin, status, run_type,
 			stdout, stderr, compile_output, error, exit_code, time_ms, memory_kb,
 			tests_total, tests_passed, test_results, runner, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11, $12, $13, $14,
-			$15, $16, $17, $18, $19, $20
+			$1, $2, $3, $4, $5, $6, $7, $8,
+			$9, $10, $11, $12, $13, $14, $15,
+			$16, $17, $18, $19, $20, $21
 		)
-	`, runID, userID, run.Language, run.Code, run.Stdin, run.Status, run.RunType,
+	`, runID, userID, nullableUUID(run.RoomID), run.Language, run.Code, run.Stdin, run.Status, run.RunType,
 		run.Stdout, run.Stderr, run.CompileOutput, run.Error, run.ExitCode, run.TimeMS, run.MemoryKB,
 		run.TestsTotal, run.TestsPassed, testResults, run.Runner, run.CreatedAt, run.UpdatedAt)
 	return err
@@ -92,7 +93,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*model.CodeRun, er
 		return nil, fmt.Errorf("invalid run id: %w", err)
 	}
 	return r.scanOne(r.pg.QueryRow(ctx, `
-		SELECT id, user_id, language, code, stdin, status, run_type,
+		SELECT id, user_id, room_id, language, code, stdin, status, run_type,
 			stdout, stderr, compile_output, error, exit_code, time_ms, memory_kb,
 			tests_total, tests_passed, test_results, runner, created_at, updated_at
 		FROM code_runs WHERE id = $1
@@ -117,7 +118,7 @@ func (r *Repository) ClaimQueuedRuns(ctx context.Context, limit int) ([]model.Co
 			LIMIT $3
 			FOR UPDATE SKIP LOCKED
 		)
-		RETURNING id, user_id, language, code, stdin, status, run_type,
+		RETURNING id, user_id, room_id, language, code, stdin, status, run_type,
 			stdout, stderr, compile_output, error, exit_code, time_ms, memory_kb,
 			tests_total, tests_passed, test_results, runner, created_at, updated_at
 	`, model.StatusQueued, model.StatusRunning, limit)
@@ -152,9 +153,10 @@ func (r *Repository) scanOne(row rowScanner) (*model.CodeRun, error) {
 func scanRun(row rowScanner) (*model.CodeRun, error) {
 	var run model.CodeRun
 	var id, userID uuid.UUID
+	var roomID *uuid.UUID
 	var testResultsJSON []byte
 	if err := row.Scan(
-		&id, &userID, &run.Language, &run.Code, &run.Stdin, &run.Status, &run.RunType,
+		&id, &userID, &roomID, &run.Language, &run.Code, &run.Stdin, &run.Status, &run.RunType,
 		&run.Stdout, &run.Stderr, &run.CompileOutput, &run.Error, &run.ExitCode, &run.TimeMS, &run.MemoryKB,
 		&run.TestsTotal, &run.TestsPassed, &testResultsJSON, &run.Runner, &run.CreatedAt, &run.UpdatedAt,
 	); err != nil {
@@ -162,6 +164,9 @@ func scanRun(row rowScanner) (*model.CodeRun, error) {
 	}
 	run.ID = id.String()
 	run.UserID = userID.String()
+	if roomID != nil {
+		run.RoomID = roomID.String()
+	}
 	if len(testResultsJSON) > 0 {
 		_ = json.Unmarshal(testResultsJSON, &run.TestResults)
 	}
@@ -174,4 +179,15 @@ func scanRun(row rowScanner) (*model.CodeRun, error) {
 // TouchUpdatedAt returns current UTC time for updates.
 func TouchUpdatedAt() time.Time {
 	return time.Now().UTC()
+}
+
+func nullableUUID(id string) any {
+	if strings.TrimSpace(id) == "" {
+		return nil
+	}
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil
+	}
+	return parsed
 }

@@ -59,4 +59,4 @@ type Participant struct {
 }
 
 const DefaultRoomTTL = 6 * time.Hour
-const DefaultGuestRoomTTL = 1 * time.Hour
+const DefaultGuestRoomTTL = 3 * time.Hour

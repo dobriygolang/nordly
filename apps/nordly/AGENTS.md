@@ -240,7 +240,9 @@ Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomod
 cd apps/nordly
 cp .env.example .env
 npm install
-npm run dev              # Tauri
+npm run dev              # macOS: signed macos-dev/Nordly.app (Calendar TCC); else: tauri dev
+npm run dev:tauri        # plain tauri dev (no Apple Calendar permission dialog on macOS)
+npm run dev:macos-app    # macOS .app wrapper only
 npm run dev:vite         # browser-only (no IPC)
 npm run typecheck
 npm run test

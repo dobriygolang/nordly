@@ -37,6 +37,8 @@ Prod host needs `/var/lib/sandbox-work` bind-mount + Docker socket. See [deploy/
 
 `INTERNAL_API_TOKEN` required. Each run consumes `code_runs_per_day` quota via billing gRPC (always wired at startup).
 
+Live room runs store optional `room_id` (from JWT scope `editor:{roomID}`). `GetCodeRun` allows the runner or any guest scoped to the same room.
+
 ## Commands
 
 ```bash

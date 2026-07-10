@@ -93,6 +93,75 @@ html.light .nordly-settings-group__body {
   max-width: 100%;
 }
 
+.nordly-setting-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.nordly-setting-row--stack .nordly-setting-row__control {
+  flex: 1;
+  width: 100%;
+}
+
+.nordly-settings-apple-calendars__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.nordly-settings-apple-calendars__count {
+  font-size: 11px;
+  color: var(--ink-40);
+}
+
+.nordly-settings-apple-calendars__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-60);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.nordly-settings-apple-calendars__link:hover:not(:disabled) {
+  color: var(--ink-90);
+}
+
+.nordly-settings-apple-calendars__link:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.nordly-settings-apple-calendars {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+}
+
+.nordly-settings-apple-calendars[data-scrollable='true'] {
+  max-height: 92px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-tint-16) transparent;
+}
+
+.nordly-settings-apple-calendars[data-scrollable='true']::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nordly-settings-apple-calendars[data-scrollable='true']::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--ink-tint-16);
+}
+
 .nordly-segmented {
   display: inline-flex;
   gap: 4px;

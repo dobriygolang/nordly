@@ -98,6 +98,17 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     setRangeEnd((e) => e + BATCH);
   }, []);
 
+  const extendRangeStartTo = useCallback((minOffset: number) => {
+    setRangeStart((s) => {
+      const next = Math.min(s, minOffset - BATCH);
+      const prepended = Math.max(0, -next - -s);
+      if (prepended > 0) {
+        scrollAdjustRef.current += prepended * DAY_COL_STRIDE;
+      }
+      return next;
+    });
+  }, []);
+
   const scrollToDayIndex = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
     const el = scrollRef.current;
     if (!el || index < 0) return;
@@ -124,12 +135,12 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       const target = parseDayKeySafe(dayKey);
       if (!target) return;
       const offset = dayOffsetFrom(today, target);
-      setRangeStart((s) => Math.min(s, offset - BATCH));
+      extendRangeStartTo(offset);
       setRangeEnd((e) => Math.max(e, offset + BATCH));
       pendingScrollTodayRef.current = false;
       pendingScrollDayKeyRef.current = dayKey;
     },
-    [today],
+    [today, extendRangeStartTo],
   );
 
   const expandRangeForDayKeys = useCallback(
@@ -153,10 +164,10 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
         }
       }
       if (!hasOffset) return;
-      setRangeStart((s) => Math.min(s, minOffset - BATCH));
+      extendRangeStartTo(minOffset);
       setRangeEnd((e) => Math.max(e, maxOffset + BATCH));
     },
-    [today],
+    [today, extendRangeStartTo],
   );
 
   useLayoutEffect(() => {

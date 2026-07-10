@@ -45,7 +45,7 @@ pub struct AppleCalendarAccessResult {
 #[allow(deprecated)]
 mod macos {
     use std::ffi::CStr;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, OnceLock};
     use std::time::{Duration, Instant};
 
     use block::ConcreteBlock;
@@ -62,12 +62,55 @@ mod macos {
     const EK_ENTITY_TYPE_EVENT: i64 = 0;
     const BUNDLE_ID: &str = "app.trynordly.desktop";
 
+    static EVENT_STORE: OnceLock<Mutex<Option<usize>>> = OnceLock::new();
+
+    fn create_event_store() -> Result<id, String> {
+        unsafe {
+            let store: id = msg_send![class!(EKEventStore), alloc];
+            let store: id = msg_send![store, init];
+            if store.is_null() {
+                return Err("Could not create EKEventStore".into());
+            }
+            Ok(store)
+        }
+    }
+
+    fn event_store() -> Result<id, String> {
+        let slot = EVENT_STORE.get_or_init(|| Mutex::new(None));
+        let mut guard = slot
+            .lock()
+            .map_err(|_| "calendar store lock poisoned".to_string())?;
+        if guard.is_none() {
+            *guard = Some(create_event_store()? as usize);
+        }
+        Ok(guard.expect("calendar store initialized") as id)
+    }
+
     fn running_in_app_bundle() -> bool {
-        std::env::current_exe()
-            .ok()
-            .and_then(|path| path.canonicalize().ok())
-            .map(|path| path.to_string_lossy().contains(".app/Contents/MacOS/"))
+        if let Ok(path) = std::env::current_exe().and_then(|p| p.canonicalize()) {
+            if path.to_string_lossy().contains(".app/Contents/MacOS/") {
+                return true;
+            }
+        }
+        bundle_path_from_main_bundle()
+            .map(|path| path.contains(".app"))
             .unwrap_or(false)
+    }
+
+    fn bundle_path_from_main_bundle() -> Option<String> {
+        unsafe {
+            let bundle: id = msg_send![class!(NSBundle), mainBundle];
+            if bundle.is_null() {
+                return None;
+            }
+            let path: id = msg_send![bundle, bundlePath];
+            let path_str = nsstring_to_string(path);
+            if path_str.is_empty() {
+                None
+            } else {
+                Some(path_str)
+            }
+        }
     }
 
     pub fn runtime_info() -> AppleCalendarRuntimeInfo {
@@ -196,17 +239,6 @@ mod macos {
         }
     }
 
-    fn open_store() -> Result<id, String> {
-        unsafe {
-            let store: id = msg_send![class!(EKEventStore), alloc];
-            let store: id = msg_send![store, init];
-            if store.is_null() {
-                return Err("Could not create EKEventStore".into());
-            }
-            Ok(store)
-        }
-    }
-
     fn auth_status_raw() -> i64 {
         unsafe {
             msg_send![class!(EKEventStore), authorizationStatusForEntityType: EK_ENTITY_TYPE_EVENT]
@@ -225,6 +257,61 @@ mod macos {
             }
         }
         matches!(auth_status_raw(), 3 | 4)
+    }
+
+    fn any_store_has_read_access() -> bool {
+        event_store()
+            .map(|store| store_has_read_access(store))
+            .unwrap_or(false)
+    }
+
+    /// macOS 14+: reading events can prompt upgrade from write-only to full access (TN3153).
+    fn trigger_full_access_probe(store: id) {
+        unsafe {
+            let now: id = msg_send![class!(NSDate), date];
+            if now.is_null() {
+                return;
+            }
+            let end: id = msg_send![now, dateByAddingTimeInterval: 86_400.0];
+            if end.is_null() {
+                return;
+            }
+            let predicate: id = msg_send![
+                store,
+                predicateForEventsWithStartDate: now
+                endDate: end
+                calendars: nil
+            ];
+            if predicate.is_null() {
+                return;
+            }
+            let _: id = msg_send![store, eventsMatchingPredicate: predicate];
+        }
+    }
+
+    fn refresh_read_access(store: id) {
+        reset_store_if_supported(store);
+        trigger_full_access_probe(store);
+    }
+
+    fn wait_for_read_access_after_grant(store: id) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            refresh_read_access(store);
+            if store_has_read_access(store) {
+                return;
+            }
+            pump_run_loop(0.1);
+        }
+    }
+
+    fn access_result_after_grant(store: id) -> AppleCalendarAccessResult {
+        let auth = read_auth_status(store);
+        AppleCalendarAccessResult {
+            status: auth.status,
+            authorized: auth.authorized,
+            settings_opened: false,
+        }
     }
 
     fn read_auth_status(store: id) -> AppleCalendarAuthStatus {
@@ -278,7 +365,7 @@ mod macos {
         }
     }
 
-    fn request_read_access(store: id) -> Result<(), String> {
+    fn request_read_access(store: id) -> Result<bool, String> {
         let outcome = Arc::new(Mutex::new(None::<Result<(), String>>));
         let outcome_for_block = Arc::clone(&outcome);
 
@@ -337,12 +424,10 @@ mod macos {
 
         match final_outcome {
             Ok(()) => {
-                for _ in 0..10 {
-                    if store_has_read_access(store) {
-                        reset_store_if_supported(store);
-                        return Ok(());
-                    }
-                    pump_run_loop(0.02);
+                wait_for_read_access_after_grant(store);
+                if any_store_has_read_access() {
+                    reset_store_if_supported(store);
+                    return Ok(true);
                 }
                 let status = auth_status_raw();
                 if status == 5 {
@@ -357,15 +442,15 @@ mod macos {
                             .into(),
                     );
                 }
-                Err(format!(
-                    "Calendar access was not granted (status={status}) — enable Full Access in System Settings"
-                ))
+                // Dialog returned granted=true but TCC toggle is still off — user must enable manually.
+                Ok(false)
             }
             Err(message) => Err(message),
         }
     }
 
     fn require_read_access(store: id) -> Result<(), String> {
+        refresh_read_access(store);
         if store_has_read_access(store) {
             return Ok(());
         }
@@ -449,21 +534,22 @@ mod macos {
     }
 
     pub fn auth_status() -> AppleCalendarAuthStatus {
-        match open_store() {
-            Ok(store) => read_auth_status(store),
-            Err(_) => map_auth_status(auth_status_raw()),
-        }
+        let Ok(store) = event_store() else {
+            return map_auth_status(auth_status_raw());
+        };
+        refresh_read_access(store);
+        read_auth_status(store)
     }
 
     pub fn request_access() -> Result<AppleCalendarAccessResult, String> {
         if !running_in_app_bundle() {
             return Err(
-                "Apple Calendar requires Nordly.app — macOS only registers privacy requests from .app bundles. Quit and run: npm run dev:macos-app"
+                "Apple Calendar requires Nordly.app — macOS only registers privacy requests from .app bundles. Quit and run: npm run dev"
                     .into(),
             );
         }
 
-        let store = open_store()?;
+        let store = event_store()?;
         if store_has_read_access(store) {
             return Ok(access_result(store, false));
         }
@@ -478,10 +564,22 @@ mod macos {
         }
 
         match request_read_access(store) {
-            Ok(()) => Ok(access_result(store, false)),
-            Err(_) => {
+            Ok(true) => Ok(access_result_after_grant(store)),
+            Ok(false) => {
                 let settings_opened = open_privacy_settings().is_ok();
-                Ok(access_result(store, settings_opened))
+                Ok(AppleCalendarAccessResult {
+                    status: "not_determined".into(),
+                    authorized: false,
+                    settings_opened,
+                })
+            }
+            Err(message) => {
+                let status = auth_status_raw();
+                if status == 2 || status == 5 {
+                    let settings_opened = open_privacy_settings().is_ok();
+                    return Ok(access_result(store, settings_opened));
+                }
+                Err(message)
             }
         }
     }
@@ -491,7 +589,7 @@ mod macos {
     }
 
     pub fn list_calendars() -> Result<Vec<AppleCalendarListEntry>, String> {
-        let store = open_store()?;
+        let store = event_store()?;
         require_read_access(store)?;
         unsafe {
             let all: id = msg_send![store, calendarsForEntityType: EK_ENTITY_TYPE_EVENT];
@@ -517,7 +615,7 @@ mod macos {
         time_max: String,
         calendar_ids: Option<Vec<String>>,
     ) -> Result<Vec<AppleCalendarEvent>, String> {
-        let store = open_store()?;
+        let store = event_store()?;
         require_read_access(store)?;
         let start = iso_to_nsdate(&time_min)?;
         let end = iso_to_nsdate(&time_max)?;
@@ -613,19 +711,9 @@ where
     .map_err(|e| e.to_string())?
 }
 
-async fn run_in_background<R, F>(work: F) -> Result<R, String>
-where
-    F: FnOnce() -> Result<R, String> + Send + 'static,
-    R: Send + 'static,
-{
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|e| e.to_string())?
-}
-
 #[tauri::command]
-pub fn apple_calendar_auth_status() -> AppleCalendarAuthStatus {
-    macos::auth_status()
+pub async fn apple_calendar_auth_status(app: AppHandle) -> Result<AppleCalendarAuthStatus, String> {
+    run_on_main(&app, || Ok(macos::auth_status())).await
 }
 
 #[tauri::command]
@@ -647,8 +735,7 @@ pub async fn apple_calendar_open_settings(app: AppHandle) -> Result<(), String> 
 pub async fn apple_calendar_list_calendars(
     app: AppHandle,
 ) -> Result<Vec<AppleCalendarListEntry>, String> {
-    let _ = app;
-    run_in_background(macos::list_calendars).await
+    run_on_main(&app, macos::list_calendars).await
 }
 
 #[tauri::command]
@@ -658,7 +745,6 @@ pub async fn apple_calendar_list_events(
     time_max: String,
     calendar_ids: Option<Vec<String>>,
 ) -> Result<Vec<AppleCalendarEvent>, String> {
-    let _ = app;
     let ids = calendar_ids;
-    run_in_background(move || macos::list_events(time_min, time_max, ids)).await
+    run_on_main(&app, move || macos::list_events(time_min, time_max, ids)).await
 }

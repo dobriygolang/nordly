@@ -30,6 +30,7 @@ const (
 type CodeRun struct {
 	ID            string
 	UserID        string
+	RoomID        string
 	Language      string
 	Code           string
 	Stdin          string

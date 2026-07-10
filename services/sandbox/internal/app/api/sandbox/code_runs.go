@@ -3,6 +3,7 @@ package sandboxapi
 import (
 	"context"
 
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	sandboxservice "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/service"
 	sandboxv1 "github.com/dobriygolang/project-nordly/services/sandbox/pkg/api/sandbox/v1"
 )
@@ -15,6 +16,7 @@ func (i *Implementation) RunCode(ctx context.Context, req *sandboxv1.RunCodeRequ
 	}
 	run, err := i.svc.RunCode(ctx, sandboxservice.RunCodeInput{
 		UserID:   userID,
+		RoomID:   editorRoomIDFromContext(ctx),
 		Language: req.GetLanguage(),
 		Code:     req.GetCode(),
 		Stdin:    req.GetStdin(),
@@ -31,9 +33,21 @@ func (i *Implementation) GetCodeRun(ctx context.Context, req *sandboxv1.GetCodeR
 	if err != nil {
 		return nil, err
 	}
-	run, err := i.svc.GetCodeRun(ctx, userID, req.GetId())
+	run, err := i.svc.GetCodeRun(ctx, sandboxservice.GetCodeRunInput{
+		UserID: userID,
+		Scope:  TokenScopeFromContext(ctx),
+		RunID:  req.GetId(),
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 	return &sandboxv1.GetCodeRunResponse{Run: toProtoCodeRun(run)}, nil
+}
+
+func editorRoomIDFromContext(ctx context.Context) string {
+	roomID, ok := jwt.EditorRoomID(TokenScopeFromContext(ctx))
+	if !ok {
+		return ""
+	}
+	return roomID
 }

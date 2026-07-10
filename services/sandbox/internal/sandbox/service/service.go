@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
@@ -24,15 +25,23 @@ var (
 // RunCodeInput is input for RunCode use case.
 type RunCodeInput struct {
 	UserID   string
+	RoomID   string
 	Language string
 	Code     string
 	Stdin    string
 }
 
+// GetCodeRunInput identifies who is fetching a run.
+type GetCodeRunInput struct {
+	UserID string
+	Scope  string
+	RunID  string
+}
+
 // Service is sandbox domain logic.
 type Service interface {
 	RunCode(ctx context.Context, input RunCodeInput) (*model.CodeRun, error)
-	GetCodeRun(ctx context.Context, userID, runID string) (*model.CodeRun, error)
+	GetCodeRun(ctx context.Context, input GetCodeRunInput) (*model.CodeRun, error)
 	ProcessQueuedRuns(ctx context.Context, limit int) (int, error)
 	FormatCode(ctx context.Context, userID, language, code string) (string, error)
 }
@@ -112,6 +121,7 @@ func (s *sandboxService) RunCode(ctx context.Context, input RunCodeInput) (*mode
 	run := &model.CodeRun{
 		ID:          uuid.NewString(),
 		UserID:      input.UserID,
+		RoomID:      input.RoomID,
 		Language:    lang,
 		Code:        input.Code,
 		Stdin:       input.Stdin,
@@ -173,15 +183,26 @@ func (s *sandboxService) executeRun(ctx context.Context, run *model.CodeRun, std
 	return sanitizeRunResponse(run), nil
 }
 
-func (s *sandboxService) GetCodeRun(ctx context.Context, userID, runID string) (*model.CodeRun, error) {
-	run, err := s.repo.GetByID(ctx, runID)
+func (s *sandboxService) GetCodeRun(ctx context.Context, input GetCodeRunInput) (*model.CodeRun, error) {
+	run, err := s.repo.GetByID(ctx, input.RunID)
 	if err != nil {
 		return nil, err
 	}
-	if run.UserID != userID {
+	if !canReadCodeRun(run, input.UserID, input.Scope) {
 		return nil, ErrForbidden
 	}
 	return sanitizeRunResponse(run), nil
+}
+
+func canReadCodeRun(run *model.CodeRun, userID, scope string) bool {
+	if run.UserID == userID {
+		return true
+	}
+	if run.RoomID == "" {
+		return false
+	}
+	roomID, ok := identityjwt.EditorRoomID(scope)
+	return ok && roomID == run.RoomID
 }
 
 func normalizeLanguage(lang string) (string, error) {

@@ -4,11 +4,18 @@ interface SettingRowProps {
   label: string;
   hint?: string;
   children: ReactNode;
+  /** Label above, control full-width below (multi-select chips, etc.). */
+  stacked?: boolean;
 }
 
-export const SettingRow = memo(function SettingRow({ label, hint, children }: SettingRowProps) {
+export const SettingRow = memo(function SettingRow({
+  label,
+  hint,
+  children,
+  stacked = false,
+}: SettingRowProps) {
   return (
-    <div className="nordly-setting-row">
+    <div className={`nordly-setting-row${stacked ? ' nordly-setting-row--stack' : ''}`}>
       <div className="nordly-setting-row__meta">
         <div className="nordly-setting-row__label">{label}</div>
         {hint ? <div className="nordly-setting-row__hint">{hint}</div> : null}

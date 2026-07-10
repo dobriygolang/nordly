@@ -198,14 +198,16 @@ export const en = {
   'nordly.settings.apple.connect': 'Allow access',
   'nordly.settings.apple.open_settings': 'Open System Settings',
   'nordly.settings.apple.settings_opened_hint':
-    'System Settings opened — enable Full Access for Nordly under Privacy → Calendars, then return here.',
+    'Turn ON the switch next to Nordly in System Settings → Privacy → Calendars, then click Allow access again.',
   'nordly.settings.apple.requesting': 'Waiting for permission…',
   'nordly.settings.apple.calendars_label': 'Calendars to show',
   'nordly.settings.apple.calendars_hint': 'Leave all checked to show every calendar Nordly can read.',
+  'nordly.settings.apple.calendars_count': '{{selected}} of {{total}}',
+  'nordly.settings.apple.calendars_all': 'Show all',
   'nordly.settings.apple.error_load': 'Could not check calendar access',
   'nordly.settings.apple.error_access': 'Calendar access was denied or unavailable',
   'nordly.settings.apple.needs_app_bundle':
-    'Apple Calendar needs Nordly.app (npm run dev:macos-app). Plain tauri dev cannot register with macOS privacy.',
+    'Apple Calendar needs Nordly.app. Quit the app and run npm run dev — on macOS this launches a signed .app bundle so macOS can show the permission dialog.',
   'nordly.settings.wallpaper.label': 'Background wallpaper',
   'nordly.settings.wallpaper.row_hint': 'Current: {{name}}. Customize your focus environment.',
   'nordly.settings.wallpaper.change': 'Change',

@@ -198,14 +198,16 @@ export const ru = {
   'nordly.settings.apple.connect': 'Разрешить доступ',
   'nordly.settings.apple.open_settings': 'Открыть системные настройки',
   'nordly.settings.apple.settings_opened_hint':
-    'Открыли системные настройки — включите Full Access для Nordly в Конфиденциальность → Календари, затем вернитесь сюда.',
+    'Включите переключатель напротив Nordly в Системные настройки → Конфиденциальность → Календари, затем снова нажмите «Разрешить доступ».',
   'nordly.settings.apple.requesting': 'Ждём разрешение…',
   'nordly.settings.apple.calendars_label': 'Какие календари показывать',
   'nordly.settings.apple.calendars_hint': 'Если все отмечены — показываются все доступные календари.',
+  'nordly.settings.apple.calendars_count': '{{selected}} из {{total}}',
+  'nordly.settings.apple.calendars_all': 'Показать все',
   'nordly.settings.apple.error_load': 'Не удалось проверить доступ к календарям',
   'nordly.settings.apple.error_access': 'Доступ к календарям запрещён или недоступен',
   'nordly.settings.apple.needs_app_bundle':
-    'Apple Calendar работает только из Nordly.app (npm run dev:macos-app). Обычный tauri dev не регистрируется в macOS.',
+    'Apple Calendar требует Nordly.app. Закройте приложение и запустите: npm run dev (на macOS откроется .app-бандл с системным запросом доступа).',
   'nordly.settings.wallpaper.label': 'Фоновое изображение',
   'nordly.settings.wallpaper.row_hint': 'Сейчас: {{name}}. Настройте окружение для фокуса.',
   'nordly.settings.wallpaper.change': 'Изменить',

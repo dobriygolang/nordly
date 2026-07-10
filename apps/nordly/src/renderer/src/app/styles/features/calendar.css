@@ -615,23 +615,6 @@ button.nordly-calendar-event:hover {
   font-size: 11px;
   color: var(--red);
 }
-.nordly-settings-apple-calendars {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 260px;
-}
-.nordly-settings-apple-calendar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink);
-  cursor: pointer;
-}
-.nordly-settings-apple-calendar input {
-  margin: 0;
-}
 
 .nordly-floating-menu {
   background: rgba(22, 22, 24, 0.96);

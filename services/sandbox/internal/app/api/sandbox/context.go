@@ -12,6 +12,7 @@ type ctxKey int
 const (
 	userIDKey ctxKey = 1
 	tokenKey  ctxKey = 2
+	scopeKey  ctxKey = 3
 )
 
 // WithUserID stores authenticated user ID in context.
@@ -30,7 +31,17 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return userID, ok && userID != ""
 }
 
-// BearerTokenFromContext extracts Bearer token from incoming gRPC metadata or context.
+// WithTokenScope stores JWT scope claim (e.g. editor:{roomID}) in context.
+func WithTokenScope(ctx context.Context, scope string) context.Context {
+	return context.WithValue(ctx, scopeKey, scope)
+}
+
+// TokenScopeFromContext returns JWT scope claim when present.
+func TokenScopeFromContext(ctx context.Context) string {
+	scope, _ := ctx.Value(scopeKey).(string)
+	return scope
+}
+
 func BearerTokenFromContext(ctx context.Context) string {
 	if v, ok := ctx.Value(tokenKey).(string); ok && v != "" {
 		return v

@@ -13,27 +13,18 @@ const TRAY_ID: &str = "nordly-tray";
 const POPOVER_LABEL: &str = "tray-popover";
 const MAIN_LABEL: &str = "main";
 
-fn load_tray_icon(app: &tauri::App) -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
-    let icon_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/trayTemplate.png");
-    if icon_path.exists() {
-        let img = image::open(icon_path)?.into_rgba8();
-        let (width, height) = img.dimensions();
-        return Ok(tauri::image::Image::new_owned(img.into_raw(), width, height));
-    }
-    let default = app
-        .default_window_icon()
-        .cloned()
-        .ok_or("missing default window icon")?;
-    Ok(tauri::image::Image::new_owned(
-        default.rgba().to_vec(),
-        default.width(),
-        default.height(),
-    ))
+fn load_tray_icon() -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
+    // Embed at compile time — env!("CARGO_MANIFEST_DIR") only exists on the build machine,
+    // so release installs would miss icons/trayTemplate.png and fall back to the color app icon
+    // (broken with macOS template rendering).
+    let bytes = include_bytes!("../icons/trayTemplate.png");
+    let img = image::load_from_memory(bytes)?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Ok(tauri::image::Image::new_owned(img.into_raw(), width, height))
 }
 
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let icon = load_tray_icon(app)?;
+    let icon = load_tray_icon()?;
 
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)

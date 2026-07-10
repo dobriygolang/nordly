@@ -6,7 +6,6 @@ import {
   getAppleCalendarAuthStatus,
   getAppleCalendarRuntimeInfo,
   listAppleCalendars,
-  openAppleCalendarSettings,
   requestAppleCalendarAccess,
   type AppleCalendarListEntry,
 } from '@features/calendar/api/appleCalendarClient';
@@ -61,10 +60,24 @@ export function AppleCalendarSection(): JSX.Element | null {
     }
   }, []);
 
+  const applyConnected = useCallback(
+    async (auth: { authorized: boolean; status: string }) => {
+      if (!auth.authorized) return false;
+      setAuthorized(true);
+      setStatus(auth.status);
+      setError(null);
+      patchSettings({ appleCalendarEnabled: true });
+      setEnabled(true);
+      resetAppleCalendarFetchBlock();
+      await loadCalendars(true);
+      return true;
+    },
+    [loadCalendars],
+  );
+
   const load = useCallback(async () => {
     if (!isMacOsDesktop()) return;
     setLoading(true);
-    setError(null);
     try {
       const [runtime, auth] = await Promise.all([
         getAppleCalendarRuntimeInfo(),
@@ -73,6 +86,12 @@ export function AppleCalendarSection(): JSX.Element | null {
       setNeedsAppBundle(!runtime.appBundle);
       setAuthorized(auth.authorized);
       setStatus(auth.status);
+      if (auth.authorized) {
+        setError(null);
+        patchSettings({ appleCalendarEnabled: true });
+        setEnabled(true);
+        resetAppleCalendarFetchBlock();
+      }
       await loadCalendars(auth.authorized);
     } catch {
       setError(t('nordly.settings.apple.error_load'));
@@ -85,21 +104,22 @@ export function AppleCalendarSection(): JSX.Element | null {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const refresh = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      void load();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [load]);
+
   if (!isMacOsDesktop()) return null;
 
   const controlsDisabled = loading || busy;
-
-  const openCalendarSettings = async (): Promise<void> => {
-    try {
-      await openAppleCalendarSettings();
-    } catch {
-      const bridge = window.nordly;
-      if (!bridge) return;
-      await bridge.shell.openExternal(
-        'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Calendars',
-      );
-    }
-  };
 
   const statusLabel = loading
     ? t('nordly.settings.apple.loading')
@@ -117,30 +137,25 @@ export function AppleCalendarSection(): JSX.Element | null {
     setBusy(true);
     setError(null);
     try {
+      const current = await getAppleCalendarAuthStatus();
+      if (await applyConnected(current)) {
+        return;
+      }
+
       const result = await requestAppleCalendarAccess();
-      setAuthorized(result.authorized);
+      if (await applyConnected(result)) {
+        return;
+      }
+
+      setAuthorized(false);
       setStatus(result.status);
-      if (result.authorized) {
-        patchSettings({ appleCalendarEnabled: true });
-        setEnabled(true);
-        resetAppleCalendarFetchBlock();
-        await loadCalendars(true);
-        return;
-      }
-      if (result.settingsOpened) {
-        setError(t('nordly.settings.apple.settings_opened_hint'));
-        return;
-      }
-      if (result.status === 'denied' || result.status === 'restricted' || result.status === 'write_only') {
-        await openCalendarSettings();
-        setError(t('nordly.settings.apple.denied'));
-        return;
-      }
-      setError(t('nordly.settings.apple.error_access'));
+      setError(
+        result.settingsOpened
+          ? t('nordly.settings.apple.settings_opened_hint')
+          : t('nordly.settings.apple.error_access'),
+      );
     } catch (err) {
-      const message = readInvokeError(err);
-      await openCalendarSettings().catch(() => undefined);
-      setError(message || t('nordly.settings.apple.denied'));
+      setError(readInvokeError(err) || t('nordly.settings.apple.error_access'));
     } finally {
       setBusy(false);
     }
@@ -161,6 +176,15 @@ export function AppleCalendarSection(): JSX.Element | null {
     setSelectedIds(normalized);
     patchSettings({ appleCalendarIds: normalized });
   };
+
+  const selectAllCalendars = () => {
+    setSelectedIds([]);
+    patchSettings({ appleCalendarIds: [] });
+  };
+
+  const selectedCount =
+    selectedIds.length === 0 ? calendars.length : selectedIds.length;
+  const manyCalendars = calendars.length > 6;
 
   return (
     <>
@@ -234,23 +258,49 @@ export function AppleCalendarSection(): JSX.Element | null {
 
       {authorized && calendars.length > 0 && (
         <SettingRow
+          stacked
           label={t('nordly.settings.apple.calendars_label')}
           hint={t('nordly.settings.apple.calendars_hint')}
         >
-          <div className="nordly-settings-apple-calendars">
+          {manyCalendars ? (
+            <div className="nordly-settings-apple-calendars__meta">
+              <span className="mono nordly-settings-apple-calendars__count">
+                {t('nordly.settings.apple.calendars_count', {
+                  selected: selectedCount,
+                  total: calendars.length,
+                })}
+              </span>
+              {selectedCount < calendars.length ? (
+                <button
+                  type="button"
+                  className="nordly-settings-apple-calendars__link focus-ring"
+                  disabled={controlsDisabled}
+                  onClick={selectAllCalendars}
+                >
+                  {t('nordly.settings.apple.calendars_all')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div
+            className="nordly-settings-apple-calendars"
+            data-scrollable={manyCalendars ? 'true' : undefined}
+          >
             {calendars.map((cal) => {
               const checked =
                 selectedIds.length === 0 || selectedIds.includes(cal.id);
               return (
-                <label key={cal.id} className="nordly-settings-apple-calendar">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={controlsDisabled}
-                    onChange={() => toggleCalendar(cal.id)}
-                  />
-                  <span>{cal.title}</span>
-                </label>
+                <button
+                  key={cal.id}
+                  type="button"
+                  className="nordly-shortcuts-list__preset focus-ring"
+                  data-active={checked ? 'true' : 'false'}
+                  disabled={controlsDisabled}
+                  aria-pressed={checked}
+                  onClick={() => toggleCalendar(cal.id)}
+                >
+                  {cal.title}
+                </button>
               );
             })}
           </div>

@@ -148,7 +148,7 @@ export const en = {
     roomModeDiagram: 'Whiteboard',
     diagramRoom: 'Excalidraw',
     createRoom: 'Create room',
-    ttlNote: 'Room lives for a few hours. Data is not kept after TTL expires.',
+    ttlNote: 'Room lives for up to 3 hours. Data is not kept after TTL expires.',
     closeRoom: 'Close room',
     reconnect: 'Reconnect',
     invite: 'Invite',

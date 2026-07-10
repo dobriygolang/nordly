@@ -3,7 +3,9 @@ package jwt
 import (
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/google/uuid"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
@@ -63,4 +65,20 @@ func (v *Validator) ParseScoped(tokenString, expectedScope string) (AccessClaims
 		return AccessClaims{}, fmt.Errorf("token scope mismatch")
 	}
 	return out, nil
+}
+
+// EditorRoomID extracts the room UUID from a live-collab scope ("editor:{roomID}").
+func EditorRoomID(scope string) (string, bool) {
+	const prefix = "editor:"
+	if !strings.HasPrefix(scope, prefix) {
+		return "", false
+	}
+	id := strings.TrimSpace(scope[len(prefix):])
+	if id == "" {
+		return "", false
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return "", false
+	}
+	return id, true
 }

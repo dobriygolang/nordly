@@ -41,7 +41,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid ROOM_TTL: %w", err)
 	}
 
-	guestRoomTTL, err := time.ParseDuration(getEnv("GUEST_ROOM_TTL", "1h"))
+	guestRoomTTL, err := time.ParseDuration(getEnv("GUEST_ROOM_TTL", "3h"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid GUEST_ROOM_TTL: %w", err)
 	}

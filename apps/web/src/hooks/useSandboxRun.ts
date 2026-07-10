@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getCodeRun, isTerminalRunStatus, runCode } from '@/lib/api/sandbox'
 import { formatSandboxRunError } from '@/lib/sandbox/formatRunError'
 import { useI18n } from '@/lib/i18n'
@@ -48,7 +48,19 @@ export function useSandboxRun(accessToken?: string | null) {
 
   const activeRun = runQ.data?.run
   const running =
-    runM.isPending || (activeRun != null && !isTerminalRunStatus(activeRun.status))
+    runM.isPending ||
+    (!!runId && runQ.isFetching && activeRun == null) ||
+    (activeRun != null && !isTerminalRunStatus(activeRun.status))
+
+  useEffect(() => {
+    if (!runQ.isError || !runQ.error) return
+    setRunError(
+      formatSandboxRunError(runQ.error, {
+        quota: t('session.editorRunQuota'),
+        featureDisabled: t('session.editorRunFeatureDisabled'),
+      }),
+    )
+  }, [runQ.isError, runQ.error, t])
 
   const followRun = useCallback((id: string, actor?: string) => {
     setRunId(id)

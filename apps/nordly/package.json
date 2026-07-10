@@ -5,8 +5,9 @@
   "description": "Nordly — calm desktop focus workspace",
   "private": true,
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "bash scripts/dev.sh",
     "dev:macos-app": "bash scripts/macos-dev-app.sh",
+    "dev:tauri": "tauri dev",
     "dev:vite": "vite",
     "build": "tauri build",
     "build:vite": "vite build",

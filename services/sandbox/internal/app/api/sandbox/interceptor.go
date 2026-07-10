@@ -21,12 +21,13 @@ func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		token := BearerTokenFromContext(ctx)
-		userID, err := v.UserID(token)
+		claims, err := v.ParseScoped(token, "")
 		if err != nil {
 			return nil, unauthorized()
 		}
-		ctx = WithUserID(ctx, userID)
+		ctx = WithUserID(ctx, claims.UserID)
 		ctx = WithBearerToken(ctx, token)
+		ctx = WithTokenScope(ctx, claims.Scope)
 		return handler(ctx, req)
 	}
 }

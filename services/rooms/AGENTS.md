@@ -53,7 +53,7 @@ make start   # JWT_PUBLIC_KEY_FILE=../identity/scripts/dev/jwt/public.pem
 make gen-proto | build
 ```
 
-Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (1h).
+Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (3h).
 
 **Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
 

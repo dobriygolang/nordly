@@ -246,6 +246,7 @@ export const NoteRowMenu = memo(
             <MenuDivider />
           </>
         ) : null}
+
         <MenuItem
           icon={<Icon name="trash" size={14} strokeWidth={1.5} />}
           label={t('nordly.notes.menu.delete')}

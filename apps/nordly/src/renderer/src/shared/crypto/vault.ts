@@ -90,7 +90,7 @@ export async function fetchVaultSalt(): Promise<string | null> {
   }
 
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: syncAuthHeaders() });
-  if (resp.status === 404) return null;
+  if (resp.status === 404) return local?.saltB64 ?? null;
   if (!resp.ok) throw new Error(`vault salt: ${resp.status}`);
   const j = (await resp.json()) as SaltResponse;
   const saltB64 = requireSaltB64(j);

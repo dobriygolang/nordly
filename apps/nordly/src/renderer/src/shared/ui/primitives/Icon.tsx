@@ -29,6 +29,7 @@ export type IconName =
   | 'chevron-right'
   | 'plus'
   | 'file'
+  | 'folder'
   | 'more'
   | 'copy'
   | 'video'
@@ -210,6 +211,12 @@ export function Icon({ name, size = 14, stroke = 'currentColor', strokeWidth = 1
         <svg {...p}>
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <path d="M14 2v6h6" />
+        </svg>
+      );
+    case 'folder':
+      return (
+        <svg {...p}>
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
         </svg>
       );
     case 'more':

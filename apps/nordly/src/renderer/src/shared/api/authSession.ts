@@ -42,7 +42,6 @@ function setSessionReauthRequired(required: boolean): void {
 export function resetAuthRefreshState(): void {
   refreshRejected = false;
   setSessionReauthRequired(false);
-  useSyncStore.getState().setDismissedSyncBannerKey(null);
   useSyncStore.getState().setCloudSyncBlocked(false);
   void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
     resetDeviceRegisterCache();
@@ -150,7 +149,10 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
     if (isSessionExpired()) setSessionReauthRequired(true);
     return !isSessionExpired();
   }
-  return refreshAccessToken();
+  const refreshed = await refreshAccessToken();
+  if (refreshed) return true;
+  // Refresh failed but access JWT may still be valid for a short while.
+  return !isSessionExpired();
 }
 
 /** Sign out on explicit logout only; failed refresh keeps local session for offline use. */

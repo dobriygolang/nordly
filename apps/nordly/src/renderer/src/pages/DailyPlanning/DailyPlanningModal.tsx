@@ -224,11 +224,15 @@ export function DailyPlanningModal({
               fitToHeight={false}
               className="nordly-day-timeline--planning"
               onReschedule={(task, start) => {
-                void scheduleTask(task.id, start, defaultDurationMin(task)).then(refresh);
+                void scheduleTask(task.id, start, defaultDurationMin(task))
+                  .then(refresh)
+                  .catch(handleLoadError);
               }}
               onDurationChange={(task, durationMin) => {
                 const start = taskScheduleStart(task) ?? buildDefaultScheduleDate(today);
-                void scheduleTask(task.id, start, durationMin).then(refresh);
+                void scheduleTask(task.id, start, durationMin)
+                  .then(refresh)
+                  .catch(handleLoadError);
               }}
             />
           ) : null}

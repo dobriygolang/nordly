@@ -26,6 +26,9 @@ import { getServerId, resolveEntityId, resolveNotesServerId, setServerId } from 
 import { SyncDeferredError } from '@shared/sync/errors';
 import { removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
+import { mapPool } from '@shared/lib/mapPool';
+
+const NOTE_PULL_CONCURRENCY = 6;
 
 function isRemoteNotFound(err: unknown): boolean {
   return err instanceof Error && err.message.includes(': 404');
@@ -230,9 +233,17 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
 export async function pullNotes(): Promise<void> {
   const userId = requireUserId();
   const vaultEnabled = isVaultEnabledSync();
+  const vaultLocked = vaultEnabled && !isVaultUnlocked();
   const summaries = await remoteListNotes();
   const remoteIds = new Set(summaries.map((s) => s.id));
-  for (const s of summaries) {
+
+  // Fail closed before any merge — a plaintext-first probe still lets workers
+  // partially apply encrypted notes when vault is locked.
+  if (vaultLocked) {
+    throw new SyncDeferredError('Vault locked — unlock in Settings to pull encrypted notes');
+  }
+
+  await mapPool(summaries, NOTE_PULL_CONCURRENCY, async (s) => {
     const wire = await remoteGetNote(s.id);
     if (wire.encrypted) {
       if (!vaultEnabled || !isVaultUnlocked()) {
@@ -240,10 +251,11 @@ export async function pullNotes(): Promise<void> {
       }
       const plain = await decryptNoteFromRemote(wire);
       await notesStoreMergeRemote(noteToStored(plain, userId, true));
-    } else {
-      await notesStoreMergeRemote(noteToStored(wire, userId, false));
+      return;
     }
-  }
+    await notesStoreMergeRemote(noteToStored(wire, userId, false));
+  });
+
   await notesStoreApplyRemoteAbsences(remoteIds, userId);
 }
 

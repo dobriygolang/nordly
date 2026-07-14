@@ -1,9 +1,13 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
 
-import type { NoteSummary, PublishStatus, PublishToWebOptions } from '@features/notes/api/notesClient';
+import type {
+  NoteSummary,
+  PublishStatus,
+  PublishToWebOptions,
+} from '@features/notes/api/notesClient';
 import { getPublishStatus, isNoteVaultLocked } from '@features/notes/api/notesClient';
 import {
   DEFAULT_PUBLISH_OPTIONS,
@@ -29,6 +33,8 @@ export interface NoteRowProps {
   note: NoteSummary;
   active: boolean;
   menuOpen: boolean;
+  dragging?: boolean;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
   onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
@@ -41,6 +47,8 @@ export const NoteRow = memo(function NoteRow({
   note,
   active,
   menuOpen,
+  dragging = false,
+  dragHandleProps,
   onMenuOpenChange,
   onSelect,
   onPublish,
@@ -233,9 +241,15 @@ export const NoteRow = memo(function NoteRow({
         data-active={active ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-vault-locked={vaultLocked ? 'true' : 'false'}
+        data-dragging={dragging ? 'true' : 'false'}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onClick={() => onSelect(note.id)}
+        {...dragHandleProps}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest('button, [data-no-drag]')) return;
+          onSelect(note.id);
+        }}
       >
         <span className="nordly-note-row__icon" aria-hidden>
           <Icon name={vaultLocked ? 'lock' : 'file'} size={16} strokeWidth={1.5} />
@@ -245,11 +259,13 @@ export const NoteRow = memo(function NoteRow({
         <button
           ref={moreRef}
           type="button"
+          data-no-drag
           className="nordly-note-row-more focus-ring"
           data-visible={showMore ? 'true' : 'false'}
           data-open={menuOpen ? 'true' : 'false'}
           aria-label={t('nordly.notes.menu.more')}
           onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onMenuOpenChange(!menuOpen);

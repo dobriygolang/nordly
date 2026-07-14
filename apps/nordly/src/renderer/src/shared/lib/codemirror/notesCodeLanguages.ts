@@ -56,8 +56,13 @@ const notesCodeLanguages = [
   }),
 ];
 
-/** Markdown + nested parsers for fenced ```lang blocks. */
-export const notesMarkdownSupport = markdown({ codeLanguages: notesCodeLanguages });
+/** Markdown + nested parsers for fenced ```lang blocks.
+ *  addKeymap: false — our notesKeymap owns Enter (list/quote continue);
+ *  markdown's insertNewlineContinueMarkup is Prec.high and would shadow it. */
+export const notesMarkdownSupport = markdown({
+  addKeymap: false,
+  codeLanguages: notesCodeLanguages,
+});
 
 /** Syntax palette — mirrors apps/web liveEditorTheme, uses Nordly CSS vars. */
 const notesCodeHighlightStyle = HighlightStyle.define([

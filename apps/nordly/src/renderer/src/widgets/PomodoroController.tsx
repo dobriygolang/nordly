@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { listen } from '@tauri-apps/api/event';
-
 import {
   applyPersistedSnapshot,
   completePomodoroTimer,
@@ -10,6 +8,7 @@ import {
 import { POMODORO_EXPIRED_EVENT } from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
 import { startFocusSession } from '@features/focus/api/focusClient';
+import { listenEffect } from '@shared/lib/tauriListen';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
 
 function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): number {
@@ -20,9 +19,17 @@ function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): n
 export function PomodoroController(): null {
   const sessionRef = useRef<string | null>(null);
   const lastSavedRef = useRef(0);
+  const startPromiseRef = useRef<Promise<void> | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   const finishSession = useCallback(async () => {
+    if (startPromiseRef.current) {
+      try {
+        await startPromiseRef.current;
+      } catch {
+        // Start failure already reported via setError; still try finish if a session exists.
+      }
+    }
     await finishFocusSession(sessionRef);
   }, []);
 
@@ -56,15 +63,9 @@ export function PomodoroController(): null {
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    let unlisten: (() => void) | undefined;
-    void listen(POMODORO_EXPIRED_EVENT, () => {
+    return listenEffect(POMODORO_EXPIRED_EVENT, () => {
       void completePomodoroTimer(sessionRef, usePomodoroStore.getState().durationSec);
-    }).then((off) => {
-      unlisten = off;
     });
-    return () => {
-      unlisten?.();
-    };
   }, []);
 
   useEffect(() => {
@@ -124,7 +125,7 @@ export function PomodoroController(): null {
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
       if (state.running && !prev.running && !sessionRef.current) {
-        void startFocusSession({
+        const pending = startFocusSession({
           planItemId: state.pinnedPlanItemId ?? undefined,
           pinnedTitle: state.pinnedTitle ?? undefined,
           mode: state.mode,
@@ -135,6 +136,9 @@ export function PomodoroController(): null {
           .catch((err: unknown) => {
             setError(err instanceof Error ? err : new Error(String(err)));
           });
+        startPromiseRef.current = pending.finally(() => {
+          if (startPromiseRef.current === pending) startPromiseRef.current = null;
+        });
         return;
       }
       if (!state.running && prev.running) {
@@ -147,9 +151,16 @@ export function PomodoroController(): null {
     return usePomodoroStore.subscribe((state, prev) => {
       if (state.mode !== 'pomodoro') return;
       if (!state.running || state.remain !== 0 || prev.remain === 0) return;
-      void completePomodoroTimer(sessionRef, state.durationSec).catch((err: unknown) =>
-        setError(err instanceof Error ? err : new Error(String(err))),
-      );
+      void (async () => {
+        if (startPromiseRef.current) {
+          try {
+            await startPromiseRef.current;
+          } catch {
+            // Start failure already reported; complete is a no-op without a session.
+          }
+        }
+        await completePomodoroTimer(sessionRef, state.durationSec);
+      })().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
     });
   }, []);
 

@@ -75,6 +75,16 @@ export async function createTask(input: { title: string; kind?: TaskKind }): Pro
   return task;
 }
 
+async function enqueueTaskOutbox(
+  aliasOrId: string,
+  canonicalId: string,
+  op: Parameters<typeof enqueueOutbox>[1],
+  payload: unknown,
+): Promise<void> {
+  if (aliasOrId !== canonicalId) await cancelOutboxForEntity('tasks', aliasOrId);
+  await enqueueOutbox('tasks', op, canonicalId, payload);
+}
+
 export async function moveTaskStatus(taskId: string, status: TaskStatus): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
@@ -87,7 +97,7 @@ export async function moveTaskStatus(taskId: string, status: TaskStatus): Promis
   };
   await tasksStorePut(task);
   if (isSyncEnabled()) {
-    await enqueueOutbox('tasks', 'status', taskId, { status });
+    await enqueueTaskOutbox(taskId, prev.id, 'status', { status });
     scheduleSync();
   }
   return task;
@@ -135,7 +145,7 @@ export async function scheduleTask(
   };
   await tasksStorePut(task);
   if (isSyncEnabled()) {
-    await enqueueOutbox('tasks', 'schedule', taskId, {
+    await enqueueTaskOutbox(taskId, prev.id, 'schedule', {
       startIso,
       durationMin: task.scheduledDurationMin,
     });
@@ -147,10 +157,12 @@ export async function scheduleTask(
 export async function deleteTask(taskId: string): Promise<void> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  await tasksStoreSoftDelete(taskId);
+  const id = prev.id;
+  await tasksStoreSoftDelete(id);
   if (isSyncEnabled()) {
-    await cancelOutboxForEntity('tasks', taskId);
-    await enqueueOutbox('tasks', 'delete', taskId, {});
+    if (taskId !== id) await cancelOutboxForEntity('tasks', taskId);
+    await cancelOutboxForEntity('tasks', id);
+    await enqueueOutbox('tasks', 'delete', id, {});
     scheduleSync();
   }
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
@@ -203,9 +215,9 @@ export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection
 
   if (isSyncEnabled()) {
     if (selection === null) {
-      await enqueueOutbox('tasks', 'patch', taskId, { clearEpic: true });
+      await enqueueTaskOutbox(taskId, prev.id, 'patch', { clearEpic: true });
     } else if (epicId) {
-      await enqueueOutbox('tasks', 'patch', taskId, { epicId });
+      await enqueueTaskOutbox(taskId, prev.id, 'patch', { epicId });
     }
     scheduleSync();
   }
@@ -229,7 +241,7 @@ export async function patchTaskDetails(
   };
   await tasksStorePut(task);
   if (isSyncEnabled() && patch.clearConference) {
-    await enqueueOutbox('tasks', 'patch', taskId, {
+    await enqueueTaskOutbox(taskId, prev.id, 'patch', {
       clearConference: true,
     });
     scheduleSync();

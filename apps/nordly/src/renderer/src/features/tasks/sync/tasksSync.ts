@@ -111,6 +111,11 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   const payload = entry.payload as Record<string, unknown>;
 
   if (entry.op === 'create') {
+    const alreadyMapped = await getServerId('tasks', entry.entityId, userId);
+    if (alreadyMapped) {
+      await removeOutbox(entry.id, userId);
+      return;
+    }
     const local = await tasksStoreGet(entry.entityId, userId);
     if (!local) {
       // Tombstoned or missing — do not recreate on the server; leave delete outbox if any.

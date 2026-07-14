@@ -4,25 +4,30 @@
 // dismissed) whose scheduled start is on an earlier day is re-anchored onto
 // today at the same clock time, so it stops living in a stale past column.
 // Gated by the `taskRollover` setting; runs at startup and on window focus,
-// idempotent via a per-day marker in localStorage.
+// idempotent via a per-user per-day marker in localStorage.
 import { listTasks, scheduleTask } from '@features/tasks/api/tasks';
+import { getDbUserId } from '@shared/db/nordlyDb';
 import { defaultDurationMin, toDayKey } from '@shared/lib/dates';
 import { readTaskRollover } from '@shared/model/settings';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
-const ROLLOVER_KEY = 'nordly:task-rollover-day';
+const ROLLOVER_KEY_PREFIX = 'nordly:task-rollover-day';
 /** Rollover only kicks in after this local hour so early-morning work still
  * counts against "yesterday" until the day has clearly turned over. */
 const ROLLOVER_HOUR = 3;
 
-function lastRolloverDay(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(ROLLOVER_KEY);
+function rolloverStorageKey(userId: string): string {
+  return `${ROLLOVER_KEY_PREFIX}:${userId}`;
 }
 
-function markRolloverDay(dayKey: string): void {
+function lastRolloverDay(userId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(rolloverStorageKey(userId));
+}
+
+function markRolloverDay(userId: string, dayKey: string): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ROLLOVER_KEY, dayKey);
+  window.localStorage.setItem(rolloverStorageKey(userId), dayKey);
 }
 
 /**
@@ -34,8 +39,11 @@ export async function runTaskRollover(now: Date = new Date()): Promise<number> {
   if (!readTaskRollover()) return 0;
   if (now.getHours() < ROLLOVER_HOUR) return 0;
 
+  const userId = getDbUserId();
+  if (!userId) return 0;
+
   const todayKey = toDayKey(now);
-  if (lastRolloverDay() === todayKey) return 0;
+  if (lastRolloverDay(userId) === todayKey) return 0;
 
   const tasks = await listTasks();
   let moved = 0;
@@ -57,7 +65,7 @@ export async function runTaskRollover(now: Date = new Date()): Promise<number> {
     moved++;
   }
 
-  markRolloverDay(todayKey);
+  markRolloverDay(userId, todayKey);
   if (moved > 0 && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
   }

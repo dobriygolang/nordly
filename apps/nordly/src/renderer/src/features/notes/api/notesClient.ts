@@ -2,9 +2,18 @@
 import { encryptText, isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import {
+  foldersStoreCreate,
+  foldersStoreDelete,
+  foldersStoreList,
+  foldersStoreRename,
+  type NoteFolder,
+} from '@features/notes/repository/foldersStore';
+import {
   notesStoreGet,
   notesStoreList,
+  notesStoreSetFolderId,
   notesStoreSoftDelete,
+  notesStoreUnfileFolder,
   notesStoreUpsert,
   type StoredWikiLink,
 } from '@features/notes/repository/notesStore';
@@ -29,6 +38,7 @@ import { useFeatureUsageStore } from '@shared/model/featureUsage';
 
 export type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 export type { PublishStatus };
+export type { NoteFolder };
 
 export interface Note {
   id: string;
@@ -39,6 +49,8 @@ export interface Note {
   sizeBytes: number;
   /** True when E2EE vault is on but passphrase was not entered yet. */
   vaultLocked?: boolean;
+  /** Local-only folder id (not synced). */
+  folderId?: string | null;
 }
 
 export interface NoteSummary {
@@ -47,6 +59,8 @@ export interface NoteSummary {
   updatedAt: Date | null;
   sizeBytes: number;
   vaultLocked?: boolean;
+  /** Local-only folder id (not synced). */
+  folderId?: string | null;
 }
 
 export function isNoteVaultLocked(note: Pick<NoteSummary, 'vaultLocked'>): boolean {
@@ -77,10 +91,14 @@ export async function getNote(id: string): Promise<Note> {
   return note;
 }
 
-export async function createNote(title: string, bodyMd: string): Promise<Note> {
+export async function createNote(
+  title: string,
+  bodyMd: string,
+  folderId?: string | null,
+): Promise<Note> {
   const id = crypto.randomUUID();
   const wikiLinks = await wikiLinksForSave(bodyMd);
-  const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks);
+  const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks, folderId ?? null);
   if (isSyncEnabled()) {
     await enqueueOutbox('notes', 'create', id, { title, bodyMd, wikiLinks });
     scheduleSync();
@@ -88,11 +106,39 @@ export async function createNote(title: string, bodyMd: string): Promise<Note> {
   return note;
 }
 
+export async function listFolders(): Promise<NoteFolder[]> {
+  return foldersStoreList();
+}
+
+export async function createFolder(name: string): Promise<NoteFolder> {
+  return foldersStoreCreate(name);
+}
+
+export async function renameFolder(id: string, name: string): Promise<NoteFolder> {
+  return foldersStoreRename(id, name);
+}
+
+/** Deletes the folder and moves its notes to unfiled (local-only). */
+export async function deleteFolder(id: string): Promise<void> {
+  await notesStoreUnfileFolder(id);
+  await foldersStoreDelete(id);
+}
+
+export async function moveNoteToFolder(noteId: string, folderId: string | null): Promise<void> {
+  const prev = await resolveNote(noteId);
+  if (!prev) throw new Error(`Note not found: ${noteId}`);
+  await notesStoreSetFolderId(prev.id, folderId);
+}
+
 export async function updateNote(id: string, title: string, bodyMd: string): Promise<Note> {
+  const prev = await resolveNote(id);
+  if (!prev) throw new Error(`Note not found: ${id}`);
+  const canonicalId = prev.id;
   const wikiLinks = await wikiLinksForSave(bodyMd);
-  const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks);
+  const note = await notesStoreUpsert(canonicalId, title, bodyMd, undefined, wikiLinks);
   if (isSyncEnabled()) {
-    await enqueueOutbox('notes', 'update', id, { title, bodyMd, wikiLinks });
+    if (id !== canonicalId) await cancelOutboxForEntity('notes', id);
+    await enqueueOutbox('notes', 'update', canonicalId, { title, bodyMd, wikiLinks });
     scheduleSync();
   }
   return note;
@@ -193,10 +239,14 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await notesStoreSoftDelete(id);
+  const prev = await resolveNote(id);
+  if (!prev) throw new Error(`Note not found: ${id}`);
+  const canonicalId = prev.id;
+  await notesStoreSoftDelete(canonicalId);
   if (isSyncEnabled()) {
-    await cancelOutboxForEntity('notes', id);
-    await enqueueOutbox('notes', 'delete', id, {});
+    if (id !== canonicalId) await cancelOutboxForEntity('notes', id);
+    await cancelOutboxForEntity('notes', canonicalId);
+    await enqueueOutbox('notes', 'delete', canonicalId, {});
     scheduleSync();
   }
 }

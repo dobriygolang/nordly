@@ -7,9 +7,117 @@
   min-width: 0;
   padding: 6px 6px 6px 10px;
   border-radius: 8px;
-  cursor: pointer;
+  cursor: grab;
   overflow: visible;
   transition: background-color var(--t-fast);
+}
+.nordly-note-row-slot[data-nested='true'] .nordly-note-row-wrap {
+  padding-left: 28px;
+}
+.nordly-note-row-slot {
+  touch-action: none;
+}
+.nordly-note-row-slot--dragging {
+  pointer-events: none;
+}
+body.nordly-note-dragging .nordly-note-row-slot--dragging {
+  display: none;
+}
+body.nordly-note-dragging,
+body.nordly-note-dragging .nordly-note-row-wrap {
+  cursor: grabbing;
+}
+.nordly-note-row-wrap.nordly-note-row--ghost {
+  width: 220px;
+  cursor: grabbing;
+  background: rgb(var(--ink-rgb) / 0.1);
+  border: 1px solid rgb(var(--ink-rgb) / 0.12);
+  transform: rotate(2deg) scale(1.02);
+  transform-origin: center center;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+  opacity: 1;
+}
+.nordly-notes-section-label {
+  flex-shrink: 0;
+  padding: 8px 10px 2px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nordly-folder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nordly-folder-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 8px;
+  margin: 0 -2px;
+  padding: 0 2px;
+  transition:
+    background-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.nordly-folder-row {
+  cursor: default;
+}
+.nordly-folder-row__chevron {
+  width: 14px;
+  transition: transform var(--t-fast);
+}
+.nordly-folder-row[data-open='true'] .nordly-folder-row__chevron {
+  transform: rotate(90deg);
+}
+.nordly-note-insert-preview {
+  flex-shrink: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+.nordly-note-insert-preview[data-nested='true'] .nordly-note-row-wrap {
+  padding-left: 28px;
+}
+.nordly-note-insert-preview .nordly-note-row-wrap {
+  background: rgb(var(--ink-rgb) / 0.1);
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ink-rgb) / 0.28);
+  cursor: default;
+}
+.nordly-folder-drop[data-drop-active='true'],
+.nordly-notes-unfiled-drop[data-drop-active='true'] {
+  background: rgb(var(--ink-rgb) / 0.1);
+  box-shadow: 0 0 0 1.5px rgb(var(--ink-rgb) / 0.18);
+}
+.nordly-notes-unfiled-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 28px;
+  margin: 0 -2px;
+  padding: 0 2px 4px;
+  border-radius: 8px;
+  transition:
+    background-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.nordly-folder-row__input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.825rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
 }
 .nordly-note-row-wrap:hover,
 .nordly-note-row-wrap[data-menu-open='true'] {
@@ -427,6 +535,27 @@
 .nordly-md-list-item {
   padding-left: 0.125rem;
 }
+/* Marker `- ` keeps its width and cursor positions; • is painted over that exact span. */
+.nordly-md-bullet-marker {
+  position: relative;
+  color: transparent;
+  caret-color: var(--ink);
+}
+.nordly-md-bullet-marker::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--ink-60);
+  font-weight: 700;
+  pointer-events: none;
+}
+/* Keep glyph width so caret/space mapping stays honest — never font-size:0 / replace. */
+.nordly-md-syntax-hidden {
+  font-size: 0;
+  letter-spacing: 0;
+  color: transparent;
+  caret-color: var(--ink);
+}
 .nordly-md-bullet {
   display: inline-block;
   width: 1.25rem;
@@ -439,18 +568,48 @@
   color: var(--ink-60);
   margin-right: 0.35rem;
 }
-.nordly-md-checkbox {
-  width: 14px;
-  height: 14px;
-  margin: 0 0.45rem 0 0;
-  vertical-align: -2px;
-  accent-color: var(--ink);
+.nordly-md-checkbox-marker {
+  position: relative;
+  color: transparent;
+  caret-color: var(--ink);
   cursor: pointer;
+}
+.nordly-md-checkbox-marker::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.35);
+  border-radius: 3px;
+  transform: translateY(-50%);
+  color: var(--paper);
+  background: transparent;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+}
+.nordly-md-checkbox-marker--checked::before {
+  content: '✓';
+  border-color: var(--ink);
+  background: var(--ink);
 }
 .nordly-md-hr {
   border: none;
   border-top: 1px solid rgb(var(--ink-rgb) / 0.14);
   margin: 0.75rem 0;
+}
+.cm-line.nordly-md-hr-line {
+  position: relative;
+  min-height: 1.7em;
+}
+.cm-line.nordly-md-hr-line::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.14);
+  pointer-events: none;
 }
 
 .nordly-md-inline-code {

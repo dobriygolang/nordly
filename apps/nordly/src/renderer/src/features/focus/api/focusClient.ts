@@ -225,9 +225,20 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
   }
 
   const pending = statsFromSessions(unsynced, upToDate);
-  const merged = mergeStats(remoteCore, pending, upToDate);
+  const withPending = mergeStats(remoteCore, pending, upToDate);
+  const mergedHeatmap = mergeFocusDaysMax(withPending.heatmap, local.heatmap);
+  const merged = statsFromHeatmap(mergedHeatmap, upToDate);
 
-  return { ...merged, queue };
+  return {
+    ...merged,
+    longestStreakDays: Math.max(
+      merged.longestStreakDays,
+      remoteCore.longestStreakDays,
+      local.longestStreakDays,
+      pending.longestStreakDays,
+    ),
+    queue,
+  };
 }
 
 export async function startFocusSession(args: {

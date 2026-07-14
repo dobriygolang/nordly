@@ -39,6 +39,10 @@ let snapshot: Snapshot | null = null;
 const rangeCache = new Map<string, RangeEntry>();
 const listeners = new Set<() => void>();
 let hydratePromise: Promise<void> | null = null;
+/** Bumped on invalidate so late hydrates cannot resurrect a cleared cache. */
+let cacheGeneration = 0;
+/** Per-range seq so force refetches cannot be clobbered by an older in-flight promise. */
+const rangeFetchSeq = new Map<string, number>();
 
 export function googleRangeKey(timeMin: Date, timeMax: Date): string {
   return `${timeMin.toISOString()}|${timeMax.toISOString()}`;
@@ -78,13 +82,17 @@ export function subscribeGoogleCalendarCache(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-function persistSnapshot(): void {
+function persistSnapshot(gen: number): void {
   if (!snapshot) return;
+  const snap = snapshot;
   void calendarStoreSaveSnapshot(
-    snapshot.events,
-    new Date(snapshot.timeMin),
-    new Date(snapshot.timeMax),
-  ).catch((err: unknown) => {
+    snap.events,
+    new Date(snap.timeMin),
+    new Date(snap.timeMax),
+  ).then(() => {
+    // Outdated writers must not clear a newer cache — only no-op.
+    if (gen !== cacheGeneration) return;
+  }).catch((err: unknown) => {
     console.warn('[googleCalendarCache] persist failed:', err);
   });
 }
@@ -100,7 +108,7 @@ export function setGoogleCalendarSnapshot(
     events,
     fetchedAt: Date.now(),
   };
-  persistSnapshot();
+  persistSnapshot(cacheGeneration);
   notifyListeners();
 }
 
@@ -109,12 +117,36 @@ export function isGoogleCalendarSnapshotFresh(now = Date.now()): boolean {
   return now - snapshot.fetchedAt <= googleCalendarPollIntervalMs();
 }
 
+/** True when display cache for this range needs a network refresh while online. */
+export function isGoogleCalendarRangeStale(
+  timeMin: Date,
+  timeMax: Date,
+  now = Date.now(),
+): boolean {
+  const min = timeMin.getTime();
+  const max = timeMax.getTime();
+  if (snapshot && min >= snapshot.timeMin && max <= snapshot.timeMax) {
+    return now - snapshot.fetchedAt > GOOGLE_CALENDAR_STALE_MS;
+  }
+  const hit = rangeCache.get(googleRangeKey(timeMin, timeMax));
+  if (!hit || hit.fetchedAt === 0) return true;
+  return now - hit.fetchedAt > GOOGLE_CALENDAR_STALE_MS;
+}
+
+/** @deprecated prefer isGoogleCalendarRangeStale for UI refresh gates */
+export function isGoogleCalendarSnapshotStale(now = Date.now()): boolean {
+  if (!snapshot) return true;
+  return now - snapshot.fetchedAt > GOOGLE_CALENDAR_STALE_MS;
+}
+
 /** Load last snapshot from IndexedDB into memory (idempotent). */
 export function hydrateGoogleCalendarCache(): Promise<void> {
   if (hydratePromise) return hydratePromise;
+  const gen = cacheGeneration;
   hydratePromise = (async () => {
     try {
       const row = await calendarStoreLoadSnapshot();
+      if (gen !== cacheGeneration) return;
       if (!row || snapshot) return;
       snapshot = {
         timeMin: row.timeMin,
@@ -134,12 +166,17 @@ export function hydrateGoogleCalendarCache(): Promise<void> {
 export function peekGoogleCalendarEvents(timeMin: Date, timeMax: Date): GoogleCalendarEvent[] | null {
   const min = timeMin.getTime();
   const max = timeMax.getTime();
+  const key = googleRangeKey(timeMin, timeMax);
+  const hit = rangeCache.get(key);
 
   if (snapshot && min >= snapshot.timeMin && max <= snapshot.timeMax) {
+    // Prefer a fresher exact-range fetch (force refresh) over the snapshot filter.
+    if (hit && hit.fetchedAt >= snapshot.fetchedAt) {
+      return hit.events;
+    }
     return filterEventsInRange(snapshot.events, timeMin, timeMax);
   }
 
-  const hit = rangeCache.get(googleRangeKey(timeMin, timeMax));
   return hit?.events ?? null;
 }
 
@@ -162,14 +199,19 @@ export async function fetchGoogleCalendarEvents(
   const existing = rangeCache.get(key);
   if (existing?.promise && !opts.force) return existing.promise;
 
+  const gen = cacheGeneration;
+  const seq = (rangeFetchSeq.get(key) ?? 0) + 1;
+  rangeFetchSeq.set(key, seq);
   const promise = listGoogleCalendarEvents(timeMin, timeMax)
     .then((events) => {
+      if (gen !== cacheGeneration || rangeFetchSeq.get(key) !== seq) return events;
       rangeCache.set(key, { events, fetchedAt: Date.now() });
       notifyListeners();
       return events;
     })
     .catch((err) => {
       // Keep prior cache on failure so offline / blips do not wipe the UI.
+      if (gen !== cacheGeneration || rangeFetchSeq.get(key) !== seq) throw err;
       if (existing) {
         rangeCache.set(key, { events: existing.events, fetchedAt: existing.fetchedAt });
       } else {
@@ -180,6 +222,8 @@ export async function fetchGoogleCalendarEvents(
 
   if (existing) {
     rangeCache.set(key, { ...existing, promise });
+  } else {
+    rangeCache.set(key, { events: [], fetchedAt: 0, promise });
   }
 
   return promise;
@@ -195,15 +239,21 @@ export async function syncGoogleCalendarSnapshot(
     return snapshot!.events;
   }
 
+  const gen = cacheGeneration;
   const events = await listGoogleCalendarEvents(timeMin, timeMax);
+  if (gen !== cacheGeneration) {
+    return snapshot?.events ?? events;
+  }
   setGoogleCalendarSnapshot(events, timeMin, timeMax);
   rangeCache.set(googleRangeKey(timeMin, timeMax), { events, fetchedAt: Date.now() });
   return events;
 }
 
 export function invalidateGoogleCalendarCache(): void {
+  cacheGeneration += 1;
   snapshot = null;
   rangeCache.clear();
+  rangeFetchSeq.clear();
   hydratePromise = null;
   void calendarStoreClear().catch((err: unknown) => {
     console.warn('[googleCalendarCache] clear failed:', err);

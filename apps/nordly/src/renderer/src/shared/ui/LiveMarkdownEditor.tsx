@@ -66,7 +66,9 @@ export function LiveMarkdownEditor({
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onWikiLinkClickRef = useRef(onWikiLinkClick);
-  const syncingRef = useRef(false);
+  /** Last doc string we pushed via onChange — ignore stale React props lagging behind. */
+  const lastEmittedRef = useRef(value);
+  const awaitingEchoRef = useRef(false);
   const titlesCompartmentRef = useRef(new Compartment());
   const autocompleteCompartmentRef = useRef(new Compartment());
   onChangeRef.current = onChange;
@@ -105,6 +107,8 @@ export function LiveMarkdownEditor({
     const parent = mountRef.current;
     if (!parent) return;
 
+    lastEmittedRef.current = value;
+
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -124,6 +128,23 @@ export function LiveMarkdownEditor({
             mousedown(event, view) {
               if (event.button !== 0) return false;
               const target = event.target as HTMLElement | null;
+              const checkbox = target?.closest<HTMLElement>('.nordly-md-checkbox-marker');
+              if (checkbox) {
+                const pos = Number(checkbox.dataset.checkboxPos);
+                if (!Number.isInteger(pos)) return false;
+                const current = view.state.sliceDoc(pos + 1, pos + 2);
+                if (current !== ' ' && current.toLowerCase() !== 'x') return false;
+                event.preventDefault();
+                view.dispatch({
+                  changes: {
+                    from: pos + 1,
+                    to: pos + 2,
+                    insert: current === ' ' ? 'x' : ' ',
+                  },
+                });
+                view.focus();
+                return true;
+              }
               if (!target?.closest('.nordly-md-wiki-link')) return false;
               const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
               if (pos == null) return false;
@@ -139,9 +160,10 @@ export function LiveMarkdownEditor({
           keymap.of([...notesKeymap, ...defaultKeymap, ...historyKeymap]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
-              syncingRef.current = true;
-              onChangeRef.current(update.state.doc.toString());
-              syncingRef.current = false;
+              const next = update.state.doc.toString();
+              lastEmittedRef.current = next;
+              awaitingEchoRef.current = true;
+              onChangeRef.current(next);
             }
             if (update.docChanged || update.selectionSet) {
               updateSlash(update.view);
@@ -157,6 +179,7 @@ export function LiveMarkdownEditor({
       view.destroy();
       viewRef.current = null;
     };
+    // Mount once per editor instance (parent remounts via key={noteId}).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -173,12 +196,27 @@ export function LiveMarkdownEditor({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || syncingRef.current) return;
+    if (!view) return;
     const cur = view.state.doc.toString();
-    if (cur === value) return;
+    if (cur === value) {
+      lastEmittedRef.current = value;
+      awaitingEchoRef.current = false;
+      return;
+    }
+    // React prop caught up late (e.g. value="-" while doc is already "- ").
+    // Do not wipe the newer local edit — that ate spaces after "-" and broke bullets.
+    if (
+      awaitingEchoRef.current &&
+      cur === lastEmittedRef.current &&
+      value !== lastEmittedRef.current
+    ) {
+      return;
+    }
     view.dispatch({
       changes: { from: 0, to: cur.length, insert: value },
     });
+    lastEmittedRef.current = value;
+    awaitingEchoRef.current = false;
     updateSlash(view);
   }, [value, updateSlash]);
 
@@ -215,7 +253,7 @@ export function LiveMarkdownEditor({
     });
   }, [slash]);
 
-  const empty = value.length === 0;
+  const empty = value.length === 0 && lastEmittedRef.current.length === 0;
 
   return (
     <div className="nordly-live-md" data-empty={empty ? 'true' : 'false'} data-placeholder={placeholder ?? ''}>

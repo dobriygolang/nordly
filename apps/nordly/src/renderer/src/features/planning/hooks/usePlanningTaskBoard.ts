@@ -353,11 +353,22 @@ export function usePlanningTaskBoard({
         const updated = await patchTaskDetails(task.id, { clearConference: true });
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
       } catch (err) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  conferenceUrl: task.conferenceUrl,
+                  conferenceProvider: task.conferenceProvider,
+                }
+              : t,
+          ),
+        );
         onActionError(err);
         void refresh();
       }
     },
-    [refresh, setTasks],
+    [refresh, setTasks, onActionError],
   );
 
   return {

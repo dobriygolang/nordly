@@ -1,3 +1,5 @@
+import { toDayKey } from '@shared/lib/dates';
+
 import type { TaskCard } from '@features/tasks/api/tasks';
 
 import type { DailyPlanRecord, DailyPlanSnapshot } from '../repository/dailyPlanStore';
@@ -11,7 +13,7 @@ export interface PlanProgress {
 
 export function isPlanFinalizedToday(record: DailyPlanRecord, dayKey: string): boolean {
   if (!record.finalizedAt) return false;
-  return record.finalizedAt.slice(0, 10) === dayKey;
+  return toDayKey(new Date(record.finalizedAt)) === dayKey;
 }
 
 export function parseObstacleLines(value: string | undefined): string[] {

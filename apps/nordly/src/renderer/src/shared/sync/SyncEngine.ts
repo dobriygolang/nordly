@@ -37,6 +37,7 @@ const MAX_ATTEMPTS = 8;
 let debounceTimer: number | null = null;
 let intervalId: number | null = null;
 let startupTimer: number | null = null;
+let pushOnlyTimer: number | null = null;
 let engineStartedAt = 0;
 let started = false;
 let cachedAppVersion: string | null = null;
@@ -50,6 +51,8 @@ type SyncJob = {
 
 let syncQueue: SyncJob[] = [];
 let syncDraining = false;
+/** Incremented on stop so an in-flight drain does not unlock a new engine session. */
+let syncDrainGeneration = 0;
 
 async function readCachedAppVersion(): Promise<string> {
   if (cachedAppVersion) return cachedAppVersion;
@@ -70,9 +73,11 @@ function mergeSyncOptions(a?: SyncOptions, b?: SyncOptions): SyncOptions | undef
 function drainSyncQueue(): void {
   if (syncDraining) return;
   syncDraining = true;
+  const gen = syncDrainGeneration;
   void (async () => {
     try {
       while (syncQueue.length > 0) {
+        if (gen !== syncDrainGeneration) break;
         const batch = syncQueue.splice(0);
         let options: SyncOptions | undefined;
         for (const job of batch) {
@@ -89,7 +94,10 @@ function drainSyncQueue(): void {
         }
       }
     } finally {
-      syncDraining = false;
+      if (gen === syncDrainGeneration) {
+        syncDraining = false;
+        if (syncQueue.length > 0) drainSyncQueue();
+      }
     }
   })();
 }
@@ -254,6 +262,7 @@ async function runSync(options?: SyncOptions): Promise<void> {
     let deferred = false;
     let pushError: string | null = null;
     let exhausted = 0;
+    let pushedAny = false;
 
     for (const entry of queue) {
       if (entry.attempts >= MAX_ATTEMPTS) {
@@ -262,6 +271,7 @@ async function runSync(options?: SyncOptions): Promise<void> {
       }
       try {
         await pushEntry(entry);
+        pushedAny = true;
       } catch (err) {
         if (isSyncDeferredError(err)) {
           deferred = true;
@@ -276,6 +286,11 @@ async function runSync(options?: SyncOptions): Promise<void> {
           pushError = message;
         }
       }
+    }
+
+    // Remap events as soon as creates push — don't wait for pull success.
+    if (pushedAny) {
+      window.dispatchEvent(new Event(NORDLY_EVENTS.syncChanged));
     }
 
     let pullError: string | null = null;
@@ -329,6 +344,7 @@ async function runSync(options?: SyncOptions): Promise<void> {
 
     store.setLastSyncedAt(Date.now());
     store.setStatus('idle');
+    // Pull may have merged — notify even if we already fired after push.
     window.dispatchEvent(new Event(NORDLY_EVENTS.syncChanged));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -410,7 +426,9 @@ export function startSyncEngine(): void {
   }, INTERVAL_MS);
 
   // Push pending local changes soon; defer the heavy remote pull until the UI settles.
-  window.setTimeout(() => {
+  if (pushOnlyTimer !== null) window.clearTimeout(pushOnlyTimer);
+  pushOnlyTimer = window.setTimeout(() => {
+    pushOnlyTimer = null;
     if (!started) return;
     void outboxCount().then((pending) => {
       if (!started || pending === 0) return;
@@ -428,6 +446,7 @@ export function startSyncEngine(): void {
 export function stopSyncEngine(): void {
   if (!started) return;
   started = false;
+  syncDrainGeneration += 1;
   vaultUnsub?.();
   vaultUnsub = null;
   window.removeEventListener('online', onOnline);
@@ -437,6 +456,8 @@ export function stopSyncEngine(): void {
   intervalId = null;
   if (startupTimer !== null) window.clearTimeout(startupTimer);
   startupTimer = null;
+  if (pushOnlyTimer !== null) window.clearTimeout(pushOnlyTimer);
+  pushOnlyTimer = null;
   engineStartedAt = 0;
   if (debounceTimer !== null) window.clearTimeout(debounceTimer);
   debounceTimer = null;

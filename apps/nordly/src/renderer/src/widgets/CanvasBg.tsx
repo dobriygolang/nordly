@@ -32,7 +32,6 @@ const WAVES = [
 ];
 
 import { DEFAULT_THEME_ID, type ThemeId } from '@shared/model/theme';
-import { isTauriRuntime } from '@platform/runtime';
 
 export type CanvasMode = 'full' | 'quiet' | 'void';
 
@@ -47,13 +46,20 @@ interface CanvasBgProps {
   animated?: boolean;
 }
 
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 export function CanvasBg({
   mode = 'full',
   theme = DEFAULT_THEME_ID,
   boost = false,
   animated = true,
 }: CanvasBgProps) {
-  const effectiveAnimated = animated && !isTauriRuntime();
+  const effectiveAnimated = animated && !prefersReducedMotion();
   if (mode === 'void') return null;
   switch (theme) {
     case 'drift':
@@ -433,6 +439,8 @@ function ImageBg({
       gl.deleteShader(frag);
       gl.deleteBuffer(buf);
       gl.deleteTexture(tex);
+      const lose = gl.getExtension('WEBGL_lose_context');
+      lose?.loseContext();
     };
   }, [src, renderError, animated, extract]);
 

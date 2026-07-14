@@ -6,7 +6,7 @@ import {
   entityKey,
   requireUserId,
 } from '@shared/db/nordlyDb';
-import { getServerId } from '@shared/sync/idMap';
+import { getServerId, setServerId } from '@shared/sync/idMap';
 import {
   shouldAcceptRemoteEntity,
   syncedIdsAbsentFromRemote,
@@ -21,20 +21,18 @@ export interface StoredTask extends TaskCard {
 }
 
 /** Device-only fields preserved when merging a newer remote task row. */
-export type LocalOnlyTaskField = 'order' | 'epicColor' | 'epicId';
+export type LocalOnlyTaskField = 'order' | 'epicColor';
 
 function rowFrom(userId: string, task: TaskCard, deleted = false): StoredTask {
   return { ...task, userId, key: entityKey(task.id, userId), deleted };
 }
 
-/** Keep column order and pending epic assignment when applying a remote snapshot. */
+/** Keep device-only column order; remote epicId wins (including clear). */
 export function preserveLocalOnlyTaskFields(local: TaskCard, remote: TaskCard): TaskCard {
-  const epicId = remote.epicId ?? local.epicId;
   return {
     ...remote,
     order: local.order,
-    epicId,
-    epicColor: epicId ? undefined : local.epicColor,
+    epicColor: remote.epicId ? undefined : local.epicColor,
   };
 }
 
@@ -142,8 +140,15 @@ export async function tasksStorePut(task: TaskCard): Promise<void> {
 export async function tasksStoreApplyRemote(task: TaskCard): Promise<TaskCard> {
   const userId = requireUserId();
   const local = await dbGet<StoredTask>('tasks', entityKey(task.id, userId));
+  if (!shouldAcceptRemoteEntity(local, task.updatedAt)) {
+    if (local?.deleted) {
+      throw new Error(`Task deleted: ${task.id}`);
+    }
+    return local ? taskFromRow(local) : task;
+  }
   const merged = local ? preserveLocalOnlyTaskFields(local, task) : task;
   await dbPut('tasks', rowFrom(userId, merged));
+  await setServerId('tasks', task.id, task.id, userId);
   return merged;
 }
 
@@ -153,9 +158,11 @@ export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
   if (!shouldAcceptRemoteEntity(local, task.updatedAt)) return;
   if (!local) {
     await dbPut('tasks', rowFrom(userId, task));
-    return;
+  } else {
+    await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
   }
-  await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
+  // Identity map so remote-absence deletion works for pull-origin rows.
+  await setServerId('tasks', task.id, task.id, userId);
 }
 
 export async function tasksStoreBulkImport(

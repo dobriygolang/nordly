@@ -146,7 +146,7 @@ Database: `nordly-db` v3. All entity stores use composite key `userId::id`.
 | `whiteboards` | Excalidraw scene JSON |
 | `outbox` | Pending sync operations |
 | `id_map` | Local UUID → server ID |
-| `meta` | Sync cursors, prefs |
+| `meta` | Sync cursors, prefs, `note_folders::{userId}`, vault prefs/salt |
 | `calendar_events` | Last Google Calendar snapshot (offline display) |
 
 Scoped by `setDbUserId()` on sign-in.
@@ -167,9 +167,11 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
-**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with **unsynced local sessions only** (avoids double-count). Remote fetch errors propagate; empty remote with pending local unsynced sessions uses local pending totals.
+**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with unsynced local sessions, then **max-merges** that heatmap with full local (avoids double-count and stale remote undercount). Remote fetch errors propagate.
 
 Task fields **device-only** (preserved on pull/replace): `order`.
+
+Note fields **device-only** (preserved on pull/replace): `folderId`. Folder list lives in IndexedDB `meta` (`note_folders::{userId}`) — local-only until a sync follow-up.
 
 Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
 
@@ -284,7 +286,7 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 
 | Gap | Status |
 |-----|--------|
-| Note folders | Data model only; no folder UI |
+| Note folders sync | Local folders UI in vault sidebar; `folderId` device-only (not synced) |
 | Task delete in UI | Remote + sync support exists; no TaskRow delete button |
 | Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
 | Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |

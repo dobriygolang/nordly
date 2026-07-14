@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { emit, listen } from '@tauri-apps/api/event';
+import { emit } from '@tauri-apps/api/event';
 
 import { translate } from '@nordly-i18n';
 
@@ -31,6 +31,7 @@ import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
+import { listenEffect } from '@shared/lib/tauriListen';
 import { readAppVersion } from '@shared/lib/updater';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { startSessionRefreshLoop, resetAuthRefreshState } from '@shared/api/authSession';
@@ -408,15 +409,9 @@ export default function App() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    let unlisten: (() => void) | undefined;
-    void listen('app:open-palette', () => {
+    return listenEffect('app:open-palette', () => {
       openPalette();
-    }).then((off) => {
-      unlisten = off;
     });
-    return () => {
-      unlisten?.();
-    };
   }, [openPalette]);
 
   const closePalette = useCallback(() => {

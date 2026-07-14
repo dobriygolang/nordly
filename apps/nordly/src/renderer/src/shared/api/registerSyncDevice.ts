@@ -20,10 +20,24 @@ export class DeviceRegisterError extends Error {
   }
 }
 
+/** Retry device_limit after this — plan upgrades / device deletes can free a slot. */
+const DEVICE_LIMIT_CACHE_MS = 60_000;
+
 let knownRegisterBlock: DeviceRegisterErrorCode | null = null;
+let knownRegisterBlockUntil = 0;
 
 export function resetDeviceRegisterCache(): void {
   knownRegisterBlock = null;
+  knownRegisterBlockUntil = 0;
+}
+
+function cachedRegisterBlock(): DeviceRegisterErrorCode | null {
+  if (!knownRegisterBlock) return null;
+  if (knownRegisterBlock === 'cloud_sync_disabled') return knownRegisterBlock;
+  if (Date.now() < knownRegisterBlockUntil) return knownRegisterBlock;
+  knownRegisterBlock = null;
+  knownRegisterBlockUntil = 0;
+  return null;
 }
 
 export interface DeviceRegisterResult {
@@ -50,8 +64,9 @@ export async function registerSyncDevice(opts: {
   appVersion: string;
   name?: string;
 }): Promise<DeviceRegisterResult> {
-  if (knownRegisterBlock) {
-    throw new DeviceRegisterError(knownRegisterBlock, 'device register blocked');
+  const blocked = cachedRegisterBlock();
+  if (blocked) {
+    throw new DeviceRegisterError(blocked, 'device register blocked');
   }
 
   const deviceId = getDeviceId();
@@ -81,11 +96,14 @@ export async function registerSyncDevice(opts: {
     if (resp.status === 403) {
       const err = parseDeviceRegisterError(resp.status, body);
       knownRegisterBlock = err.code;
+      knownRegisterBlockUntil =
+        err.code === 'device_limit_exceeded' ? Date.now() + DEVICE_LIMIT_CACHE_MS : Number.POSITIVE_INFINITY;
       throw err;
     }
     throw new Error(typeof body.message === 'string' ? body.message : `device register: ${resp.status}`);
   }
 
+  resetDeviceRegisterCache();
   const j = (await resp.json()) as Record<string, unknown>;
   return {
     deviceId: requireJsonString(j, 'deviceId'),

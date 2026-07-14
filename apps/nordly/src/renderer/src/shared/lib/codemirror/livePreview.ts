@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { Facet, RangeSetBuilder, StateField, type EditorState, type Range } from '@codemirror/state';
+import { Facet, StateField, type EditorState, type Range } from '@codemirror/state';
 import {
   Decoration,
   DecorationSet,
@@ -10,6 +10,22 @@ import {
 } from '@codemirror/view';
 
 import { notesCodeLangLabel } from './notesCodeLanguages';
+
+interface DecorationSink {
+  add(from: number, to: number, decoration: Decoration): void;
+}
+
+class DecorationCollector implements DecorationSink {
+  private readonly ranges: Range<Decoration>[] = [];
+
+  add(from: number, to: number, decoration: Decoration): void {
+    this.ranges.push(decoration.range(from, to));
+  }
+
+  finish(): DecorationSet {
+    return Decoration.set(this.ranges, true);
+  }
+}
 
 /** Normalized note titles that resolve [[wiki-links]] in live preview. */
 export const wikiLinkTitlesFacet = Facet.define<ReadonlySet<string>, ReadonlySet<string>>({
@@ -23,102 +39,16 @@ function rangeTouches(from: number, to: number, start: number, end: number): boo
   return from < end && to > start;
 }
 
-/** Raw markdown syntax is visible only while the caret touches that token range. */
-function showRangeSyntax(state: EditorState, from: number, to: number): boolean {
+/** Block widgets (HR) and list/quote markers — reveal source while the caret is on the line
+ *  (inclusive end: caret after the last char still counts as “on this line”). */
+function showLineSyntax(state: EditorState, line: { from: number; to: number }): boolean {
   for (const range of state.selection.ranges) {
-    if (range.head >= from && range.head <= to) return true;
-    if (range.from !== range.to && rangeTouches(range.from, range.to, from, to)) {
+    if (range.head >= line.from && range.head <= line.to) return true;
+    if (range.from !== range.to && rangeTouches(range.from, range.to, line.from, line.to + 1)) {
       return true;
     }
   }
   return false;
-}
-
-/** Block widgets (HR) — reveal source for the whole line while the caret is on it. */
-function showLineSyntax(state: EditorState, line: { from: number; to: number }): boolean {
-  return showRangeSyntax(state, line.from, line.to);
-}
-
-class HiddenWidget extends WidgetType {
-  toDOM(): HTMLElement {
-    return document.createElement('span');
-  }
-}
-
-class OrderedNumWidget extends WidgetType {
-  constructor(readonly label: string) {
-    super();
-  }
-
-  eq(other: OrderedNumWidget): boolean {
-    return other.label === this.label;
-  }
-
-  toDOM(): HTMLElement {
-    const el = document.createElement('span');
-    el.className = 'nordly-md-list-num';
-    el.setAttribute('aria-hidden', 'true');
-    el.textContent = this.label;
-    return el;
-  }
-
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
-
-class BulletWidget extends WidgetType {
-  toDOM(): HTMLElement {
-    const el = document.createElement('span');
-    el.className = 'nordly-md-bullet';
-    el.setAttribute('aria-hidden', 'true');
-    el.textContent = '•';
-    return el;
-  }
-}
-
-class CheckboxWidget extends WidgetType {
-  constructor(
-    readonly checked: boolean,
-    readonly pos: number,
-  ) {
-    super();
-  }
-
-  eq(other: CheckboxWidget): boolean {
-    return other.checked === this.checked && other.pos === this.pos;
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = this.checked;
-    input.className = 'nordly-md-checkbox';
-    input.addEventListener('mousedown', (e) => e.preventDefault());
-    input.addEventListener('change', () => {
-      const ch = this.checked ? ' ' : 'x';
-      view.dispatch({
-        changes: { from: this.pos + 1, to: this.pos + 2, insert: ch },
-      });
-    });
-    return input;
-  }
-
-  ignoreEvent(): boolean {
-    return false;
-  }
-}
-
-class HrWidget extends WidgetType {
-  toDOM(): HTMLElement {
-    const hr = document.createElement('hr');
-    hr.className = 'nordly-md-hr';
-    return hr;
-  }
-
-  ignoreEvent(): boolean {
-    return true;
-  }
 }
 
 class CodeLangBadgeWidget extends WidgetType {
@@ -146,10 +76,8 @@ class CodeLangBadgeWidget extends WidgetType {
   }
 }
 
-const hidden = new HiddenWidget();
-
 function addMark(
-  builder: RangeSetBuilder<Decoration>,
+  builder: DecorationSink,
   from: number,
   to: number,
   spec: Parameters<typeof Decoration.mark>[0],
@@ -157,8 +85,13 @@ function addMark(
   if (from < to) builder.add(from, to, Decoration.mark(spec));
 }
 
-function hideRange(builder: RangeSetBuilder<Decoration>, from: number, to: number): void {
-  if (from < to) builder.add(from, to, Decoration.replace({ widget: hidden }));
+/** Hide source glyphs without changing document geometry or cursor navigation. */
+function hideRange(builder: DecorationSink, from: number, to: number): void {
+  if (from < to) builder.add(from, to, Decoration.mark({ class: 'nordly-md-syntax-hidden' }));
+}
+
+function muteMarker(builder: DecorationSink, from: number, to: number): void {
+  hideRange(builder, from, to);
 }
 
 function pushMark(
@@ -171,7 +104,9 @@ function pushMark(
 }
 
 function pushHide(decorations: Range<Decoration>[], from: number, to: number): void {
-  if (from < to) decorations.push(Decoration.replace({ widget: hidden }).range(from, to));
+  if (from < to) {
+    decorations.push(Decoration.mark({ class: 'nordly-md-syntax-hidden' }).range(from, to));
+  }
 }
 
 function overlapsRange(ranges: [number, number][], start: number, end: number): boolean {
@@ -179,7 +114,7 @@ function overlapsRange(ranges: [number, number][], start: number, end: number): 
 }
 
 function applyDelimitedInline(
-  builder: RangeSetBuilder<Decoration>,
+  builder: DecorationSink,
   state: EditorState,
   lineFrom: number,
   text: string,
@@ -199,7 +134,7 @@ function applyDelimitedInline(
       const end = lineFrom + relEnd;
       const contentStart = start + open;
       const contentEnd = end - close;
-      const showSyntax = showRangeSyntax(state, start, end);
+      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
       if (showSyntax) {
         addMark(builder, contentStart, contentEnd, { class: className });
       } else {
@@ -214,7 +149,7 @@ function applyDelimitedInline(
 }
 
 function applyWikiLinkInline(
-  builder: RangeSetBuilder<Decoration>,
+  builder: DecorationSink,
   state: EditorState,
   lineFrom: number,
   text: string,
@@ -236,7 +171,7 @@ function applyWikiLinkInline(
       const contentEnd = end - 2;
       const resolved = resolvedTitles.has(targetTitle.toLowerCase());
       const className = resolved ? 'nordly-md-wiki-link' : 'nordly-md-wiki-link nordly-md-wiki-link--unresolved';
-      const showSyntax = showRangeSyntax(state, start, end);
+      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
       if (showSyntax) {
         addMark(builder, contentStart, contentEnd, { class: className });
       } else {
@@ -254,7 +189,7 @@ function applyWikiLinkInline(
 }
 
 function applyLinkInline(
-  builder: RangeSetBuilder<Decoration>,
+  builder: DecorationSink,
   state: EditorState,
   lineFrom: number,
   text: string,
@@ -271,7 +206,7 @@ function applyLinkInline(
       const end = lineFrom + relEnd;
       const contentStart = start + 1;
       const contentEnd = contentStart + labelLen;
-      const showSyntax = showRangeSyntax(state, start, end);
+      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
       if (showSyntax) {
         addMark(builder, contentStart, contentEnd, { class: 'nordly-md-link' });
       } else {
@@ -286,7 +221,7 @@ function applyLinkInline(
 }
 
 function decorateInlines(
-  builder: RangeSetBuilder<Decoration>,
+  builder: DecorationSink,
   state: EditorState,
   lineFrom: number,
   text: string,
@@ -358,20 +293,6 @@ function buildCodeBlockDecorations(state: EditorState): DecorationSet {
   return Decoration.set(decorations.sort((a, b) => a.from - b.from), true);
 }
 
-function isAtomicDecoration(deco: Decoration): boolean {
-  if (!deco.spec.replace) return false;
-  const widget = deco.spec.widget;
-  return widget instanceof HiddenWidget || widget instanceof BulletWidget || widget instanceof CheckboxWidget;
-}
-
-function atomicRangesFromSet(deco: DecorationSet, docLength: number): DecorationSet {
-  const ranges: Range<Decoration>[] = [];
-  deco.between(0, docLength, (from, to, d) => {
-    if (isAtomicDecoration(d)) ranges.push(Decoration.mark({}).range(from, to));
-  });
-  return Decoration.set(ranges, true);
-}
-
 export const codeBlockField = StateField.define<DecorationSet>({
   create(state) {
     return buildCodeBlockDecorations(state);
@@ -382,14 +303,11 @@ export const codeBlockField = StateField.define<DecorationSet>({
     }
     return deco;
   },
-  provide: (field) => [
-    EditorView.decorations.from(field),
-    EditorView.atomicRanges.of((view) => atomicRangesFromSet(view.state.field(field), view.state.doc.length)),
-  ],
+  provide: (field) => EditorView.decorations.from(field),
 });
 
 function buildLivePreview(state: EditorState): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
+  const builder = new DecorationCollector();
   const doc = state.doc;
 
   for (let i = 1; i <= doc.lines; i++) {
@@ -403,12 +321,12 @@ function buildLivePreview(state: EditorState): DecorationSet {
     if (heading) {
       const level = heading[1].length;
       const prefixEnd = line.from + heading[1].length + heading[2].length;
-      const showPrefix = showRangeSyntax(state, line.from, prefixEnd);
+      const showPrefix = showLineSyntax(state, line);
       if (showPrefix) {
         addMark(builder, line.from, line.to, { class: `nordly-md-h${level}` });
       } else {
         if (prefixEnd > line.from) {
-          hideRange(builder, line.from, prefixEnd);
+          muteMarker(builder, line.from, prefixEnd);
         }
         addMark(builder, prefixEnd, line.to, { class: `nordly-md-h${level}` });
       }
@@ -419,10 +337,14 @@ function buildLivePreview(state: EditorState): DecorationSet {
     // Horizontal rule — rendered preview unless line is active.
     if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(text)) {
       if (!showLineSyntax(state, line)) {
-        builder.add(line.from, line.to, Decoration.replace({ widget: new HrWidget(), block: true }));
+        builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-hr-line' }));
+        hideRange(builder, line.from, line.to);
       }
       continue;
     }
+
+    // List / quote: mute markers with CSS (not replace) when caret leaves the line.
+    const lineActive = showLineSyntax(state, line);
 
     // Todo checkbox
     const todo = /^(\s*)([-*+]\s+)\[([ xX])\](\s*)(.*)$/.exec(text);
@@ -431,68 +353,57 @@ function buildLivePreview(state: EditorState): DecorationSet {
       const listMarkerLen = todo[2].length;
       const checkboxFrom = line.from + indentLen + listMarkerLen;
       const markerFrom = line.from + indentLen;
-      const markerTo = checkboxFrom + 3;
-      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
 
-      builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      if (!showMarker) {
-        builder.add(markerFrom, checkboxFrom, Decoration.replace({ widget: hidden }));
-        builder.add(
-          checkboxFrom,
-          checkboxFrom + 3,
-          Decoration.replace({
-            widget: new CheckboxWidget(todo[3] !== ' ', checkboxFrom),
-            inclusive: true,
-          }),
-        );
+      builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-list-item' }));
+      if (!lineActive) {
+        muteMarker(builder, markerFrom, checkboxFrom);
+        addMark(builder, checkboxFrom, checkboxFrom + 3, {
+          class:
+            todo[3] === ' '
+              ? 'nordly-md-checkbox-marker'
+              : 'nordly-md-checkbox-marker nordly-md-checkbox-marker--checked',
+          attributes: { 'data-checkbox-pos': String(checkboxFrom) },
+        });
       }
       decorateInlines(builder, state, line.from, text);
       continue;
     }
 
-    // Bullet list (not todo)
+    // Bullet — `- ` remains in the document but is visually represented by •.
+    // A mark preserves every cursor position, unlike Decoration.replace.
     const bullet = /^(\s*)([-*+])(\s+)(.*)$/.exec(text);
     if (bullet) {
       const markerFrom = line.from + bullet[1].length;
       const markerTo = markerFrom + bullet[2].length + bullet[3].length;
-      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
-      builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      if (!showMarker) {
-        builder.add(markerFrom, markerTo, Decoration.replace({ widget: new BulletWidget(), side: 1 }));
-      }
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.line({ class: 'nordly-md-list-item' }),
+      );
+      addMark(builder, markerFrom, markerTo, { class: 'nordly-md-bullet-marker' });
       decorateInlines(builder, state, line.from, text);
       continue;
     }
 
-    // Numbered list
+    // Numbered list — keep digits visible (styled); no replace/hide.
     const ordered = /^(\s*)(\d+\.)(\s+)(.*)$/.exec(text);
     if (ordered) {
-      const markerFrom = line.from + ordered[1].length;
-      const markerTo = markerFrom + ordered[2].length + ordered[3].length;
-      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
-      builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-list-item' }));
-      if (showMarker) {
-        addMark(builder, markerFrom, markerTo, { class: 'nordly-md-list-num' });
-      } else {
-        builder.add(
-          markerFrom,
-          markerTo,
-          Decoration.replace({ widget: new OrderedNumWidget(`${ordered[2]} `), side: 1 }),
-        );
-      }
+      const numFrom = line.from + ordered[1].length;
+      const numTo = numFrom + ordered[2].length;
+      builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-list-item' }));
+      addMark(builder, numFrom, numTo, { class: 'nordly-md-list-num' });
       decorateInlines(builder, state, line.from, text);
       continue;
     }
 
-    // Blockquote — hide `> ` when marker inactive; always style line.
+    // Blockquote
     const quote = /^(\s*)(>\s+)(.*)$/.exec(text);
     if (quote) {
       const markerFrom = line.from + quote[1].length;
       const markerTo = markerFrom + quote[2].length;
-      const showMarker = showRangeSyntax(state, markerFrom, markerTo);
-      builder.add(line.from, line.to, Decoration.line({ class: 'nordly-md-quote' }));
-      if (!showMarker) {
-        hideRange(builder, markerFrom, markerTo);
+      builder.add(line.from, line.from, Decoration.line({ class: 'nordly-md-quote' }));
+      if (!lineActive) {
+        muteMarker(builder, markerFrom, markerTo);
       }
       decorateInlines(builder, state, line.from, text);
       continue;
@@ -520,11 +431,6 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
   },
   {
     decorations: (v) => v.decorations,
-    provide: (plugin) =>
-      EditorView.atomicRanges.of((view) => {
-        const set = view.plugin(plugin)?.decorations ?? Decoration.none;
-        return atomicRangesFromSet(set, view.state.doc.length);
-      }),
   },
 );
 

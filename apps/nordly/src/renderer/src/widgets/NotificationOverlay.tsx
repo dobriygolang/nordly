@@ -7,6 +7,7 @@ import { useT } from '@nordly-i18n';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { NOTIFY_AUTO_DISMISS_MS } from '@shared/api/notifications';
 import { applyTheme } from '@shared/lib/applyTheme';
+import { listenEffects } from '@shared/lib/tauriListen';
 import { readStoredTheme } from '@shared/model/theme';
 import type { ThemeId } from '@shared/model/theme';
 
@@ -50,39 +51,44 @@ export function NotificationOverlayApp(): JSX.Element {
   }, [clearDismissTimer, requestDismiss]);
 
   useEffect(() => {
-    const unsubs: Array<() => void> = [];
+    const stop = listenEffects((track) => {
+      track(
+        listen<NotificationPayload>('notification:show', (event) => {
+          applyTheme(readStoredTheme());
+          setPayload(event.payload);
+          setClosing(false);
+          setSwipeOut(false);
+          setDragX(0);
+          setDragging(false);
+          dragRef.current = { startX: 0, offsetX: 0, moved: false };
+          setVisible(true);
+          scheduleAutoDismiss();
+        }),
+      );
 
-    void listen<NotificationPayload>('notification:show', (event) => {
-      applyTheme(readStoredTheme());
-      setPayload(event.payload);
-      setClosing(false);
-      setSwipeOut(false);
-      setDragX(0);
-      setDragging(false);
-      dragRef.current = { startX: 0, offsetX: 0, moved: false };
-      setVisible(true);
-      scheduleAutoDismiss();
-    }).then((off) => unsubs.push(off));
+      track(
+        listen('notification:hide', () => {
+          clearDismissTimer();
+          setClosing(true);
+          window.setTimeout(() => {
+            setVisible(false);
+            setClosing(false);
+            setSwipeOut(false);
+            setDragX(0);
+            setDragging(false);
+          }, CLOSE_ANIM_MS);
+        }),
+      );
 
-    void listen('notification:hide', () => {
-      clearDismissTimer();
-      setClosing(true);
-      window.setTimeout(() => {
-        setVisible(false);
-        setClosing(false);
-        setSwipeOut(false);
-        setDragX(0);
-        setDragging(false);
-      }, CLOSE_ANIM_MS);
-    }).then((off) => unsubs.push(off));
-
-    void listen<ThemeId>('theme:sync', ({ payload }) => {
-      applyTheme(payload);
-    }).then((off) => unsubs.push(off));
-
+      track(
+        listen<ThemeId>('theme:sync', ({ payload }) => {
+          applyTheme(payload);
+        }),
+      );
+    });
     return () => {
       clearDismissTimer();
-      for (const off of unsubs) off();
+      stop();
     };
   }, [clearDismissTimer, scheduleAutoDismiss]);
 

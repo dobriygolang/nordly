@@ -7,8 +7,13 @@ import { useT } from '@nordly-i18n';
 
 import {
   listNotes,
+  listFolders,
   getNote,
   createNote,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  moveNoteToFolder,
   updateNote,
   publishNoteToWeb,
   unpublishNoteFromWeb,
@@ -16,6 +21,7 @@ import {
   deleteNote,
   openWikiLink,
   type Note,
+  type NoteFolder,
   type PublishStatus,
   type PublishToWebOptions,
   isNoteVaultLocked,
@@ -51,6 +57,8 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const [list, setList] = useState<ListState>(INITIAL_LIST);
   const listRef = useRef<ListState>(INITIAL_LIST);
   listRef.current = list;
+  const [folders, setFolders] = useState<NoteFolder[]>([]);
+  const focusFolderIdRef = useRef<string | null>(null);
   const activeRef = useRef<Note | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
@@ -101,17 +109,38 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     return () => window.removeEventListener(NORDLY_EVENTS.openNote, onOpen);
   }, []);
 
+  const loadListGen = useRef(0);
   const loadList = useCallback(() => {
+    const gen = ++loadListGen.current;
+    void listFolders()
+      .then((folderRows) => {
+        if (gen !== loadListGen.current) return;
+        setFolders(folderRows);
+      })
+      .catch((err: unknown) => {
+        if (gen !== loadListGen.current) return;
+        setList((prev) => ({
+          ...prev,
+          status: prev.notes.length > 0 ? prev.status : 'error',
+          error: errorMessage(err, t),
+        }));
+      });
     void listNotes()
       .then((res) => {
+        if (gen !== loadListGen.current) return;
         setList({ status: 'ok', notes: res.notes, error: null });
         const firstId = res.notes[0]?.id ?? null;
         if (firstId) setSelectedId((cur) => cur ?? firstId);
       })
       .catch((err: unknown) => {
-        setList({ status: 'error', notes: [], error: errorMessage(err, t) });
+        if (gen !== loadListGen.current) return;
+        setList((prev) => ({
+          status: 'error',
+          notes: prev.notes,
+          error: errorMessage(err, t),
+        }));
       });
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadList();
@@ -272,7 +301,8 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const handleCreate = useCallback(async () => {
     await flushNow();
     try {
-      const n = await createNote('Untitled', '');
+      const folderId = focusFolderIdRef.current;
+      const n = await createNote('Untitled', '', folderId);
       setList((prev) => ({
         ...prev,
         notes: [
@@ -281,6 +311,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
             title: n.title,
             updatedAt: n.updatedAt,
             sizeBytes: n.sizeBytes,
+            folderId: n.folderId ?? null,
           },
           ...prev.notes,
         ],
@@ -293,7 +324,81 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     } catch (err: unknown) {
       setActiveError(errorMessage(err, t));
     }
-  }, [flushNow]);
+  }, [flushNow, t]);
+
+  const handleCreateFolder = useCallback(async (): Promise<NoteFolder> => {
+    try {
+      const folder = await createFolder(t('nordly.notes.folder.default_name'));
+      setFolders((prev) => [...prev, folder]);
+      focusFolderIdRef.current = folder.id;
+      return folder;
+    } catch (err: unknown) {
+      setActiveError(errorMessage(err, t));
+      throw err;
+    }
+  }, [t]);
+
+  const handleRenameFolder = useCallback(
+    (id: string, name: string) => {
+      void renameFolder(id, name)
+        .then((folder) => {
+          setFolders((prev) => prev.map((f) => (f.id === id ? folder : f)));
+        })
+        .catch((err: unknown) => {
+          setActiveError(errorMessage(err, t));
+        });
+    },
+    [t],
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (id: string) => {
+      try {
+        await deleteFolder(id);
+        setFolders((prev) => prev.filter((f) => f.id !== id));
+        setList((prev) => ({
+          ...prev,
+          notes: prev.notes.map((n) =>
+            n.folderId === id ? { ...n, folderId: null } : n,
+          ),
+        }));
+        if (focusFolderIdRef.current === id) focusFolderIdRef.current = null;
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+        throw err;
+      }
+    },
+    [t],
+  );
+
+  const handleMoveNote = useCallback(
+    async (noteId: string, folderId: string | null) => {
+      const previous =
+        list.notes.find((n) => n.id === noteId)?.folderId ?? null;
+      setList((prev) => ({
+        ...prev,
+        notes: prev.notes.map((n) => (n.id === noteId ? { ...n, folderId } : n)),
+      }));
+      if (folderId) focusFolderIdRef.current = folderId;
+      try {
+        await moveNoteToFolder(noteId, folderId);
+      } catch (err: unknown) {
+        setList((prev) => ({
+          ...prev,
+          notes: prev.notes.map((n) =>
+            n.id === noteId ? { ...n, folderId: previous } : n,
+          ),
+        }));
+        setActiveError(errorMessage(err, t));
+        throw err;
+      }
+    },
+    [list.notes, t],
+  );
+
+  const handleFocusFolder = useCallback((folderId: string | null) => {
+    focusFolderIdRef.current = folderId;
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -422,6 +527,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
                 title: note.title,
                 updatedAt: note.updatedAt,
                 sizeBytes: note.sizeBytes,
+                folderId: note.folderId ?? null,
               },
               ...prev.notes,
             ],
@@ -451,9 +557,15 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         <div className="nordly-vault-sidebar-wrap__inner" style={{ width: SIDEBAR_W }}>
           <Sidebar
             list={list}
+            folders={folders}
             selectedId={selectedId}
             onSelect={onSelectNote}
-            onCreate={handleCreate}
+            onCreateNote={handleCreate}
+            onCreateFolder={handleCreateFolder}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onMoveNote={handleMoveNote}
+            onFocusFolder={handleFocusFolder}
             onPublish={handlePublish}
             onUpdatePublishOptions={handleUpdatePublishOptions}
             onUnpublish={handleUnpublish}

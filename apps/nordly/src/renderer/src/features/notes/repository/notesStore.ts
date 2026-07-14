@@ -8,7 +8,7 @@ import {
 } from '@shared/db/nordlyDb';
 import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { getServerId } from '@shared/sync/idMap';
+import { getServerId, setServerId } from '@shared/sync/idMap';
 import {
   shouldAcceptRemoteEntity,
   syncedIdsAbsentFromRemote,
@@ -17,6 +17,7 @@ import {
 import { decryptNoteFields, encryptNoteFields } from '../crypto/noteCrypto';
 import type { Note, NoteSummary } from '../api/notesClient';
 import type { WikiLinkWire } from '../lib/wikiLinks';
+import { foldersStoreList } from './foldersStore';
 
 export type StoredWikiLink = WikiLinkWire;
 
@@ -33,6 +34,11 @@ export interface StoredNote {
   atRestEncrypted?: boolean;
   /** Outgoing wiki-link metadata (plaintext). */
   wikiLinks?: StoredWikiLink[];
+  /**
+   * Local folder assignment (device-only). Not synced — preserved on remote merge
+   * like task `order`.
+   */
+  folderId?: string | null;
 }
 
 function parseTs(raw: string | undefined): Date | null {
@@ -54,6 +60,7 @@ function toNote(row: StoredNote & { vaultLocked?: boolean }): Note {
     updatedAt: parseTs(row.updatedAt),
     sizeBytes: bodySize(row.bodyMd),
     vaultLocked: row.vaultLocked,
+    folderId: row.folderId ?? null,
   };
 }
 
@@ -64,6 +71,7 @@ function toSummary(row: StoredNote & { vaultLocked?: boolean }): NoteSummary {
     updatedAt: parseTs(row.updatedAt),
     sizeBytes: bodySize(row.bodyMd),
     vaultLocked: row.vaultLocked,
+    folderId: row.folderId ?? null,
   };
 }
 
@@ -133,6 +141,8 @@ export async function notesStoreUpsert(
   bodyMd: string,
   timestamps?: { createdAt?: string; updatedAt?: string },
   wikiLinks?: StoredWikiLink[],
+  /** `undefined` keeps existing; `null` clears; string assigns. */
+  folderId?: string | null,
 ): Promise<Note> {
   const userId = requireUserId();
   const existing = await dbGet<StoredNote>('notes', entityKey(id, userId));
@@ -140,6 +150,18 @@ export async function notesStoreUpsert(
     throw new Error(`Cannot update deleted note: ${id}`);
   }
   const now = new Date().toISOString();
+  // Re-read device folderId right before write — concurrent setFolderId must win.
+  let nextFolderId = folderId;
+  if (folderId === undefined) {
+    const latest = await dbGet<StoredNote>('notes', entityKey(id, userId));
+    nextFolderId = latest?.folderId ?? existing?.folderId ?? null;
+  }
+  if (typeof nextFolderId === 'string') {
+    const folders = await foldersStoreList(userId);
+    if (!folders.some((f) => f.id === nextFolderId)) {
+      throw new Error(`Folder not found: ${nextFolderId}`);
+    }
+  }
   const row = await encryptAtRest(userId, {
     id,
     title,
@@ -147,10 +169,46 @@ export async function notesStoreUpsert(
     createdAt: timestamps?.createdAt ?? existing?.createdAt ?? now,
     updatedAt: timestamps?.updatedAt ?? now,
     deleted: false,
-    wikiLinks,
+    wikiLinks: wikiLinks ?? existing?.wikiLinks,
+    folderId: nextFolderId ?? null,
   });
   await dbPut('notes', row);
   return toNote(await decryptAtRest(row));
+}
+
+/** Device-only folder move — does not bump `updatedAt` (avoids LWW fights with sync). */
+export async function notesStoreSetFolderId(
+  id: string,
+  folderId: string | null,
+): Promise<void> {
+  const userId = requireUserId();
+  if (folderId != null) {
+    const folders = await foldersStoreList(userId);
+    if (!folders.some((f) => f.id === folderId)) {
+      throw new Error(`Folder not found: ${folderId}`);
+    }
+  }
+  const existing = await dbGet<StoredNote>('notes', entityKey(id, userId));
+  if (!existing || existing.deleted) {
+    throw new Error(`Note not found: ${id}`);
+  }
+  await dbPut('notes', {
+    ...existing,
+    folderId,
+  });
+}
+
+/** Clear folderId on every note that referenced a deleted folder. */
+export async function notesStoreUnfileFolder(folderId: string, userId?: string): Promise<number> {
+  const uid = userId ?? requireUserId();
+  const rows = await dbGetAllByUser<StoredNote>('notes', uid);
+  let n = 0;
+  for (const row of rows) {
+    if (row.deleted || row.folderId !== folderId) continue;
+    await dbPut('notes', { ...row, folderId: null });
+    n += 1;
+  }
+  return n;
 }
 
 export async function notesStoreSoftDelete(id: string): Promise<void> {
@@ -171,6 +229,8 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
   const rt = new Date(remote.updatedAt).getTime();
   const lt = local ? new Date(local.updatedAt).getTime() : 0;
   if (!local || rt >= lt) {
+    // Fresh folderId read — concurrent move/unfile must not be overwritten.
+    const latest = await dbGet<StoredNote>('notes', entityKey(remote.id, userId));
     const row = await encryptAtRest(userId, {
       id: remote.id,
       title: remote.title,
@@ -178,9 +238,12 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
       createdAt: remote.createdAt,
       updatedAt: remote.updatedAt,
       deleted: remote.deleted ?? false,
+      wikiLinks: remote.wikiLinks ?? local?.wikiLinks,
+      folderId: latest?.folderId ?? local?.folderId ?? null,
     });
     await dbPut('notes', row);
   }
+  await setServerId('notes', remote.id, remote.id, userId);
 }
 
 export async function notesStoreBulkImport(
@@ -210,6 +273,8 @@ export async function notesStoreReplaceId(oldId: string, note: Note): Promise<vo
     createdAt: note.createdAt?.toISOString() ?? now,
     updatedAt: note.updatedAt?.toISOString() ?? now,
     deleted: wasDeleted,
+    wikiLinks: existing?.wikiLinks,
+    folderId: existing?.folderId ?? note.folderId ?? null,
   });
   await dbPut('notes', row);
 }

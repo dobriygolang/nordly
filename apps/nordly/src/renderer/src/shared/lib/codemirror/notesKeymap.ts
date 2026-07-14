@@ -237,11 +237,39 @@ function continueListOnEnter(view: EditorView): boolean {
   const line = state.doc.lineAt(from);
   const before = state.sliceDoc(line.from, from);
 
+  const emptyTodo = /^(\s*)([-*+])\s+\[[ xX]\]\s*$/.exec(before);
+  if (emptyTodo) {
+    view.dispatch({
+      changes: { from: line.from, to: from, insert: '' },
+      selection: { anchor: line.from },
+    });
+    return true;
+  }
+
   const emptyBullet = /^(\s*)([-*+]|\d+\.)\s+$/.exec(before);
   if (emptyBullet) {
     view.dispatch({
       changes: { from: line.from, to: from, insert: '' },
       selection: { anchor: line.from },
+    });
+    return true;
+  }
+
+  const emptyQuote = /^(\s*)>\s+$/.exec(before);
+  if (emptyQuote) {
+    view.dispatch({
+      changes: { from: line.from, to: from, insert: '' },
+      selection: { anchor: line.from },
+    });
+    return true;
+  }
+
+  const todo = /^(\s*)([-*+])\s+\[[ xX]\]\s+/.exec(before);
+  if (todo) {
+    const insert = `\n${todo[1]}${todo[2]} [ ] `;
+    view.dispatch({
+      changes: { from, to, insert },
+      selection: { anchor: from + insert.length },
     });
     return true;
   }
@@ -280,7 +308,57 @@ function continueListOnEnter(view: EditorView): boolean {
   return false;
 }
 
+const verticalColumns = new WeakMap<EditorView, { head: number; column: number }>();
+
+/**
+ * Live preview changes inline marker widths when a line becomes active. CodeMirror's
+ * pixel-based vertical motion can therefore recalculate against a different layout
+ * and skip lines. Move by document line instead; keep the preferred source column
+ * across short lines.
+ */
+function moveOneDocumentLine(view: EditorView, direction: -1 | 1, extend = false): boolean {
+  const { state } = view;
+  const range = state.selection.main;
+  const currentLine = state.doc.lineAt(range.head);
+  const targetNumber = currentLine.number + direction;
+  if (targetNumber < 1 || targetNumber > state.doc.lines) return false;
+
+  const remembered = verticalColumns.get(view);
+  const column =
+    remembered?.head === range.head
+      ? remembered.column
+      : range.head - currentLine.from;
+  const targetLine = state.doc.line(targetNumber);
+  const targetHead = targetLine.from + Math.min(column, targetLine.length);
+
+  verticalColumns.set(view, { head: targetHead, column });
+  view.dispatch({
+    selection: extend
+      ? { anchor: range.anchor, head: targetHead }
+      : { anchor: targetHead },
+    scrollIntoView: true,
+    userEvent: 'select',
+  });
+  return true;
+}
+
 export const notesKeymap = [
+  {
+    key: 'ArrowUp',
+    run: (view: EditorView) => moveOneDocumentLine(view, -1),
+  },
+  {
+    key: 'ArrowDown',
+    run: (view: EditorView) => moveOneDocumentLine(view, 1),
+  },
+  {
+    key: 'Shift-ArrowUp',
+    run: (view: EditorView) => moveOneDocumentLine(view, -1, true),
+  },
+  {
+    key: 'Shift-ArrowDown',
+    run: (view: EditorView) => moveOneDocumentLine(view, 1, true),
+  },
   {
     key: 'Mod-b',
     run(view: EditorView) {

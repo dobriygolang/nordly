@@ -15,6 +15,11 @@ export async function pushFocusOutbox(entry: OutboxEntry): Promise<void> {
   const payload = entry.payload as Record<string, unknown>;
 
   if (entry.op === 'session_start') {
+    const existingId = await getServerId('focus', entry.entityId, userId);
+    if (existingId) {
+      await removeOutbox(entry.id, userId);
+      return;
+    }
     const session = await remoteStartFocusSession({
       planItemId: String(payload.planItemId ?? ''),
       pinnedTitle: String(payload.pinnedTitle ?? ''),

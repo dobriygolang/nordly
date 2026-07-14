@@ -90,6 +90,16 @@ export function HomeTodayTasks(): JSX.Element | null {
     return () => window.removeEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
   }, [refreshPlan]);
 
+  useEffect(() => {
+    return usePomodoroStore.subscribe((state, prev) => {
+      if (prev.running && !state.running) {
+        void refresh().catch((err: unknown) =>
+          setLoadError(err instanceof Error ? err : new Error(String(err))),
+        );
+      }
+    });
+  }, [refresh]);
+
   const todayTasks = useMemo(
     () => [...tasksForToday(tasks, todayKey)].sort(sortHomeTasks),
     [tasks, todayKey],
@@ -113,6 +123,9 @@ export function HomeTodayTasks(): JSX.Element | null {
         setTasks((prev) => prev.map((item) => (item.id === task.id ? updated : item)));
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
       } catch (err) {
+        setTasks((prev) =>
+          prev.map((item) => (item.id === task.id ? { ...item, status: task.status } : item)),
+        );
         setLoadError(err instanceof Error ? err : new Error(String(err)));
       }
     },

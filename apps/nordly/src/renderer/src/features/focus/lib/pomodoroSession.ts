@@ -76,7 +76,9 @@ export async function completePomodoroTimer(
 ): Promise<void> {
   const id = await resolveSessionId(sessionRef);
   if (!id) {
-    throw new Error('No focus session to complete');
+    // Idempotent — timer already finished / session already closed.
+    usePomodoroStore.getState().complete();
+    return;
   }
   await finishFocusSession(sessionRef, {
     secondsFocused: durationSec,

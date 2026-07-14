@@ -9,7 +9,9 @@ import {
   peekGoogleCalendarEvents,
   subscribeGoogleCalendarCache,
   googleRangeKey,
+  isGoogleCalendarRangeStale,
 } from './googleCalendarCache';
+import { canReachNetwork } from '@shared/sync/syncConfig';
 
 export function useGoogleCalendarEvents(
   timeMin: Date,
@@ -63,7 +65,8 @@ export function useGoogleCalendarEvents(
       setLoading(false);
       setError(null);
       setReauthRequired(false);
-      if (!force) return;
+      // Offline / fresh: show cache. Online + stale / force: refresh in background.
+      if (!force && (!canReachNetwork() || !isGoogleCalendarRangeStale(min, max))) return;
     } else {
       setLoading(true);
     }

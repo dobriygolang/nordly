@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 
 import { useT } from '@nordly-i18n';
 import {
@@ -9,6 +8,7 @@ import {
   sendPomodoroCommand,
 } from '@features/focus/lib/pomodoroCrossWindow';
 import { applyTheme } from '@shared/lib/applyTheme';
+import { listenEffect } from '@shared/lib/tauriListen';
 import { readStoredTheme } from '@shared/model/theme';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { Icon } from '@shared/ui/primitives/Icon';
@@ -185,32 +185,20 @@ export function TrayPopoverApp(): JSX.Element {
   useEffect(() => initPomodoroFollower(), []);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    void listen('tray-popover:show', () => {
+    return listenEffect('tray-popover:show', () => {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setOpenRollKey((k) => k + 1);
         });
       });
-    }).then((off) => {
-      unlisten = off;
     });
-    return () => {
-      unlisten?.();
-    };
   }, []);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    void listen<ThemeId>('theme:sync', ({ payload }) => {
+    return listenEffect<ThemeId>('theme:sync', ({ payload }) => {
       applyTheme(payload);
       setTheme(payload);
-    }).then((off) => {
-      unlisten = off;
     });
-    return () => {
-      unlisten?.();
-    };
   }, []);
 
   const openMain = useCallback(() => {

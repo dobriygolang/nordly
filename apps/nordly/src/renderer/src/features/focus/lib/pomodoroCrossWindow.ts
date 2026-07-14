@@ -1,6 +1,7 @@
 import { emit, listen } from '@tauri-apps/api/event';
 
 import { isTauriRuntime } from '@platform/runtime';
+import { listenEffects } from '@shared/lib/tauriListen';
 import {
   usePomodoroStore,
   type FocusTimerMode,
@@ -47,11 +48,17 @@ export function initPomodoroLeader(): () => void {
 
   const unsubs: Array<() => void> = [];
 
-  void listen<{ action: PomodoroCmdAction }>(CMD_EVENT, ({ payload }) => {
-    const store = usePomodoroStore.getState();
-    if (payload.action === 'toggle') store.toggle();
-    else if (payload.action === 'reset') store.reset();
-  }).then((off) => unsubs.push(off));
+  unsubs.push(
+    listenEffects((track) => {
+      track(
+        listen<{ action: PomodoroCmdAction }>(CMD_EVENT, ({ payload }) => {
+          const store = usePomodoroStore.getState();
+          if (payload.action === 'toggle') store.toggle();
+          else if (payload.action === 'reset') store.reset();
+        }),
+      );
+    }),
+  );
 
   const unsubStore = usePomodoroStore.subscribe((state, prev) => {
     if (syncing) return;
@@ -87,12 +94,18 @@ export function initPomodoroFollower(): () => void {
     }
   };
 
-  void listen<PomodoroSyncPayload>(SYNC_EVENT, ({ payload }) => {
-    syncing = true;
-    applyPayload(payload);
-    syncing = false;
-    syncLocalTick();
-  }).then((off) => unsubs.push(off));
+  unsubs.push(
+    listenEffects((track) => {
+      track(
+        listen<PomodoroSyncPayload>(SYNC_EVENT, ({ payload }) => {
+          syncing = true;
+          applyPayload(payload);
+          syncing = false;
+          syncLocalTick();
+        }),
+      );
+    }),
+  );
 
   const unsubRunning = usePomodoroStore.subscribe((state, prev) => {
     if (state.running !== prev.running) syncLocalTick();

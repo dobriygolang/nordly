@@ -309,10 +309,21 @@ export function TaskBoardPage(): JSX.Element {
         const updated = await patchTaskDetails(task.id, { clearConference: true });
         setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
       } catch (err) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  conferenceUrl: task.conferenceUrl,
+                  conferenceProvider: task.conferenceProvider,
+                }
+              : t,
+          ),
+        );
         failTaskAction(err);
       }
     },
-    [refresh],
+    [failTaskAction],
   );
 
   const columnKeys = useMemo(() => days.map((d) => d.key), [days]);

@@ -8,6 +8,11 @@ import {
 } from '@shared/db/nordlyDb';
 import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { getServerId } from '@shared/sync/idMap';
+import {
+  shouldAcceptRemoteEntity,
+  syncedIdsAbsentFromRemote,
+} from '@shared/sync/tombstone';
 
 import { decryptNoteFields, encryptNoteFields } from '../crypto/noteCrypto';
 import type { Note, NoteSummary } from '../api/notesClient';
@@ -162,7 +167,7 @@ export async function notesStoreSoftDelete(id: string): Promise<void> {
 export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
   const userId = requireUserId();
   const local = await dbGet<StoredNote>('notes', entityKey(remote.id, userId));
-  if (local?.deleted) return;
+  if (!shouldAcceptRemoteEntity(local, remote.updatedAt)) return;
   const rt = new Date(remote.updatedAt).getTime();
   const lt = local ? new Date(local.updatedAt).getTime() : 0;
   if (!local || rt >= lt) {
@@ -194,6 +199,8 @@ export async function notesStoreAll(userId?: string): Promise<StoredNote[]> {
 
 export async function notesStoreReplaceId(oldId: string, note: Note): Promise<void> {
   const userId = requireUserId();
+  const existing = await dbGet<StoredNote>('notes', entityKey(oldId, userId));
+  const wasDeleted = Boolean(existing?.deleted);
   await dbDelete('notes', entityKey(oldId, userId));
   const now = new Date().toISOString();
   const row = await encryptAtRest(userId, {
@@ -202,9 +209,29 @@ export async function notesStoreReplaceId(oldId: string, note: Note): Promise<vo
     bodyMd: note.bodyMd,
     createdAt: note.createdAt?.toISOString() ?? now,
     updatedAt: note.updatedAt?.toISOString() ?? now,
-    deleted: false,
+    deleted: wasDeleted,
   });
   await dbPut('notes', row);
+}
+
+/** Soft-delete previously synced locals that no longer appear on the server. */
+export async function notesStoreApplyRemoteAbsences(
+  remoteIds: Set<string>,
+  userId?: string,
+): Promise<number> {
+  const uid = userId ?? requireUserId();
+  const rows = await dbGetAllByUser<StoredNote>('notes', uid);
+  const candidates: { id: string; serverId: string | null }[] = [];
+  for (const row of rows) {
+    if (row.deleted) continue;
+    const serverId = await getServerId('notes', row.id, uid);
+    candidates.push({ id: row.id, serverId });
+  }
+  const absent = syncedIdsAbsentFromRemote(candidates, remoteIds);
+  for (const id of absent) {
+    await notesStoreSoftDelete(id);
+  }
+  return absent.length;
 }
 
 export { toNote, toSummary, rowFrom, decryptAtRest };

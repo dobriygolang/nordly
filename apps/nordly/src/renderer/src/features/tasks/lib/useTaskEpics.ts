@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { epicsStoreList, epicsStoreReplace } from '@features/tasks/repository/epicsStore';
-import { remoteListEpics } from '@features/tasks/repository/tasksRemote';
+import { remoteListEpics } from '@features/tasks/remote/tasksRemote';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import { useSyncStore } from '@shared/model/sync';

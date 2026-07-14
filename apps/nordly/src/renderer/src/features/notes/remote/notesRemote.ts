@@ -10,7 +10,7 @@ import { apiFetch } from '@shared/api/http';
 import { throwIfLimitResponse } from '@shared/api/limitErrors';
 
 import type { Note, NoteSummary } from '../api/notesClient';
-import type { StoredNote } from './notesStore';
+import type { StoredNote } from '../repository/notesStore';
 
 import type { WikiLinkWire } from '../lib/wikiLinks';
 

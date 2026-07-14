@@ -57,32 +57,9 @@
   animation: fadein var(--motion-dur-large) var(--motion-ease-standard) both;
 }
 
-/* Shimmer skeleton — for Nordly loading states (cards / list rows).
- * Tailwind config 68-74 определял палитру; эта animation её активирует. */
-@keyframes shimmer {
-  0% {
-    background-position: -200px 0;
-  }
-  100% {
-    background-position: calc(200px + 100%) 0;
-  }
-}
-.shimmer {
-  background: linear-gradient(
-    90deg,
-    rgb(var(--ink-rgb) / 0.04) 0%,
-    rgb(var(--ink-rgb) / 0.08) 50%,
-    rgb(var(--ink-rgb) / 0.04) 100%
-  );
-  background-size: 200px 100%;
-  background-repeat: no-repeat;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
-/* Reduced motion — disable stagger / shimmer / view-transitions для
- * пользователей с prefers-reduced-motion (accessibility / focus mode). */
+/* Reduced motion — disable stagger / fade / view-transitions for
+ * users with prefers-reduced-motion (accessibility / focus mode). */
 @media (prefers-reduced-motion: reduce) {
-  .shimmer,
   .fadein {
     animation: none !important;
     opacity: 1 !important;

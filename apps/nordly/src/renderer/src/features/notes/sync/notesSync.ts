@@ -11,13 +11,14 @@ import {
   remoteGetNote,
   remoteListNotes,
   remoteUpdateNote,
-} from '@features/notes/repository/notesRemote';
-import { remoteEncryptNoteBody } from '@features/notes/repository/vaultRemote';
+} from '@features/notes/remote/notesRemote';
+import { remoteEncryptNoteBody } from '@features/notes/remote/vaultRemote';
 import {
   notesStoreGet,
   notesStoreGetRow,
   notesStoreMergeRemote,
   notesStoreReplaceId,
+  notesStoreApplyRemoteAbsences,
 } from '@features/notes/repository/notesStore';
 import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
@@ -230,6 +231,7 @@ export async function pullNotes(): Promise<void> {
   const userId = requireUserId();
   const vaultEnabled = isVaultEnabledSync();
   const summaries = await remoteListNotes();
+  const remoteIds = new Set(summaries.map((s) => s.id));
   for (const s of summaries) {
     const wire = await remoteGetNote(s.id);
     if (wire.encrypted) {
@@ -242,6 +244,7 @@ export async function pullNotes(): Promise<void> {
       await notesStoreMergeRemote(noteToStored(wire, userId, false));
     }
   }
+  await notesStoreApplyRemoteAbsences(remoteIds, userId);
 }
 
 /** Re-push all local notes as encrypted after enabling vault. */

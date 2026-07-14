@@ -1,5 +1,5 @@
 import type { AppleCalendarEvent } from '@features/calendar/api/appleCalendarClient';
-import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
+import type { GoogleCalendarEvent } from '@features/calendar/remote/calendarClient';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import { translate, type Locale } from '@nordly-i18n';
 import {

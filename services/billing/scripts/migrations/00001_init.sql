@@ -94,12 +94,12 @@ CREATE TABLE provider_events (
 INSERT INTO plans (id, slug, name, description, priority, is_active, metadata) VALUES
     (
         'f0000000-0000-4000-8000-000000000001',
-        'free',
-        'Free',
-        'Full free — unlimited quotas',
+        'default',
+        'Nordly',
+        'All features included',
         0,
         true,
-        '{"tagline":"Всё без лимитов","highlight":false}'::jsonb
+        '{"tagline":"All features included","highlight":false}'::jsonb
     ),
     (
         'f0000000-0000-4000-8000-000000000002',
@@ -107,19 +107,19 @@ INSERT INTO plans (id, slug, name, description, priority, is_active, metadata) V
         'Pro',
         'Paid monthly subscription',
         10,
-        true,
+        false,
         '{"tagline":"Без лимитов на фокус и заметки","highlight":true}'::jsonb
     );
 
 INSERT INTO plan_entitlements (plan_id, key, value_json) VALUES
-    ('f0000000-0000-4000-8000-000000000001', 'code_runs_per_day', '{"type":"counter","period":"day"}'::jsonb),
+    ('f0000000-0000-4000-8000-000000000001', 'cloud_sync_enabled', '{"type":"bool","value":true}'::jsonb),
+    ('f0000000-0000-4000-8000-000000000001', 'publish_password', '{"type":"bool","value":true}'::jsonb),
+    ('f0000000-0000-4000-8000-000000000001', 'cloud_sync_devices', '{"type":"gauge"}'::jsonb),
+    ('f0000000-0000-4000-8000-000000000001', 'published_notes_active', '{"type":"gauge"}'::jsonb),
     ('f0000000-0000-4000-8000-000000000001', 'cloud_notes_count', '{"type":"gauge"}'::jsonb),
+    ('f0000000-0000-4000-8000-000000000001', 'code_runs_per_day', '{"type":"counter","period":"day"}'::jsonb),
     ('f0000000-0000-4000-8000-000000000001', 'live_rooms_per_month', '{"type":"counter","period":"month"}'::jsonb),
-    ('f0000000-0000-4000-8000-000000000001', 'live_rooms_concurrent', '{"type":"gauge"}'::jsonb),
-    ('f0000000-0000-4000-8000-000000000002', 'code_runs_per_day', '{"type":"counter","limit":500,"period":"day"}'::jsonb),
-    ('f0000000-0000-4000-8000-000000000002', 'cloud_notes_count', '{"type":"gauge"}'::jsonb),
-    ('f0000000-0000-4000-8000-000000000002', 'live_rooms_per_month', '{"type":"counter","limit":30,"period":"month"}'::jsonb),
-    ('f0000000-0000-4000-8000-000000000002', 'live_rooms_concurrent', '{"type":"gauge","limit":5}'::jsonb);
+    ('f0000000-0000-4000-8000-000000000001', 'live_rooms_concurrent', '{"type":"gauge"}'::jsonb);
 -- +goose StatementEnd
 
 -- +goose Down

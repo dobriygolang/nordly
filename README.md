@@ -26,7 +26,7 @@ Ports and DB names: [AGENTS.md](AGENTS.md#port-allocation-defaults).
 | ---------------------------------------------------------------- | ----------------------------------- |
 | [AGENTS.md](AGENTS.md)                                           | Monorepo index, service template    |
 | [docs/billing-features.md](docs/billing-features.md)               | Billing feature entitlements        |
-| [docs/onboarding/](docs/onboarding/)                             | Architecture diagrams + service map |
+| [docs/onboarding/](docs/onboarding/)                             | Cross-service architecture map      |
 | [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md) | First prod deploy                   |
 | [deploy/RUNBOOK.md](deploy/RUNBOOK.md)                           | Ops, incidents, monitoring          |
 | [deploy/grafana/README.md](deploy/grafana/README.md)             | Prometheus + Grafana dashboards     |

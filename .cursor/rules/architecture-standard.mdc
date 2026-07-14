@@ -73,4 +73,3 @@ GOPROXY=https://proxy.golang.org,direct GOWORK=off go test ./...
 - `services/<name>/AGENTS.md` — source of truth per service; update with code changes.
 - `docs/onboarding/README.md` — cross-service map for humans.
 - `.cursor/rules/agents-md.mdc` — when agents must refresh docs.
-- `docs/architecture/outbox-relay.md` — future message-bus relay design (polling is current default).

@@ -16,7 +16,7 @@ Does not own: users (identity), tasks (tracker), notes (notes service).
 
 `value_json`: `{"type":"bool","value":true}` or `{"type":"counter","limit":N,"period":"day"|"month"}` or `{"type":"gauge","limit":N}`. Omit `limit` for unlimited.
 
-Seeded in migrations (`00001`–`00007`). Active plan: `default` (`pro_monthly` deactivated).
+Seeded in `00001_init.sql`. Active plan: `default` (`pro_monthly` present but deactivated for Tribute map).
 
 Full matrix + enforcement: [docs/billing-features.md](../../docs/billing-features.md).
 

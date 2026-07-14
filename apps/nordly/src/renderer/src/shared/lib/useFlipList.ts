@@ -4,7 +4,7 @@ const FLIP_MS = 160;
 const FLIP_EASE = 'cubic-bezier(0.2, 0.65, 0.2, 1)';
 
 function flipKey(el: HTMLElement): string | null {
-  return el.dataset.flipKey ?? (el.classList.contains('nordly-task-insert-slot') ? '__insert__' : null);
+  return el.dataset.flipKey ?? null;
 }
 
 function captureFlipKeys(root: HTMLElement): Map<string, DOMRect> {

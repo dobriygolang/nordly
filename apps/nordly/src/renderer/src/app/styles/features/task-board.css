@@ -212,55 +212,6 @@ body.nordly-task-dragging .nordly-task-row__detail {
   background: rgb(var(--ink-rgb) / 0.08);
 }
 
-.nordly-task-insert-slot {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 29px;
-  padding: 7px 10px;
-  border-radius: 12px;
-  border: 1px dashed rgb(var(--ink-rgb) / 0.28);
-  background: rgb(var(--ink-rgb) / 0.05);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  pointer-events: none;
-  flex-shrink: 0;
-  position: relative;
-}
-.nordly-task-insert-slot[data-epic='true']::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--task-epic-color);
-  opacity: 0.55;
-  pointer-events: none;
-}
-.nordly-task-insert-slot__title {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  line-height: 15px;
-  color: var(--ink-40);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.nordly-task-insert-slot__duration {
-  flex-shrink: 0;
-  font-size: 10px;
-  line-height: 15px;
-  color: var(--ink-40);
-}
 .nordly-task-row__check {
   box-sizing: border-box;
   width: 0;

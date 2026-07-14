@@ -640,7 +640,7 @@ button.nordly-calendar-event:hover {
 .nordly-settings-google-error {
   margin: 0 0 12px;
   font-size: 11px;
-  color: var(--red);
+  color: var(--ink-60);
 }
 
 .nordly-floating-menu {

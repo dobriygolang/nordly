@@ -86,7 +86,7 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 
 **Tauri shell (Rust)** — `src-tauri/src/auth.rs` (keychain session only):
 
-**tracker** — `features/tasks/repository/tasksRemote.ts`, `features/calendar/api/calendarClient.ts`
+**tracker** — `features/tasks/remote/tasksRemote.ts`, `features/calendar/remote/calendarClient.ts`
 
 | Method | Path |
 |--------|------|
@@ -106,7 +106,7 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference) |
 | POST | `/v1/tracker/work/tasks/{id}/conference` |
 
-**notes** — `features/notes/repository/notesRemote.ts`, `publishRemote.ts`, `vaultRemote.ts`, `shared/crypto/vault.ts`
+**notes** — `features/notes/remote/{notesRemote,publishRemote,vaultRemote}.ts`, `shared/crypto/vault.ts`
 
 | Method | Path |
 |--------|------|
@@ -119,7 +119,7 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | GET | `/v1/notes/vault/salt` |
 | POST | `/v1/notes/vault/notes/{noteId}/encrypt` |
 
-**focus** — `features/focus/repository/focusRemote.ts`
+**focus** — `features/focus/remote/focusRemote.ts`
 
 | Method | Path |
 |--------|------|
@@ -136,7 +136,7 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 
 ## IndexedDB schema
 
-Database: `nordly-db` v2. All entity stores use composite key `userId::id`.
+Database: `nordly-db` v3. All entity stores use composite key `userId::id`.
 
 | Store | Purpose |
 |-------|---------|
@@ -147,6 +147,7 @@ Database: `nordly-db` v2. All entity stores use composite key `userId::id`.
 | `outbox` | Pending sync operations |
 | `id_map` | Local UUID → server ID |
 | `meta` | Sync cursors, prefs |
+| `calendar_events` | Last Google Calendar snapshot (offline display) |
 
 Scoped by `setDbUserId()` on sign-in.
 
@@ -156,7 +157,7 @@ Scoped by `setDbUserId()` on sign-in.
 
 **Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid access token **or** refresh token when online. Offline + expired session → local-only grace (no sync, no logout).
 
-**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests; logout only if refresh fails. Offline 401/expiry: keep local session, show `SyncStatusBanner`.
+**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests; logout only if refresh fails. Offline 401/expiry: keep local session silently; `SyncStatusBanner` shows **reauth only** (no passive offline/unreachable/error banners). Network errors surface inline on intentional online actions (Meet/Zoom, note share, whiteboard share/publish, Settings connect).
 
 Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Calls `ensureAccessTokenForSync()` before each run.
 
@@ -172,9 +173,20 @@ Task fields **device-only** (preserved on pull/replace): `order`.
 
 Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
 
-Conflict: LWW by `updatedAt`. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
+Conflict: LWW by `updatedAt`, with **local tombstones never revived** (`shared/sync/tombstone.ts`). Soft-delete cancels non-delete outbox ops then enqueues `delete`. Pull soft-deletes previously synced locals absent from the remote list. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
 
-Not synced: whiteboards (local + share/publish via rooms), vault prefs, Google Calendar reads, publish status (direct API on user action).
+Not synced via outbox: whiteboards (local + share/publish via rooms), vault prefs, publish status (direct API on user action). Google Calendar events are **cached** in IndexedDB (`calendar_events`) for offline display; refreshed by the background worker when online.
+
+## Feature layering (offline vs online)
+
+| Layer | Role | Allowed imports |
+|-------|------|-----------------|
+| `repository/` | IndexedDB only | `shared/db`, model |
+| `remote/` | HTTP clients | `shared/api` |
+| `sync/` | outbox push/pull | repository + remote |
+| `api/` | local-first façade | repository always; sync/remote only behind `isSyncEnabled()` / `isCloudEnabled()` |
+
+Examples: `features/notes/remote/notesRemote.ts`, `features/tasks/remote/tasksRemote.ts`, `features/calendar/remote/calendarClient.ts` + `features/calendar/repository/calendarStore.ts`.
 
 ## Vault (E2EE)
 
@@ -282,7 +294,6 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 ```
 apps/nordly/
 ├── AGENTS.md
-├── docs/architecture-audit.md   # layering audit tracker
 ├── README.md
 ├── src-tauri/                   # Rust: auth, vault, pomodoro, deep links
 └── src/renderer/src/
@@ -295,12 +306,11 @@ apps/nordly/
     │   ├── db/, sync/, crypto/, api/, hooks/
     ├── features/
     │   ├── auth/, focus/, calendar/, whiteboard/, planning/
-    │   ├── notes/               # api, repository, sync/
-    │   └── tasks/               # api, repository, lib, components, sync/
+    │   ├── notes/               # api, repository, remote, sync/
+    │   ├── tasks/               # api, repository, remote, lib, components, sync/
+    │   └── calendar/            # remote (HTTP), repository (IDB), lib (hooks/cache)
     ├── pages/                   # route composition only (TaskBoard page shell, Notes, …)
     └── widgets/                 # Dock, Palette, CanvasBg, overlays, Login
 ```
 
-**Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`; `features` never imports `pages/`. Types like `PageId` and `ThemeId` live in `shared/model/`.
-
-Architecture audit + layering rules: [docs/architecture-audit.md](docs/architecture-audit.md).
+**Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`; `features` never imports `pages/`. Types like `PageId` and `ThemeId` live in `shared/model/`. Per feature: `repository/` (IndexedDB) ↔ `remote/` (HTTP) → `sync/` (outbox) → `api/` (local-first façade).

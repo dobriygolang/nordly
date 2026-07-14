@@ -11,7 +11,7 @@ import {
   updateTrackerSettings,
   type GoogleCalendarListEntry,
   type TrackerSettings,
-} from '@features/calendar/api/calendarClient';
+} from '@features/calendar/remote/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { invalidateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';

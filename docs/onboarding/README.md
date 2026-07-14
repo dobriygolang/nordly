@@ -63,19 +63,6 @@ Nordly `share-to-web` → notes service stores slug → web `/notes/{slug}` (pub
 
 Guest creates room → scoped JWT → WS `/ws/editor/{roomId}`. Code (`practice`) or Excalidraw (`system_design`).
 
-## Retired services
-
-Removed from repo; do not reference in new code.
-
-| Service | Was | Replaced by |
-|---------|-----|-------------|
-| content | Articles, templates | — (removed) |
-| interview | Mock interviews, sessions | — (removed) |
-| recommendation | Task picking, progress | — (removed) |
-| admin | Operator BFF | — (removed) |
-
-Legacy docs archived under [docs/archive/](../archive/).
-
 ## Local dev
 
 **Nordly:**
@@ -113,9 +100,3 @@ Prod ops: [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md). Monitoring: [deploy/graf
 - [ ] Skim [backend-client-matrix.md](../backend-client-matrix.md)
 - [ ] Run nordly locally; try notes, task board, whiteboard
 - [ ] Run web `/live/new` with local rooms + sandbox
-
-## Diagrams
-
-Open `.excalidraw` files in `docs/onboarding/` with Excalidraw extension. Regenerate: `python3 docs/onboarding/generate_excalidraw.py`.
-
-**Note:** older diagrams may show retired services — treat this README as source of truth.

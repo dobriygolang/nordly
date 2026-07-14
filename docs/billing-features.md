@@ -2,7 +2,7 @@
 
 Source of truth: `services/billing/scripts/migrations/` + `plan_entitlements` table.
 
-All signed-in users resolve to the single active plan `default` (slug renamed from `free` in migration `00007`). Entitlements are unlimited unless ops adjusts them via admin API.
+All signed-in users resolve to the single active plan `default` (seeded in `00001_init.sql`). Entitlements are unlimited unless ops adjusts them via admin API.
 
 ## Feature matrix (`default` plan)
 

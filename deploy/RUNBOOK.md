@@ -57,9 +57,9 @@ docker compose -f docker-compose.prod.yml run --rm migrate
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Prod **with user data:** do not `reset-db` — see [docs/MIGRATION_CUTOVER.md](./docs/MIGRATION_CUTOVER.md).
+Fresh / empty databases: `reset-db` then migrate (see [docs/MIGRATION_CUTOVER.md](./docs/MIGRATION_CUTOVER.md)).
 
-Normal schema change: `docker compose … run --rm migrate` only.
+Normal schema change (new goose files after init): `docker compose … run --rm migrate` only.
 
 ## Backups
 

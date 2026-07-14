@@ -28,7 +28,6 @@ alwaysApply: true
 
 ## Nordly desktop (`apps/nordly`)
 
-- Audit: `apps/nordly/docs/architecture-audit.md`
 - Rules: `apps/nordly/.cursor/rules/nordly.mdc`
 - Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` — not scattered `LOCAL_ONLY` checks.
 - Settings: `shared/model/settings.ts` only; invalid blobs throw.
@@ -40,17 +39,17 @@ alwaysApply: true
 - Rules: `apps/web/.cursor/rules/web.mdc`
 - API JSON: read camelCase from wire; use `normalizeProtoJson()` then **snake_case internal types only** — never `field ?? otherField`.
 - Auth: `parseAuthTokens` (identity) vs `parseGuestAccessToken` (rooms guest) — do not mix shapes.
-- Audit: `docs/backend-client-matrix.md`
+- API coverage: `docs/backend-client-matrix.md`
 
 ## Go backend (`services/*`)
 
-- Audit: `docs/backend-audit.md`
 - Work inside `services/<name>/` — follow that service's `AGENTS.md` and `.cursor/rules/go-backend.mdc`.
 - **Required config fails in `config.Load()` or `cmd/*/app/run.go`** — not deep in handlers.
 - **No legacy wire paths** — one JSON/proto shape per RPC.
 - **No silent degradation** — no stale cache as truth, no synthesized entitlements.
 - `getEnv(key, fallback)` for dev defaults only — production-required vars error in `Load()` when empty.
 - Layering: [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc)
+- API coverage: `docs/backend-client-matrix.md`
 
 ## Intentional exceptions (document in code or AGENTS.md)
 

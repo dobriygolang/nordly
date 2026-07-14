@@ -8,7 +8,7 @@ import {
   type FocusSession,
   type NordlyStats,
   type QueueStats,
-} from '@features/focus/repository/focusRemote';
+} from '@features/focus/remote/focusRemote';
 import { focusStoreList } from '@features/focus/repository/focusStore';
 import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';

@@ -15,7 +15,7 @@ import {
   type TaskEpicSelection,
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
-import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
+import { getTrackerSettings, type TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';

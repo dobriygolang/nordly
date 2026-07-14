@@ -26,7 +26,6 @@ Update the relevant docs when you change:
 |--------------|--------|
 | Single service | `services/<name>/AGENTS.md` + `services/<name>/.cursor/rules/service.mdc` if it duplicates facts |
 | Cross-service flow | above + `docs/onboarding/README.md` |
-| Future scale design | `docs/architecture/outbox-relay.md` (relay only; not implemented) |
 
 ## Rules
 

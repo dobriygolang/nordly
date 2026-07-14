@@ -7,6 +7,10 @@ import {
   requireUserId,
 } from '@shared/db/nordlyDb';
 import { getServerId } from '@shared/sync/idMap';
+import {
+  shouldAcceptRemoteEntity,
+  syncedIdsAbsentFromRemote,
+} from '@shared/sync/tombstone';
 
 import type { TaskCard } from '../api/tasks';
 
@@ -33,6 +37,11 @@ export function preserveLocalOnlyTaskFields(local: TaskCard, remote: TaskCard): 
     epicColor: epicId ? undefined : local.epicColor,
   };
 }
+
+export {
+  shouldAcceptRemoteEntity as shouldAcceptRemoteTask,
+  syncedIdsAbsentFromRemote,
+} from '@shared/sync/tombstone';
 
 function taskFromRow(row: StoredTask): TaskCard {
   const { userId: _u, key: _k, deleted: _d, ...task } = row;
@@ -141,15 +150,12 @@ export async function tasksStoreApplyRemote(task: TaskCard): Promise<TaskCard> {
 export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
   const userId = requireUserId();
   const local = await dbGet<StoredTask>('tasks', entityKey(task.id, userId));
+  if (!shouldAcceptRemoteEntity(local, task.updatedAt)) return;
   if (!local) {
     await dbPut('tasks', rowFrom(userId, task));
     return;
   }
-  const lt = new Date(local.updatedAt).getTime();
-  const rt = new Date(task.updatedAt).getTime();
-  if (rt >= lt) {
-    await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
-  }
+  await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
 }
 
 export async function tasksStoreBulkImport(
@@ -176,6 +182,7 @@ export async function tasksStoreReplaceId(oldId: string, task: TaskCard): Promis
   const userId = requireUserId();
   const rows = await dbGetAllByUser<StoredTask>('tasks', userId);
   const existing = rows.find((r) => r.key === entityKey(oldId, userId) || r.id === oldId);
+  const wasDeleted = Boolean(existing?.deleted);
 
   for (const row of rows) {
     if (row.id === oldId || row.key === entityKey(oldId, userId)) {
@@ -186,5 +193,25 @@ export async function tasksStoreReplaceId(oldId: string, task: TaskCard): Promis
   const merged = existing
     ? preserveLocalOnlyTaskFields(taskFromRow(existing), task)
     : task;
-  await dbPut('tasks', rowFrom(userId, merged));
+  await dbPut('tasks', rowFrom(userId, merged, wasDeleted));
+}
+
+/** Soft-delete previously synced locals that no longer appear on the server. */
+export async function tasksStoreApplyRemoteAbsences(
+  remoteIds: Set<string>,
+  userId?: string,
+): Promise<number> {
+  const uid = userId ?? requireUserId();
+  const rows = await dbGetAllByUser<StoredTask>('tasks', uid);
+  const candidates: { id: string; serverId: string | null }[] = [];
+  for (const row of rows) {
+    if (row.deleted) continue;
+    const serverId = await getServerId('tasks', row.id, uid);
+    candidates.push({ id: row.id, serverId });
+  }
+  const absent = syncedIdsAbsentFromRemote(candidates, remoteIds);
+  for (const id of absent) {
+    await tasksStoreSoftDelete(id);
+  }
+  return absent.length;
 }

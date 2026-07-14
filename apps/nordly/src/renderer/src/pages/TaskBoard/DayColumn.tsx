@@ -5,7 +5,7 @@ import { useT, useLocale } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from '@shared/lib/dates';
 import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
 import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';

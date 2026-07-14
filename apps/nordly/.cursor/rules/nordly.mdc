@@ -61,20 +61,27 @@ Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fai
 - **Login:** bot username from `GET /v1/auth/config` only — no `VITE_TELEGRAM_BOT_USERNAME` fallback.
 - **Share links:** `requireNordlyWebBaseUrl()` — set `VITE_NORDLY_WEB_BASE` (CI release sets prod URL).
 - **Deep links:** `task.open?id=…`, `note.open?id=…` only (no legacy `task` / `note` query aliases).
-- **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / `SyncStatusBanner` / throw). Do not `catch {}` and refresh silently.
+- **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / throw / inline on intentional online actions). `SyncStatusBanner` is reauth-only; no passive offline/unreachable banners. Do not `catch {}` and refresh silently.
 - **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
-
-Audit tracker: [docs/architecture-audit.md](../docs/architecture-audit.md).
 
 ## Renderer layering
 
 ```
 platform/   IPC + runtime
 shared/     db, sync, crypto, model, lib, ui — never import pages/ or widgets/
-features/   domain api + repository + hooks — never import pages/
+features/   domain — see offline/online table below — never import pages/
 pages/      route composition
 widgets/    chrome/overlays — import features + shared, not pages/lib
 app/        bootstrap + shell
 ```
+
+Per-feature offline vs online:
+
+| Layer | Role |
+|-------|------|
+| `repository/` | IndexedDB only |
+| `remote/` | HTTP clients |
+| `sync/` | outbox push/pull |
+| `api/` | local-first façade (`isSyncEnabled()` / `isCloudEnabled()` gates) |
 
 Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).

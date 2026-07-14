@@ -2,7 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 
 import { useLocale, useT } from '@nordly-i18n';
 
-import { openExternalUrl } from '@features/calendar/api/calendarClient';
+import { openExternalUrl } from '@features/calendar/remote/calendarClient';
 import {
   allDayEntriesForDay,
   appleToCalendarEntries,

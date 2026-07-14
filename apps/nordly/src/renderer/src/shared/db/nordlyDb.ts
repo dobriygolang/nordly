@@ -3,9 +3,18 @@
 import { useSessionStore } from '@shared/model/session';
 
 const DB_NAME = 'nordly-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
-const STORES = ['notes', 'tasks', 'focus_sessions', 'whiteboards', 'outbox', 'meta', 'id_map'] as const;
+const STORES = [
+  'notes',
+  'tasks',
+  'focus_sessions',
+  'whiteboards',
+  'outbox',
+  'meta',
+  'id_map',
+  'calendar_events',
+] as const;
 export type NordlyStore = (typeof STORES)[number];
 
 export interface ScopedRecord {

@@ -5,7 +5,6 @@ CREATE TABLE code_rooms (
     owner_id          UUID NOT NULL,
     room_type         TEXT NOT NULL DEFAULT 'interview',
     language          TEXT NOT NULL DEFAULT 'go',
-    is_frozen         BOOLEAN NOT NULL DEFAULT false,
     visibility        TEXT NOT NULL DEFAULT 'shared',
     is_guest_created  BOOLEAN NOT NULL DEFAULT false,
     initial_scene_json TEXT,

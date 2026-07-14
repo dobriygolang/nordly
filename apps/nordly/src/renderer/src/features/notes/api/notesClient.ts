@@ -8,7 +8,7 @@ import {
   notesStoreUpsert,
   type StoredWikiLink,
 } from '@features/notes/repository/notesStore';
-import { remoteUpdateNote } from '@features/notes/repository/notesRemote';
+import { remoteUpdateNote } from '@features/notes/remote/notesRemote';
 import { buildWikiLinksWire, resolveWikiLinks } from '@features/notes/lib/wikiLinks';
 import {
   remoteGetPublishStatus,
@@ -16,7 +16,7 @@ import {
   remoteShareNoteToWeb,
   remoteUnpublishNote,
   type PublishStatus,
-} from '@features/notes/repository/publishRemote';
+} from '@features/notes/remote/publishRemote';
 import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';

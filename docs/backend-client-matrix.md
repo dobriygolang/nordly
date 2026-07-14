@@ -1,9 +1,6 @@
 # Backend ↔ client matrix
 
-Cross-reference of **what ships in proto/HTTP** vs **what Nordly desktop + web companion actually call**.  
-Pair with [backend-audit.md](./backend-audit.md) (fail-fast cleanup) and [apps/nordly/docs/architecture-audit.md](../apps/nordly/docs/architecture-audit.md) (frontend).
-
-Summary matrix (legacy): [api-usage-matrix.md](./architecture/api-usage-matrix.md) — prefer **this file** for field-level detail.
+Cross-reference of **what ships in proto/HTTP** vs **what Nordly desktop + web companion actually call**.
 
 **Legend**
 

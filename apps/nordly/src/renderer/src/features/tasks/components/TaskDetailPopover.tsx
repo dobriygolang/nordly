@@ -6,7 +6,7 @@ import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
-import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
+import { openExternalUrl, type TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
 import {
   conferenceDisplay,

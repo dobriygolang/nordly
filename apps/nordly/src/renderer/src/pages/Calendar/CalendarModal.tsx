@@ -9,7 +9,7 @@ import {
   openExternalUrl,
   updateGoogleCalendarEvent,
   GoogleReauthError,
-} from '@features/calendar/api/calendarClient';
+} from '@features/calendar/remote/calendarClient';
 import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
 import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';

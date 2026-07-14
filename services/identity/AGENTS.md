@@ -14,11 +14,11 @@ HTTP `8080` | gRPC `9090` | Postgres `5432` / `nordly` | Redis `6379`
 
 ## Data
 
-**users** — `id`, `username`, `telegram_id`, `avatar_url`, `timezone`. Migration `00002` drops legacy `yandex_id`.
+**users** — `id`, `username`, `telegram_id`, `avatar_url`, `timezone`.
 
 **Redis:** `login_code:{code}` (5m), `refresh:{hash}` (720h).
 
-**user_devices** — registered Nordly desktops for cloud sync (`user_id`, `device_id`, `name`, `app_version`, `first_seen_at`, `last_seen_at`). Migration `00003`.
+**user_devices** — registered Nordly desktops for cloud sync (`user_id`, `device_id`, `name`, `app_version`, `first_seen_at`, `last_seen_at`).
 
 ## Auth flows
 

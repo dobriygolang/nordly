@@ -3,12 +3,12 @@ import { isCloudEnabled } from '@shared/model/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {
   remoteCreateTaskConference,
-} from '@features/tasks/repository/tasksRemote';
+} from '@features/tasks/remote/tasksRemote';
 import { isTaskEpicColor, findEpicByColor, normalizeHex } from '@features/tasks/lib/epicColor';
 import { epicsStoreList } from '@features/tasks/repository/epicsStore';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { getServerId } from '@shared/sync/idMap';
-import { enqueueOutbox } from '@shared/sync/outbox';
+import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -149,6 +149,7 @@ export async function deleteTask(taskId: string): Promise<void> {
   if (!prev) throw new Error(`Task not found: ${taskId}`);
   await tasksStoreSoftDelete(taskId);
   if (isSyncEnabled()) {
+    await cancelOutboxForEntity('tasks', taskId);
     await enqueueOutbox('tasks', 'delete', taskId, {});
     scheduleSync();
   }

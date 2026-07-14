@@ -21,12 +21,15 @@ CREATE TABLE code_runs (
     tests_passed    INT NOT NULL DEFAULT 0,
     test_results    JSONB NOT NULL DEFAULT '[]'::jsonb,
     runner          TEXT,
+    room_id         UUID,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX code_runs_user_created_idx ON code_runs (user_id, created_at DESC);
 CREATE INDEX code_runs_status_created_idx ON code_runs (status, created_at DESC);
+CREATE INDEX code_runs_room_created_idx ON code_runs (room_id, created_at DESC)
+    WHERE room_id IS NOT NULL;
 -- +goose StatementEnd
 
 -- +goose Down

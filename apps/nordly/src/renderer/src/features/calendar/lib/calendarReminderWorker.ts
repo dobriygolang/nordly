@@ -1,6 +1,6 @@
 import { translate } from '@nordly-i18n';
 
-import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
+import type { GoogleCalendarEvent } from '@features/calendar/remote/calendarClient';
 import { readSettings } from '@shared/model/settings';
 import { notify } from '@shared/api/notifications';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';

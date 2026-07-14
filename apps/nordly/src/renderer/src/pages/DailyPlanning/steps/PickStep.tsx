@@ -2,7 +2,7 @@ import { useT } from '@nordly-i18n';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { parseDayKey } from '@shared/lib/dates';
 
 import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';

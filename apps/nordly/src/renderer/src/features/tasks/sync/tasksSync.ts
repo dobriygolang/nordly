@@ -11,11 +11,12 @@ import {
   remoteScheduleTask,
   remoteUnscheduleTask,
   remotePatchTask,
-} from '@features/tasks/repository/tasksRemote';
+} from '@features/tasks/remote/tasksRemote';
 import {
   tasksStoreGet,
   tasksStoreMergeRemote,
   tasksStoreReplaceId,
+  tasksStoreApplyRemoteAbsences,
   reconcileTasksStore,
 } from '@features/tasks/repository/tasksStore';
 import { SyncDeferredError } from '@shared/sync/errors';
@@ -111,6 +112,11 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
 
   if (entry.op === 'create') {
     const local = await tasksStoreGet(entry.entityId, userId);
+    if (!local) {
+      // Tombstoned or missing — do not recreate on the server; leave delete outbox if any.
+      await removeOutbox(entry.id, userId);
+      return;
+    }
     const title = await resolveTaskTitle(entry.entityId, userId, local);
     if (!title) {
       await removeOutbox(entry.id, userId);
@@ -121,7 +127,7 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     }
     const created = await remoteCreateTask({
       title,
-      kind: (payload.kind as TaskKind | undefined) ?? local?.kind ?? 'custom',
+      kind: (payload.kind as TaskKind | undefined) ?? local.kind ?? 'custom',
     });
     await setServerId('tasks', entry.entityId, created.id, userId);
     await tasksStoreReplaceId(entry.entityId, created);
@@ -229,8 +235,10 @@ export async function reconcileTasksOutbox(): Promise<number> {
 export async function pullTasks(): Promise<void> {
   await pullEpicsCache();
   const remote = await remoteListTasks();
+  const remoteIds = new Set(remote.map((t) => t.id));
   for (const task of remote) {
     await tasksStoreMergeRemote(task);
   }
+  await tasksStoreApplyRemoteAbsences(remoteIds);
   await reconcileTasksStore();
 }

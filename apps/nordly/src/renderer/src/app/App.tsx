@@ -45,6 +45,7 @@ import {
   startGoogleCalendarSyncWorker,
   stopGoogleCalendarSyncWorker,
 } from '@features/calendar/lib/googleCalendarSyncWorker';
+import { hydrateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
 import {
   startCalendarReminderWorker,
   stopCalendarReminderWorker,
@@ -291,6 +292,8 @@ export default function App() {
       }
 
       if (isCloudEnabled()) {
+        await hydrateGoogleCalendarCache();
+        if (cancelled) return;
         startCalendarReminderWorker();
         startSyncEngine();
         startGoogleCalendarSyncWorker();

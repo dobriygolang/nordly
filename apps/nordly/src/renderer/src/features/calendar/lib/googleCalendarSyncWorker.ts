@@ -1,4 +1,4 @@
-import { getTrackerSettings } from '@features/calendar/api/calendarClient';
+import { getTrackerSettings } from '@features/calendar/remote/calendarClient';
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';

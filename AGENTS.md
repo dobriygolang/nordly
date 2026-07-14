@@ -17,21 +17,15 @@ When working on a service, **open only that service folder** and read its local 
 | **notes** | [services/notes/AGENTS.md](services/notes/AGENTS.md) | notes, E2EE vault, publish-to-web |
 | **focus** | [services/focus/AGENTS.md](services/focus/AGENTS.md) | pomodoro sessions, focus stats |
 
-**Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync). Frontend audit: [apps/nordly/docs/architecture-audit.md](apps/nordly/docs/architecture-audit.md).
-
-**Backend audit (fail-fast, RPC usage):** [docs/backend-audit.md](docs/backend-audit.md) — per-service file checklist for `services/*`.
+**Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync).
 
 **Web companion:** [apps/web/AGENTS.md](apps/web/AGENTS.md) — landing, guest live collab, pricing, published notes/boards.
-
-**Retired (removed):** content, interview, recommendation, admin — see [docs/onboarding/README.md](docs/onboarding/README.md#retired-services).
 
 Prod deploy: [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md), [deploy/RUNBOOK.md](deploy/RUNBOOK.md)
 
 Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Billing**, **Product**.
 
 **CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, billing, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
-
-Future outbox relay design: [docs/architecture/outbox-relay.md](docs/architecture/outbox-relay.md)
 
 Root `go.work` is optional. Services build with `GOWORK=off`.
 

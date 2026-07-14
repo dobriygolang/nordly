@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
-import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
+import { getTrackerSettings, type TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';

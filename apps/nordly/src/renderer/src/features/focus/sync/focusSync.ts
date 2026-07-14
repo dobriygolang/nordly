@@ -2,7 +2,7 @@ import { requireUserId } from '@shared/db/nordlyDb';
 import {
   remoteEndFocusSession,
   remoteStartFocusSession,
-} from '@features/focus/repository/focusRemote';
+} from '@features/focus/remote/focusRemote';
 import { focusStoreGet, focusStorePut, focusStoreUnsynced } from '@features/focus/repository/focusStore';
 import { getServerId, setServerId } from '@shared/sync/idMap';
 import { enqueueOutbox, hasOutboxForEntity, removeOutbox } from '@shared/sync/outbox';

@@ -12,7 +12,7 @@ import { useT } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/api/calendarClient';
+import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { defaultDurationMin } from '@shared/lib/dates';
 import { resolveTaskEpicColor } from '@features/tasks/lib/taskUi';

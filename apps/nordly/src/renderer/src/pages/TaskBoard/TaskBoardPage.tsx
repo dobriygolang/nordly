@@ -21,6 +21,7 @@ import { isCloudEnabled } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
+import { isRecoverableTaskActionError } from '@features/tasks/lib/taskActionErrors';
 import { DayColumn } from './DayColumn';
 import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';
 import { useDayTaskDnd } from '@features/tasks/lib/useDayTaskDnd';
@@ -104,6 +105,11 @@ export function TaskBoardPage({
 
   const failTaskAction = useCallback(
     (err: unknown) => {
+      // Conference / connect hints are shown in TaskDetailPopover — do not crash the board.
+      if (isRecoverableTaskActionError(err)) {
+        void refresh();
+        return;
+      }
       handleLoadError(err);
       void refresh();
     },

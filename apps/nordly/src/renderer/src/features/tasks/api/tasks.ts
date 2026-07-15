@@ -9,7 +9,7 @@ import { epicsStoreList } from '@features/tasks/repository/epicsStore';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
-import { scheduleSync } from '@shared/sync/SyncEngine';
+import { flushSync, scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
@@ -252,7 +252,12 @@ export async function createTaskConference(
   }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  const serverId = await getServerId('tasks', taskId);
+  let serverId = await getServerId('tasks', taskId);
+  if (!serverId && isSyncEnabled()) {
+    // Meet/Zoom need the tracker id — push local creates first.
+    await flushSync();
+    serverId = await getServerId('tasks', taskId);
+  }
   if (!serverId) throw new Error('task_not_synced');
   const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);

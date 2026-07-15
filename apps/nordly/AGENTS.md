@@ -200,6 +200,10 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 [feature boundaries](docs/architecture/003-feature-boundaries.md), and
 [sync conflict policy](docs/architecture/004-sync-conflict-policy.md).
 
+### Shell code-splitting (bundle budgets)
+
+`app/App.tsx` must not **statically** import Home calendar/meetings widgets or other heavy chrome that can share into the Notes route graph. Use `React.lazy` + `Suspense` (same pattern as pages). Prefer leaf calendar imports over `@features/calendar/api/calendar` barrels. After shell changes: `npm run build:vite && node scripts/check-bundle-budgets.mjs` — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+
 ## Vault (E2EE)
 
 Client: PBKDF2 200k + AES-256-GCM. Server stores salt + ciphertext only.

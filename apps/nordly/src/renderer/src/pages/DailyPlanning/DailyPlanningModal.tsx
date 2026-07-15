@@ -6,6 +6,7 @@ import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/task
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
+import { isRecoverableTaskActionError } from '@features/tasks/lib/taskActionErrors';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
   buildDefaultScheduleDate,
@@ -95,7 +96,10 @@ export function DailyPlanningModal({
     tasks,
     setTasks,
     refresh,
-    onActionError: handleLoadError,
+    onActionError: (err) => {
+      if (isRecoverableTaskActionError(err)) return;
+      handleLoadError(err);
+    },
   });
 
   const todayTasks = useMemo(() => tasksForToday(tasks, todayKey), [tasks, todayKey]);

@@ -85,3 +85,38 @@ Per-feature offline vs online:
 | `api/` | local-first façade (`isSyncEnabled()` / `isCloudEnabled()` gates) |
 
 Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).
+
+## Code-split shell — keep Notes/App budgets green
+
+CI runs `npm run bundle:check` (`scripts/check-bundle-budgets.mjs`) after `build:vite`. Notes and main budgets count **static** import graphs; anything eagerly pulled into `app/App.tsx` can land in a shared chunk that Notes also imports and blow the budget.
+
+### Do not static-import into `App.tsx`
+
+| Pulls into shell graph | Prefer |
+|------------------------|--------|
+| Calendar / meetings UI (`HomeTodayTasks`, inspectors, DayTimeline-heavy widgets) | `lazy(() => import(...))` + `<Suspense fallback={null}>` |
+| Route pages / Palette / modals | already lazy — keep them lazy |
+| Feature barrels that re-export hooks + workers (`@features/calendar/api/calendar`) | import leaf modules (`appleCalendarClient`, `calendarClient`, `lib/events`, …) |
+
+```tsx
+// ❌ BAD — Home meetings + calendar hooks inflate App → Notes static graph
+import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
+import { AppleEventInspectorHost } from '@features/calendar/components/AppleEventInspectorHost';
+
+// ✅ GOOD
+const HomeTodayTasks = lazy(() =>
+  import('@widgets/HomeTodayTasks').then((m) => ({ default: m.HomeTodayTasks })),
+);
+const AppleEventInspectorHost = lazy(() =>
+  import('@features/calendar/components/AppleEventInspectorHost').then((m) => ({
+    default: m.AppleEventInspectorHost,
+  })),
+);
+```
+
+### When you change App / Home / calendar shell
+
+1. From `apps/nordly`: `npm run build:vite && node scripts/check-bundle-budgets.mjs`
+2. If Notes/main FAIL: lazy-load the new shell widget or narrow barrel imports — **do not** silently raise the budget unless the product intentionally ships that weight on cold Notes open.
+
+Vitest: alias `react` (and jsx-runtime / `react-dom`) to `apps/nordly/node_modules/...` in `vitest.config.ts` whenever code outside the package (e.g. `apps/shared/i18n`) is resolved — otherwise schedule/calendar unit tests fail with `Failed to resolve import "react"`.

@@ -470,6 +470,7 @@ export const en = {
   'nordly.taskboard.detail_sync_task_first': 'Sync this task before creating a meeting link.',
   'nordly.taskboard.detail_conference_unavailable': 'Meeting links are not available on this server yet.',
   'nordly.taskboard.detail_conference_error': 'Could not create meeting link.',
+  'nordly.taskboard.detail_delete': 'Delete',
   'nordly.taskboard.open_details': 'Task details',
   'nordly.taskboard.join_meeting': 'Join meeting',
   'nordly.whiteboard.save_failed': 'SAVE: {{msg}}',

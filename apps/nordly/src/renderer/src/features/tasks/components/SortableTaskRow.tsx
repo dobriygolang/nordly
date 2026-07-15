@@ -24,6 +24,7 @@ interface SortableTaskRowProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
+  onDelete: (task: TaskCard) => void;
   onTaskTap?: (taskId: string) => void;
 }
 

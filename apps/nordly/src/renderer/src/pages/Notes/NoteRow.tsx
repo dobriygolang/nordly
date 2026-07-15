@@ -72,7 +72,9 @@ export const NoteRow = memo(function NoteRow({
   const publishOptionsDirtyRef = useRef(false);
   const publishOptionsRef = useRef(publishOptions);
   const publishInFlightRef = useRef<Promise<PublishStatus | void> | null>(null);
+  const pubStatusRef = useRef(pubStatus);
   publishOptionsRef.current = publishOptions;
+  pubStatusRef.current = pubStatus;
 
   const applyPublishResult = useCallback((status: PublishStatus, keepPassword = '') => {
     setPubStatus(status);
@@ -195,11 +197,24 @@ export const NoteRow = memo(function NoteRow({
 
   const handlePublish = useCallback(async () => {
     const optionsToPublish = publishOptionsRef.current;
+    const previous = pubStatusRef.current;
+    setPubStatus({
+      published: true,
+      passwordProtected: optionsToPublish.passwordProtected,
+    });
     closeMenu();
     const publishPromise = onPublish(note.id, optionsToPublish)
       .then((res) => {
-        if (res) applyPublishResult(res, optionsToPublish.password);
+        if (res) {
+          applyPublishResult(res, optionsToPublish.password);
+        } else {
+          setPubStatus(previous);
+        }
         return res;
+      })
+      .catch((err) => {
+        setPubStatus(previous);
+        throw err;
       })
       .finally(() => {
         if (publishInFlightRef.current === publishPromise) {
@@ -215,11 +230,13 @@ export const NoteRow = memo(function NoteRow({
   }, [note.id, onPublish, closeMenu, applyPublishResult]);
 
   const handleUnpublish = useCallback(async () => {
+    const previous = pubStatusRef.current;
+    setPubStatus({ published: false });
     closeMenu();
     try {
       await onUnpublish(note.id);
-      setPubStatus({ published: false });
     } catch {
+      setPubStatus(previous);
       /* error surfaced in NotesPage */
     }
   }, [note.id, onUnpublish, closeMenu]);

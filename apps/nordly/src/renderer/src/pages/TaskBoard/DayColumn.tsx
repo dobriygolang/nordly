@@ -38,6 +38,7 @@ interface DayColumnProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
+  onDelete: (task: TaskCard) => void;
   onTaskTap?: (taskId: string) => void;
 }
 
@@ -66,6 +67,7 @@ export const DayColumn = memo(function DayColumn({
   onEpicChange,
   onCreateConference,
   onClearConference,
+  onDelete,
   onTaskTap,
 }: DayColumnProps): JSX.Element {
   const t = useT();
@@ -159,6 +161,7 @@ export const DayColumn = memo(function DayColumn({
                   onEpicChange={onEpicChange}
                   onCreateConference={onCreateConference}
                   onClearConference={onClearConference}
+                  onDelete={onDelete}
                   onTaskTap={onTaskTap}
                 />
               </Fragment>

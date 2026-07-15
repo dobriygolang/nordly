@@ -39,6 +39,7 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
       void board.handleEpicChange(task, selection),
     onCreateConference: board.handleCreateConference,
     onClearConference: (task: TaskCard) => void board.handleClearConference(task),
+    onDelete: (task: TaskCard) => void board.handleDeleteTask(task),
     onTaskTap: board.handleTaskTap,
   };
 

@@ -8,10 +8,8 @@ import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
 import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
-import {
-  conferenceDisplay,
-  conferenceProvider,
-} from '@features/tasks/lib/taskUi';
+import { conferenceProvider } from '@features/tasks/lib/taskUi';
+import { Icon } from '@shared/ui/primitives/Icon';
 
 function openConferenceLink(url: string): void {
   void navigator.clipboard.writeText(url).catch(() => undefined);
@@ -27,10 +25,11 @@ interface TaskDetailPopoverProps {
   onEpicChange: (selection: TaskEpicSelection) => void;
   onCreateConference: (provider: ConferenceProvider) => Promise<TaskCard | void>;
   onClearConference: () => void;
+  onDelete?: () => void;
   onClose: () => void;
 }
 
-/** Compact row-attached popover — epic + meeting integrations. */
+/** Compact row-attached toolbar — epic dots, video, delete. */
 export function TaskDetailPopover({
   task,
   epics,
@@ -40,6 +39,7 @@ export function TaskDetailPopover({
   onEpicChange,
   onCreateConference,
   onClearConference,
+  onDelete,
   onClose,
 }: TaskDetailPopoverProps): JSX.Element {
   const t = useT();
@@ -124,8 +124,7 @@ export function TaskDetailPopover({
       aria-label={t('nordly.taskboard.detail_aria')}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="nordly-task-detail-pop__row">
-        <span className="nordly-task-detail-pop__label">{t('nordly.taskboard.detail_epic')}</span>
+      <div className="nordly-task-detail-pop__toolbar" role="toolbar" aria-label={t('nordly.taskboard.detail_aria')}>
         <div className="nordly-task-detail-pop__epics" role="listbox" aria-label={t('nordly.taskboard.detail_epic')}>
           <button
             type="button"
@@ -155,74 +154,76 @@ export function TaskDetailPopover({
             );
           })}
         </div>
-      </div>
 
-      <div className="nordly-task-detail-pop__row">
-        <span className="nordly-task-detail-pop__label">{t('nordly.taskboard.detail_video')}</span>
+        <span className="nordly-task-detail-pop__sep" aria-hidden />
 
         {provider && task.conferenceUrl ? (
-          <div className="nordly-task-detail-pop__meet-active">
-            <span
-              className={`nordly-task-detail-pop__meet-badge nordly-task-detail-pop__meet-badge--${provider}`}
-            >
-              {provider === 'meet' && t('nordly.taskboard.detail_provider_meet_short')}
-              {provider === 'zoom' && t('nordly.taskboard.detail_provider_zoom_short')}
-              {provider === 'other' && t('nordly.taskboard.detail_provider_other_short')}
-            </span>
-            <a
-              href={task.conferenceUrl}
-              className="mono nordly-task-detail-pop__meet-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              title={task.conferenceUrl}
-              onClick={(e) => {
-                e.preventDefault();
-                openConferenceLink(task.conferenceUrl!);
-              }}
-            >
-              {conferenceDisplay(task.conferenceUrl)}
-            </a>
+          <div className="nordly-task-detail-pop__video">
             <button
               type="button"
-              className="nordly-task-detail-pop__meet-remove"
+              className={`nordly-task-detail-pop__icon-btn nordly-task-detail-pop__icon-btn--${provider}`}
+              title={t('nordly.taskboard.join_meeting')}
+              aria-label={t('nordly.taskboard.join_meeting')}
+              onClick={() => openConferenceLink(task.conferenceUrl!)}
+            >
+              <Icon name="video" size={12} />
+            </button>
+            <button
+              type="button"
+              className="nordly-task-detail-pop__icon-btn"
+              title={t('nordly.taskboard.detail_remove_meeting')}
               aria-label={t('nordly.taskboard.detail_remove_meeting')}
               onClick={() => onClearConference()}
             >
-              ×
+              <Icon name="unlink" size={12} />
             </button>
           </div>
         ) : (
-          <div className="nordly-task-detail-pop__integrations">
+          <div className="nordly-task-detail-pop__video">
             <button
               type="button"
-              className="nordly-task-detail-pop__integration nordly-task-detail-pop__integration--meet"
+              className="nordly-task-detail-pop__chip nordly-task-detail-pop__chip--meet"
               title={t('nordly.taskboard.detail_add_meet')}
+              aria-label={t('nordly.taskboard.detail_add_meet')}
               disabled={busy !== null}
               onClick={() => void handleCreate('meet')}
             >
-              <span className="nordly-task-detail-pop__integration-dot" aria-hidden />
-              <span>
-                {busy === 'meet'
-                  ? t('nordly.taskboard.detail_creating')
-                  : t('nordly.taskboard.detail_create_meet')}
-              </span>
+              {busy === 'meet'
+                ? t('nordly.taskboard.detail_creating')
+                : t('nordly.taskboard.detail_create_meet')}
             </button>
             <button
               type="button"
-              className="nordly-task-detail-pop__integration nordly-task-detail-pop__integration--zoom"
+              className="nordly-task-detail-pop__chip nordly-task-detail-pop__chip--zoom"
               title={t('nordly.taskboard.detail_add_zoom')}
+              aria-label={t('nordly.taskboard.detail_add_zoom')}
               disabled={busy !== null}
               onClick={() => void handleCreate('zoom')}
             >
-              <span className="nordly-task-detail-pop__integration-dot" aria-hidden />
-              <span>
-                {busy === 'zoom'
-                  ? t('nordly.taskboard.detail_creating')
-                  : t('nordly.taskboard.detail_create_zoom')}
-              </span>
+              {busy === 'zoom'
+                ? t('nordly.taskboard.detail_creating')
+                : t('nordly.taskboard.detail_create_zoom')}
             </button>
           </div>
         )}
+
+        {onDelete ? (
+          <>
+            <span className="nordly-task-detail-pop__sep" aria-hidden />
+            <button
+              type="button"
+              className="nordly-task-detail-pop__icon-btn nordly-task-detail-pop__icon-btn--danger"
+              title={t('nordly.taskboard.detail_delete')}
+              aria-label={t('nordly.taskboard.detail_delete')}
+              onClick={() => {
+                onClose();
+                onDelete();
+              }}
+            >
+              <Icon name="trash" size={12} />
+            </button>
+          </>
+        ) : null}
       </div>
 
       {error && <p className="nordly-task-detail-pop__error">{error}</p>}

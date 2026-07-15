@@ -38,6 +38,7 @@ interface PlanningTaskColumnProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
+  onDelete: (task: TaskCard) => void;
   onTaskTap?: (taskId: string) => void;
 }
 
@@ -66,6 +67,7 @@ export function PlanningTaskColumn({
   onEpicChange,
   onCreateConference,
   onClearConference,
+  onDelete,
   onTaskTap,
 }: PlanningTaskColumnProps): JSX.Element {
   const t = useT();
@@ -135,6 +137,7 @@ export function PlanningTaskColumn({
                   onEpicChange={onEpicChange}
                   onCreateConference={onCreateConference}
                   onClearConference={onClearConference}
+                  onDelete={onDelete}
                   onTaskTap={onTaskTap}
                 />
               </Fragment>

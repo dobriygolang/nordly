@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import {
   createTaskConference,
+  deleteTask,
   moveTaskStatus,
   patchTaskDetails,
   patchTaskEpic,
@@ -371,6 +372,20 @@ export function usePlanningTaskBoard({
     [refresh, setTasks, onActionError],
   );
 
+  const handleDeleteTask = useCallback(
+    async (task: TaskCard) => {
+      setDetailTaskId((prev) => (prev === task.id ? null : prev));
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      try {
+        await deleteTask(task.id);
+      } catch (err) {
+        onActionError(err);
+        void refresh();
+      }
+    },
+    [refresh, setTasks, onActionError],
+  );
+
   return {
     tomorrow,
     monday,
@@ -388,5 +403,6 @@ export function usePlanningTaskBoard({
     handleEpicChange,
     handleCreateConference,
     handleClearConference,
+    handleDeleteTask,
   };
 }

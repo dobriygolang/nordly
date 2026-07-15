@@ -40,6 +40,7 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
       void board.handleEpicChange(task, selection),
     onCreateConference: board.handleCreateConference,
     onClearConference: (task: TaskCard) => void board.handleClearConference(task),
+    onDelete: (task: TaskCard) => void board.handleDeleteTask(task),
     onTaskTap: board.handleTaskTap,
     onAddClick: () => undefined,
   };

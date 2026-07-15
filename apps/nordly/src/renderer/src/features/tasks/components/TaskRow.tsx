@@ -36,6 +36,7 @@ interface TaskRowProps {
   onEpicChange: (task: TaskCard, selection: TaskEpicSelection) => void;
   onCreateConference: (task: TaskCard, provider: ConferenceProvider) => Promise<TaskCard>;
   onClearConference: (task: TaskCard) => void;
+  onDelete?: (task: TaskCard) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLElement>;
   overlay?: boolean;
   onTaskTap?: (taskId: string) => void;
@@ -56,6 +57,7 @@ export const TaskRow = memo(function TaskRow({
   onEpicChange,
   onCreateConference,
   onClearConference,
+  onDelete,
   dragHandleProps,
   overlay = false,
   onTaskTap,
@@ -286,6 +288,7 @@ export const TaskRow = memo(function TaskRow({
             onEpicChange={(selection) => onEpicChange(task, selection)}
             onCreateConference={(provider) => onCreateConference(task, provider)}
             onClearConference={() => onClearConference(task)}
+            onDelete={onDelete ? () => onDelete(task) : undefined}
             onClose={onCloseDetail}
           />
         )}

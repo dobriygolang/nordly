@@ -470,6 +470,7 @@ export const ru = {
   'nordly.taskboard.detail_sync_task_first': 'Сначала синхронизируйте задачу, потом создайте встречу.',
   'nordly.taskboard.detail_conference_unavailable': 'Ссылки на встречи пока недоступны на этом сервере.',
   'nordly.taskboard.detail_conference_error': 'Не удалось создать ссылку на встречу.',
+  'nordly.taskboard.detail_delete': 'Удалить',
   'nordly.taskboard.open_details': 'Детали задачи',
   'nordly.taskboard.join_meeting': 'Присоединиться к встрече',
   'nordly.whiteboard.save_failed': 'СОХРАНЕНИЕ: {{msg}}',

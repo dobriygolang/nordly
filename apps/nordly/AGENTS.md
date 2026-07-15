@@ -299,7 +299,6 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 | Gap | Status |
 |-----|--------|
 | Note folders sync | Local folders UI in vault sidebar; `folderId` device-only (not synced) |
-| Task delete in UI | Remote + sync support exists; no TaskRow delete button |
 | Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
 | Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
 

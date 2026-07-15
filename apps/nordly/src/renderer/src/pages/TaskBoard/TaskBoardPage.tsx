@@ -8,6 +8,7 @@ import {
   scheduleTask,
   renameTask,
   reorderTasks,
+  deleteTask,
   patchTaskDetails,
   patchTaskEpic,
   createTaskConference,
@@ -376,6 +377,19 @@ export function TaskBoardPage({
     [failTaskAction],
   );
 
+  const handleDeleteTask = useCallback(
+    async (task: TaskCard) => {
+      setDetailTaskId((prev) => (prev === task.id ? null : prev));
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      try {
+        await deleteTask(task.id);
+      } catch (err) {
+        failTaskAction(err);
+      }
+    },
+    [failTaskAction],
+  );
+
   const handleTitleChange = useCallback(
     async (task: TaskCard, title: string) => {
       const next = title.trim();
@@ -532,6 +546,7 @@ export function TaskBoardPage({
                 onEpicChange={(task, selection) => void handleEpicChange(task, selection)}
                 onCreateConference={handleCreateConference}
                 onClearConference={(task) => void handleClearConference(task)}
+                onDelete={(task) => void handleDeleteTask(task)}
                 onTaskTap={handleTaskTap}
               />
             ))}

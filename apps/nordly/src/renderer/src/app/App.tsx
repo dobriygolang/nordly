@@ -12,9 +12,7 @@ import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
 import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
-import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
-import { AppleEventInspectorHost } from '@features/calendar/components/AppleEventInspectorHost';
 import { type PageId, type PaletteAction } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { ReauthLoginOverlay } from '@widgets/ReauthLoginOverlay';
@@ -61,6 +59,14 @@ const DailyPlanningPage = lazy(() =>
 );
 const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
+);
+const HomeTodayTasks = lazy(() =>
+  import('@widgets/HomeTodayTasks').then((m) => ({ default: m.HomeTodayTasks })),
+);
+const AppleEventInspectorHost = lazy(() =>
+  import('@features/calendar/components/AppleEventInspectorHost').then((m) => ({
+    default: m.AppleEventInspectorHost,
+  })),
 );
 
 /** Must match palette close transition (`--motion-dur-medium`). */
@@ -422,14 +428,20 @@ export default function App() {
           <AppVersionBadge />
         </div>
 
-        {page === 'home' ? <HomeTodayTasks /> : null}
+        {page === 'home' ? (
+          <Suspense fallback={null}>
+            <HomeTodayTasks />
+          </Suspense>
+        ) : null}
 
         <PageStack page={page}>{renderPage}</PageStack>
 
         {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
 
         <PomodoroController />
-        <AppleEventInspectorHost />
+        <Suspense fallback={null}>
+          <AppleEventInspectorHost />
+        </Suspense>
 
         <Dock onMenu={() => openPalette()} />
 

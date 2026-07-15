@@ -5,12 +5,10 @@ import { useLocale, useT } from '@nordly-i18n';
 import {
   getAppleCalendarEvent,
   openAppleCalendarEvent,
-  openExternalUrl,
   type AppleCalendarEventDetail,
-} from '@features/calendar/api/calendar';
-import {
-  type CalendarInspectPayload,
-} from '@features/calendar/lib/calendarInspect';
+} from '@features/calendar/api/appleCalendarClient';
+import { openExternalUrl } from '@features/calendar/api/calendarClient';
+import type { CalendarInspectPayload } from '@features/calendar/lib/calendarInspect';
 import { parseScheduleInstant } from '@shared/lib/dates';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';

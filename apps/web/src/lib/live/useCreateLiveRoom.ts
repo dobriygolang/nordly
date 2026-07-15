@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { createGuestRoom, persistGuestToken } from '@/lib/api/rooms'
+import { createGuestRoom, persistGuestToken, type GuestRoomType } from '@/lib/api/rooms'
 import { persistGuestDisplayName, readGuestDisplayName } from '@/lib/live/guestDisplayName'
 import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 
@@ -11,7 +11,7 @@ export function useCreateLiveRoom() {
     mutationFn: async (input: {
       language: string
       displayName?: string
-      roomType?: string
+      roomType?: GuestRoomType
     }) => {
       const name = input.displayName?.trim() || readGuestDisplayName() || 'Guest'
       persistGuestDisplayName(name)

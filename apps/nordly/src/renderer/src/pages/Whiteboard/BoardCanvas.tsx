@@ -15,7 +15,7 @@ import {
   parseSceneJson,
   serializeScene,
   type WhiteboardScene,
-} from '@features/whiteboard/repository/whiteboardStore';
+} from '@features/whiteboard/api/whiteboardClient';
 import {
   NORDLY_EXCALIDRAW_MOUNT_CLASS,
   NORDLY_EXCALIDRAW_UI_OPTIONS,
@@ -97,7 +97,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
 
   const initialData = useMemo(
     () => buildInitialData(sceneJson, boardThemeRef.current),
-    [boardId, sceneJson],
+    [sceneJson],
   );
 
   const flushSave = useCallback(async () => {

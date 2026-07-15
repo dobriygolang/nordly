@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT, useLocale, type TFunc } from '@nordly-i18n';
 
 import { getStats, padToSevenDays, type NordlyStats, type FocusDay } from '@features/focus/api/focusClient';
-import { loadDailyPlan } from '@features/planning/repository/dailyPlanStore';
+import { loadDailyPlan } from '@features/planning/api/dailyPlan';
 import {
   computePlanProgress,
   isPlanFinalizedToday,
@@ -22,6 +22,7 @@ import {
 import { tasksForToday } from '@features/planning/lib/planningTasks';
 import { listTasks } from '@features/tasks/api/tasks';
 import { formatWeekdayShort, addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
+import { useTodayKey } from '@shared/hooks/useTodayKey';
 import { readDailyGoalMin } from '@shared/model/settings';
 
 interface FetchState {
@@ -261,9 +262,9 @@ function HeatmapLegend() {
 const HEATMAP_CELLS = 7 * 16; // ужали до 16 колонок чтобы влезло в 320px aside
 
 function ReferenceHeatmap({ days }: { days: FocusDay[] }) {
+  const todayKey = useTodayKey();
   const cells = useMemo(() => {
     const bySeconds = new Map(days.map((d) => [d.date, d.seconds]));
-    const todayKey = toDayKey(new Date());
     const todayDate = parseDayKey(todayKey);
     const out: { iso: string; seconds: number; isToday: boolean }[] = [];
     for (let i = HEATMAP_CELLS - 1; i >= 0; i--) {
@@ -272,7 +273,7 @@ function ReferenceHeatmap({ days }: { days: FocusDay[] }) {
       out.push({ iso, seconds: bySeconds.get(iso) ?? 0, isToday: iso === todayKey });
     }
     return out;
-  }, [days]);
+  }, [days, todayKey]);
 
   return (
     <div
@@ -398,7 +399,7 @@ function ReferenceBars({ days, locale }: { days: FocusDay[]; locale: 'en' | 'ru'
     return () => window.clearTimeout(t);
   }, []);
 
-  const todayISO = toDayKey(new Date());
+  const todayISO = useTodayKey();
   // Absolute scale: 24h = 100% bar-height. Раньше был relative-max (max
   // bucket в данных = 100%) — 3 часа в один день рендерились full-height,
   // юзер не мог сравнить с другим днём. Теперь абсолютная шкала: 3 часа =
@@ -487,6 +488,7 @@ function dayOfMonth(iso: string): string {
 // derive'аем из существующего NordlyStats.
 
 function InsightsGrid({ data, t }: { data: NordlyStats | null; t: TFunc }) {
+  const todayISO = useTodayKey();
   // ── Streak ring: goal 14 days (free-tier soft target)
   const STREAK_GOAL = 14;
   // Daily goal: localStorage settable, default 2h (120min). readDailyGoalMin
@@ -500,8 +502,6 @@ function InsightsGrid({ data, t }: { data: NordlyStats | null; t: TFunc }) {
   const derived = useMemo(() => {
     const heatmap = data?.heatmap ?? [];
     const lastSeven = data?.lastSevenDays ?? [];
-    const todayISO = toDayKey(new Date());
-
     // ── Compare-week: текущая неделя (last 7) vs prev 7
     const thisWeekSec = lastSeven.reduce((s, d) => s + d.seconds, 0);
     const heatmapByISO = new Map(heatmap.map((d) => [d.date, d]));
@@ -552,7 +552,7 @@ function InsightsGrid({ data, t }: { data: NordlyStats | null; t: TFunc }) {
       totalSessionsAll,
       avgSessionMin,
     };
-  }, [data]);
+  }, [data, todayISO]);
 
   const { thisWeekSec, prevWeekSec, weekDeltaPct, streakPct, todayMin, totalSessionsAll, avgSessionMin } = derived;
   const goalPct = Math.min(100, (todayMin / Math.max(1, dailyGoalMin)) * 100);
@@ -752,7 +752,7 @@ function SimpleStatCell({ value, unit, label, sub }: { value: string; unit?: str
 }
 
 function TodayPlanReviewCard({ closing, t }: { closing: boolean; t: TFunc }) {
-  const todayKey = toDayKey(new Date());
+  const todayKey = useTodayKey();
   const [progress, setProgress] = useState<{ done: number; total: number; remaining: number } | null>(null);
 
   useEffect(() => {

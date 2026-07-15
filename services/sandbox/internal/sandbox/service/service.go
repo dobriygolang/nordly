@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/repository"
+	"github.com/google/uuid"
 )
 
 var (
@@ -31,6 +31,14 @@ type RunCodeInput struct {
 	Stdin    string
 }
 
+// FormatCodeInput is input for the formatting use case.
+type FormatCodeInput struct {
+	UserID   string
+	RoomID   string
+	Language string
+	Code     string
+}
+
 // GetCodeRunInput identifies who is fetching a run.
 type GetCodeRunInput struct {
 	UserID string
@@ -43,7 +51,7 @@ type Service interface {
 	RunCode(ctx context.Context, input RunCodeInput) (*model.CodeRun, error)
 	GetCodeRun(ctx context.Context, input GetCodeRunInput) (*model.CodeRun, error)
 	ProcessQueuedRuns(ctx context.Context, limit int) (int, error)
-	FormatCode(ctx context.Context, userID, language, code string) (string, error)
+	FormatCode(ctx context.Context, input FormatCodeInput) (string, error)
 }
 
 type sandboxService struct {
@@ -109,7 +117,7 @@ func (s *sandboxService) RunCode(ctx context.Context, input RunCodeInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	if err := s.gateCodeRun(ctx, input.UserID); err != nil {
+	if err := s.gateCodeRun(ctx, quotaSubject(input.UserID, input.RoomID)); err != nil {
 		return nil, err
 	}
 
@@ -287,23 +295,33 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (s *sandboxService) FormatCode(ctx context.Context, userID, language, code string) (string, error) {
-	if userID == "" || strings.TrimSpace(code) == "" {
+func (s *sandboxService) FormatCode(ctx context.Context, input FormatCodeInput) (string, error) {
+	if input.UserID == "" || strings.TrimSpace(input.Code) == "" {
 		return "", fmt.Errorf("user_id and code required: %w", ErrInvalidInput)
 	}
-	if len(code) > s.limits.maxCodeBytes {
+	if len(input.Code) > s.limits.maxCodeBytes {
 		return "", fmt.Errorf("code exceeds %d bytes: %w", s.limits.maxCodeBytes, ErrInvalidInput)
 	}
-	lang, err := normalizeLanguage(language)
+	lang, err := normalizeLanguage(input.Language)
 	if err != nil {
 		return "", err
 	}
 	if lang != model.LangGo {
 		return "", fmt.Errorf("format supported only for go: %w", ErrInvalidInput)
 	}
-	formatted, err := s.runner.Format(ctx, lang, code)
+	if err := s.gateCodeRun(ctx, quotaSubject(input.UserID, input.RoomID)); err != nil {
+		return "", err
+	}
+	formatted, err := s.runner.Format(ctx, lang, input.Code)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", err.Error(), ErrInvalidInput)
 	}
 	return formatted, nil
+}
+
+func quotaSubject(userID, roomID string) string {
+	if roomID != "" {
+		return roomID
+	}
+	return userID
 }

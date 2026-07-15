@@ -483,10 +483,22 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Nordly custom invoke handlers (auth, vault, pomodoro, shell).",
+          "description": "Nordly commands available only to the main window.",
           "type": "string",
-          "const": "allow-nordly-commands",
-          "markdownDescription": "Nordly custom invoke handlers (auth, vault, pomodoro, shell)."
+          "const": "allow-nordly-main-commands",
+          "markdownDescription": "Nordly commands available only to the main window."
+        },
+        {
+          "description": "Nordly commands available only to the notification window.",
+          "type": "string",
+          "const": "allow-nordly-notification-commands",
+          "markdownDescription": "Nordly commands available only to the notification window."
+        },
+        {
+          "description": "Nordly commands available only to the tray popover.",
+          "type": "string",
+          "const": "allow-nordly-tray-commands",
+          "markdownDescription": "Nordly commands available only to the tray popover."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

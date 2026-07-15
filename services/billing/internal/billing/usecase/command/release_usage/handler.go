@@ -11,6 +11,7 @@ import (
 
 // Store is the persistence port this command needs.
 type Store interface {
+	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
 	GetUsage(ctx context.Context, userID, key string, periodStart, periodEnd time.Time) (int, error)
 	ReleaseUsage(ctx context.Context, userID, key string, periodStart, periodEnd time.Time, amount int) (int, error)
 	MarkUsageReleaseProcessed(ctx context.Context, idempotencyKey, userID, key string, amount int) (bool, error)
@@ -46,18 +47,6 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ReleaseUsageR
 	}
 	key := cmd.Key
 
-	claimed, err := h.repo.MarkUsageReleaseProcessed(ctx, cmd.IdempotencyKey, cmd.UserID, key, cmd.Amount)
-	if err != nil {
-		return nil, err
-	}
-	if !claimed {
-		used, err := h.currentUsed(ctx, cmd.UserID, key)
-		if err != nil {
-			return nil, err
-		}
-		return &model.ReleaseUsageResult{Released: true, Used: used, Reason: "already_released"}, nil
-	}
-
 	plan, err := h.plans.ResolvePlan(ctx, cmd.UserID)
 	if err != nil {
 		return nil, err
@@ -78,9 +67,28 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*model.ReleaseUsageR
 		return nil, err
 	}
 
-	used, err := h.repo.ReleaseUsage(ctx, cmd.UserID, key, start, end, cmd.Amount)
+	var claimed bool
+	var used int
+	err = h.repo.WithTx(ctx, func(txCtx context.Context) error {
+		claimed, err = h.repo.MarkUsageReleaseProcessed(txCtx, cmd.IdempotencyKey, cmd.UserID, key, cmd.Amount)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return nil
+		}
+		used, err = h.repo.ReleaseUsage(txCtx, cmd.UserID, key, start, end, cmd.Amount)
+		return err
+	})
 	if err != nil {
 		return nil, err
+	}
+	if !claimed {
+		used, err := h.currentUsed(ctx, cmd.UserID, key)
+		if err != nil {
+			return nil, err
+		}
+		return &model.ReleaseUsageResult{Released: true, Used: used, Reason: "already_released"}, nil
 	}
 	result := &model.ReleaseUsageResult{
 		Released: true,

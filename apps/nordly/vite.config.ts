@@ -14,6 +14,26 @@ const SHARED_ALIASES = {
   '@nordly-i18n': resolve(__dirname, '../shared/i18n'),
 };
 
+function manualChunk(id: string): string | undefined {
+  if (
+    id.includes('/node_modules/react/') ||
+    id.includes('/node_modules/react-dom/') ||
+    id.includes('/node_modules/scheduler/')
+  ) {
+    return 'vendor-react';
+  }
+  if (
+    id.includes('/node_modules/@codemirror/') ||
+    id.includes('/node_modules/@lezer/')
+  ) {
+    return 'vendor-codemirror';
+  }
+  // Excalidraw is already isolated behind the lazy Whiteboard route and owns
+  // a large internal dynamic-import graph. Forcing it into one manual chunk
+  // collapses that graph into a multi-megabyte download.
+  return undefined;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, resolve(__dirname), '');
   const useLocal =
@@ -62,10 +82,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: resolve(__dirname, 'dist'),
       emptyOutDir: true,
+      manifest: true,
       target: 'esnext',
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'src/renderer/index.html'),
+        },
+        output: {
+          manualChunks: manualChunk,
         },
       },
     },

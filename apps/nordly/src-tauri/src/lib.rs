@@ -10,7 +10,7 @@ mod window_macos;
 
 use auth::AuthSession;
 use store::PomodoroSnapshot;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,9 +30,14 @@ pub fn run() {
                 let h = handle.clone();
                 app.deep_link().on_open_url(move |event| {
                     for url in event.urls() {
-                        let _ = h.emit("app:deep-link", DeepLinkPayload {
-                            url: url.to_string(),
-                        });
+                        match validate_deep_link(&url) {
+                            Ok(url) => {
+                                if let Some(main) = h.get_webview_window("main") {
+                                    let _ = main.emit("app:deep-link", DeepLinkPayload { url });
+                                }
+                            }
+                            Err(error) => eprintln!("Rejected deep link: {error}"),
+                        }
                     }
                 });
             }
@@ -58,6 +63,7 @@ pub fn run() {
             window_traffic_lights_show,
             deep_link_initial,
             tray_show_main,
+            read_text_file,
             notification::show_notification,
             notification::hide_notification,
             notification::focus_main_window,
@@ -81,37 +87,109 @@ struct DeepLinkPayload {
     url: String,
 }
 
+fn require_main_window(window: &WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("command is only available to the main window".into());
+    }
+    Ok(())
+}
+
+fn validate_deep_link(url: &url::Url) -> Result<String, String> {
+    if url.as_str().len() > 8_192 {
+        return Err("URL exceeds maximum length".into());
+    }
+    if url.scheme() != "nordly"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("URL must be a nordly URL without credentials, port, or fragment".into());
+    }
+
+    let host = url
+        .host_str()
+        .map(str::to_ascii_lowercase)
+        .ok_or_else(|| "URL host is required".to_string())?;
+    if url.path() != "" && url.path() != "/" {
+        return Err("URL path is not supported".into());
+    }
+
+    let required_query_value = |key: &str| {
+        url.query_pairs()
+            .find(|(name, value)| name == key && !value.trim().is_empty())
+            .map(|(_, value)| value.into_owned())
+    };
+    match host.as_str() {
+        "focus" | "focus.start" => {}
+        "task.open" if required_query_value("id").is_some() => {}
+        "note.open" if required_query_value("id").is_some() => {}
+        "settings"
+            if required_query_value("google_calendar").is_some()
+                || required_query_value("zoom").is_some() => {}
+        _ => return Err(format!("unsupported or incomplete URL host: {host}")),
+    }
+
+    Ok(url.to_string())
+}
+
+fn validate_external_url(url: &str) -> Result<url::Url, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("invalid external URL: {e}"))?;
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err("external URL must use HTTPS and must not contain credentials".into());
+    }
+    Ok(parsed)
+}
+
 #[tauri::command]
-fn auth_session(app: AppHandle) -> Result<Option<AuthSession>, String> {
+fn auth_session(window: WebviewWindow, app: AppHandle) -> Result<Option<AuthSession>, String> {
+    require_main_window(&window)?;
     auth::load_session(&app)
 }
 
 #[tauri::command]
-fn auth_persist(app: AppHandle, session: AuthSession) -> Result<(), String> {
+fn auth_persist(window: WebviewWindow, app: AppHandle, session: AuthSession) -> Result<(), String> {
+    require_main_window(&window)?;
     auth::save_session(&app, &session)?;
-    let _ = app.emit("auth:changed", session);
+    window
+        .emit("auth:changed", session)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn auth_logout(app: AppHandle) -> Result<(), String> {
+fn auth_logout(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    require_main_window(&window)?;
     auth::clear_session(&app)?;
-    let _ = app.emit("auth:changed", Option::<AuthSession>::None);
+    window
+        .emit("auth:changed", Option::<AuthSession>::None)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn vault_pass_load(user_id: String) -> Result<Option<String>, String> {
+fn vault_pass_load(window: WebviewWindow, user_id: String) -> Result<Option<String>, String> {
+    require_main_window(&window)?;
     vault::load_passphrase(&user_id)
 }
 
 #[tauri::command]
-fn vault_pass_save(user_id: String, passphrase: String) -> Result<(), String> {
+fn vault_pass_save(
+    window: WebviewWindow,
+    user_id: String,
+    passphrase: String,
+) -> Result<(), String> {
+    require_main_window(&window)?;
     vault::save_passphrase(&user_id, &passphrase)
 }
 
 #[tauri::command]
-fn vault_pass_clear(user_id: String) -> Result<(), String> {
+fn vault_pass_clear(window: WebviewWindow, user_id: String) -> Result<(), String> {
+    require_main_window(&window)?;
     vault::clear_passphrase(&user_id)
 }
 
@@ -126,10 +204,16 @@ fn pomodoro_save(app: AppHandle, snapshot: PomodoroSnapshot) -> Result<(), Strin
 }
 
 #[tauri::command]
-async fn shell_open_external(app: AppHandle, url: String) -> Result<(), String> {
+async fn shell_open_external(
+    window: WebviewWindow,
+    app: AppHandle,
+    url: String,
+) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
+    require_main_window(&window)?;
+    let parsed = validate_external_url(&url)?;
     app.opener()
-        .open_url(url, None::<&str>)
+        .open_url(parsed.as_str(), None::<&str>)
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -139,20 +223,50 @@ fn window_traffic_lights_show(window: tauri::WebviewWindow, visible: bool) -> Re
     window_macos::set_traffic_lights(&window, visible)
 }
 
-/// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
-/// Warm-start deep links arrive via the `app:deep-link` event instead.
 #[tauri::command]
 fn tray_show_main(app: AppHandle) -> Result<(), String> {
     tray::tray_show_main(app)
 }
 
+/// Read a user-dropped markdown file from disk (Tauri OS drop gives paths, not File blobs).
+const MAX_IMPORT_BYTES: u64 = 2 * 1024 * 1024;
+
 #[tauri::command]
-fn deep_link_initial(app: AppHandle) -> Result<Option<String>, String> {
+fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String> {
+    require_main_window(&window)?;
+    let p = std::path::Path::new(&path);
+    let name = p
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "invalid file path".to_string())?;
+    let lower = name.to_ascii_lowercase();
+    if !(lower.ends_with(".md") || lower.ends_with(".markdown")) {
+        return Err(format!("not a markdown file: {name}"));
+    }
+    if !p.is_file() {
+        return Err(format!("not a file: {path}"));
+    }
+    let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    if meta.len() > MAX_IMPORT_BYTES {
+        return Err("file exceeds 2 MiB import limit".into());
+    }
+    std::fs::read_to_string(p).map_err(|e| format!("failed to read file: {e}"))
+}
+
+/// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
+/// Warm-start deep links arrive via the `app:deep-link` event instead.
+#[tauri::command]
+fn deep_link_initial(window: WebviewWindow, app: AppHandle) -> Result<Option<String>, String> {
+    require_main_window(&window)?;
     #[cfg(desktop)]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         match app.deep_link().get_current() {
-            Ok(Some(urls)) => Ok(urls.into_iter().next().map(|u| u.to_string())),
+            Ok(Some(urls)) => urls
+                .into_iter()
+                .next()
+                .map(|url| validate_deep_link(&url))
+                .transpose(),
             Ok(None) => Ok(None),
             Err(e) => Err(e.to_string()),
         }
@@ -161,5 +275,49 @@ fn deep_link_initial(app: AppHandle) -> Result<Option<String>, String> {
     {
         let _ = app;
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_deep_link, validate_external_url};
+
+    #[test]
+    fn deep_links_accept_only_supported_routes() {
+        let valid = [
+            "nordly://focus",
+            "nordly://focus.start?task=task-1&title=Work",
+            "nordly://task.open?id=task-1",
+            "nordly://note.open?id=note-1",
+            "nordly://settings?google_calendar=connected",
+            "nordly://settings?zoom=connected",
+        ];
+        for raw in valid {
+            let url = url::Url::parse(raw).expect("valid test URL");
+            assert!(validate_deep_link(&url).is_ok(), "{raw}");
+        }
+
+        let invalid = [
+            "https://task.open?id=task-1",
+            "nordly://task.open",
+            "nordly://note.open?id=",
+            "nordly://settings",
+            "nordly://unknown",
+            "nordly://focus/path",
+            "nordly://focus#fragment",
+        ];
+        for raw in invalid {
+            let url = url::Url::parse(raw).expect("valid test URL");
+            assert!(validate_deep_link(&url).is_err(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn external_urls_require_credential_free_https() {
+        assert!(validate_external_url("https://trynordly.app/path").is_ok());
+        assert!(validate_external_url("http://trynordly.app/path").is_err());
+        assert!(validate_external_url("javascript:alert(1)").is_err());
+        assert!(validate_external_url("https://user:secret@example.com").is_err());
+        assert!(validate_external_url("not a URL").is_err());
     }
 }

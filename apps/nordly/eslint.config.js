@@ -11,17 +11,12 @@ export default [
       'dist/**',
       'out/**',
       'node_modules/**',
-      '**/*.test.{ts,tsx}',
-      'src/test/**',
     ],
   },
   js.configs.recommended,
-  // Inline `// eslint-disable-next-line react-hooks/exhaustive-deps`
-  // comments litter the renderer; react-hooks plugin isn't wired here,
-  // so don't error on unknown disable directives.
   {
     linterOptions: {
-      reportUnusedDisableDirectives: false,
+      reportUnusedDisableDirectives: 'warn',
     },
   },
   {
@@ -73,6 +68,54 @@ export default [
             {
               group: ['@pages/*'],
               message: 'features/ must not import pages/',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/renderer/src/pages/**/*.{ts,tsx}',
+      'src/renderer/src/widgets/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@features/*/repository/*',
+                '@features/*/remote/*',
+                '@features/*/sync/*',
+              ],
+              message: 'pages/widgets must use a feature public api or component',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/renderer/src/features/tasks/**/*.{ts,tsx}',
+      'src/renderer/src/features/planning/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@features/calendar/lib/*',
+                '@features/calendar/model/*',
+                '@features/calendar/remote/*',
+                '@features/calendar/repository/*',
+                '@features/calendar/sync/*',
+              ],
+              message: 'cross-feature calendar imports must use @features/calendar/api/*',
             },
           ],
         },

@@ -50,6 +50,10 @@ message StartFocusSessionRequest {
   string mode = 1;
   string pinned_title = 2;
   string task_id = 3;
+  // Client-generated UUID for outbox idempotency (optional for live clients).
+  string client_session_id = 4;
+  // Optional client wall time for offline-started sessions.
+  google.protobuf.Timestamp started_at = 5;
 }
 
 message StartFocusSessionResponse {
@@ -60,6 +64,8 @@ message EndFocusSessionRequest {
   string session_id = 1;
   int32 seconds_focused = 2;
   int32 pomodoros_completed = 3;
+  // Optional client wall time for offline completions.
+  google.protobuf.Timestamp ended_at = 4;
 }
 
 message EndFocusSessionResponse {

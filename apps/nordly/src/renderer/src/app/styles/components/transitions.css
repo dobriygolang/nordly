@@ -182,22 +182,55 @@ body.nordly-task-dragging .nordly-task-board-scroll {
 .nordly-notes-editor-shell {
   width: 100%;
   max-width: 50rem;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: min(100%, 520px);
+  /* Notes-only zoom (⌘+/⌘−): scale type, keep full column width (CSS zoom shrinks layout). */
+  font-size: calc(1rem * var(--nordly-notes-zoom, 1));
+}
+
+.nordly-notes-editor-shell .nordly-notes-title {
+  font-size: 1.75em;
+  min-height: 2.25em;
+  padding-bottom: 0.65em;
 }
 
 .nordly-notes-editor-shell .nordly-live-md {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  font-size: 1em;
+}
+
+.nordly-notes-editor-shell .nordly-live-md[data-empty='true']::before {
+  font-size: 1em;
+}
+
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h1 {
+  font-size: 1.875em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h2 {
+  font-size: 1.5em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h3 {
+  font-size: 1.25em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h4 {
+  font-size: 1.125em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h5 {
+  font-size: 1em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h6 {
+  font-size: 0.875em;
 }
 
 .nordly-live-md {
   position: relative;
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--ink-90);
@@ -205,7 +238,14 @@ body.nordly-task-dragging .nordly-task-board-scroll {
 
 .nordly-live-md__mount {
   flex: 1;
-  min-height: inherit;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nordly-live-md__mount .cm-editor {
+  flex: 1;
+  height: 100%;
 }
 
 .nordly-live-md[data-empty='true']::before {

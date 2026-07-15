@@ -1,6 +1,12 @@
 // Local-first focus — sessions in IndexedDB; stats merged from server when sync enabled.
 import { listTasks } from '@features/tasks/api/tasks';
-import { focusStoreGet, focusStorePut, rowFrom } from '@features/focus/repository/focusStore';
+import {
+  findOpenFocusSession,
+  focusStoreGet,
+  focusStorePut,
+  rowFrom,
+  type StoredFocusSession,
+} from '@features/focus/repository/focusStore';
 import {
   padToSevenDays,
   remoteGetStats,
@@ -16,8 +22,16 @@ import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
 
-export type { FocusDay, FocusSession, NordlyStats, QueueStats };
+export type { FocusDay, FocusSession, NordlyStats, QueueStats, StoredFocusSession };
 export { padToSevenDays };
+
+export async function listFocusSessions(): Promise<StoredFocusSession[]> {
+  return focusStoreList();
+}
+
+export async function getOpenFocusSession(): Promise<StoredFocusSession | null> {
+  return findOpenFocusSession();
+}
 
 interface StoredSession {
   id: string;
@@ -265,6 +279,8 @@ export async function startFocusSession(args: {
       planItemId: args.planItemId ?? '',
       pinnedTitle: args.pinnedTitle ?? '',
       mode: args.mode ?? 'pomodoro',
+      clientSessionId: id,
+      startedAt: row.startedAt,
     });
     scheduleSync();
   }
@@ -293,6 +309,7 @@ export async function endFocusSession(args: {
     await enqueueOutbox('focus', 'session_end', args.sessionId, {
       pomodorosCompleted: args.pomodorosCompleted,
       secondsFocused: args.secondsFocused,
+      endedAt: row.endedAt,
     });
     scheduleSync();
   }

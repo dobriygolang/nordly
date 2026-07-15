@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"testing"
 	"time"
 
@@ -20,16 +21,23 @@ import (
 
 type fakeRepo struct {
 	plan         *model.Plan
-	sub          *model.Subscription
 	entitlements []model.PlanEntitlement
 	usage        map[string]int
 	releaseDedup map[string]struct{}
+	releaseErr   error
 	cancelCalled bool
 	lastSub      *model.Subscription
 }
 
 func (f *fakeRepo) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
-	return fn(ctx)
+	usageBefore := maps.Clone(f.usage)
+	dedupBefore := maps.Clone(f.releaseDedup)
+	if err := fn(ctx); err != nil {
+		f.usage = usageBefore
+		f.releaseDedup = dedupBefore
+		return err
+	}
+	return nil
 }
 
 func (f *fakeRepo) GetPlanBySlug(_ context.Context, slug string) (*model.Plan, error) {
@@ -55,13 +63,6 @@ func (f *fakeRepo) ListActivePlans(_ context.Context) ([]model.Plan, error) {
 
 func (f *fakeRepo) ListPlanEntitlements(context.Context, string) ([]model.PlanEntitlement, error) {
 	return f.entitlements, nil
-}
-
-func (f *fakeRepo) GetActiveSubscription(context.Context, string) (*model.Subscription, error) {
-	if f.sub != nil {
-		return f.sub, nil
-	}
-	return nil, repository.ErrNotFound
 }
 
 func (f *fakeRepo) UpsertSubscription(_ context.Context, sub *model.Subscription) error {
@@ -114,6 +115,9 @@ func (f *fakeRepo) ConsumeUsageUnlimited(_ context.Context, _, key string, _, _ 
 }
 
 func (f *fakeRepo) ReleaseUsage(_ context.Context, _, key string, _, _ time.Time, amount int) (int, error) {
+	if f.releaseErr != nil {
+		return 0, f.releaseErr
+	}
 	if f.usage == nil {
 		f.usage = map[string]int{}
 	}
@@ -162,21 +166,6 @@ func newTestService(repo *fakeRepo) Service {
 func TestGetCurrentPlanDefaultsToDefault(t *testing.T) {
 	t.Parallel()
 	repo := &fakeRepo{plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"}}
-	plan, err := newTestService(repo).GetCurrentPlan(context.Background(), "user-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Slug != model.PlanDefault {
-		t.Fatalf("expected default, got %s", plan.Slug)
-	}
-}
-
-func TestGetCurrentPlanIgnoresActiveSubscription(t *testing.T) {
-	t.Parallel()
-	repo := &fakeRepo{
-		plan: &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
-		sub:  &model.Subscription{PlanID: "legacy-id", Status: model.SubStatusActive},
-	}
 	plan, err := newTestService(repo).GetCurrentPlan(context.Background(), "user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -265,6 +254,28 @@ func TestReleaseUsageDecrementsConsumedQuota(t *testing.T) {
 	}
 	if !res2.Released || res2.Reason != "already_released" || repo.usage[model.EntitlementCodeRunsPerDay] != 2 {
 		t.Fatalf("unexpected duplicate release: %+v usage=%d", res2, repo.usage[model.EntitlementCodeRunsPerDay])
+	}
+}
+
+func TestReleaseUsageRollsBackClaimWhenDecrementFails(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{
+		plan:       &model.Plan{ID: "default-id", Slug: model.PlanDefault, Name: "Nordly"},
+		usage:      map[string]int{model.EntitlementCodeRunsPerDay: 3},
+		releaseErr: errors.New("decrement failed"),
+		entitlements: []model.PlanEntitlement{
+			{Key: model.EntitlementCodeRunsPerDay, ValueJSON: json.RawMessage(`{"type":"counter","limit":5,"period":"day"}`)},
+		},
+	}
+	_, err := newTestService(repo).ReleaseUsage(context.Background(), "user-1", model.EntitlementCodeRunsPerDay, "attempt-1", 1)
+	if !errors.Is(err, repo.releaseErr) {
+		t.Fatalf("expected decrement error, got %v", err)
+	}
+	if _, claimed := repo.releaseDedup["attempt-1"]; claimed {
+		t.Fatal("release claim must roll back when decrement fails")
+	}
+	if got := repo.usage[model.EntitlementCodeRunsPerDay]; got != 3 {
+		t.Fatalf("usage changed after failed release: %d", got)
 	}
 }
 

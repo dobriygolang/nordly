@@ -15,6 +15,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const GRID_STEP_PX = 64;
+const BACKGROUND_FRAME_INTERVAL_MS = 1000 / 30;
+const MAX_PARTICLES = 48;
 
 const BG_CONTAINER: React.CSSProperties = {
   position: 'absolute',
@@ -59,7 +61,7 @@ export function CanvasBg({
   boost = false,
   animated = true,
 }: CanvasBgProps) {
-  const effectiveAnimated = animated && !prefersReducedMotion();
+  const effectiveAnimated = animated && mode === 'full' && !prefersReducedMotion();
   if (mode === 'void') return null;
   switch (theme) {
     case 'drift':
@@ -97,10 +99,10 @@ export function CanvasBg({
         />
       );
     case 'particles':
-      return <ParticlesBg mode={mode} />;
+      return <ParticlesBg mode={mode} animated={effectiveAnimated} />;
     case 'winter':
     default:
-      return <WinterBg mode={mode} />;
+      return <WinterBg mode={mode} animated={effectiveAnimated} />;
   }
 }
 
@@ -407,17 +409,26 @@ function ImageBg({
     img.src = src;
 
     let raf = 0;
+    let lastFrame = 0;
     const t0 = performance.now();
-    const render = () => {
+    const render = (now: number) => {
+      raf = 0;
+      if (document.hidden) return;
+      if (now - lastFrame < BACKGROUND_FRAME_INTERVAL_MS) {
+        raf = requestAnimationFrame(render);
+        return;
+      }
+      lastFrame = now;
+      if (ready) {
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.uniform1f(uTime, (now - t0) / 1000);
+        gl.uniform1f(uOpacity, posterOpacityRef.current);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
       raf = requestAnimationFrame(render);
-      if (!ready) return;
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform1f(uTime, (performance.now() - t0) / 1000);
-      gl.uniform1f(uOpacity, posterOpacityRef.current);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
-    raf = requestAnimationFrame(render);
+    if (!document.hidden) raf = requestAnimationFrame(render);
 
     const onVisibility = () => {
       if (document.hidden) {
@@ -460,7 +471,7 @@ function ImageBg({
 }
 
 // ─── Winter (default, original) ─────────────────────────────────────────
-function WinterBg({ mode }: { mode: CanvasMode }) {
+function WinterBg({ mode, animated }: { mode: CanvasMode; animated: boolean }) {
   const stars = useMemo(() => makeStars(32, 1337), []);
 
   const starOpMul = mode === 'full' ? 1 : 0.35;
@@ -492,9 +503,10 @@ function WinterBg({ mode }: { mode: CanvasMode }) {
               width: s.size,
               height: s.size,
               opacity: s.baseOp * starOpMul,
-              animation:
-                `star-float ${s.floatDur}s ease-in-out ${s.floatDelay}s infinite,` +
-                ` star-twinkle ${s.twinkleDur}s ease-in-out ${s.twinkleDelay}s infinite`,
+              animation: animated
+                ? `star-float ${s.floatDur}s ease-in-out ${s.floatDelay}s infinite,` +
+                  ` star-twinkle ${s.twinkleDur}s ease-in-out ${s.twinkleDelay}s infinite`
+                : 'none',
               '--star-dx': `${s.dx}px`,
               '--star-dy': `${s.dy}px`,
               '--star-base': `${s.baseOp * starOpMul}`,
@@ -560,7 +572,7 @@ function WinterBg({ mode }: { mode: CanvasMode }) {
 // `rgb(var(--ink-rgb) / X)` silently falls back to black and renders invisible
 // on a dark background. We resolve --ink-rgb to a concrete rgb triplet via
 // getComputedStyle on every frame (cheap, and reacts to theme switches).
-function ParticlesBg({ mode }: { mode: CanvasMode }) {
+function ParticlesBg({ mode, animated }: { mode: CanvasMode; animated: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dim = mode === 'full' ? 1 : 0.4;
 
@@ -583,7 +595,7 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
     resize();
     window.addEventListener('resize', resize);
 
-    const N = 60;
+    const N = Math.min(MAX_PARTICLES, Math.max(24, Math.round((W * H) / 24_000)));
     const rng = mulberry32(4242);
     const pts = Array.from({ length: N }, () => ({
       x: rng() * W,
@@ -597,14 +609,22 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
     };
-    window.addEventListener('mousemove', onMove);
+    if (animated) window.addEventListener('mousemove', onMove);
 
     let raf = 0;
+    let lastFrame = 0;
     const t0 = performance.now();
     const DIST = 110;
+    const DIST_SQ = DIST * DIST;
     const [ir, ig, ib] = readInkRgb();
 
     const loop = (now: number) => {
+      raf = 0;
+      if (animated && now - lastFrame < BACKGROUND_FRAME_INTERVAL_MS) {
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+      lastFrame = now;
       const t = (now - t0) / 1000;
       ctx.clearRect(0, 0, W, H);
       // Parallax shift based on mouse.
@@ -625,8 +645,9 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
           const b = pts[j]!;
           const dx = a.x - b.x;
           const dy = a.y - b.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < DIST) {
+          const distanceSq = dx * dx + dy * dy;
+          if (distanceSq < DIST_SQ) {
+            const d = Math.sqrt(distanceSq);
             const op = (1 - d / DIST) * 0.35 * (0.5 + 0.5 * pulse) * dim;
             ctx.strokeStyle = `rgba(${ir}, ${ig}, ${ib}, ${op})`;
             ctx.lineWidth = 0.6;
@@ -643,9 +664,9 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
         ctx.arc(p.x + px, p.y + py, p.r, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (!document.hidden) raf = requestAnimationFrame(loop);
+      if (animated && !document.hidden) raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
+    if (!document.hidden || !animated) raf = requestAnimationFrame(loop);
 
     const onVisibility = () => {
       if (document.hidden) {
@@ -653,7 +674,7 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
         raf = 0;
         return;
       }
-      if (!raf) {
+      if (animated && !raf) {
         raf = requestAnimationFrame(loop);
       }
     };
@@ -662,10 +683,10 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
     return () => {
       if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', onMove);
+      if (animated) window.removeEventListener('mousemove', onMove);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [dim]);
+  }, [animated, dim]);
 
   return (
     <div style={BG_CONTAINER}>
@@ -676,7 +697,7 @@ function ParticlesBg({ mode }: { mode: CanvasMode }) {
           inset: 0,
           background:
             'radial-gradient(ellipse at 50% 50%, var(--ink-tint-04), transparent 70%)',
-          animation: 'particles-breathe 8s ease-in-out infinite',
+          animation: animated ? 'particles-breathe 8s ease-in-out infinite' : 'none',
           opacity: dim,
         }}
       />

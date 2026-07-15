@@ -8,11 +8,11 @@ import (
 )
 
 // NewRedisClient dials Redis when addr is non-empty.
-func NewRedisClient(ctx context.Context, addr string) (*goredis.Client, error) {
+func NewRedisClient(ctx context.Context, addr, password string) (*goredis.Client, error) {
 	if addr == "" {
 		return nil, nil
 	}
-	client := goredis.NewClient(&goredis.Options{Addr: addr})
+	client := goredis.NewClient(&goredis.Options{Addr: addr, Password: password})
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("redis ping: %w", err)

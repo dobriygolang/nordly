@@ -6,6 +6,12 @@ import {
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import type {
+  GoogleCalendarEvent,
+  GoogleCalendarListEntry,
+  GoogleEventInput,
+  TrackerSettings,
+} from '../model/calendar';
 
 const EVENTS_BASE = `${API_BASE_URL}/v1/tracker/integrations/google/events`;
 const SETTINGS_BASE = `${API_BASE_URL}/v1/tracker/settings`;
@@ -48,42 +54,6 @@ async function throwForStatus(resp: Response, label: string): Promise<never> {
   if (msg.includes('google_reauth_required')) throw new GoogleReauthError();
   if (msg.includes('google_not_connected')) throw new GoogleNotConnectedError();
   throw new Error(`${label}: ${resp.status}${msg ? ` ${msg}` : ''}`);
-}
-
-export interface GoogleCalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  calendarId: string;
-  htmlLink: string;
-  editable: boolean;
-}
-
-export interface TrackerSettings {
-  googleCalendarSyncEnabled: boolean;
-  googleCalendarConnected: boolean;
-  googleReauthRequired: boolean;
-  googleCalendarId: string;
-  zoomConnected: boolean;
-  zoomReauthRequired: boolean;
-}
-
-export interface GoogleCalendarListEntry {
-  id: string;
-  summary: string;
-  primary: boolean;
-  writable: boolean;
-  backgroundColor: string;
-}
-
-export interface GoogleEventInput {
-  title: string;
-  start: Date;
-  end: Date;
-  allDay?: boolean;
-  calendarId?: string;
 }
 
 function eventTimeIso(raw: unknown, field: string): string {

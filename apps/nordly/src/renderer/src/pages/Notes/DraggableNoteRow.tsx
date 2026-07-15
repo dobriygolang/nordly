@@ -32,18 +32,26 @@ export const DraggableNoteRow = memo(function DraggableNoteRow({
     disabled: dragDisabled || menuOpen,
     data: { type: 'note', note } satisfies NoteDragData,
   });
+  const {
+    role,
+    tabIndex,
+    'aria-disabled': ariaDisabled,
+    'aria-pressed': ariaPressed,
+    'aria-roledescription': ariaRoleDescription,
+    'aria-describedby': ariaDescribedBy,
+  } = attributes;
 
   const dragHandleProps = useMemo<HTMLAttributes<HTMLElement>>(
-    () => ({ ...attributes, ...listeners }),
-    [
-      listeners,
-      attributes.role,
-      attributes.tabIndex,
-      attributes['aria-disabled'],
-      attributes['aria-pressed'],
-      attributes['aria-roledescription'],
-      attributes['aria-describedby'],
-    ],
+    () => ({
+      role,
+      tabIndex,
+      'aria-disabled': ariaDisabled,
+      'aria-pressed': ariaPressed,
+      'aria-roledescription': ariaRoleDescription,
+      'aria-describedby': ariaDescribedBy,
+      ...listeners,
+    }),
+    [role, tabIndex, ariaDisabled, ariaPressed, ariaRoleDescription, ariaDescribedBy, listeners],
   );
 
   return (

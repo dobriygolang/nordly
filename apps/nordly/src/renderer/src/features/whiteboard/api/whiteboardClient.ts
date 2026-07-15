@@ -5,11 +5,15 @@ import {
   boardsStoreList,
   boardsStoreUpdateScene,
   boardsStoreUpdateTitle,
+  parseSceneJson,
+  serializeScene,
   type Board,
   type BoardSummary,
+  type WhiteboardScene,
 } from '@features/whiteboard/repository/whiteboardStore';
 
-export type { Board, BoardSummary };
+export { parseSceneJson, serializeScene };
+export type { Board, BoardSummary, WhiteboardScene };
 
 export async function listBoards(): Promise<BoardSummary[]> {
   return boardsStoreList();

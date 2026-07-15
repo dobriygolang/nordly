@@ -43,6 +43,20 @@ for svc in "${CI_SERVICES[@]}"; do
   fi
 done
 
+compose="$ROOT/deploy/docker-compose.prod.yml"
+caddy="$ROOT/deploy/Caddyfile"
+for svc in "${PROD_APP_SERVICES[@]}"; do
+  if ! grep -qE "^  ${svc}:$" "$compose"; then
+    echo "verify-service-registry: docker-compose.prod.yml missing service ${svc}" >&2
+    fail=1
+  fi
+  port="$(service_http_port "$svc")"
+  if ! grep -qE "reverse_proxy ${svc}:${port}([[:space:]]|$)" "$caddy"; then
+    echo "verify-service-registry: Caddyfile missing reverse_proxy ${svc}:${port}" >&2
+    fail=1
+  fi
+done
+
 init_sql="$ROOT/deploy/scripts/init-databases.sql"
 for db in "${DB_DATABASES[@]}"; do
   if [ "$db" = "nordly" ]; then

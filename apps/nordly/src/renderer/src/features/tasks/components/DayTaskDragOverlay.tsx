@@ -1,6 +1,6 @@
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 
 import { TaskRow } from './TaskRow';
 

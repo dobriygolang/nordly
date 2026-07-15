@@ -117,7 +117,13 @@ func (r *Repository) UpdateNote(
 }
 
 func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
-	tag, err := r.pg.Exec(ctx, `
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	tag, err := tx.Exec(ctx, `
 		UPDATE notes SET archived_at = now(), updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 	`, id, userID)
@@ -127,7 +133,13 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 	if tag.RowsAffected() == 0 {
 		return notesmodel.ErrNotFound
 	}
-	return nil
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM note_links
+		WHERE user_id = $1 AND (source_note_id = $2 OR target_note_id = $2)
+	`, userID, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) CountActiveNotes(ctx context.Context, userID string) (int, error) {

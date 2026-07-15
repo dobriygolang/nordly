@@ -391,6 +391,12 @@ body.nordly-task-dragging .nordly-task-row__check {
   perspective: 1600px;
 }
 
+.nordly-day-column:focus-visible {
+  outline: 2px solid rgb(var(--ink-rgb) / 0.45);
+  outline-offset: -2px;
+  border-radius: 14px;
+}
+
 .nordly-day-column__body {
   display: flex;
   flex-direction: column;

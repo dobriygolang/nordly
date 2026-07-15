@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=services.conf.sh
@@ -21,10 +22,13 @@ for db in "${DB_DATABASES[@]}"; do
   pg_dump -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -Fc "$db" > "$OUT/${db}.dump"
 done
 
-tar -czf "$BACKUP_DIR/nordly_${STAMP}.tar.gz" -C "$BACKUP_DIR" "$STAMP"
+archive="$BACKUP_DIR/nordly_${STAMP}.tar.gz"
+tar -czf "$archive" -C "$BACKUP_DIR" "$STAMP"
 rm -rf "$OUT"
+(cd "$BACKUP_DIR" && sha256sum "$(basename "$archive")" >"$(basename "$archive").sha256")
 
-echo "backup: $BACKUP_DIR/nordly_${STAMP}.tar.gz"
+echo "backup: $archive"
+echo "checksum: ${archive}.sha256"
 
 # Cron example (daily 03:00 UTC, run from deploy/ with .env loaded):
 # 0 3 * * * cd /opt/project-nordly/deploy && set -a && source .env && set +a && ./scripts/backup-postgres.sh

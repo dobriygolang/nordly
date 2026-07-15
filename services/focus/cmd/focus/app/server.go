@@ -15,6 +15,7 @@ import (
 
 // RunAPI starts HTTP gateway and gRPC server.
 func RunAPI(ctx context.Context, a *App) error {
+	go runAbandonedSessionCleanup(ctx, a)
 	listenAddr := fmt.Sprintf("%s:%d", a.Config.GRPCHost, a.Config.GRPCPort)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", a.Config.GRPCPort)
 	lis, err := net.Listen("tcp", listenAddr)
@@ -71,5 +72,23 @@ func RunAPI(ctx context.Context, a *App) error {
 			return nil
 		}
 		return err
+	}
+}
+
+func runAbandonedSessionCleanup(ctx context.Context, a *App) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		count, err := a.Service.CleanupAbandonedSessions(ctx, time.Now())
+		if err != nil && ctx.Err() == nil {
+			a.Logger.Error("cleanup abandoned focus sessions", "err", err)
+		} else if count > 0 {
+			a.Logger.Info("cleaned abandoned focus sessions", "count", count)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 	}
 }

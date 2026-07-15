@@ -2,7 +2,7 @@ import {
   GoogleReauthError,
   listGoogleCalendarEvents,
   type GoogleCalendarEvent,
-} from '@features/calendar/remote/calendarClient';
+} from '@features/calendar/api/calendarClient';
 import {
   calendarStoreClear,
   calendarStoreLoadSnapshot,

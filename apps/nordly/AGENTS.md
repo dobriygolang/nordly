@@ -14,7 +14,7 @@ Tauri 2 + React desktop focus workspace: pomodoro timer, notes (E2EE vault), tas
 |-------|------|
 | Native shell | `src-tauri/` — auth keychain, vault passphrase, pomodoro snapshot, deep links |
 | Renderer | `src/renderer/src/` — React + Vite |
-| Local DB | IndexedDB `nordly-db` v2 — `shared/db/nordlyDb.ts` |
+| Local DB | IndexedDB `nordly-db` v3 — `shared/db/nordlyDb.ts` |
 | Sync | `shared/sync/` — outbox push + pull (notes, tasks, focus) |
 | Platform bridge | `platform/ipc.ts`, `platform/native-bridge.ts` → `window.nordly` |
 | HTTP (renderer) | `shared/api/http.ts` → `apiFetch()` — dev: browser `fetch` + Vite proxy; release: `tauri-plugin-http` |
@@ -27,7 +27,7 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 |------|-----------|-------|
 | Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today list, obstacles; no plan header) |
 | Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule; task UI in `features/tasks/components/` |
-| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor |
+| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor; drop `.md` / `.markdown` onto the page to create a note (animated overlay while dragging); ⌘+/⌘−/⌘0 zooms editor text only (persisted) |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
@@ -80,13 +80,16 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | GET | `/v1/auth/config` | `features/auth/api/auth.ts` via `apiFetch` — sole source for Telegram bot username on login |
 | POST | `/v1/auth/telegram` | same |
 | POST | `/v1/auth/refresh` | `shared/api/authSession.ts` via raw HTTP (no 401 retry loop) |
+| POST | `/v1/devices/register` | `shared/api/registerSyncDevice.ts` — sync device quota registration |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
 **Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
 
 **Tauri shell (Rust)** — `src-tauri/src/auth.rs` (keychain session only):
 
-**tracker** — `features/tasks/remote/tasksRemote.ts`, `features/calendar/remote/calendarClient.ts`
+**tracker** — task transport in `features/tasks/remote/tasksRemote.ts`; calendar callers use
+`features/calendar/api/calendarClient.ts`, which applies cloud/auth gates before delegating to
+`features/calendar/remote/calendarClient.ts`
 
 | Method | Path |
 |--------|------|
@@ -188,7 +191,14 @@ Not synced via outbox: whiteboards (local + share/publish via rooms), vault pref
 | `sync/` | outbox push/pull | repository + remote |
 | `api/` | local-first façade | repository always; sync/remote only behind `isSyncEnabled()` / `isCloudEnabled()` |
 
-Examples: `features/notes/remote/notesRemote.ts`, `features/tasks/remote/tasksRemote.ts`, `features/calendar/remote/calendarClient.ts` + `features/calendar/repository/calendarStore.ts`.
+Calendar domain types live in `features/calendar/model/calendar.ts`; pages and other features
+consume `features/calendar/api/calendar.ts` or `calendarClient.ts`, not its remote/repository
+internals. Whiteboard pages use `features/whiteboard/api/whiteboardClient.ts` for local boards.
+
+Architecture decisions: [local-first consistency](docs/architecture/001-local-first-consistency.md),
+[vault threat model](docs/architecture/002-vault-threat-model.md),
+[feature boundaries](docs/architecture/003-feature-boundaries.md), and
+[sync conflict policy](docs/architecture/004-sync-conflict-policy.md).
 
 ## Vault (E2EE)
 
@@ -217,6 +227,7 @@ Local Excalidraw (`@excalidraw/excalidraw`). Single board `DEFAULT_BOARD_ID = 'd
 | File | Role |
 |------|------|
 | `features/whiteboard/repository/whiteboardStore.ts` | IndexedDB read/write |
+| `features/whiteboard/api/whiteboardClient.ts` | Public local-board façade used by pages |
 | `pages/Whiteboard/WhiteboardPage.tsx` | UI + debounced save |
 | `shared/lib/excalidraw/nordlyTheme.ts` | Theme sync |
 
@@ -240,6 +251,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |
 | `focus_main_window` | Raise main window (notification click) |
 | `shell_open_external` | Open URL in browser |
+| `read_text_file` | Read a dropped `.md` / `.markdown` file from disk (Notes import) |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
@@ -310,9 +322,14 @@ apps/nordly/
     │   ├── auth/, focus/, calendar/, whiteboard/, planning/
     │   ├── notes/               # api, repository, remote, sync/
     │   ├── tasks/               # api, repository, remote, lib, components, sync/
-    │   └── calendar/            # remote (HTTP), repository (IDB), lib (hooks/cache)
+    │   └── calendar/            # api façade, model, remote (HTTP), repository (IDB), lib
     ├── pages/                   # route composition only (TaskBoard page shell, Notes, …)
     └── widgets/                 # Dock, Palette, CanvasBg, overlays, Login
 ```
 
-**Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`; `features` never imports `pages/`. Types like `PageId` and `ThemeId` live in `shared/model/`. Per feature: `repository/` (IndexedDB) ↔ `remote/` (HTTP) → `sync/` (outbox) → `api/` (local-first façade).
+**Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`;
+`features` never imports `pages/`. Pages/widgets cannot import feature `repository/`, `remote/`,
+or `sync/`; the existing `Settings/sections/VaultSection.tsx` notes-sync call is the sole linted
+exception. Task/planning imports from calendar are restricted to `features/calendar/api/`.
+Types like `PageId` and `ThemeId` live in `shared/model/`. Per feature: `repository/` (IndexedDB)
+and `remote/` (HTTP) are implementation details; `api/` is the public façade.

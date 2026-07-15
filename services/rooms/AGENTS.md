@@ -18,16 +18,16 @@ HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
 
 | RPC | HTTP | Auth |
 |-----|------|------|
-| GetRoom | `GET /v1/rooms/{room_id}` | JWT |
+| GetRoom | `GET /v1/rooms/{room_id}` | `editor:{room_id}` scoped JWT |
 | GuestJoin | `POST /v1/rooms/{room_id}/guest-join` | no |
-| CreateGuestRoom | `POST /v1/rooms/guest-create` | no |
-| CloseRoom | `POST /v1/rooms/{room_id}/close` | JWT |
+| CreateGuestRoom | `POST /v1/rooms/guest-create` | no — `practice` or `system_design` only |
+| CloseRoom | `POST /v1/rooms/{room_id}/close` | `editor:{room_id}` scoped JWT |
 | ShareWhiteboard | `POST /v1/rooms/share-whiteboard` | JWT |
-| GetInitialScene | `GET /v1/rooms/{room_id}/initial-scene` | JWT |
+| GetInitialScene | `GET /v1/rooms/{room_id}/initial-scene` | `editor:{room_id}` scoped JWT |
 | PublishWhiteboard | `POST /v1/rooms/publish-whiteboard` | JWT |
 | GetPublishedBoard | `GET /v1/rooms/boards/public/{slug}` | no |
 
-WebSocket: `GET /ws/editor/{room_id}?token=JWT`.
+WebSocket: `GET /ws/editor/{room_id}?token=JWT` requires `editor:{room_id}` and rejects expired rooms. Browser origins must match `CORS_ALLOWED_ORIGINS`; this setting is required in production.
 
 **Whiteboard (Nordly):** `ShareWhiteboard` seeds an Excalidraw scene and returns `room_id` + scoped JWT + invite URL. `PublishWhiteboard` stores a read-only snapshot; `GetPublishedBoard` serves `title` + `scene_json` by slug.
 
@@ -36,6 +36,7 @@ WebSocket: `GET /ws/editor/{room_id}?token=JWT`.
 Frontend: `/live/new` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. `/live/:roomId` → `CollabRoomPage.tsx` (CodeMirror or Excalidraw by `room_type`).
 
 **Guest join is open:** shared rooms join via `/live/{roomId}` (UUID in path is the capability). Private rooms remain forbidden for guests.
+Guest create/join accepts only `practice` and `system_design` rooms. Both unauthenticated endpoints are limited to 30 requests per client IP per minute.
 
 **Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{PUBLIC_BASE_URL}/live/{room_id}`. Frontend copies the same short URL client-side.
 
@@ -53,13 +54,7 @@ make start   # JWT_PUBLIC_KEY_FILE=../identity/scripts/dev/jwt/public.pem
 make gen-proto | build
 ```
 
-Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (3h).
-
-**Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
-
-## Metrics
-
-`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `CORS_ALLOWED_ORIGINS` (required in production), `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (3h).
 
 **Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
 

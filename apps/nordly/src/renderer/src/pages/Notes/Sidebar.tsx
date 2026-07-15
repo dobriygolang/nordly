@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 
@@ -65,10 +66,12 @@ function UnfiledDropZone({
   children,
   enabled,
   previewChildren,
+  previewActive,
 }: {
   children: React.ReactNode;
   enabled: boolean;
   previewChildren: React.ReactNode;
+  previewActive: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: UNFILED_DROPPABLE_ID,
@@ -82,9 +85,9 @@ function UnfiledDropZone({
     <div
       ref={setNodeRef}
       className="nordly-notes-unfiled-drop"
-      data-drop-active={isOver ? 'true' : 'false'}
+      data-drop-active={isOver || previewActive ? 'true' : 'false'}
     >
-      {isOver ? previewChildren : children}
+      {previewActive ? previewChildren : children}
     </div>
   );
 }
@@ -94,6 +97,7 @@ function FolderDropZone({
   folderId,
   disabled,
   previewChildren,
+  previewActive,
   open,
   onHoverOpen,
   header,
@@ -102,6 +106,7 @@ function FolderDropZone({
   folderId: string;
   disabled: boolean;
   previewChildren: React.ReactNode;
+  previewActive: boolean;
   open: boolean;
   onHoverOpen: (folderId: string) => void;
   header: React.ReactNode;
@@ -114,17 +119,17 @@ function FolderDropZone({
   });
 
   useEffect(() => {
-    if (isOver && previewChildren) onHoverOpen(folderId);
-  }, [isOver, previewChildren, folderId, onHoverOpen]);
+    if (previewActive && previewChildren) onHoverOpen(folderId);
+  }, [previewActive, previewChildren, folderId, onHoverOpen]);
 
   return (
     <div
       ref={setNodeRef}
       className="nordly-folder-group nordly-folder-drop"
-      data-drop-active={isOver ? 'true' : 'false'}
+      data-drop-active={isOver || previewActive ? 'true' : 'false'}
     >
       {header}
-      {open ? (isOver ? previewChildren : children) : null}
+      {open ? (previewActive ? previewChildren : children) : null}
     </div>
   );
 }
@@ -169,6 +174,7 @@ export const Sidebar = memo(function Sidebar({
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(readOpenFolderIds);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [activeNote, setActiveNote] = useState<NoteSummary | null>(null);
+  const [previewFolderId, setPreviewFolderId] = useState<string | null | undefined>(undefined);
 
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -234,7 +240,7 @@ export const Sidebar = memo(function Sidebar({
   );
 
   const notesByFolder = useMemo(() => {
-    const map = new Map<string, typeof list.notes>();
+    const map = new Map<string, NoteSummary[]>();
     for (const f of folders) map.set(f.id, []);
     for (const n of list.notes) {
       const fid = n.folderId;
@@ -254,17 +260,28 @@ export const Sidebar = memo(function Sidebar({
       setOpenMenuId(null);
       const note = list.notes.find((n) => n.id === event.active.id);
       setActiveNote(note ?? null);
+      const folderId = note?.folderId && folderIds.has(note.folderId) ? note.folderId : null;
+      setPreviewFolderId(note ? folderId : undefined);
     },
-    [list.notes],
+    [folderIds, list.notes],
   );
 
   const handleDragCancel = useCallback(() => {
     setActiveNote(null);
+    setPreviewFolderId(undefined);
+  }, []);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const overId = event.over ? String(event.over.id) : null;
+    const folderId = resolveDropFolderId(overId);
+    // Keep the last valid target while crossing small gaps between drop zones.
+    if (folderId !== undefined) setPreviewFolderId(folderId);
   }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveNote(null);
+      setPreviewFolderId(undefined);
       const noteId = String(event.active.id);
       const overId = event.over ? String(event.over.id) : null;
       const folderId = resolveDropFolderId(overId);
@@ -330,15 +347,32 @@ export const Sidebar = memo(function Sidebar({
       ];
     }
 
-    return notes.flatMap((note) =>
-      note.id === activeNote.id
-        ? [
-            <NoteInsertPreview key={`preview:${note.id}`} note={activeNote} nested={nested} />,
-            renderNote(note, nested),
-          ]
-        : [renderNote(note, nested)],
+    return notes.map((note) =>
+      note.id === activeNote.id ? (
+        <div className="nordly-note-drag-origin" key={`preview:${note.id}`}>
+          {renderNote(note, nested)}
+          <NoteInsertPreview note={activeNote} nested={nested} />
+        </div>
+      ) : (
+        renderNote(note, nested)
+      ),
     );
   };
+
+  const renderIdleRows = (
+    notes: NoteSummary[],
+    nested: boolean,
+    containerFolderId: string | null,
+  ): React.ReactNode =>
+    notes
+      .filter(
+        (note) =>
+          !activeNote ||
+          note.id !== activeNote.id ||
+          activeNoteFolderId !== containerFolderId ||
+          previewFolderId === containerFolderId,
+      )
+      .map((note) => renderNote(note, nested));
 
   return (
     <aside className="nordly-vault-sidebar">
@@ -425,6 +459,7 @@ export const Sidebar = memo(function Sidebar({
         sensors={sensors}
         collisionDetection={notesCollisionDetection}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -432,11 +467,12 @@ export const Sidebar = memo(function Sidebar({
           <UnfiledDropZone
             enabled={sortedFolders.length > 0}
             previewChildren={renderDropPreview(unfiledNotes, false, null)}
+            previewActive={activeNote != null && previewFolderId === null}
           >
             {sortedFolders.length > 0 ? (
               <div className="nordly-notes-section-label">{t('nordly.notes.unfiled')}</div>
             ) : null}
-            {unfiledNotes.map((n) => renderNote(n, false))}
+            {renderIdleRows(unfiledNotes, false, null)}
           </UnfiledDropZone>
 
           {sortedFolders.map((folder) => {
@@ -448,6 +484,7 @@ export const Sidebar = memo(function Sidebar({
                 folderId={folder.id}
                 disabled={renamingFolderId === folder.id}
                 previewChildren={renderDropPreview(childNotes, true, folder.id)}
+                previewActive={activeNote != null && previewFolderId === folder.id}
                 open={open}
                 onHoverOpen={openFolderOnHover}
                 header={
@@ -474,7 +511,7 @@ export const Sidebar = memo(function Sidebar({
                   />
                 }
               >
-                {open ? childNotes.map((n) => renderNote(n, true)) : null}
+                {open ? renderIdleRows(childNotes, true, folder.id) : null}
               </FolderDropZone>
             );
           })}

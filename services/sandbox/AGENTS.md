@@ -19,7 +19,7 @@ HTTP `8086` | gRPC `9096` | PG `5439` / `nordly_sandbox`
 | RunCode | `POST /v1/sandbox/code-runs` |
 | GetCodeRun | `GET /v1/sandbox/code-runs/{id}` |
 | FormatCode | `POST /v1/sandbox/format` |
-| Go LSP | `WS /ws/lsp/go?token=JWT` |
+| Go LSP | disabled — the route is not exposed until gopls can run behind the isolated runner boundary |
 
 All runs are **`custom`** (language + code + optional stdin). Task-linked `sample`/`submit` modes and content metadata were removed.
 
@@ -35,7 +35,7 @@ Prod host needs `/var/lib/sandbox-work` bind-mount + Docker socket. See [deploy/
 
 ## Billing
 
-`INTERNAL_API_TOKEN` required. Each run consumes `code_runs_per_day` quota via billing gRPC (always wired at startup).
+`INTERNAL_API_TOKEN` required. Runs and format requests consume `code_runs_per_day` quota via billing gRPC (always wired at startup). Live-room requests charge the stable scoped `room_id`, so reconnecting guests share a quota.
 
 Live room runs store optional `room_id` (from JWT scope `editor:{roomID}`). `GetCodeRun` allows the runner or any guest scoped to the same room.
 

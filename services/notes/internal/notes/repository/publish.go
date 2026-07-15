@@ -51,12 +51,39 @@ func (r *Repository) ShareNoteToWeb(
 	userID, noteID, plaintext, publicBaseURL string,
 	meta notesmodel.PublishMeta,
 ) (*notesmodel.ShareToWebResult, error) {
-	note, err := r.GetNote(ctx, userID, noteID)
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, userID); err != nil {
+		return nil, err
+	}
+	note, err := scanNote(tx.QueryRow(ctx, `
+		SELECT `+noteSelectCols+` FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		FOR UPDATE
+	`, noteID, userID))
 	if err != nil {
 		return nil, err
 	}
 	if note.Published && note.PublishSlug != nil && note.PublishedAt != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return r.updatePublishedShare(ctx, userID, noteID, plaintext, publicBaseURL, meta)
+	}
+	if meta.QuotaLimit != nil {
+		var count int
+		if err := tx.QueryRow(ctx, `
+			SELECT COUNT(*)::int FROM notes
+			WHERE user_id = $1 AND archived_at IS NULL AND published = true
+		`, userID).Scan(&count); err != nil {
+			return nil, err
+		}
+		if publishQuotaExceeded(count, meta.QuotaLimit) {
+			return nil, notesmodel.ErrQuotaExceeded
+		}
 	}
 
 	privateLink := meta.PasswordHash != nil && *meta.PasswordHash != ""
@@ -68,7 +95,7 @@ func (r *Repository) ShareNoteToWeb(
 		t := now.AddDate(0, 0, int(meta.ExpiresInDays))
 		expiresAt = &t
 	}
-	row := r.pg.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = false, published = true, publish_slug = $4,
 		    published_at = $5, publish_password_hash = $6,
@@ -84,11 +111,18 @@ func (r *Repository) ShareNoteToWeb(
 		}
 		return nil, err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	return &notesmodel.ShareToWebResult{
 		Slug:        outSlug,
 		URL:         publishURL(publicBaseURL, outSlug),
 		PublishedAt: publishedAt,
 	}, nil
+}
+
+func publishQuotaExceeded(published int, limit *int) bool {
+	return limit != nil && published >= *limit
 }
 
 func (r *Repository) updatePublishedShare(

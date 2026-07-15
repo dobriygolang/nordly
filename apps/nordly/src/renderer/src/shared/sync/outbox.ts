@@ -8,6 +8,24 @@ function rowKey(userId: string, id: string): string {
   return `${userId}::outbox::${id}`;
 }
 
+const entityMutationTails = new Map<string, Promise<void>>();
+
+async function serializeEntityMutation<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const previous = entityMutationTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  entityMutationTails.set(key, current);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (entityMutationTails.get(key) === current) entityMutationTails.delete(key);
+  }
+}
+
 export async function enqueueOutbox(
   domain: SyncDomain,
   op: OutboxOp,
@@ -30,6 +48,23 @@ export async function enqueueOutbox(
     attempts: 0,
   };
   await dbPut('outbox', entry);
+}
+
+/** In-process idempotent enqueue for reconciliation and repeated UI actions. */
+export async function enqueueOutboxOnce(
+  domain: SyncDomain,
+  op: OutboxOp,
+  entityId: string,
+  payload: unknown,
+  serverId?: string,
+): Promise<boolean> {
+  const userId = requireUserId();
+  const lockKey = `${userId}:${domain}:${entityId}:${op}`;
+  return serializeEntityMutation(lockKey, async () => {
+    if (await hasOutboxForEntity(domain, entityId, op, userId)) return false;
+    await enqueueOutbox(domain, op, entityId, payload, serverId);
+    return true;
+  });
 }
 
 export async function listOutbox(userId?: string): Promise<OutboxEntry[]> {
@@ -94,6 +129,23 @@ export async function cancelOutboxForEntity(
       await removeOutbox(row.id, uid);
     }
   }
+}
+
+export async function removeOutboxForEntity(
+  domain: SyncDomain,
+  entityId: string,
+  op?: OutboxOp,
+  userId?: string,
+): Promise<number> {
+  const uid = userId ?? requireUserId();
+  const rows = await listOutbox(uid);
+  let removed = 0;
+  for (const row of rows) {
+    if (row.domain !== domain || row.entityId !== entityId || (op && row.op !== op)) continue;
+    await removeOutbox(row.id, uid);
+    removed += 1;
+  }
+  return removed;
 }
 
 export async function clearOutbox(userId: string): Promise<void> {

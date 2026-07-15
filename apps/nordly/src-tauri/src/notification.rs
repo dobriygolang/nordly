@@ -23,13 +23,7 @@ pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> 
     position_top_right(app, &window)?;
     let _ = window_macos::set_content_corner_radius(&window, 16.0);
     window
-        .emit(
-            "notification:show",
-            NotificationPayload {
-                title,
-                body,
-            },
-        )
+        .emit("notification:show", NotificationPayload { title, body })
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())
 }

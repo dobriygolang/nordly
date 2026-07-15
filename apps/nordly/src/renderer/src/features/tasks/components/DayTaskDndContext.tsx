@@ -8,7 +8,7 @@ import {
 import { createPortal } from 'react-dom';
 
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import type { useDayTaskDnd } from '@features/tasks/lib/useDayTaskDnd';
 
 import { DayTaskDragOverlay } from './DayTaskDragOverlay';

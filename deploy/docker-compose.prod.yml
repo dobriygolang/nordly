@@ -39,12 +39,15 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: >
-      redis-server
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command: ["sh", "-ec", "exec redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis_data:/data
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -66,7 +69,8 @@ services:
       args:
         SERVICE: identity
     restart: unless-stopped
-    user: "0:0"
+    # Match the host owner of secrets/jwt/private.pem (mode 0600); identity never needs root.
+    user: "${DEPLOY_UID:?set DEPLOY_UID to the private key owner}:${DEPLOY_GID:?set DEPLOY_GID to the private key group}"
     env_file: .env
     environment:
       <<: *service-env
@@ -74,6 +78,7 @@ services:
       GRPC_PORT: 9090
       POSTGRES_DSN: ${IDENTITY_POSTGRES_DSN}
       REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       JWT_PRIVATE_KEY_FILE: /run/secrets/jwt/private.pem
       JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
       FRONTEND_URL: ${FRONTEND_URL}
@@ -108,7 +113,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      <<: *service-env
       REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
     depends_on:
       redis:
@@ -121,7 +128,6 @@ services:
       args:
         SERVICE: sandbox
     restart: unless-stopped
-    user: "0:0"
     env_file: .env
     environment:
       <<: *service-env
@@ -139,10 +145,13 @@ services:
       SANDBOX_DOCKER_PYTHON_IMAGE: ${SANDBOX_DOCKER_PYTHON_IMAGE:-python:3.12-alpine}
       SANDBOX_DOCKER_NODE_IMAGE: ${SANDBOX_DOCKER_NODE_IMAGE:-node:22-alpine}
       SANDBOX_DOCKER_WORK_ROOT: /var/lib/sandbox-work
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
     volumes:
       - ./secrets/jwt:/run/secrets/jwt:ro
       - /var/lib/sandbox-work:/var/lib/sandbox-work
-      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - sandbox_docker
     healthcheck:
       <<: *health-ready
       timeout: 15s
@@ -152,6 +161,32 @@ services:
         condition: service_completed_successfully
       billing:
         condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+
+  # The sandbox has no raw Docker socket and runs as the image's unprivileged user.
+  # This proxy exposes only the Docker APIs needed for image pulls and ephemeral containers.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      INFO: "1"
+      PING: "1"
+      VERSION: "1"
+      POST: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - sandbox_docker
 
   tracker:
     build:
@@ -201,6 +236,7 @@ services:
       GRPC_PORT: 9095
       POSTGRES_DSN: ${BILLING_POSTGRES_DSN}
       REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       ENTITLEMENTS_CACHE_TTL: ${ENTITLEMENTS_CACHE_TTL:-60s}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
       IDENTITY_GRPC_ADDR: identity:9090
@@ -328,6 +364,11 @@ services:
       - caddy_data:/data
       - caddy_config:/config
       - ${NORDLY_CDN_DIR:-./data/cdn}:/cdn:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       identity:
         condition: service_healthy
@@ -407,7 +448,7 @@ services:
     image: grafana/grafana:11.5.2
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.trynordly.app/}
       GF_SERVER_DOMAIN: grafana.trynordly.app
@@ -429,8 +470,13 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   caddy_data:
   caddy_config:
   prometheus_data:
   grafana_data:
   alloy_data:
+
+networks:
+  sandbox_docker:
+    internal: true

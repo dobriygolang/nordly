@@ -7,10 +7,10 @@ import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
-import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
+import { dbDelete, dbGet, dbGetAllByUser, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
 let derivedKey: CryptoKey | null = null;
-let cachedSalt: Uint8Array | null = null;
+let derivedKeyUserId: string | null = null;
 
 type Listener = (unlocked: boolean) => void;
 const listeners = new Set<Listener>();
@@ -45,6 +45,7 @@ function requireSaltB64(j: SaltResponse): string {
 export async function initVault(): Promise<{ saltB64: string; isNewVault: boolean }> {
   if (!isCloudEnabled()) {
     const { saltB64, isNew } = await initLocalVaultSalt();
+    if (isNew) await markVerifierPending();
     return { saltB64, isNewVault: isNew };
   }
 
@@ -57,7 +58,9 @@ export async function initVault(): Promise<{ saltB64: string; isNewVault: boolea
   const j = (await resp.json()) as SaltResponse;
   const saltB64 = requireSaltB64(j);
   await cacheLocalSalt(saltB64);
-  return { saltB64, isNewVault: !j.initialized };
+  const isNewVault = !j.initialized;
+  if (isNewVault) await markVerifierPending();
+  return { saltB64, isNewVault };
 }
 
 function localSaltKey(userId: string): string {
@@ -101,6 +104,20 @@ export async function fetchVaultSalt(): Promise<string | null> {
 const PBKDF2_ITERATIONS = 200_000;
 const KEY_BITS = 256;
 const IV_BYTES = 12;
+const VERIFIER_PLAINTEXT = 'nordly-vault-verifier-v1';
+
+function verifierKey(userId: string): string {
+  return `${userId}::vault_verifier_v1`;
+}
+
+function verifierPendingKey(userId: string): string {
+  return `${userId}::vault_verifier_pending_v1`;
+}
+
+async function markVerifierPending(): Promise<void> {
+  const userId = requireUserId();
+  await dbPut('meta', { key: verifierPendingKey(userId), userId, pending: true });
+}
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
@@ -133,24 +150,32 @@ export async function unlockVault(passphrase: string): Promise<void> {
   if (!saltB64) {
     throw new Error('Vault not initialised');
   }
-  cachedSalt = base64Decode(saltB64);
-  derivedKey = await deriveKey(passphrase, cachedSalt);
+  const userId = requireUserId();
+  const salt = base64Decode(saltB64);
+  const candidate = await deriveKey(passphrase, salt);
+  await verifyCandidateKey(candidate, userId);
+  derivedKey = candidate;
+  derivedKeyUserId = userId;
   notify(true);
 }
 
 export function lockVault(): void {
   derivedKey = null;
-  cachedSalt = null;
+  derivedKeyUserId = null;
   notify(false);
 }
 
 export async function encryptText(plaintext: string): Promise<string> {
-  if (!derivedKey) throw new Error('Vault locked');
+  const key = requireCurrentKey();
+  return encryptWithKey(key, plaintext);
+}
+
+async function encryptWithKey(key: CryptoKey, plaintext: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const enc = new TextEncoder();
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: iv as BufferSource },
-    derivedKey,
+    key,
     enc.encode(plaintext),
   );
   const ctBytes = new Uint8Array(ct);
@@ -161,7 +186,10 @@ export async function encryptText(plaintext: string): Promise<string> {
 }
 
 export async function decryptText(b64: string): Promise<string> {
-  if (!derivedKey) throw new Error('Vault locked');
+  return decryptWithKey(requireCurrentKey(), b64);
+}
+
+async function decryptWithKey(key: CryptoKey, b64: string): Promise<string> {
   const buf = base64Decode(b64);
   if (buf.length <= IV_BYTES) throw new Error('Invalid ciphertext');
   const iv = buf.slice(0, IV_BYTES);
@@ -170,13 +198,98 @@ export async function decryptText(b64: string): Promise<string> {
   try {
     pt = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: iv as BufferSource },
-      derivedKey,
+      key,
       ct as BufferSource,
     );
   } catch {
     throw new Error('Decryption failed — wrong passphrase or corrupted data');
   }
   return new TextDecoder().decode(pt);
+}
+
+function requireCurrentKey(): CryptoKey {
+  if (!derivedKey || derivedKeyUserId !== requireUserId()) {
+    lockVault();
+    throw new Error('Vault locked');
+  }
+  return derivedKey;
+}
+
+async function verifyCandidateKey(key: CryptoKey, userId: string): Promise<void> {
+  const verifier = await dbGet<{ ciphertextB64?: string }>('meta', verifierKey(userId));
+  if (verifier) {
+    if (typeof verifier.ciphertextB64 !== 'string' || verifier.ciphertextB64.length === 0) {
+      throw new Error('Vault verifier is corrupted');
+    }
+    const plaintext = await decryptWithKey(key, verifier.ciphertextB64);
+    if (plaintext !== VERIFIER_PLAINTEXT) throw new Error('Vault verifier mismatch');
+    return;
+  }
+
+  const pending = await dbGet<{ pending?: boolean }>('meta', verifierPendingKey(userId));
+  if (pending?.pending === true) {
+    await saveVerifier(key, userId);
+    return;
+  }
+
+  const sample = await findAuthenticatedCiphertext(userId);
+  if (!sample) {
+    throw new Error(
+      'Cannot verify this vault passphrase: no authenticated verifier or encrypted note is available',
+    );
+  }
+  await decryptWithKey(key, sample);
+  await saveVerifier(key, userId);
+}
+
+async function saveVerifier(key: CryptoKey, userId: string): Promise<void> {
+  const ciphertextB64 = await encryptWithKey(key, VERIFIER_PLAINTEXT);
+  await dbPut('meta', { key: verifierKey(userId), userId, ciphertextB64 });
+  await dbDelete('meta', verifierPendingKey(userId));
+}
+
+async function findAuthenticatedCiphertext(userId: string): Promise<string | null> {
+  const localRows = await dbGetAllByUser<{
+    userId: string;
+    deleted?: boolean;
+    atRestEncrypted?: boolean;
+    title?: string;
+    bodyMd?: string;
+  }>('notes', userId);
+  const local = localRows.find(
+    (row) =>
+      !row.deleted &&
+      row.atRestEncrypted === true &&
+      (typeof row.title === 'string' || typeof row.bodyMd === 'string'),
+  );
+  if (local) {
+    return typeof local.title === 'string' && local.title.length > 0 ? local.title : local.bodyMd ?? null;
+  }
+
+  if (!isCloudApiAvailable()) return null;
+  const listResp = await apiFetch(`${API_BASE_URL}/v1/notes`, { headers: syncAuthHeaders() });
+  if (!listResp.ok) throw new Error(`vault verifier note list: ${listResp.status}`);
+  const listBody = (await listResp.json()) as { notes?: unknown[] };
+  if (!Array.isArray(listBody.notes)) throw new Error('Invalid vault verifier note list');
+
+  for (const item of listBody.notes) {
+    if (typeof item !== 'object' || item === null || typeof (item as { id?: unknown }).id !== 'string') {
+      throw new Error('Invalid vault verifier note summary');
+    }
+    const id = (item as { id: string }).id;
+    const noteResp = await apiFetch(`${API_BASE_URL}/v1/notes/${encodeURIComponent(id)}`, {
+      headers: syncAuthHeaders(),
+    });
+    if (!noteResp.ok) throw new Error(`vault verifier note: ${noteResp.status}`);
+    const noteBody = (await noteResp.json()) as { note?: Record<string, unknown> };
+    const note = noteBody.note;
+    if (!note) throw new Error('Invalid vault verifier note response');
+    if (note.encrypted !== true) continue;
+    if (typeof note.title === 'string' && note.title.length > 0) return note.title;
+    if (typeof note.bodyMd === 'string' && note.bodyMd.length > 0) return note.bodyMd;
+    throw new Error('Encrypted vault note is missing ciphertext');
+  }
+  return null;
 }
 
 function base64Encode(bytes: Uint8Array): string {

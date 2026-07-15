@@ -5,7 +5,11 @@ import {
 } from '@features/focus/remote/focusRemote';
 import { focusStoreGet, focusStorePut, focusStoreUnsynced } from '@features/focus/repository/focusStore';
 import { getServerId, setServerId } from '@shared/sync/idMap';
-import { enqueueOutbox, hasOutboxForEntity, removeOutbox } from '@shared/sync/outbox';
+import {
+  enqueueOutboxOnce,
+  hasOutboxForEntity,
+  removeOutboxForEntity,
+} from '@shared/sync/outbox';
 import { SyncDeferredError } from '@shared/sync/errors';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import type { OutboxEntry } from '@shared/sync/types';
@@ -17,39 +21,99 @@ export async function pushFocusOutbox(entry: OutboxEntry): Promise<void> {
   if (entry.op === 'session_start') {
     const existingId = await getServerId('focus', entry.entityId, userId);
     if (existingId) {
-      await removeOutbox(entry.id, userId);
+      await removeOutboxForEntity('focus', entry.entityId, 'session_start', userId);
       return;
     }
+    const mode = payload.mode;
+    if (mode !== 'pomodoro' && mode !== 'stopwatch') {
+      throw new Error(`Invalid focus start mode (${entry.id})`);
+    }
     const session = await remoteStartFocusSession({
-      planItemId: String(payload.planItemId ?? ''),
-      pinnedTitle: String(payload.pinnedTitle ?? ''),
-      mode: (payload.mode as 'pomodoro' | 'stopwatch') ?? 'pomodoro',
+      planItemId: requirePayloadString(payload, 'planItemId', entry.id),
+      pinnedTitle: requirePayloadString(payload, 'pinnedTitle', entry.id),
+      mode,
+      clientSessionId: requirePayloadEntityId(payload, 'clientSessionId', entry),
+      startedAt: requirePayloadTimestamp(payload, 'startedAt', entry.id),
     });
     await setServerId('focus', entry.entityId, session.id, userId);
     const local = await focusStoreGet(entry.entityId, userId);
     if (local) {
       await focusStorePut({ ...local, synced: false });
     }
-    await removeOutbox(entry.id, userId);
+    await removeOutboxForEntity('focus', entry.entityId, 'session_start', userId);
     return;
   }
 
   if (entry.op === 'session_end') {
+    const localBefore = await focusStoreGet(entry.entityId, userId);
+    if (localBefore?.synced) {
+      await removeOutboxForEntity('focus', entry.entityId, 'session_end', userId);
+      return;
+    }
     const serverId = await getServerId('focus', entry.entityId, userId);
     if (!serverId) {
       throw new SyncDeferredError(`Focus session ${entry.entityId} not started on server yet`);
     }
     await remoteEndFocusSession({
       sessionId: serverId,
-      pomodorosCompleted: Number(payload.pomodorosCompleted ?? 0),
-      secondsFocused: Number(payload.secondsFocused ?? 0),
+      pomodorosCompleted: requirePayloadCount(payload, 'pomodorosCompleted', entry.id),
+      secondsFocused: requirePayloadCount(payload, 'secondsFocused', entry.id),
+      endedAt: requirePayloadTimestamp(payload, 'endedAt', entry.id),
     });
     const local = await focusStoreGet(entry.entityId, userId);
     if (local) {
       await focusStorePut({ ...local, synced: true });
     }
-    await removeOutbox(entry.id, userId);
+    await removeOutboxForEntity('focus', entry.entityId, 'session_end', userId);
   }
+}
+
+function requirePayloadString(
+  payload: Record<string, unknown>,
+  key: string,
+  entryId: string,
+): string {
+  const value = payload[key];
+  if (typeof value !== 'string') {
+    throw new Error(`Invalid focus outbox payload: ${key} (${entryId})`);
+  }
+  return value;
+}
+
+function requirePayloadCount(
+  payload: Record<string, unknown>,
+  key: string,
+  entryId: string,
+): number {
+  const value = payload[key];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid focus outbox payload: ${key} (${entryId})`);
+  }
+  return value;
+}
+
+function requirePayloadEntityId(
+  payload: Record<string, unknown>,
+  key: string,
+  entry: OutboxEntry,
+): string {
+  const value = requirePayloadString(payload, key, entry.id);
+  if (value !== entry.entityId) {
+    throw new Error(`Invalid focus outbox payload: ${key} (${entry.id})`);
+  }
+  return value;
+}
+
+function requirePayloadTimestamp(
+  payload: Record<string, unknown>,
+  key: string,
+  entryId: string,
+): string {
+  const value = requirePayloadString(payload, key, entryId);
+  if (!Number.isFinite(Date.parse(value))) {
+    throw new Error(`Invalid focus outbox payload: ${key} (${entryId})`);
+  }
+  return value;
 }
 
 export async function pullFocus(): Promise<void> {
@@ -69,20 +133,23 @@ export async function reconcileFocusOutbox(): Promise<number> {
     const hasEnd = await hasOutboxForEntity('focus', session.id, 'session_end', userId);
 
     if (!serverId && !hasStart) {
-      await enqueueOutbox('focus', 'session_start', session.id, {
+      const enqueued = await enqueueOutboxOnce('focus', 'session_start', session.id, {
         planItemId: session.planItemId,
         pinnedTitle: session.pinnedTitle,
         mode: session.mode,
+        clientSessionId: session.id,
+        startedAt: session.startedAt,
       });
-      added++;
+      if (enqueued) added++;
     }
 
     if (!hasEnd) {
-      await enqueueOutbox('focus', 'session_end', session.id, {
+      const enqueued = await enqueueOutboxOnce('focus', 'session_end', session.id, {
         pomodorosCompleted: session.pomodorosCompleted,
         secondsFocused: session.secondsFocused,
+        endedAt: session.endedAt,
       });
-      added++;
+      if (enqueued) added++;
     }
   }
 

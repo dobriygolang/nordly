@@ -52,7 +52,7 @@ Removed — no background consumers; no outbox table in current schema.
 
 `work_tasks(…, epic_id, conference_url, conference_provider, zoom_meeting_id, …)`
 
-`epics(user_id, name, color, archived_at)` — seeded with Work/Personal/Learning/Health on first `ListEpics` when empty.
+`epics(user_id, name, color, archived_at)` — seeded idempotently with Work/Personal/Learning/Health on first `ListEpics` when empty.
 
 Statuses: `todo` | `in_progress` | `in_review` | `done` | `dismissed`. Schedule duration 15–480 minutes. Soft-delete via `archived_at`.
 
@@ -68,11 +68,12 @@ Optional env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` 
 
 OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD + `Events.list` sync) and `calendar.calendarlist.readonly` (list calendars for target selection). Both must be added to the OAuth consent screen; changing scopes requires existing users to reconnect.
 
-- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` serves the local `google_calendar_events` cache and refreshes it incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view).
+- **Inbound (Google → Nordly):** `ListGoogleCalendarEvents` is cache-only. A one-minute background worker refreshes `google_calendar_events` incrementally per calendar (`google_calendar_sync_state`) using Google's `syncToken`. **All calendars** on the account are synced (merged view).
 - **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
 - **Meet on tasks:** `CreateWorkTaskConference` with `provider=meet` creates/patches a Google Calendar event with Meet link (`google_event_id` on task). This is **not** automatic task mirroring — only explicit conference creation.
 
 **Task→Google schedule mirroring removed.** `google_calendar_sync_enabled` is deprecated (always false). Scheduling or completing a task does not create/update Google events.
+The service no longer writes this field from settings updates and always emits `false`; the column remains for a minimum 30-day production observation window. Run `deploy/scripts/audit-schema-usage.sql` and confirm zero `true` rows plus zero application reads/writes before preparing a later DROP migration.
 
 **Token security.** `TOKEN_ENCRYPTION_KEY` is **required** at startup. Refresh tokens are stored encrypted (AES-GCM). Plaintext tokens at rest are rejected — user must reconnect Google/Zoom after enabling encryption.
 

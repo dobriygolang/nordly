@@ -115,15 +115,24 @@ func (h *Hub) register(roomID uuid.UUID, c *wsConn) {
 }
 
 func (h *Hub) unregister(roomID uuid.UUID, c *wsConn) {
-	h.mu.RLock()
+	h.mu.Lock()
 	rh := h.rooms[roomID]
-	h.mu.RUnlock()
 	if rh == nil {
+		h.mu.Unlock()
 		return
 	}
 	rh.mu.Lock()
 	delete(rh.clients, c)
+	empty := len(rh.clients) == 0
 	rh.mu.Unlock()
+	if empty {
+		delete(h.rooms, roomID)
+		h.seqCounters.Delete(roomID)
+	}
+	h.mu.Unlock()
+	if empty {
+		return
+	}
 	h.Broadcast(roomID, KindParticipantLeft, map[string]any{"user_id": c.userID})
 }
 
@@ -179,7 +188,7 @@ func (h *Hub) CloseRoom(roomID uuid.UUID) {
 	}
 	rh.mu.RUnlock()
 	for _, c := range clients {
-		_ = c.ws.Close()
+		c.close()
 	}
 }
 
@@ -286,20 +295,21 @@ func (h *Hub) CloseAll() {
 	for _, rh := range rooms {
 		rh.mu.RLock()
 		for c := range rh.clients {
-			_ = c.ws.Close()
+			c.close()
 		}
 		rh.mu.RUnlock()
 	}
 }
 
 type wsConn struct {
-	ws     *websocket.Conn
-	roomID uuid.UUID
-	userID uuid.UUID
-	role   atomic.Value
-	out    chan []byte
-	done   chan struct{}
-	log    logger.Logger
+	ws        *websocket.Conn
+	roomID    uuid.UUID
+	userID    uuid.UUID
+	role      atomic.Value
+	out       chan []byte
+	done      chan struct{}
+	log       logger.Logger
+	closeOnce sync.Once
 
 	rlMu    sync.Mutex
 	rlStart time.Time
@@ -332,10 +342,24 @@ func (c *wsConn) enqueue(msg []byte) {
 	select {
 	case c.out <- msg:
 	default:
-		c.log.Warn("ws slow client, frame dropped",
+		c.log.Warn("ws slow client disconnected",
 			"user", c.userID.String(),
 			"room", c.roomID.String())
+		c.close()
 	}
+}
+
+// close disconnects clients that cannot keep up so no room updates are silently dropped.
+func (c *wsConn) close() {
+	c.closeOnce.Do(func() {
+		_ = c.ws.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "client too slow"),
+			time.Now().Add(time.Second),
+		)
+		close(c.done)
+		_ = c.ws.Close()
+	})
 }
 
 func (c *wsConn) rateOk() bool {
@@ -378,8 +402,7 @@ func (c *wsConn) writeLoop() {
 func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 	defer func() {
 		h.unregister(c.roomID, c)
-		close(c.done)
-		_ = c.ws.Close()
+		c.close()
 	}()
 	c.ws.SetReadLimit(256 * 1024)
 	_ = c.ws.SetReadDeadline(time.Now().Add(wsReadDeadline))

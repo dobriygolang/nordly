@@ -64,6 +64,8 @@ func (r *Repository) CreateEpic(ctx context.Context, userID, name, color string)
 	row := r.conn(ctx).QueryRow(ctx, `
 		INSERT INTO epics (id, user_id, name, color)
 		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, lower(name)) WHERE archived_at IS NULL DO UPDATE SET
+			color = epics.color
 		RETURNING id, user_id, name, color, created_at, updated_at, archived_at
 	`, id, uid, name, color)
 	return scanEpic(row)

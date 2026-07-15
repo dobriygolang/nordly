@@ -26,6 +26,7 @@ type Repository interface {
 	ClearGoogleEventIDByEventID(ctx context.Context, userID, eventID string) error
 
 	GetUserSettings(ctx context.Context, userID string) (*model.UserSettings, error)
+	ListGoogleConnectedSettings(ctx context.Context) ([]model.UserSettings, error)
 	UpsertUserSettings(ctx context.Context, userID string, patch repository.UserSettingsPatch) (*model.UserSettings, error)
 	SaveGoogleOAuthState(ctx context.Context, userID, state string) error
 	ConsumeGoogleOAuthState(ctx context.Context, state string) (string, error)
@@ -74,6 +75,7 @@ type Service interface {
 	HandleGoogleCallback(ctx context.Context, code, state string) (string, error)
 	DisconnectGoogleCalendar(ctx context.Context, userID string) (*model.UserSettingsView, error)
 	ListGoogleCalendarEvents(ctx context.Context, userID string, timeMin, timeMax time.Time) ([]googleadapter.CalendarEvent, error)
+	RefreshGoogleCalendarCaches(ctx context.Context) error
 	CreateGoogleCalendarEvent(ctx context.Context, userID string, in GoogleEventInput) (*googleadapter.CalendarEvent, error)
 	UpdateGoogleCalendarEvent(ctx context.Context, userID, eventID string, in GoogleEventInput) (*googleadapter.CalendarEvent, error)
 	DeleteGoogleCalendarEvent(ctx context.Context, userID, eventID, calendarID string) error

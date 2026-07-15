@@ -15,7 +15,6 @@ export { isCloudEnabled } from '@shared/model/features';
 export function isCloudApiAvailable(): boolean {
   if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;
-  if (useSyncStore.getState().sessionReauthRequired) return false;
 
   const { accessToken, refreshToken } = useSessionStore.getState();
   if (!accessToken && !refreshToken) return false;
@@ -28,6 +27,13 @@ export function isCloudApiAvailable(): boolean {
 /** Multi-device sync (tasks, focus, notes outbox) — registered device required. */
 export function isSyncEnabled(): boolean {
   if (!isCloudApiAvailable()) return false;
+  return isSyncQueueEnabled();
+}
+
+/** Queue local mutations even when the access token must be refreshed first. */
+export function isSyncQueueEnabled(): boolean {
+  if (!isCloudEnabled()) return false;
+  if (!canUseLocalApp()) return false;
   if (useSyncStore.getState().cloudSyncBlocked) return false;
 
   const reg = useFeatureUsageStore.getState().deviceRegistration;

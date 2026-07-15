@@ -15,7 +15,7 @@ import {
   type TaskEpicSelection,
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
-import { getTrackerSettings, type TrackerSettings } from '@features/calendar/remote/calendarClient';
+import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -36,6 +36,8 @@ import {
   taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
+import { useTodayKey } from '@shared/hooks/useTodayKey';
+import type { EntityNavigationRequest } from '@shared/model/navigation';
 
 const VISIBLE = new Set(['todo', 'in_progress', 'in_review', 'done']);
 
@@ -51,14 +53,23 @@ function compareTaskColumnOrder(a: TaskCard, b: TaskCard): number {
   return aOrder - bOrder;
 }
 
-export function TaskBoardPage(): JSX.Element {
+interface TaskBoardPageProps {
+  openRequest?: EntityNavigationRequest | null;
+  onConsumeOpenRequest?: (requestKey: number) => void;
+}
+
+export function TaskBoardPage({
+  openRequest,
+  onConsumeOpenRequest,
+}: TaskBoardPageProps = {}): JSX.Element {
   const t = useT();
-  const today = useMemo(() => new Date(), []);
-  const todayKey = toDayKey(today);
+  const todayKey = useTodayKey();
+  const today = useMemo(() => parseDayKey(todayKey), [todayKey]);
   const { days, scrollRef, showBackToToday, scrollToToday, ensureDayVisible, expandRangeForDayKeys } =
     useInfiniteDayScroll(today);
   const { epics } = useTaskEpics();
   const [tasks, setTasks] = useState<TaskCard[]>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [selectedDay, setSelectedDay] = useState(() => todayKey);
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
@@ -66,6 +77,13 @@ export function TaskBoardPage(): JSX.Element {
   const [loadError, setLoadError] = useState<Error | null>(null);
   const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
   const didExpandTasksRef = useRef(false);
+  const previousTodayKeyRef = useRef(todayKey);
+
+  useEffect(() => {
+    const previousTodayKey = previousTodayKeyRef.current;
+    previousTodayKeyRef.current = todayKey;
+    setSelectedDay((current) => (current === previousTodayKey ? todayKey : current));
+  }, [todayKey]);
 
   const handleLoadError = useCallback((err: unknown) => {
     if (isAuthError(err) || useSyncStore.getState().sessionReauthRequired) {
@@ -78,6 +96,7 @@ export function TaskBoardPage(): JSX.Element {
 
   const refresh = useCallback(async () => {
     setTasks(await listTasks());
+    setTasksLoaded(true);
     setLoadError(null);
   }, []);
 
@@ -180,7 +199,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [todayKey, refresh, failTaskAction],
+    [todayKey, failTaskAction],
   );
 
   const handleMoveToDay = useCallback(
@@ -214,7 +233,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [tasks, findTaskColumnKey, refresh, applyInsertOrder],
+    [tasks, findTaskColumnKey, applyInsertOrder, failTaskAction],
   );
 
   const handleReorder = useCallback(
@@ -274,7 +293,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [refresh],
+    [failTaskAction],
   );
 
   const handleCreateConference = useCallback(
@@ -354,7 +373,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [refresh],
+    [failTaskAction],
   );
 
   const handleTitleChange = useCallback(
@@ -369,7 +388,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [refresh],
+    [failTaskAction],
   );
 
   const handleDurationChange = useCallback(
@@ -388,7 +407,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [tasks, refresh],
+    [tasks, failTaskAction],
   );
 
   // Drag-to-reschedule from the calendar / timeline: place the task at the exact
@@ -409,7 +428,7 @@ export function TaskBoardPage(): JSX.Element {
         failTaskAction(err);
       }
     },
-    [refresh],
+    [failTaskAction],
   );
 
   const handleTimelineReschedule = useCallback(
@@ -432,18 +451,19 @@ export function TaskBoardPage(): JSX.Element {
   }, [scrollToToday, todayKey]);
 
   useEffect(() => {
-    const onOpen = (e: Event): void => {
-      const taskId = (e as CustomEvent<{ taskId?: string }>).detail?.taskId;
-      if (!taskId) return;
-      const task = tasks.find((item) => item.id === taskId);
-      if (!task) return;
-      const key = taskDayKey(task);
+    if (!openRequest || !tasksLoaded) return;
+    const task = tasks.find((item) => item.id === openRequest.id);
+    if (task) {
+      const key = task.scheduledStart ? taskDayKey(task) : todayKey;
       setSelectedDay(key);
       ensureDayVisible(key);
-    };
-    window.addEventListener(NORDLY_EVENTS.openTask, onOpen);
-    return () => window.removeEventListener(NORDLY_EVENTS.openTask, onOpen);
-  }, [tasks, ensureDayVisible]);
+      setEditRequest((prev) => ({
+        taskId: task.id,
+        key: (prev?.key ?? 0) + 1,
+      }));
+    }
+    onConsumeOpenRequest?.(openRequest.requestKey);
+  }, [openRequest, tasksLoaded, tasks, todayKey, ensureDayVisible, onConsumeOpenRequest]);
 
   if (loadError && !sessionReauthRequired) throw loadError;
 

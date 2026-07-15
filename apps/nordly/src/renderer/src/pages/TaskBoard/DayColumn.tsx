@@ -1,11 +1,11 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { memo, useMemo, Fragment } from 'react';
+import { memo, useId, useMemo, Fragment } from 'react';
 import { useT, useLocale } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { formatColumnHeader, formatDuration, sumDurationMin } from '@shared/lib/dates';
 import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
 import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
@@ -71,6 +71,7 @@ export const DayColumn = memo(function DayColumn({
   const t = useT();
   const [locale] = useLocale();
   const { weekday, label, isToday } = formatColumnHeader(date, today, locale);
+  const headerId = useId();
   const columnTaskIds = useMemo(() => uniqueTaskIds(taskIds), [taskIds]);
   const tasks = useMemo(
     () => resolveTasksForColumn(columnTaskIds, taskById),
@@ -84,7 +85,21 @@ export const DayColumn = memo(function DayColumn({
     <section
       className={`nordly-day-column${dropHighlight ? ' nordly-day-column--drop' : ''}`}
       data-day-key={dayKey}
+      data-selected={selected ? 'true' : 'false'}
+      role="region"
+      aria-labelledby={headerId}
+      aria-current={isToday ? 'date' : undefined}
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          (event.key === 'Enter' || event.key === ' ')
+        ) {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       style={{
         flex: `0 0 ${COL_W}px`,
         width: COL_W,
@@ -94,7 +109,7 @@ export const DayColumn = memo(function DayColumn({
     >
       <div ref={setNodeRef} className="nordly-day-column__body">
         <header className="nordly-day-column__header">
-          <div className="nordly-day-column__header-main">
+          <div id={headerId} className="nordly-day-column__header-main">
             <div
               className="nordly-day-column__weekday"
               data-selected={selected ? 'true' : 'false'}
@@ -112,6 +127,7 @@ export const DayColumn = memo(function DayColumn({
         <button
           type="button"
           className="nordly-day-add-btn"
+          aria-describedby={headerId}
           onClick={(e) => {
             e.stopPropagation();
             onAddClick();

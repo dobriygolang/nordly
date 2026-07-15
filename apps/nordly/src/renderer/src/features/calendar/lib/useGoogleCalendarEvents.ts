@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { GoogleReauthError, type GoogleCalendarEvent } from '@features/calendar/remote/calendarClient';
+import { GoogleReauthError, type GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 

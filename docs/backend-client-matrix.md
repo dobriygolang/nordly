@@ -10,7 +10,7 @@ Cross-reference of **what ships in proto/HTTP** vs **what Nordly desktop + web c
 | ⚠️ | HTTP exists; **no app client** (s2s, admin, or dead) |
 | 🔸 | Called but **some response/request fields unused** by all clients |
 
-Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
+Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 
 ---
 
@@ -21,6 +21,7 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 | POST `/v1/auth/telegram` | ✅ `code` → tokens + `user.id` | — | |
 | POST `/v1/auth/refresh` | ✅ `refreshToken` | 🔸 dormant if no tokens | Web clears JWT on boot |
 | GET `/v1/auth/config` | ✅ `telegramBotUsername` | — | Custom HTTP |
+| POST `/v1/devices/register` | ✅ `deviceId`, `name`, `appVersion` → all response fields | — | Custom HTTP; JWT |
 | HEAD `/healthz` | ✅ status only | — | SyncEngine |
 | GET `/v1/users/{id}/avatar` | 🔸 via `avatar_url` path in user | — | Not fetched directly; relative URL in user |
 | GetUser / GetUserByTelegramID / ValidateToken / MintScopedAccessToken | — | — | **s2s only** (rooms, billing, sandbox) |
@@ -54,6 +55,7 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 | Vault init/salt/encrypt | ✅ | — | |
 | Publish flow (status, share, unpublish, make-private) | ✅ | — | |
 | GET `/v1/notes/public/{slug}` | — | ✅ `title`, `body_md`, `password_required` | `published_at` parsed, **not shown** |
+| POST `/v1/notes/public/{slug}/access` | — | ✅ `password` → `title`, `body_md` | `published_at` parsed, **not shown** |
 
 **Removed:** ListNotes pagination (`limit`/`cursor`/`next_cursor`).
 
@@ -80,7 +82,7 @@ Last reviewed: 2026-07-03 (grep-based inventory, not OpenAPI diff).
 | GET room | — | ✅ `id`, `owner_id`, `room_type`, `language`, `created_at`, `expires_at` | |
 | POST guest-join | — | ✅ `displayName` body | |
 | POST close | — | ✅ | |
-| GET initial-scene | — | ✅ `sceneJson` | |
+| GET `/v1/rooms/{id}/initial-scene` | — | ✅ `scene_json` | |
 | GET boards/public/{slug} | — | ✅ `title`, `sceneJson` | |
 | WS `/ws/editor/{roomId}` | — | ✅ | |
 

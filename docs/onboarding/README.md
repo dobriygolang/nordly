@@ -5,8 +5,8 @@ Architecture overview for the **Nordly productivity stack**.
 ## Platform (current)
 
 ```
-Nordly (Tauri desktop) ──HTTP──► identity | tracker | notes | focus | rooms (whiteboard share/publish)
-Web (landing + live) ──HTTP/WS──► identity | billing | rooms | sandbox | notes (public)
+Nordly (Tauri desktop) ──HTTP──► identity | billing | tracker | notes | focus | rooms (whiteboard share/publish)
+Web (landing + live) ──HTTP/WS──► rooms | sandbox | notes (public)
 ```
 
 Each service has its own Postgres. Cross-service calls via gRPC adapters only.
@@ -30,7 +30,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 | focus | Pomodoro sessions, stats | nordly |
 | rooms | Live collab, Yjs WS, board publish | web, nordly (share) |
 | sandbox | Code run, format | web (live rooms) |
-| billing | Plans, entitlements | web (pricing), notes/sandbox (gates) |
+| billing | Entitlements, quotas, subscription/webhook ops | nordly (feature usage), identity/notes/sandbox (gates) |
 
 Plan matrix: [docs/billing-features.md](../billing-features.md).
 
@@ -40,6 +40,7 @@ Plan matrix: [docs/billing-features.md](../billing-features.md).
 
 | From | To | Why |
 |------|-----|-----|
+| identity | billing | `cloud_sync_enabled` and `cloud_sync_devices` on device registration |
 | notes | billing | `published_notes_active` on share-to-web; `publish_password` for private links |
 | rooms | identity | scoped guest JWT mint |
 | sandbox | billing | code run quotas |

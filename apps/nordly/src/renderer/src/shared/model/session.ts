@@ -17,9 +17,8 @@ import { useSyncStore } from '@shared/model/sync';
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
-// Browser-mode session persistence. In Electron production the session lives in
-// safeStorage keychain (main-process IPC). In Vite browser-mode the IPC bridge
-// is nil — persist to localStorage so Telegram login survives page reload.
+// Browser-dev session persistence only. Native sessions live exclusively in the
+// OS keychain; a missing bridge in a production build must never persist tokens.
 const BROWSER_PERSIST_KEY = 'nordly:dev-session:v1';
 
 /** Bumped on sign-out so in-flight native persist cannot restore keychain session. */
@@ -40,6 +39,7 @@ interface PersistedSession {
 }
 
 function readBrowserPersist(): PersistedSession | null {
+  if (window.nordly || !import.meta.env.DEV) return null;
   const raw = window.localStorage.getItem(BROWSER_PERSIST_KEY);
   if (!raw) return null;
   const s = JSON.parse(raw) as Partial<PersistedSession>;
@@ -72,7 +72,17 @@ async function persistSessionToNative(session: PersistedSession, epoch: number):
   }
 }
 
+function persistSessionInBackground(session: PersistedSession): void {
+  void persistSessionToNative(session, sessionPersistEpoch).catch((err: unknown) => {
+    console.error('[nordly:session] native session persistence failed', err);
+  });
+}
+
 function writeBrowserPersist(s: PersistedSession): void {
+  if (window.nordly || !import.meta.env.DEV) {
+    clearBrowserPersist();
+    return;
+  }
   window.localStorage.setItem(BROWSER_PERSIST_KEY, JSON.stringify(s));
 }
 
@@ -121,7 +131,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
 
   status: 'unknown',
   userId: null,
@@ -132,10 +142,18 @@ export const useSessionStore = create<SessionState>((set) => ({
   bootstrap: async () => {
     const applySession = (s: PersistedSession): boolean => {
       if (!isPersistedUserId(s.userId)) {
+        if (get().userId !== null) {
+          lockVault();
+          clearVaultPrefsCache();
+        }
         clearBrowserPersist();
         setDbUserId(null);
         set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
         return false;
+      }
+      if (get().userId !== s.userId) {
+        lockVault();
+        clearVaultPrefsCache();
       }
       setDbUserId(s.userId);
       set({
@@ -154,17 +172,27 @@ export const useSessionStore = create<SessionState>((set) => ({
 
     const bridge = window.nordly;
     if (!bridge) {
+      if (!import.meta.env.DEV) {
+        clearBrowserPersist();
+        throw new Error('Native auth bridge unavailable outside browser development');
+      }
       const persisted = readBrowserPersist();
       if (persisted && applySession(persisted)) return;
+      if (get().userId !== null) {
+        lockVault();
+        clearVaultPrefsCache();
+      }
       setDbUserId(null);
-      set({ status: 'guest' });
+      set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
       return;
     }
 
+    clearBrowserPersist();
     let native: Awaited<ReturnType<typeof bridge.auth.session>> | null = null;
     try {
       native = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
-    } catch {
+    } catch (err) {
+      console.error('[nordly:session] native session bootstrap failed', err);
       native = null;
     }
 
@@ -179,18 +207,12 @@ export const useSessionStore = create<SessionState>((set) => ({
       return;
     }
 
-    try {
-      const persisted = readBrowserPersist();
-      if (persisted && applySession(persisted)) {
-        void persistSessionToNative(persisted, sessionPersistEpoch);
-        return;
-      }
-    } catch {
-      clearBrowserPersist();
+    if (get().userId !== null) {
+      lockVault();
+      clearVaultPrefsCache();
     }
-
     setDbUserId(null);
-    set({ status: 'guest' });
+    set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
   },
 
   hydrate: ({ userId, accessToken, refreshToken, expiresAt }) => {
@@ -200,6 +222,10 @@ export const useSessionStore = create<SessionState>((set) => ({
       refreshToken: refreshToken ?? null,
       expiresAt: expiresAt ?? 0,
     };
+    if (get().userId !== userId) {
+      lockVault();
+      clearVaultPrefsCache();
+    }
     setDbUserId(userId);
     set({
       status: 'signed_in',
@@ -209,10 +235,16 @@ export const useSessionStore = create<SessionState>((set) => ({
       expiresAt: expiresAt ?? 0,
     });
     writeBrowserPersist(session);
-    void persistSessionToNative(session, sessionPersistEpoch);
+    persistSessionInBackground(session);
   },
 
   applyTokens: ({ userId, accessToken, refreshToken, expiresAt }) => {
+    const currentUserId = get().userId;
+    if (currentUserId !== userId) {
+      lockVault();
+      clearVaultPrefsCache();
+      throw new Error('Cannot apply tokens for a different session user');
+    }
     setDbUserId(userId);
     const session: PersistedSession = {
       userId,
@@ -222,7 +254,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     };
     set({ accessToken, refreshToken, expiresAt });
     writeBrowserPersist(session);
-    void persistSessionToNative(session, sessionPersistEpoch);
+    persistSessionInBackground(session);
   },
 
   clear: async (opts) => {

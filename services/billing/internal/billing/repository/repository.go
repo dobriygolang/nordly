@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/model"
+	"github.com/google/uuid"
 )
 
 var ErrLimitExceeded = errors.New("limit exceeded")
@@ -85,25 +85,6 @@ func (r *Repository) ListPlanEntitlements(ctx context.Context, planID string) ([
 		out = append(out, *item)
 	}
 	return out, rows.Err()
-}
-
-func (r *Repository) GetActiveSubscription(ctx context.Context, userID string) (*model.Subscription, error) {
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user id: %w", err)
-	}
-	row := r.conn(ctx).QueryRow(ctx, `
-		SELECT s.id, s.user_id, s.plan_id, p.slug, s.provider, s.provider_subscription_id,
-			s.status, s.current_period_start, s.current_period_end, s.cancel_at_period_end,
-			s.metadata, s.created_at, s.updated_at
-		FROM subscriptions s
-		JOIN plans p ON p.id = s.plan_id
-		WHERE s.user_id = $1 AND s.status IN ('active', 'trialing')
-			AND (s.current_period_end IS NULL OR s.current_period_end > now())
-		ORDER BY p.priority DESC, s.current_period_end DESC NULLS LAST, s.created_at DESC
-		LIMIT 1
-	`, uid)
-	return r.scanSubscription(row)
 }
 
 func (r *Repository) UpsertSubscription(ctx context.Context, sub *model.Subscription) error {

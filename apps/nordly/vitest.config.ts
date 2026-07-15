@@ -21,8 +21,20 @@ export default defineConfig({
     testTimeout: 10_000,
     hookTimeout: 10_000,
     coverage: {
-      reporter: ['text', 'lcov'],
-      include: ['src/renderer/src/shared/lib/**', 'src/renderer/src/shared/model/**'],
+      reporter: ['text'],
+      include: [
+        'src/renderer/src/shared/sync/**/*.{ts,tsx}',
+        'src/renderer/src/shared/crypto/**/*.{ts,tsx}',
+        'src/renderer/src/features/*/api/**/*.{ts,tsx}',
+        'src/renderer/src/features/*/sync/**/*.{ts,tsx}',
+      ],
+      exclude: ['**/__tests__/**', '**/*.{test,spec}.{ts,tsx}'],
+      thresholds: {
+        statements: 15,
+        branches: 65,
+        functions: 30,
+        lines: 15,
+      },
     },
   },
 });

@@ -65,6 +65,8 @@ type PublishedNote struct {
 type PublishMeta struct {
 	PasswordHash  *string
 	ExpiresInDays int32
+	// QuotaLimit is nil for unlimited; otherwise new publishes must remain below it.
+	QuotaLimit *int
 }
 
 // PublishedNoteRecord includes fields needed for password verification (service layer only).

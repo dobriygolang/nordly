@@ -55,7 +55,8 @@ Consumers: **identity** (cloud sync), **notes** (publish), **sandbox** (code run
 - `resolvePlan` always returns active `default` plan (subscriptions do not change entitlements)
 - Atomic consume (`INSERT … ON CONFLICT … WHERE used+amount<=limit`)
 - Webhook + subscription changes in one tx; duplicate webhooks idempotent
-- `ReleaseUsage` idempotent via `usage_release_dedup`
+- `ReleaseUsage` claims `usage_release_dedup` and decrements usage in one transaction; a failed decrement rolls back the claim
+- Invalid entitlement JSON or counter periods fail entitlement reads; they are never omitted from a response
 
 ## Caches
 
@@ -72,7 +73,7 @@ cd services/billing
 make start | gen-proto | lint | test | build
 ```
 
-Production requires `INTERNAL_API_TOKEN`, `TRIBUTE_WEBHOOK_SECRET`.
+Production requires `INTERNAL_API_TOKEN`, `TRIBUTE_WEBHOOK_SECRET`, and `REDIS_PASSWORD` (for the Redis entitlements cache).
 
 ## Metrics
 

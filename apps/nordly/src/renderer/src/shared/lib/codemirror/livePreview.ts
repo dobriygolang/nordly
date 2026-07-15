@@ -437,7 +437,8 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
 export const notesEditorTheme = EditorView.theme({
   '&': {
     height: '100%',
-    fontSize: '1rem',
+    /* 1em → inherits Notes shell zoom (⌘+/⌘−); rem would ignore zoom. */
+    fontSize: '1em',
     lineHeight: '1.7',
   },
   '&.cm-focused': {

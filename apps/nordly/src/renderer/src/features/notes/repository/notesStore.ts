@@ -84,8 +84,11 @@ async function encryptAtRest(
   partial: Omit<StoredNote, 'key' | 'userId' | 'atRestEncrypted'>,
 ): Promise<StoredNote> {
   const base = rowFrom(userId, partial);
-  if (!isVaultEnabledSync() || !isVaultUnlocked()) {
+  if (!isVaultEnabledSync()) {
     return { ...base, atRestEncrypted: false };
+  }
+  if (!isVaultUnlocked()) {
+    throw new Error('Vault locked — plaintext note writes are disabled');
   }
   const { encTitle, encBody } = await encryptNoteFields(partial.title, partial.bodyMd);
   return {
@@ -251,7 +254,11 @@ export async function notesStoreBulkImport(
   records: Record<string, Omit<StoredNote, 'key' | 'userId'>>,
 ): Promise<void> {
   for (const row of Object.values(records)) {
-    await dbPut('notes', rowFrom(userId, { ...row, deleted: false, atRestEncrypted: false }));
+    const encrypted = await encryptAtRest(userId, {
+      ...row,
+      deleted: false,
+    });
+    await dbPut('notes', encrypted);
   }
 }
 
@@ -264,6 +271,11 @@ export async function notesStoreReplaceId(oldId: string, note: Note): Promise<vo
   const userId = requireUserId();
   const existing = await dbGet<StoredNote>('notes', entityKey(oldId, userId));
   const wasDeleted = Boolean(existing?.deleted);
+  if (wasDeleted) {
+    // Preserve the local tombstone under its original id. The id map lets the
+    // queued delete target a server note created just before the local delete.
+    return;
+  }
   await dbDelete('notes', entityKey(oldId, userId));
   const now = new Date().toISOString();
   const row = await encryptAtRest(userId, {
@@ -272,7 +284,7 @@ export async function notesStoreReplaceId(oldId: string, note: Note): Promise<vo
     bodyMd: note.bodyMd,
     createdAt: note.createdAt?.toISOString() ?? now,
     updatedAt: note.updatedAt?.toISOString() ?? now,
-    deleted: wasDeleted,
+    deleted: false,
     wikiLinks: existing?.wikiLinks,
     folderId: existing?.folderId ?? note.folderId ?? null,
   });

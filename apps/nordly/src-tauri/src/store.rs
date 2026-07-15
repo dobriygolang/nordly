@@ -21,7 +21,9 @@ fn default_timer_mode() -> String {
 pub fn load_pomodoro(app: &AppHandle) -> Result<Option<PomodoroSnapshot>, String> {
     let store = app.store(STORE_PATH).map_err(|e| e.to_string())?;
     match store.get("pomodoro") {
-        Some(v) => serde_json::from_value(v.clone()).map(Some).map_err(|e| e.to_string()),
+        Some(v) => serde_json::from_value(v.clone())
+            .map(Some)
+            .map_err(|e| e.to_string()),
         None => Ok(None),
     }
 }

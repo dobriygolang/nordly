@@ -8,7 +8,7 @@ import {
   requireUserId,
 } from '@shared/db/nordlyDb';
 
-import type { GoogleCalendarEvent } from '../remote/calendarClient';
+import type { GoogleCalendarEvent } from '../model/calendar';
 
 const SNAPSHOT_ID = 'google_snapshot';
 

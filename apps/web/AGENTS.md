@@ -63,6 +63,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 | GET | `/v1/rooms/{id}` | `CollabRoomPage` |
 | POST | `/v1/rooms/{id}/guest-join` | join flow |
 | POST | `/v1/rooms/{id}/close` | owner controls |
+| GET | `/v1/rooms/{id}/initial-scene` | system-design room bootstrap |
 | GET | `/v1/rooms/boards/public/{slug}` | `PublishedBoardPage` |
 
 **sandbox** — `lib/api/sandbox.ts`
@@ -78,6 +79,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 | Method | Path | Used by |
 |--------|------|---------|
 | GET | `/v1/notes/public/{slug}` | `PublishedNotePage` |
+| POST | `/v1/notes/public/{slug}/access` | password-protected note unlock |
 
 ### WebSockets
 

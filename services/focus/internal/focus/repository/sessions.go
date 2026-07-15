@@ -13,24 +13,42 @@ import (
 func (r *Repository) CreateSession(
 	ctx context.Context,
 	userID, mode, pinnedTitle string,
-	taskID *string,
+	taskID, clientSessionID *string,
+	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
 	if mode == "" {
 		mode = "pomodoro"
 	}
+	if startedAt != nil {
+		now := time.Now().UTC()
+		if startedAt.After(now) || startedAt.Before(now.AddDate(0, 0, -7)) {
+			return nil, focusmodel.ErrInvalidArgument
+		}
+	}
 	row := r.pg.QueryRow(ctx, `
-		INSERT INTO focus_sessions (user_id, mode, pinned_title, task_id)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, user_id, mode, pinned_title, task_id, started_at, ended_at,
+		INSERT INTO focus_sessions (user_id, mode, pinned_title, task_id, client_session_id, started_at)
+		VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()))
+		ON CONFLICT (user_id, client_session_id) WHERE client_session_id IS NOT NULL DO NOTHING
+		RETURNING id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
 		          seconds_focused, pomodoros_completed
-	`, userID, mode, pinnedTitle, taskID)
-	return scanSession(row)
+	`, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
+	sess, err := scanSession(row)
+	if !errors.Is(err, ErrNotFound) || clientSessionID == nil {
+		return sess, err
+	}
+	return scanSession(r.pg.QueryRow(ctx, `
+		SELECT id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
+		       seconds_focused, pomodoros_completed
+		FROM focus_sessions
+		WHERE user_id = $1 AND client_session_id = $2
+	`, userID, clientSessionID))
 }
 
 func (r *Repository) EndSession(
 	ctx context.Context,
 	userID, sessionID string,
 	secondsFocused, pomodorosCompleted int,
+	endedAt *time.Time,
 ) (*focusmodel.Session, error) {
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
@@ -38,15 +56,43 @@ func (r *Repository) EndSession(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	existing, err := scanSession(tx.QueryRow(ctx, `
+		SELECT id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
+		       seconds_focused, pomodoros_completed
+		FROM focus_sessions
+		WHERE id = $1 AND user_id = $2
+		FOR UPDATE
+	`, sessionID, userID))
+	if errors.Is(err, ErrNotFound) {
+		return nil, focusmodel.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if existing.EndedAt != nil {
+		if existing.SecondsFocused == secondsFocused {
+			return existing, nil
+		}
+		return nil, focusmodel.ErrInvalidArgument
+	}
+
+	effectiveEndedAt := time.Now().UTC()
+	if endedAt != nil {
+		effectiveEndedAt = *endedAt
+	}
+	if err := validateEndDuration(existing.StartedAt, effectiveEndedAt, secondsFocused); err != nil {
+		return nil, err
+	}
+
 	row := tx.QueryRow(ctx, `
 		UPDATE focus_sessions
-		SET ended_at = now(),
-		    seconds_focused = $3,
-		    pomodoros_completed = $4
+		SET ended_at = COALESCE($3, now()),
+		    seconds_focused = $4,
+		    pomodoros_completed = $5
 		WHERE id = $1 AND user_id = $2 AND ended_at IS NULL
-		RETURNING id, user_id, mode, pinned_title, task_id, started_at, ended_at,
+		RETURNING id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
 		          seconds_focused, pomodoros_completed
-	`, sessionID, userID, secondsFocused, pomodorosCompleted)
+	`, sessionID, userID, endedAt, secondsFocused, pomodorosCompleted)
 	sess, err := scanSession(row)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -66,6 +112,37 @@ func (r *Repository) EndSession(
 		return nil, err
 	}
 	return sess, nil
+}
+
+func validateEndDuration(startedAt, endedAt time.Time, secondsFocused int) error {
+	const (
+		endGraceSeconds        = 60
+		maxFocusSessionSeconds = 24 * 60 * 60
+	)
+	if secondsFocused < 0 || secondsFocused > maxFocusSessionSeconds {
+		return focusmodel.ErrInvalidArgument
+	}
+	elapsedSeconds := int(endedAt.Sub(startedAt).Seconds())
+	if elapsedSeconds < 0 {
+		elapsedSeconds = 0
+	}
+	if secondsFocused > elapsedSeconds+endGraceSeconds {
+		return focusmodel.ErrInvalidArgument
+	}
+	return nil
+}
+
+// AbandonSessionsStartedBefore closes stale open sessions without counting focus time.
+func (r *Repository) AbandonSessionsStartedBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := r.pg.Exec(ctx, `
+		UPDATE focus_sessions
+		SET ended_at = now(), seconds_focused = 0, pomodoros_completed = 0
+		WHERE ended_at IS NULL AND started_at < $1
+	`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (r *Repository) GetStats(ctx context.Context, userID string, upTo time.Time) (*focusmodel.Stats, error) {
@@ -197,9 +274,10 @@ func bumpStreak(ctx context.Context, tx pgx.Tx, userID string, activeDate time.T
 func scanSession(row pgx.Row) (*focusmodel.Session, error) {
 	var s focusmodel.Session
 	var taskID *string
+	var clientSessionID *string
 	var endedAt *time.Time
 	err := row.Scan(
-		&s.ID, &s.UserID, &s.Mode, &s.PinnedTitle, &taskID,
+		&s.ID, &s.UserID, &s.Mode, &s.PinnedTitle, &taskID, &clientSessionID,
 		&s.StartedAt, &endedAt, &s.SecondsFocused, &s.PomodorosCompleted,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -209,6 +287,7 @@ func scanSession(row pgx.Row) (*focusmodel.Session, error) {
 		return nil, err
 	}
 	s.TaskID = taskID
+	s.ClientSessionID = clientSessionID
 	s.EndedAt = endedAt
 	return &s, nil
 }

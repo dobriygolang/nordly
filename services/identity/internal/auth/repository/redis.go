@@ -12,9 +12,9 @@ type Client struct {
 	*goredis.Client
 }
 
-// New creates a Redis client and verifies connectivity.
-func New(ctx context.Context, addr string) (*Client, error) {
-	client := goredis.NewClient(&goredis.Options{Addr: addr})
+// New creates an authenticated Redis client and verifies connectivity.
+func New(ctx context.Context, addr, password string) (*Client, error) {
+	client := goredis.NewClient(&goredis.Options{Addr: addr, Password: password})
 	if err := client.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}

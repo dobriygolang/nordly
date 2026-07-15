@@ -53,7 +53,7 @@ func New(ctx context.Context) (*App, error) {
 	tributeProvider := tribute.New(tribute.Config{WebhookSecret: cfg.TributeWebhookSecret})
 	repo := billingrepo.New(pg)
 
-	redisClient, err := billingcache.NewRedisClient(ctx, cfg.RedisAddr)
+	redisClient, err := billingcache.NewRedisClient(ctx, cfg.RedisAddr, cfg.RedisPassword)
 	if err != nil {
 		pg.Close()
 		_ = identityClient.Close()

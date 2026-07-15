@@ -10,6 +10,8 @@ export type CodeRoom = {
   created_at?: string
 }
 
+export type GuestRoomType = 'practice' | 'system_design'
+
 export type InviteLink = {
   url: string
 }
@@ -114,15 +116,19 @@ function mapInvite(body: Record<string, unknown>): InviteLink {
 export async function createGuestRoom(input: {
   displayName: string
   language?: string
-  roomType?: string
+  roomType?: GuestRoomType
 }): Promise<GuestCreateResult> {
+  const roomType = input.roomType ?? 'practice'
+  if (roomType !== 'practice' && roomType !== 'system_design') {
+    throw new Error('Invalid guest room type')
+  }
   const res = await fetch(`${API_BASE}/rooms/guest-create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       displayName: input.displayName.trim() || 'guest',
       language: input.language ?? 'go',
-      roomType: input.roomType ?? 'practice',
+      roomType,
     }),
   })
   if (!res.ok) {

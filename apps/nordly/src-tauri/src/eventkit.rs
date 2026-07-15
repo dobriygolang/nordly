@@ -217,8 +217,8 @@ mod macos {
     }
 
     fn iso_to_nsdate(iso: &str) -> Result<id, String> {
-        let parsed = DateTime::parse_from_rfc3339(iso)
-            .map_err(|e| format!("Invalid date {iso}: {e}"))?;
+        let parsed =
+            DateTime::parse_from_rfc3339(iso).map_err(|e| format!("Invalid date {iso}: {e}"))?;
         let secs =
             parsed.timestamp() as f64 + parsed.timestamp_subsec_nanos() as f64 / 1_000_000_000.0;
         unsafe { Ok(msg_send![class!(NSDate), dateWithTimeIntervalSince1970: secs]) }
@@ -247,8 +247,7 @@ mod macos {
 
     fn store_has_read_access(store: id) -> bool {
         unsafe {
-            let responds_full: bool =
-                msg_send![store, respondsToSelector: sel!(fullAccessGranted)];
+            let responds_full: bool = msg_send![store, respondsToSelector: sel!(fullAccessGranted)];
             if responds_full {
                 let full: bool = msg_send![store, fullAccessGranted];
                 if full {
@@ -323,8 +322,7 @@ mod macos {
         }
 
         unsafe {
-            let responds_write: bool =
-                msg_send![store, respondsToSelector: sel!(writeOnlyGranted)];
+            let responds_write: bool = msg_send![store, respondsToSelector: sel!(writeOnlyGranted)];
             if responds_write {
                 let write_only: bool = msg_send![store, writeOnlyGranted];
                 if write_only {
@@ -619,7 +617,13 @@ mod macos {
         require_read_access(store)?;
         let start = iso_to_nsdate(&time_min)?;
         let end = iso_to_nsdate(&time_max)?;
+        let has_calendar_selection = calendar_ids.as_ref().is_some_and(|ids| !ids.is_empty());
         let calendars = selected_calendars(store, calendar_ids.as_deref())?;
+        if has_calendar_selection && calendars.is_null() {
+            // EventKit interprets nil as "all calendars". A nonempty selection that
+            // no longer resolves is stale, so returning no events is the safe result.
+            return Ok(Vec::new());
+        }
 
         unsafe {
             let predicate: id = msg_send![
@@ -722,7 +726,9 @@ pub fn apple_calendar_runtime_info() -> AppleCalendarRuntimeInfo {
 }
 
 #[tauri::command]
-pub async fn apple_calendar_request_access(app: AppHandle) -> Result<AppleCalendarAccessResult, String> {
+pub async fn apple_calendar_request_access(
+    app: AppHandle,
+) -> Result<AppleCalendarAccessResult, String> {
     run_on_main(&app, macos::request_access).await
 }
 

@@ -16,6 +16,7 @@ export interface EditorProps {
   draftBody: string;
   saveStatus: 'idle' | 'saving' | 'saved';
   noteTitles: string[];
+  editorZoom: number;
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
   onWikiLinkClick: (linkText: string) => void;
@@ -31,6 +32,7 @@ export function Editor({
   draftBody,
   saveStatus,
   noteTitles,
+  editorZoom,
   onTitleChange,
   onBodyChange,
   onWikiLinkClick,
@@ -38,7 +40,10 @@ export function Editor({
   onRetryList,
 }: EditorProps) {
   return (
-    <section className="nordly-vault-editor nordly-notes-editor">
+    <section
+      className="nordly-vault-editor nordly-notes-editor"
+      style={{ ['--nordly-notes-zoom' as string]: String(editorZoom) }}
+    >
       <div className="nordly-vault-editor__inner">
         {list.status === 'error' ? (
           <ErrorPane message={list.error ?? ''} onRetry={onRetryList} />

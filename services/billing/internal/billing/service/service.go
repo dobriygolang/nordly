@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	identityadapter "github.com/dobriygolang/project-nordly/services/billing/internal/adapter/identity"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/adapter/providers"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/cache"
@@ -19,6 +18,7 @@ import (
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/grant_subscription"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/release_usage"
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/usecase/command/update_plan_entitlement"
+	"github.com/google/uuid"
 )
 
 var (
@@ -56,19 +56,19 @@ type billingService struct {
 
 	// CQRS usecase handlers. Reads + webhook stay in the service; the two clear
 	// write commands delegate here.
-	consumeUsage      *consume_usage.Handler
-	releaseUsage      *release_usage.Handler
-	grantSubscription *grant_subscription.Handler
+	consumeUsage          *consume_usage.Handler
+	releaseUsage          *release_usage.Handler
+	grantSubscription     *grant_subscription.Handler
 	updatePlanEntitlement *update_plan_entitlement.Handler
 }
 
 // Deps holds service dependencies.
 type Deps struct {
-	Repo               repository.Store
-	Identity           identityadapter.Client
-	Providers          []providers.BillingProvider
-	TierToPlan         map[string]string
-	PlansCache         *cache.Plans
+	Repo              repository.Store
+	Identity          identityadapter.Client
+	Providers         []providers.BillingProvider
+	TierToPlan        map[string]string
+	PlansCache        *cache.Plans
 	EntitlementsCache *cache.EntitlementsRedis
 }
 
@@ -79,12 +79,12 @@ func New(deps Deps) Service {
 		providerMap[p.ProviderName()] = p
 	}
 	svc := &billingService{
-		repo:            deps.Repo,
-		identity:        deps.Identity,
-		providers:       providerMap,
-		tierToPlan:      deps.TierToPlan,
-		now:             time.Now,
-		plansCache:      deps.PlansCache,
+		repo:         deps.Repo,
+		identity:     deps.Identity,
+		providers:    providerMap,
+		tierToPlan:   deps.TierToPlan,
+		now:          time.Now,
+		plansCache:   deps.PlansCache,
 		entitlements: deps.EntitlementsCache,
 	}
 	svc.grantSubscription = grant_subscription.New(deps.Repo)
@@ -134,7 +134,7 @@ func (s *billingService) buildEntitlements(ctx context.Context, userID string) (
 	for _, item := range items {
 		val, err := entitlement.Parse(item.ValueJSON)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("parse entitlement %q: %w", item.Key, err)
 		}
 		switch val.Type {
 		case entitlement.TypeBool:
@@ -142,7 +142,7 @@ func (s *billingService) buildEntitlements(ctx context.Context, userID string) (
 		case entitlement.TypeCounter:
 			start, end, err := entitlement.PeriodWindow(val.Period, now)
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("entitlement %q period: %w", item.Key, err)
 			}
 			used, err := s.repo.GetUsage(ctx, userID, item.Key, start, end)
 			if err != nil {

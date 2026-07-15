@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default Nordly capabilities (bundled + Vite dev server)",
-  "windows": ["main", "tray-popover", "notification"],
+  "description": "Main Nordly window capabilities (bundled + Vite dev server)",
+  "windows": ["main"],
   "remote": {
     "urls": [
       "http://localhost:5173",
@@ -14,11 +14,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
-    "positioner:default",
-    "opener:default",
-    "deep-link:default",
-    "store:default",
-    "allow-nordly-commands",
+    "allow-nordly-main-commands",
     {
       "identifier": "http:default",
       "allow": [

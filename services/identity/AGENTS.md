@@ -19,6 +19,7 @@ HTTP `8080` | gRPC `9090` | Postgres `5432` / `nordly` | Redis `6379`
 **Redis:** `login_code:{code}` (5m), `refresh:{hash}` (720h).
 
 **user_devices** — registered Nordly desktops for cloud sync (`user_id`, `device_id`, `name`, `app_version`, `first_seen_at`, `last_seen_at`).
+Registration locks the parent user row, so counting devices, enforcing the billing limit, and upserting are atomic per user.
 
 ## Auth flows
 
@@ -38,7 +39,15 @@ Other services verify JWT via `pkg/jwt` or `GET /v1/jwt/public.pem`.
 
 Internal gRPC (s2s token): `GetUser`, `GetUserByTelegramID`, `ValidateToken`, `MintScopedAccessToken` (rooms guests).
 
-Extra HTTP: `/healthz`, `/v1/jwt/public.pem`, `GET /v1/users/{id}/avatar`.
+Custom HTTP contracts (not in proto):
+
+| Method | Path | Contract |
+|--------|------|----------|
+| GET | `/v1/auth/config` | Public; returns `{ "telegramBotUsername": string }` |
+| POST | `/v1/devices/register` | Bearer JWT; `{ deviceId, name, appVersion }` (`X-Device-ID` may supply a missing `deviceId`); returns `{ deviceId, cloudSyncEnabled, deviceLimit, devicesRegistered }` |
+| GET | `/v1/jwt/public.pem` | Public RS256 verification key |
+| GET | `/v1/users/{id}/avatar` | Public avatar proxy for the profile URL emitted by identity |
+| GET/HEAD | `/healthz` | Liveness |
 
 ## Commands
 
@@ -60,6 +69,8 @@ make gen-proto | lint | test | build
 | INTERNAL_API_TOKEN | required in production (s2s gRPC + billing adapter) |
 | BILLING_GRPC_ADDR | default `127.0.0.1:9095` — entitlements for device registration |
 | REDIS_ADDR | default `localhost:6379` — login codes + refresh tokens |
+| REDIS_PASSWORD | required in production; passed to identity and identity-bot Redis clients |
+| AUTH_RATE_LIMIT_PER_MINUTE | `60` in every environment; must be greater than zero |
 
 ## Metrics
 

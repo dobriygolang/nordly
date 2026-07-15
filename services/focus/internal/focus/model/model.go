@@ -8,6 +8,7 @@ type Session struct {
 	Mode               string
 	PinnedTitle        string
 	TaskID             *string
+	ClientSessionID    *string
 	StartedAt          time.Time
 	EndedAt            *time.Time
 	SecondsFocused     int
@@ -21,9 +22,9 @@ type FocusDay struct {
 }
 
 type Stats struct {
-	CurrentStreakDays  int
-	LongestStreakDays  int
+	CurrentStreakDays   int
+	LongestStreakDays   int
 	TotalFocusedSeconds int
-	Heatmap            []FocusDay
-	LastSevenDays      []FocusDay
+	Heatmap             []FocusDay
+	LastSevenDays       []FocusDay
 }

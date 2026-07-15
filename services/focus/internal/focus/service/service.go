@@ -6,9 +6,15 @@ import (
 	"strings"
 	"time"
 
-	focusmodel "github.com/dobriygolang/project-nordly/services/focus/internal/focus/model"
 	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/metrics"
+	focusmodel "github.com/dobriygolang/project-nordly/services/focus/internal/focus/model"
 	focusrepo "github.com/dobriygolang/project-nordly/services/focus/internal/focus/repository"
+	"github.com/google/uuid"
+)
+
+const (
+	maxFocusSessionSeconds = 24 * 60 * 60
+	staleSessionAge        = 24 * time.Hour
 )
 
 // ErrNotFound is returned when an entity does not exist.
@@ -19,8 +25,19 @@ var ErrInvalidArgument = focusmodel.ErrInvalidArgument
 
 // Service is the focus domain API.
 type Service interface {
-	StartFocusSession(ctx context.Context, userID string, mode, pinnedTitle, taskID string) (*focusmodel.Session, error)
-	EndFocusSession(ctx context.Context, userID, sessionID string, secondsFocused, pomodorosCompleted int) (*focusmodel.Session, error)
+	StartFocusSession(
+		ctx context.Context,
+		userID string,
+		mode, pinnedTitle, taskID, clientSessionID string,
+		startedAt *time.Time,
+	) (*focusmodel.Session, error)
+	EndFocusSession(
+		ctx context.Context,
+		userID, sessionID string,
+		secondsFocused, pomodorosCompleted int,
+		endedAt *time.Time,
+	) (*focusmodel.Session, error)
+	CleanupAbandonedSessions(ctx context.Context, now time.Time) (int64, error)
 	GetStats(ctx context.Context, userID, upToDate string) (*focusmodel.Stats, error)
 }
 
@@ -40,7 +57,8 @@ func New(deps Deps) Service {
 
 func (s *focusService) StartFocusSession(
 	ctx context.Context,
-	userID, mode, pinnedTitle, taskID string,
+	userID, mode, pinnedTitle, taskID, clientSessionID string,
+	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrInvalidArgument
@@ -56,7 +74,22 @@ func (s *focusService) StartFocusSession(
 	if tid := strings.TrimSpace(taskID); tid != "" {
 		taskPtr = &tid
 	}
-	sess, err := s.repo.CreateSession(ctx, userID, mode, strings.TrimSpace(pinnedTitle), taskPtr)
+	var clientSessionPtr *string
+	if clientID := strings.TrimSpace(clientSessionID); clientID != "" {
+		if _, err := uuid.Parse(clientID); err != nil {
+			return nil, ErrInvalidArgument
+		}
+		clientSessionPtr = &clientID
+	}
+	sess, err := s.repo.CreateSession(
+		ctx,
+		userID,
+		mode,
+		strings.TrimSpace(pinnedTitle),
+		taskPtr,
+		clientSessionPtr,
+		startedAt,
+	)
 	if err == nil {
 		metrics.IncFocusSession("started")
 	}
@@ -67,14 +100,22 @@ func (s *focusService) EndFocusSession(
 	ctx context.Context,
 	userID, sessionID string,
 	secondsFocused, pomodorosCompleted int,
+	endedAt *time.Time,
 ) (*focusmodel.Session, error) {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(sessionID) == "" {
 		return nil, ErrInvalidArgument
 	}
-	if secondsFocused < 0 || pomodorosCompleted < 0 {
+	if secondsFocused < 0 || secondsFocused > maxFocusSessionSeconds || pomodorosCompleted < 0 {
 		return nil, ErrInvalidArgument
 	}
-	sess, err := s.repo.EndSession(ctx, userID, sessionID, secondsFocused, pomodorosCompleted)
+	sess, err := s.repo.EndSession(
+		ctx,
+		userID,
+		sessionID,
+		secondsFocused,
+		pomodorosCompleted,
+		endedAt,
+	)
 	if errors.Is(err, focusmodel.ErrNotFound) {
 		return nil, ErrNotFound
 	}
@@ -86,6 +127,17 @@ func (s *focusService) EndFocusSession(
 		}
 	}
 	return sess, err
+}
+
+func (s *focusService) CleanupAbandonedSessions(ctx context.Context, now time.Time) (int64, error) {
+	count, err := s.repo.AbandonSessionsStartedBefore(ctx, now.UTC().Add(-staleSessionAge))
+	if err != nil {
+		return 0, err
+	}
+	for range count {
+		metrics.IncFocusSession("abandoned")
+	}
+	return count, nil
 }
 
 func (s *focusService) GetStats(ctx context.Context, userID, upToDate string) (*focusmodel.Stats, error) {

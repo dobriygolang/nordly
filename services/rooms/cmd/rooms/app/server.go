@@ -8,9 +8,9 @@ import (
 	"time"
 
 	roomsapi "github.com/dobriygolang/project-nordly/services/rooms/internal/app/api/rooms"
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/ops"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/archive"
 	roomrepo "github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/ops"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/ws"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -35,7 +35,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	}()
 
 	repo := roomrepo.New(a.Postgres)
-	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, a.Logger)
+	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, a.Logger, a.Config.WebAllowedOrigins)
 
 	go archive.Run(ctx, repo, a.Hub, a.Config.RoomArchiveInterval, a.Logger)
 
@@ -52,7 +52,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           ops.InstrumentHTTP("rooms", httpMux),
+		Handler:           ops.InstrumentHTTP("rooms", ops.GuestRateLimit(httpMux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

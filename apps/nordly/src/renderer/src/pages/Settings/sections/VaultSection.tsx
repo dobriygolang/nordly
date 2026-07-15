@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import { pushAllNotesEncrypted } from '@features/notes/sync/notesSync';
+import { encryptAllNotesForVault } from '@features/notes/api/notesClient';
 import { flushSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import {
@@ -74,7 +74,7 @@ export function VaultSection() {
       await saveRecoveryWrap(passphrase, recoveryPhrase);
       await setVaultEnabled(true, userId);
       if (isSyncEnabled()) {
-        await pushAllNotesEncrypted();
+        await encryptAllNotesForVault();
         flushSync();
       }
       setEnabled(true);

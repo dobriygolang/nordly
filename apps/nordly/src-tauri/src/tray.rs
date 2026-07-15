@@ -4,7 +4,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, RunEvent, WindowEvent,
 };
-use tauri_plugin_positioner::{on_tray_event, WindowExt, Position};
+use tauri_plugin_positioner::{on_tray_event, Position, WindowExt};
 
 use crate::aux_windows;
 use crate::window_macos;
@@ -20,7 +20,11 @@ fn load_tray_icon() -> Result<tauri::image::Image<'static>, Box<dyn std::error::
     let bytes = include_bytes!("../icons/trayTemplate.png");
     let img = image::load_from_memory(bytes)?.into_rgba8();
     let (width, height) = img.dimensions();
-    Ok(tauri::image::Image::new_owned(img.into_raw(), width, height))
+    Ok(tauri::image::Image::new_owned(
+        img.into_raw(),
+        width,
+        height,
+    ))
 }
 
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -54,7 +58,9 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         main.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = handle.get_webview_window(MAIN_LABEL).and_then(|w| w.hide().ok());
+                let _ = handle
+                    .get_webview_window(MAIN_LABEL)
+                    .and_then(|w| w.hide().ok());
             }
         });
     }

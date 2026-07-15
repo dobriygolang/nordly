@@ -12,20 +12,21 @@ import (
 
 // Config holds application configuration loaded from environment.
 type Config struct {
-	AppEnv             string
-	LogLevel           string
-	HTTPPort           int
-	GRPCPort           int
-	GRPCHost           string
-	PostgresDSN        string
-	JWTPublicKeyPEM  []byte
-	InternalAPIToken   string
-	IdentityGRPCAddr   string
+	AppEnv               string
+	LogLevel             string
+	HTTPPort             int
+	GRPCPort             int
+	GRPCHost             string
+	PostgresDSN          string
+	JWTPublicKeyPEM      []byte
+	InternalAPIToken     string
+	IdentityGRPCAddr     string
 	TributeWebhookSecret string
 	TributeTierToPlan    map[string]string
 	TributeCheckout      TributeCheckoutConfig
 	CORSAllowedOrigins   []string
 	RedisAddr            string
+	RedisPassword        string
 	EntitlementsCacheTTL time.Duration
 }
 
@@ -66,12 +67,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
 	tributeSecret := getEnv("TRIBUTE_WEBHOOK_SECRET", "")
-	if err := validateProduction(getEnv("APP_ENV", "development"), internalToken); err != nil {
+	appEnv := getEnv("APP_ENV", "development")
+	if err := validateProduction(appEnv, internalToken); err != nil {
 		return nil, err
 	}
 
 	return &Config{
-		AppEnv:               getEnv("APP_ENV", "development"),
+		AppEnv:               appEnv,
 		LogLevel:             getEnv("LOG_LEVEL", "info"),
 		HTTPPort:             httpPort,
 		GRPCPort:             grpcPort,
@@ -85,6 +87,7 @@ func Load() (*Config, error) {
 		TributeCheckout:      loadTributeCheckout(),
 		CORSAllowedOrigins:   ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		RedisAddr:            getEnv("REDIS_ADDR", ""),
+		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
 		EntitlementsCacheTTL: entitlementsTTL,
 	}, nil
 }
@@ -170,6 +173,9 @@ func validateProduction(appEnv, internalToken string) error {
 	}
 	if internalToken == "dev-internal-token" {
 		return fmt.Errorf("INTERNAL_API_TOKEN must be changed in production")
+	}
+	if strings.TrimSpace(os.Getenv("REDIS_PASSWORD")) == "" {
+		return fmt.Errorf("REDIS_PASSWORD must be set in production")
 	}
 	return nil
 }

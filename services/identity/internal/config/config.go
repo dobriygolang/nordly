@@ -12,13 +12,14 @@ import (
 
 // Config holds application configuration loaded from environment.
 type Config struct {
-	AppEnv      string
-	LogLevel    string
-	HTTPPort    int
-	GRPCPort    int
-	GRPCHost    string
-	PostgresDSN string
-	RedisAddr   string
+	AppEnv        string
+	LogLevel      string
+	HTTPPort      int
+	GRPCPort      int
+	GRPCHost      string
+	PostgresDSN   string
+	RedisAddr     string
+	RedisPassword string
 
 	JWTPrivateKeyPEM []byte
 	JWTPublicKeyPEM  []byte
@@ -60,8 +61,8 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid AUTH_RATE_LIMIT_PER_MINUTE: %w", err)
 	}
-	if getEnv("APP_ENV", "development") != "production" {
-		authRateLimit = 0
+	if authRateLimit <= 0 {
+		return nil, fmt.Errorf("AUTH_RATE_LIMIT_PER_MINUTE must be greater than zero")
 	}
 
 	privateKey, err := loadPEM("JWT_PRIVATE_KEY", "JWT_PRIVATE_KEY_FILE")
@@ -80,6 +81,9 @@ func Load() (*Config, error) {
 		if os.Getenv("INTERNAL_API_TOKEN") == "" || internalToken == "dev-internal-token" {
 			return nil, fmt.Errorf("INTERNAL_API_TOKEN must be set in production")
 		}
+		if strings.TrimSpace(os.Getenv("REDIS_PASSWORD")) == "" {
+			return nil, fmt.Errorf("REDIS_PASSWORD must be set in production")
+		}
 	}
 
 	telegramToken := os.Getenv("TELEGRAM_BOT_TOKEN")
@@ -92,19 +96,20 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		AppEnv:              appEnv,
-		LogLevel:            getEnv("LOG_LEVEL", "info"),
-		HTTPPort:            httpPort,
-		GRPCPort:            grpcPort,
-		GRPCHost:            grpcListenHost(),
-		PostgresDSN:         getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/nordly?sslmode=disable"),
-		RedisAddr:           getEnv("REDIS_ADDR", "localhost:6379"),
-		JWTPrivateKeyPEM:    privateKey,
-		JWTPublicKeyPEM:     publicKey,
-		JWTAccessTTL:        accessTTL,
-		JWTRefreshTTL:       refreshTTL,
-		TelegramBotToken:    telegramToken,
-		TelegramBotUsername: telegramUsername,
+		AppEnv:                 appEnv,
+		LogLevel:               getEnv("LOG_LEVEL", "info"),
+		HTTPPort:               httpPort,
+		GRPCPort:               grpcPort,
+		GRPCHost:               grpcListenHost(),
+		PostgresDSN:            getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/nordly?sslmode=disable"),
+		RedisAddr:              getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:          os.Getenv("REDIS_PASSWORD"),
+		JWTPrivateKeyPEM:       privateKey,
+		JWTPublicKeyPEM:        publicKey,
+		JWTAccessTTL:           accessTTL,
+		JWTRefreshTTL:          refreshTTL,
+		TelegramBotToken:       telegramToken,
+		TelegramBotUsername:    telegramUsername,
 		CORSAllowedOrigins:     ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		AuthRateLimitPerMinute: authRateLimit,
 		InternalAPIToken:       internalToken,

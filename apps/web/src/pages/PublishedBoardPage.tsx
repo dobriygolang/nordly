@@ -20,23 +20,25 @@ import { applyDocumentMeta } from '@/lib/site/documentMeta'
 import { useI18n } from '@/lib/i18n'
 
 function parseScene(raw: string): { elements: unknown[]; files: Record<string, unknown> } {
-  if (!raw.trim()) return { elements: [], files: {} }
-  try {
-    const j = JSON.parse(raw) as { elements?: unknown[]; files?: Record<string, unknown> }
-    return {
-      elements: Array.isArray(j.elements) ? j.elements : [],
-      files: j.files && typeof j.files === 'object' ? j.files : {},
-    }
-  } catch {
-    return { elements: [], files: {} }
+  if (!raw.trim()) throw new Error('Published board scene is empty')
+  const j = JSON.parse(raw) as { elements?: unknown[]; files?: Record<string, unknown> }
+  if (!Array.isArray(j.elements) || !j.files || typeof j.files !== 'object' || Array.isArray(j.files)) {
+    throw new Error('Published board scene has an invalid shape')
   }
+  return { elements: j.elements, files: j.files }
 }
 
 export default function PublishedBoardPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const { t } = useI18n()
   const [state, setState] = useState<
-    { kind: 'loading' } | { kind: 'ok'; board: PublishedBoard } | { kind: 'error'; status: number }
+    | { kind: 'loading' }
+    | {
+        kind: 'ok'
+        board: PublishedBoard
+        scene: { elements: unknown[]; files: Record<string, unknown> }
+      }
+    | { kind: 'error'; status: number }
   >({ kind: 'loading' })
 
   useEffect(() => {
@@ -48,7 +50,8 @@ export default function PublishedBoardPage() {
     setState({ kind: 'loading' })
     void fetchPublishedBoard(slug)
       .then((board) => {
-        if (live) setState({ kind: 'ok', board })
+        const scene = parseScene(board.sceneJson)
+        if (live) setState({ kind: 'ok', board, scene })
       })
       .catch((err: unknown) => {
         if (!live) return
@@ -79,10 +82,7 @@ export default function PublishedBoardPage() {
     }
   }, [state.kind, title, slug, t])
 
-  const scene = useMemo(
-    () => (state.kind === 'ok' ? parseScene(state.board.sceneJson) : { elements: [], files: {} }),
-    [state],
-  )
+  const scene = useMemo(() => (state.kind === 'ok' ? state.scene : null), [state])
 
   if (state.kind === 'loading') {
     return (
@@ -104,6 +104,7 @@ export default function PublishedBoardPage() {
       </div>
     )
   }
+  if (!scene) throw new Error('Published board scene missing from loaded state')
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col">

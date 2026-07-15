@@ -7,17 +7,16 @@ const DefaultGoogleCalendarID = "primary"
 
 // UserSettings holds per-user tracker preferences and integration state.
 type UserSettings struct {
-	UserID                    string
-	GoogleCalendarSyncEnabled bool
-	GoogleRefreshToken        *string
-	GoogleOAuthState          *string
-	GoogleCalendarID          *string
-	GoogleReauthRequired      bool
-	ZoomRefreshToken          *string
-	ZoomOAuthState            *string
-	ZoomReauthRequired        bool
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
+	UserID               string
+	GoogleRefreshToken   *string
+	GoogleOAuthState     *string
+	GoogleCalendarID     *string
+	GoogleReauthRequired bool
+	ZoomRefreshToken     *string
+	ZoomOAuthState       *string
+	ZoomReauthRequired   bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // Connected reports whether a usable refresh token is stored.

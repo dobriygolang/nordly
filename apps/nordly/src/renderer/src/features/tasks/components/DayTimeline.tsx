@@ -2,19 +2,19 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 
 import { useLocale, useT } from '@nordly-i18n';
 
-import { openExternalUrl } from '@features/calendar/remote/calendarClient';
 import {
   allDayEntriesForDay,
   appleToCalendarEntries,
   googleToCalendarEntries,
   layoutTimedEntriesForDay,
   linkedGoogleEventIds,
+  openExternalUrl,
   tasksPlannedForDay,
+  useAppleCalendarEvents,
+  useGoogleCalendarConnection,
+  useGoogleCalendarEvents,
   type CalendarEntry,
-} from '@features/calendar/lib/events';
-import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
-import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
-import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
+} from '@features/calendar/api/calendar';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';

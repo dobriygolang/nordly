@@ -20,8 +20,17 @@
 .nordly-note-row-slot--dragging {
   pointer-events: none;
 }
+/* Keep layout box while dragging — display:none makes dnd-kit remasure top→0 and overlay jumps up. */
 body.nordly-note-dragging .nordly-note-row-slot--dragging {
-  display: none;
+  visibility: hidden;
+}
+.nordly-note-drag-origin {
+  display: grid;
+  min-width: 0;
+}
+.nordly-note-drag-origin > .nordly-note-row-slot,
+.nordly-note-drag-origin > .nordly-note-insert-preview {
+  grid-area: 1 / 1;
 }
 body.nordly-note-dragging,
 body.nordly-note-dragging .nordly-note-row-wrap {

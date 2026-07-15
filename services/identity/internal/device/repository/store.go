@@ -15,7 +15,7 @@ type Device struct {
 }
 
 type Store interface {
-	GetDevice(ctx context.Context, userID, deviceID string) (*Device, error)
-	CountDevices(ctx context.Context, userID string) (int, error)
-	UpsertDevice(ctx context.Context, userID, deviceID, name, appVersion string) error
+	// RegisterDevice serializes registrations for a user and enforces limit
+	// before creating a new device. A negative limit means unlimited.
+	RegisterDevice(ctx context.Context, userID, deviceID, name, appVersion string, limit int) (int, error)
 }

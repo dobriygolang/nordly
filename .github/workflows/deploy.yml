@@ -183,7 +183,6 @@ jobs:
             bash scripts/ensure-env-dsns.sh .env
             export DOCKER_BUILDKIT=1
             export COMPOSE_DOCKER_CLI_BUILD=1
-            export BUILDX_NO_DEFAULT_ATTESTATIONS=1
             export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-4}"
 
             CUR_SHA="$(git -C "$REPO_DIR" rev-parse HEAD)"

@@ -7,8 +7,7 @@ fn vault_entry(user_id: &str) -> Result<Entry, String> {
     if uid.is_empty() {
         return Err("userId required".into());
     }
-    Entry::new(KEYRING_SERVICE, &format!("vault-passphrase:{uid}"))
-        .map_err(|e| e.to_string())
+    Entry::new(KEYRING_SERVICE, &format!("vault-passphrase:{uid}")).map_err(|e| e.to_string())
 }
 
 pub fn load_passphrase(user_id: &str) -> Result<Option<String>, String> {

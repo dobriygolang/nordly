@@ -137,7 +137,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [todayKey, refresh, setTasks],
+    [todayKey, refresh, setTasks, onActionError],
   );
 
   const handleMoveToDay = useCallback(
@@ -184,7 +184,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [tasks, todayKey, findTaskColumnKey, refresh, applyInsertOrder, setTasks],
+    [tasks, todayKey, findTaskColumnKey, refresh, applyInsertOrder, setTasks, onActionError],
   );
 
   const handleReorder = useCallback(
@@ -241,7 +241,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [refresh, setTasks],
+    [refresh, setTasks, onActionError],
   );
 
   const handleTitleChange = useCallback(
@@ -258,7 +258,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [refresh, setTasks],
+    [refresh, setTasks, onActionError],
   );
 
   const handleDurationChange = useCallback(
@@ -279,7 +279,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [tasks, refresh, setTasks],
+    [tasks, refresh, setTasks, onActionError],
   );
 
   const handleOpenDetail = useCallback((task: TaskCard) => {
@@ -317,7 +317,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [refresh, setTasks],
+    [refresh, setTasks, onActionError],
   );
 
   const handleCreateConference = useCallback(

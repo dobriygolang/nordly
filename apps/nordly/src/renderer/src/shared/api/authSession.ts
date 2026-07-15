@@ -67,16 +67,22 @@ export function canUseLocalApp(): boolean {
   return status === 'signed_in' && Boolean(userId);
 }
 
-async function persistRefreshedTokens(tokens: {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-}): Promise<void> {
-  const { userId } = useSessionStore.getState();
-  if (!userId) return;
+async function persistRefreshedTokens(
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+  },
+  expectedUserId: string,
+  expectedRefreshToken: string,
+): Promise<void> {
+  const current = useSessionStore.getState();
+  if (current.userId !== expectedUserId || current.refreshToken !== expectedRefreshToken) {
+    throw new Error('Discarding refreshed tokens for a stale session');
+  }
 
   useSessionStore.getState().applyTokens({
-    userId,
+    userId: expectedUserId,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     expiresAt: tokens.expiresAt,
@@ -90,19 +96,20 @@ export async function refreshAccessToken(): Promise<boolean> {
   if (refreshRejected) return false;
   if (refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = (async () => {
-    const { refreshToken } = useSessionStore.getState();
-    if (!refreshToken) {
-      refreshRejected = true;
-      if (isSessionExpired()) setSessionReauthRequired(true);
-      return false;
-    }
-    if (!canReachNetwork()) {
-      if (isSessionExpired()) setSessionReauthRequired(true);
-      return false;
-    }
-
+  const refreshPromise = (async () => {
     try {
+      const { userId, refreshToken } = useSessionStore.getState();
+      if (!refreshToken) {
+        refreshRejected = true;
+        if (isSessionExpired()) setSessionReauthRequired(true);
+        return false;
+      }
+      if (!userId) throw new Error('Cannot refresh tokens without a signed-in user');
+      if (!canReachNetwork()) {
+        if (isSessionExpired()) setSessionReauthRequired(true);
+        return false;
+      }
+
       const resp = await rawAuthFetch(apiPath('/v1/auth/refresh'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,28 +130,38 @@ export async function refreshAccessToken(): Promise<boolean> {
       const nextRefresh = requireJsonString(body, 'refreshToken');
 
       const expiresAt = readJwtExpMs(accessToken);
-      await persistRefreshedTokens({ accessToken, refreshToken: nextRefresh, expiresAt });
+      await persistRefreshedTokens(
+        { accessToken, refreshToken: nextRefresh, expiresAt },
+        userId,
+        refreshToken,
+      );
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[nordly:auth] token refresh failed', err);
       if (isSessionExpired()) setSessionReauthRequired(true);
       return false;
-    } finally {
-      refreshInFlight = null;
     }
   })();
-
-  return refreshInFlight;
+  refreshInFlight = refreshPromise;
+  try {
+    return await refreshPromise;
+  } finally {
+    if (refreshInFlight === refreshPromise) refreshInFlight = null;
+  }
 }
 
 /** Proactive refresh before sync/API when access token is stale. */
 export async function ensureAccessTokenForSync(): Promise<boolean> {
+  const { accessToken, refreshToken } = useSessionStore.getState();
+  if (!accessToken && !refreshToken) return false;
+  if (accessToken && !isSessionExpired() && !isAccessTokenExpiringSoon()) {
+    setSessionReauthRequired(false);
+    return true;
+  }
   if (refreshRejected) {
     setSessionReauthRequired(true);
     return false;
   }
-  const { accessToken, refreshToken } = useSessionStore.getState();
-  if (!accessToken && !refreshToken) return false;
-  if (!isSessionExpired() && !isAccessTokenExpiringSoon()) return true;
   if (!canReachNetwork()) {
     if (isSessionExpired()) setSessionReauthRequired(true);
     return !isSessionExpired();
@@ -184,20 +201,25 @@ export function startSessionRefreshLoop(): () => void {
     const { status } = useSessionStore.getState();
     if (status !== 'signed_in') return;
 
-    if (useSyncStore.getState().sessionReauthRequired) return;
+    if (!canReachNetwork()) {
+      if (isSessionExpired()) setSessionReauthRequired(true);
+      return;
+    }
+
+    if (!isSessionExpired() && !isAccessTokenExpiringSoon()) {
+      setSessionReauthRequired(false);
+      return;
+    }
 
     if (refreshRejected) {
       setSessionReauthRequired(true);
       return;
     }
 
-    if (!canReachNetwork()) {
-      if (isSessionExpired()) setSessionReauthRequired(true);
-      return;
-    }
-
     if (isSessionExpired() || isAccessTokenExpiringSoon()) {
-      void refreshAccessToken();
+      void refreshAccessToken().catch((err: unknown) => {
+        console.error('[nordly:auth] background token refresh failed', err);
+      });
     } else {
       setSessionReauthRequired(false);
     }

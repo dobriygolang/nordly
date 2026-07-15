@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray-popover",
+  "description": "Least-privilege capabilities for the tray popover",
+  "windows": ["tray-popover"],
+  "remote": {
+    "urls": [
+      "http://localhost:5173",
+      "http://localhost:5173/**",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5173/**"
+    ]
+  },
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit",
+    "allow-nordly-tray-commands"
+  ]
+}

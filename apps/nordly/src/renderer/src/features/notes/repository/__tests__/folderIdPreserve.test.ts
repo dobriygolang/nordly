@@ -102,6 +102,25 @@ describe('note folderId device-only preserve', () => {
     expect(row.folderId).toBe('folder-b');
   });
 
+  it('does not replace a tombstone after a remote create completes', async () => {
+    store.set(
+      'user-1::local-deleted',
+      localRow({ id: 'local-deleted', deleted: true }),
+    );
+
+    await notesStoreReplaceId('local-deleted', {
+      id: 'server-created',
+      title: 'T',
+      bodyMd: 'B',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      sizeBytes: 1,
+    });
+
+    expect((store.get('user-1::local-deleted') as StoredNote).deleted).toBe(true);
+    expect(store.has('user-1::server-created')).toBe(false);
+  });
+
   it('setFolderId does not bump updatedAt', async () => {
     store.set(
       'user-1::n1',

@@ -11,9 +11,9 @@ import (
 )
 
 type RegisterResult struct {
-	DeviceID         string
-	CloudSyncEnabled bool
-	DeviceLimit      int
+	DeviceID          string
+	CloudSyncEnabled  bool
+	DeviceLimit       int
 	DevicesRegistered int
 }
 
@@ -69,25 +69,9 @@ func (s *deviceService) RegisterDevice(
 		return nil, devicemodel.ErrCloudSyncDisabled
 	}
 
-	_, err = s.repo.GetDevice(ctx, userID, deviceID)
-	isNew := errors.Is(err, devicemodel.ErrNotFound)
-	if err != nil && !isNew {
-		return nil, err
-	}
-
-	count, err := s.repo.CountDevices(ctx, userID)
+	count, err := s.repo.RegisterDevice(ctx, userID, deviceID, name, appVersion, deviceLimit)
 	if err != nil {
 		return nil, err
-	}
-	if isNew && deviceLimit >= 0 && count >= deviceLimit {
-		return nil, devicemodel.ErrDeviceLimitExceeded
-	}
-
-	if err := s.repo.UpsertDevice(ctx, userID, deviceID, name, appVersion); err != nil {
-		return nil, err
-	}
-	if isNew {
-		count++
 	}
 
 	return &RegisterResult{

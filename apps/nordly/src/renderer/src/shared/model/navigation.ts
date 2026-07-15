@@ -9,6 +9,11 @@ export type PageId =
 
 export type PaletteAction = PageId | 'stats';
 
+export interface EntityNavigationRequest {
+  id: string;
+  requestKey: number;
+}
+
 export const NAV_PAGES = new Set<PageId>([
   'home',
   'today',

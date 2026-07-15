@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -60,34 +60,37 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
   const [pwd2, setPwd2] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const probe = async (cancelled: () => boolean) => {
-    if (!userId) {
-      if (!cancelled()) setState({ kind: 'failed', message: t('nordly.vault.err.no_session') });
-      return;
-    }
-    if (isVaultUnlocked()) {
-      if (!cancelled()) setState({ kind: 'unlocked' });
-      return;
-    }
-    const salt = await fetchVaultSalt();
-    if (cancelled()) return;
-    if (salt === null) {
-      setState({ kind: 'needs-init' });
-      return;
-    }
-    const saved = await loadSavedPassphrase(userId);
-    if (cancelled()) return;
-    if (saved) {
-      try {
-        await unlockVault(saved);
+  const probe = useCallback(
+    async (cancelled: () => boolean) => {
+      if (!userId) {
+        if (!cancelled()) setState({ kind: 'failed', message: t('nordly.vault.err.no_session') });
+        return;
+      }
+      if (isVaultUnlocked()) {
         if (!cancelled()) setState({ kind: 'unlocked' });
         return;
-      } catch {
-        await clearSavedPassphrase(userId);
       }
-    }
-    if (!cancelled()) setState({ kind: 'needs-unlock' });
-  };
+      const salt = await fetchVaultSalt();
+      if (cancelled()) return;
+      if (salt === null) {
+        setState({ kind: 'needs-init' });
+        return;
+      }
+      const saved = await loadSavedPassphrase(userId);
+      if (cancelled()) return;
+      if (saved) {
+        try {
+          await unlockVault(saved);
+          if (!cancelled()) setState({ kind: 'unlocked' });
+          return;
+        } catch {
+          await clearSavedPassphrase(userId);
+        }
+      }
+      if (!cancelled()) setState({ kind: 'needs-unlock' });
+    },
+    [t, userId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +114,7 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [userId, t]);
+  }, [probe, t]);
 
   useEffect(() => {
     const unsub = subscribeVault((u) => {

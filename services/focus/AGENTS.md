@@ -11,6 +11,12 @@ Pomodoro timer and focus statistics for Nordly (Tauri desktop):
 - `StartFocusSession` / `EndFocusSession` — JWT-protected
 - `GetStats` — streaks, heatmap, last 7 days, total focused seconds
 - Optional link to tracker task via `task_id`
+- Offline starts use `(user_id, client_session_id)` for idempotency; accepted client start times
+  must be no more than 7 days old and cannot be in the future.
+- Offline end times are preserved. Focused seconds cannot exceed elapsed session time plus a
+  60-second grace period or the absolute 24-hour cap.
+- Ended sessions accept at most 24 hours of focused time. An hourly worker closes sessions left
+  open for more than 24 hours as abandoned (zero focused seconds) while preserving `task_id`.
 
 ## Ports
 
@@ -46,10 +52,6 @@ make start | gen-proto | test | lint | build
 ```
 
 Build: `GOWORK=off`
-
-## Metrics
-
-`GET /metrics` — HTTP instrumentation + `focus_sessions_total{result}` (`started`, `completed`, `abandoned`; `internal/focus/metrics/`).
 
 ## Metrics
 

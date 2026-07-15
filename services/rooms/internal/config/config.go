@@ -22,6 +22,7 @@ type Config struct {
 	RoomArchiveInterval time.Duration
 	IdentityGRPCAddr    string
 	InternalAPIToken    string
+	WebAllowedOrigins   []string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -64,6 +65,13 @@ func Load() (*Config, error) {
 	if publicBaseURL == "" {
 		return nil, fmt.Errorf("PUBLIC_BASE_URL is required")
 	}
+	webAllowedOrigins, err := parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if err != nil {
+		return nil, err
+	}
+	if getEnv("APP_ENV", "development") == "production" && len(webAllowedOrigins) == 0 {
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production for WebSocket origin checks")
+	}
 
 	return &Config{
 		AppEnv:              getEnv("APP_ENV", "development"),
@@ -78,7 +86,27 @@ func Load() (*Config, error) {
 		RoomArchiveInterval: archiveInterval,
 		IdentityGRPCAddr:    getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),
 		InternalAPIToken:    internalToken,
+		WebAllowedOrigins:   webAllowedOrigins,
 	}, nil
+}
+
+func parseOrigins(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	origins := strings.Split(raw, ",")
+	out := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS contains an empty origin")
+		}
+		if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
+			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS origin must include http(s) scheme: %q", origin)
+		}
+		out = append(out, strings.TrimRight(origin, "/"))
+	}
+	return out, nil
 }
 
 func getEnv(key, fallback string) string {

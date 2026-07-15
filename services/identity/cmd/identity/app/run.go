@@ -4,29 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
-	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
 	billinggrpc "github.com/dobriygolang/project-nordly/services/identity/internal/adapter/billing/grpc"
+	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
+	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/config"
 	devicerepo "github.com/dobriygolang/project-nordly/services/identity/internal/device/repository"
 	deviceservice "github.com/dobriygolang/project-nordly/services/identity/internal/device/service"
-	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/logger"
+	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
 
 // App holds adapters and the domain service for identity.
 type App struct {
-	Config       *config.Config
-	Logger       logger.Logger
-	Postgres     *userrepo.Pool
-	Redis        *authrepo.Client
-	Service      authservice.Service
+	Config        *config.Config
+	Logger        logger.Logger
+	Postgres      *userrepo.Pool
+	Redis         *authrepo.Client
+	Service       authservice.Service
 	DeviceService deviceservice.Service
-	TokenManager *authservice.TokenManager
-	JWTValidator *jwt.Validator
-	PublicKeyPEM []byte
-	billingConn  *billinggrpc.Client
+	TokenManager  *authservice.TokenManager
+	JWTValidator  *jwt.Validator
+	PublicKeyPEM  []byte
+	billingConn   *billinggrpc.Client
 }
 
 // New wires adapters and the domain service.
@@ -46,7 +46,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
 
-	redisClient, err := authrepo.New(ctx, cfg.RedisAddr)
+	redisClient, err := authrepo.New(ctx, cfg.RedisAddr, cfg.RedisPassword)
 	if err != nil {
 		pg.Close()
 		return nil, fmt.Errorf("init redis: %w", err)

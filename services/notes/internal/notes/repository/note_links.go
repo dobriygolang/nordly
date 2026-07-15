@@ -17,14 +17,31 @@ func (r *Repository) validateWikiLinkTargets(
 	userID string,
 	links []notesmodel.WikiLinkRef,
 ) error {
+	targets := make(map[string]struct{}, len(links))
 	for _, l := range links {
 		targetID := strings.TrimSpace(l.TargetNoteID)
 		if targetID == "" {
 			continue
 		}
-		if _, err := r.GetNote(ctx, userID, targetID); err != nil {
-			return err
-		}
+		targets[targetID] = struct{}{}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	targetIDs := make([]string, 0, len(targets))
+	for targetID := range targets {
+		targetIDs = append(targetIDs, targetID)
+	}
+	var found int
+	if err := r.pg.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM notes
+		WHERE user_id = $1 AND id = ANY($2::uuid[]) AND archived_at IS NULL
+	`, userID, targetIDs).Scan(&found); err != nil {
+		return err
+	}
+	if found != len(targetIDs) {
+		return notesmodel.ErrNotFound
 	}
 	return nil
 }

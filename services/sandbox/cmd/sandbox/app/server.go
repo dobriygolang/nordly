@@ -8,7 +8,6 @@ import (
 	"time"
 
 	sandboxapi "github.com/dobriygolang/project-nordly/services/sandbox/internal/app/api/sandbox"
-	lspws "github.com/dobriygolang/project-nordly/services/sandbox/internal/lsp/ws"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/ops"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -40,9 +39,6 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpMux.HandleFunc("/healthz", ops.HealthzHandler())
 	httpMux.HandleFunc("/readyz", ops.ReadyzHandler(ops.PingPostgres(a.Postgres.Pool)))
 	httpMux.Handle("/metrics", ops.MetricsHandler())
-
-	lspHandler := lspws.NewHandler(a.JWT, a.Config.DockerWorkRoot, a.Config.GoplsPath, a.Logger)
-	httpMux.Handle("GET /ws/lsp/go", lspHandler)
 
 	if err := sandboxapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()

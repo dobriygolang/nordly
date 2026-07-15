@@ -73,6 +73,7 @@ func (a *App) Close() {
 }
 
 func RunAPI(ctx context.Context, a *App) error {
+	go runGoogleCalendarCacheWorker(ctx, a)
 	listenAddr := fmt.Sprintf("%s:%d", a.Config.GRPCHost, a.Config.GRPCPort)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", a.Config.GRPCPort)
 	lis, err := net.Listen("tcp", listenAddr)
@@ -118,5 +119,20 @@ func RunAPI(ctx context.Context, a *App) error {
 			return nil
 		}
 		return err
+	}
+}
+
+func runGoogleCalendarCacheWorker(ctx context.Context, a *App) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		if err := a.Service.RefreshGoogleCalendarCaches(ctx); err != nil && ctx.Err() == nil {
+			a.Logger.Error("refresh google calendar caches", "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 	}
 }

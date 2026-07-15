@@ -1,6 +1,8 @@
 # optional monorepo workspace
 go.work.sum
 .cache/
+.vite/
+.vite/
 
 # prod secrets
 deploy/.env

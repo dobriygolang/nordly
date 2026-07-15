@@ -24,11 +24,30 @@ import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { getServerId, resolveEntityId, resolveNotesServerId, setServerId } from '@shared/sync/idMap';
 import { SyncDeferredError } from '@shared/sync/errors';
-import { removeOutbox } from '@shared/sync/outbox';
+import { removeOutbox, removeOutboxForEntity } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 import { mapPool } from '@shared/lib/mapPool';
 
 const NOTE_PULL_CONCURRENCY = 6;
+const notesMutationTails = new Map<string, Promise<void>>();
+
+/** Serialize remote note mutations per user so create/sync/publish cannot race. */
+export async function withNotesRemoteMutation<T>(fn: () => Promise<T>): Promise<T> {
+  const userId = requireUserId();
+  const previous = notesMutationTails.get(userId) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  notesMutationTails.set(userId, current);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (notesMutationTails.get(userId) === current) notesMutationTails.delete(userId);
+  }
+}
 
 function isRemoteNotFound(err: unknown): boolean {
   return err instanceof Error && err.message.includes(': 404');
@@ -86,8 +105,10 @@ async function resolveNoteServerId(
   if (e2ee) {
     const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
     const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
-    await remoteEncryptNoteBody(created.id, encBody);
+    // Persist the mapping before follow-up calls so a retry updates this note
+    // instead of issuing another create after a partial success.
     await setServerId('notes', entry.entityId, created.id, userId);
+    await remoteEncryptNoteBody(created.id, encBody);
     const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
     await notesStoreReplaceId(entry.entityId, plain);
     return created.id;
@@ -101,37 +122,39 @@ async function resolveNoteServerId(
 
 /** Create remote note + id_map when a local note has never been synced (e.g. publish). */
 export async function ensureNoteServerId(localId: string): Promise<string | null> {
-  const userId = requireUserId();
-  const mapped = await getServerId('notes', localId, userId);
-  if (mapped) return mapped;
+  return withNotesRemoteMutation(async () => {
+    const userId = requireUserId();
+    const mapped = await getServerId('notes', localId, userId);
+    if (mapped) return mapped;
 
-  const local = await notesStoreGet(localId, userId);
-  if (!local) return null;
+    const local = await notesStoreGet(localId, userId);
+    if (!local) return null;
 
-  if (isVaultEnabledSync() && !isVaultUnlocked()) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
-  }
+    if (isVaultEnabledSync() && !isVaultUnlocked()) {
+      throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+    }
 
-  const localRow = await notesStoreGetRow(localId, userId);
-  const wikiLinks = localRow?.wikiLinks ?? [];
+    const localRow = await notesStoreGetRow(localId, userId);
+    const wikiLinks = localRow?.wikiLinks ?? [];
 
-  return resolveNoteServerId(
-    {
-      id: 'ensure',
+    return resolveNoteServerId(
+      {
+        id: 'ensure',
+        userId,
+        domain: 'notes',
+        op: 'update',
+        entityId: localId,
+        payload: { title: local.title, bodyMd: local.bodyMd, wikiLinks },
+        createdAt: Date.now(),
+        attempts: 0,
+      },
       userId,
-      domain: 'notes',
-      op: 'update',
-      entityId: localId,
-      payload: { title: local.title, bodyMd: local.bodyMd, wikiLinks },
-      createdAt: Date.now(),
-      attempts: 0,
-    },
-    userId,
-    local.title,
-    local.bodyMd,
-    wikiLinks,
-    shouldPushE2ee(),
-  );
+      local.title,
+      local.bodyMd,
+      wikiLinks,
+      shouldPushE2ee(),
+    );
+  });
 }
 
 function shouldPushE2ee(): boolean {
@@ -158,7 +181,7 @@ async function pushPlainNote(
   await remoteUpdateNote(serverId, title, bodyMd, wikiLinks);
 }
 
-export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
+async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
   const userId = requireUserId();
 
   if (entry.op === 'delete') {
@@ -187,19 +210,33 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
   }
 
   if (entry.op === 'create') {
-    if (e2ee) {
-      const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-      const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
-      await remoteEncryptNoteBody(created.id, encBody);
-      await setServerId('notes', entry.entityId, created.id, userId);
-      const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
-      await notesStoreReplaceId(entry.entityId, plain);
-    } else {
-      const created = await remoteCreateNote(title, bodyMd, wikiLinks);
-      await setServerId('notes', entry.entityId, created.id, userId);
-      await notesStoreReplaceId(entry.entityId, created);
+    const serverId = await resolveNoteServerId(
+      entry,
+      userId,
+      title,
+      bodyMd,
+      wikiLinks,
+      e2ee,
+    );
+    if (!serverId) {
+      await removeOutboxForEntity('notes', entry.entityId, 'create', userId);
+      return;
     }
-    await removeOutbox(entry.id, userId);
+
+    const latestLocal = await notesStoreGetRow(entry.entityId, userId);
+    if (!latestLocal?.deleted) {
+      if (e2ee) {
+        await pushEncryptedNote(serverId, title, bodyMd, wikiLinks);
+        const wire = await remoteGetNote(serverId);
+        const plain = await decryptNoteFromRemote(wire);
+        await notesStoreMergeRemote(noteToStored(plain, userId, true));
+      } else {
+        await pushPlainNote(serverId, title, bodyMd, wikiLinks);
+        const wire = await remoteGetNote(serverId);
+        await notesStoreMergeRemote(noteToStored(wire, userId, false));
+      }
+    }
+    await removeOutboxForEntity('notes', entry.entityId, 'create', userId);
     return;
   }
 
@@ -228,6 +265,10 @@ export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
     await removeOutbox(entry.id, userId);
     return;
   }
+}
+
+export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
+  return withNotesRemoteMutation(() => pushNotesOutboxLocked(entry));
 }
 
 export async function pullNotes(): Promise<void> {

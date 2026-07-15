@@ -23,6 +23,9 @@ function buildAppShortcuts(mod: string): Shortcut[] {
     { labelKey: 'nordly.settings.shortcuts.sidebar', keys: [mod, 'S'] },
     { labelKey: 'nordly.settings.shortcuts.settings', keys: [','] },
     { labelKey: 'nordly.settings.shortcuts.home', keys: ['Esc'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_zoom_in', keys: [mod, '+'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_zoom_out', keys: [mod, '−'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_zoom_reset', keys: [mod, '0'] },
   ];
 }
 

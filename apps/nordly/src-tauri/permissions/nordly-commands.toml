@@ -1,6 +1,6 @@
 [[permission]]
-identifier = "allow-nordly-commands"
-description = "Nordly custom invoke handlers (auth, vault, pomodoro, shell)."
+identifier = "allow-nordly-main-commands"
+description = "Nordly commands available only to the main window."
 commands.allow = [
   "auth_session",
   "auth_persist",
@@ -12,15 +12,29 @@ commands.allow = [
   "pomodoro_save",
   "shell_open_external",
   "window_traffic_lights_show",
-  "tray_show_main",
   "deep_link_initial",
+  "read_text_file",
   "show_notification",
-  "hide_notification",
-  "focus_main_window",
   "apple_calendar_auth_status",
   "apple_calendar_runtime_info",
   "apple_calendar_request_access",
   "apple_calendar_open_settings",
   "apple_calendar_list_calendars",
   "apple_calendar_list_events",
+]
+
+[[permission]]
+identifier = "allow-nordly-tray-commands"
+description = "Nordly commands available only to the tray popover."
+commands.allow = [
+  "pomodoro_load",
+  "tray_show_main",
+]
+
+[[permission]]
+identifier = "allow-nordly-notification-commands"
+description = "Nordly commands available only to the notification window."
+commands.allow = [
+  "hide_notification",
+  "focus_main_window",
 ]

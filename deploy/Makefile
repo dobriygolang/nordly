@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f docker-compose.prod.yml --env-file .env
 
-.PHONY: help keys build web-build up down logs migrate ps monitoring backup prune ensure-pkg-api deploy smoke
+.PHONY: help keys build web-build up down logs migrate ps monitoring backup backup-db restore restore-db schema-audit audit-schema prune ensure-pkg-api deploy smoke audit-env
 
 help: ## Show deploy commands
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -17,7 +17,7 @@ web-build: ## Build apps/web into deploy/static (local preview without Docker)
 build: ## Build all prod images (includes SPA in caddy image)
 	$(COMPOSE) build
 
-up: keys ## Start full prod stack (generates JWT keys if missing; includes monitoring)
+up: keys audit-env ## Start full prod stack after validating secrets (includes monitoring)
 	$(COMPOSE) --profile monitoring up -d
 
 down: ## Stop prod stack
@@ -35,7 +35,7 @@ reset-db: ## Drop and recreate all application databases (then run migrate)
 clean-slate: ## Wipe DBs, migrate, restart stack, prune legacy images (destructive)
 	@./scripts/prod-clean-slate.sh
 
-audit-env: ## Compare .env keys against .env.example
+audit-env: ## Validate production secrets and environment settings
 	@./scripts/audit-env.sh
 
 ps: ## Show running containers
@@ -44,8 +44,21 @@ ps: ## Show running containers
 monitoring: ## Start Prometheus + Grafana (profile monitoring)
 	$(COMPOSE) --profile monitoring up -d prometheus grafana
 
-backup: ## Dump all Postgres databases (requires pg_dump + .env)
+backup-db: ## Dump all Postgres databases (requires pg_dump + .env)
 	@set -a && . ./.env && set +a && ./scripts/backup-postgres.sh
+
+backup: backup-db ## Alias for backup-db
+
+restore-db: ## Verify BACKUP_FILE; RESTORE_MODE=apply requires confirmation
+	@test -n "$(BACKUP_FILE)" || { echo "BACKUP_FILE=/path/to/archive.tar.gz required" >&2; exit 2; }
+	@set -a && . ./.env && set +a && ./scripts/restore-postgres.sh "$(BACKUP_FILE)"
+
+restore: restore-db ## Alias for restore-db (requires BACKUP_FILE)
+
+audit-schema: ## Print read-only schema observations (redirect to private ops storage)
+	@set -a && . ./.env && set +a && psql "$$IDENTITY_POSTGRES_DSN" -X -v ON_ERROR_STOP=1 -f scripts/audit-schema-usage.sql
+
+schema-audit: audit-schema ## Alias for audit-schema
 
 prune: ## Remove dangling images and old build cache (safe after deploy)
 	@./scripts/docker-prune.sh
@@ -55,10 +68,10 @@ ensure-pkg-api: ## Fail fast when pkg/api is missing (manual deploy: run gen-all
 	source scripts/services.conf.sh; \
 	verify_pkg_api "$$root"
 
-deploy: keys ensure-pkg-api ## Pull-less prod update: build changed images, migrate if needed, up, prune
+deploy: keys audit-env ensure-pkg-api ## Pull-less prod update: build changed images, migrate if needed, up, prune
 	@CUR=$$(git rev-parse HEAD); \
 	PREV=$$(cat .last-deploy-sha 2>/dev/null || true); \
-	  export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 BUILDX_NO_DEFAULT_ATTESTATIONS=1 COMPOSE_PARALLEL_LIMIT=$${COMPOSE_PARALLEL_LIMIT:-4}; \
+	  export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 COMPOSE_PARALLEL_LIMIT=$${COMPOSE_PARALLEL_LIMIT:-4}; \
 	if [ -z "$$PREV" ]; then \
 	  $(COMPOSE) build; \
 	elif [ "$$PREV" = "$$CUR" ]; then \

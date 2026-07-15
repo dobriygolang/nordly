@@ -14,12 +14,11 @@ import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
-import { type PageId, type PaletteAction, isPageId } from '@shared/model/navigation';
+import { type PageId, type PaletteAction } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { ReauthLoginOverlay } from '@widgets/ReauthLoginOverlay';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
 import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
-import { runTaskRollover } from '@features/tasks/lib/taskRollover';
 import {
   parseDayKey,
   resolveScheduleStart,
@@ -29,35 +28,21 @@ import { HomePage } from '@pages/Home';
 import { patchSettings } from '@shared/model/settings';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
-import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
 import { listenEffect } from '@shared/lib/tauriListen';
-import { readAppVersion } from '@shared/lib/updater';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
-import { startSessionRefreshLoop, resetAuthRefreshState } from '@shared/api/authSession';
+import { resetAuthRefreshState } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
-import { isCloudEnabled } from '@shared/model/features';
-import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
-import {
-  startGoogleCalendarSyncWorker,
-  stopGoogleCalendarSyncWorker,
-} from '@features/calendar/lib/googleCalendarSyncWorker';
-import { hydrateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
-import {
-  startCalendarReminderWorker,
-  stopCalendarReminderWorker,
-} from '@features/calendar/lib/calendarReminderWorker';
-import {
-  startUpdateCheckWorker,
-  stopUpdateCheckWorker,
-} from '@shared/lib/updateCheckWorker';
-import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { MOTION_MS } from '@shared/lib/motionMs';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { useBackgroundWorkers } from './hooks/useBackgroundWorkers';
+import { useDeepLinkNavigation } from './hooks/useDeepLinkNavigation';
+import { useTaskRollover } from './hooks/useTaskRollover';
 
 const TaskBoardPage = lazy(() => import('@pages/TaskBoard').then((m) => ({ default: m.TaskBoardPage })));
 const NotesPage = lazy(() => import('@pages/Notes').then((m) => ({ default: m.NotesPage })));
@@ -102,38 +87,6 @@ export default function App() {
   const hydrate = useSessionStore((s) => s.hydrate);
   const clear = useSessionStore((s) => s.clear);
 
-  const PAGE_STORAGE_KEY = 'nordly:lastPage:v1';
-  const readStoredPage = (): PageId => {
-    if (typeof window === 'undefined') return 'home';
-    const v = window.sessionStorage.getItem(PAGE_STORAGE_KEY);
-    if (v === null) return 'home';
-    if (isPageId(v)) return v;
-    throw new Error(`Invalid stored page: ${v}`);
-  };
-
-  const [page, setPageRaw] = useState<PageId>(() => readStoredPage());
-  const [statsOpen, setStatsOpen] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.sessionStorage.getItem(PAGE_STORAGE_KEY) === 'stats';
-  });
-
-  const setPage = useCallback((next: PageId | ((p: PageId) => PageId)) => {
-    setPageRaw((current) => {
-      const resolved = typeof next === 'function' ? next(current) : next;
-      window.sessionStorage.setItem(PAGE_STORAGE_KEY, resolved);
-      return resolved;
-    });
-  }, []);
-
-  const navigateTo = useCallback(
-    (id: PageId) => {
-      setStatsOpen(false);
-      if (id === page) return;
-      setPage(id);
-    },
-    [page, setPage],
-  );
-
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteMounted, setPaletteMounted] = useState(false);
   const [paletteClosing, setPaletteClosing] = useState(false);
@@ -145,6 +98,29 @@ export default function App() {
   const [vaultGateActive, setVaultGateActive] = useState(false);
   const [reauthOpen, setReauthOpen] = useState(false);
   const [operationError, setOperationError] = useState<Error | null>(null);
+  const captureOperationError = useCallback((error: unknown) => {
+    setOperationError(error instanceof Error ? error : new Error(String(error)));
+  }, []);
+  const {
+    page,
+    statsOpen,
+    taskOpenRequest,
+    noteOpenRequest,
+    navigateTo,
+    goHome,
+    openStats,
+    closeStats,
+    openCalendar,
+    closeCalendar,
+    openPlanning,
+    closePlanning,
+    openTaskRequest,
+    openNoteRequest,
+    consumeTaskOpenRequest,
+    consumeNoteOpenRequest,
+    registerNotesFlush,
+    beforeNavigate,
+  } = useAppNavigation();
 
   useEffect(() => {
     applyTheme(theme);
@@ -156,13 +132,14 @@ export default function App() {
     }
   }, [theme]);
 
-  useEffect(() => initPomodoroLeader(), []);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    startUpdateCheckWorker();
-    return () => stopUpdateCheckWorker();
-  }, []);
+  useBackgroundWorkers({
+    status,
+    userId,
+    sessionReauthRequired,
+    setVaultGateActive,
+    onError: captureOperationError,
+  });
+  useTaskRollover(status, captureOperationError);
 
   useEffect(() => {
     const openReauth = (): void => setReauthOpen(true);
@@ -173,11 +150,6 @@ export default function App() {
   useEffect(() => {
     if (!sessionReauthRequired) setReauthOpen(false);
   }, [sessionReauthRequired]);
-
-  useEffect(() => {
-    if (status !== 'signed_in') return;
-    return startSessionRefreshLoop();
-  }, [status]);
 
   useEffect(() => {
     void bootstrap();
@@ -200,150 +172,10 @@ export default function App() {
       }
     });
 
-    const handleDeepLink = (url: string) => {
-      try {
-        const u = new URL(url);
-        const host = u.host.toLowerCase();
-        if (host === 'focus' || host === 'focus.start') {
-          usePomodoroStore.getState().start({
-            planItemId: u.searchParams.get('task') ?? undefined,
-            pinnedTitle: u.searchParams.get('title') ?? undefined,
-          });
-          navigateTo('home');
-          return;
-        }
-        if (host === 'task.open') {
-          const taskId = u.searchParams.get('id');
-          if (taskId) {
-            setStatsOpen(false);
-            navigateTo('today');
-            window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openTask, { detail: { taskId } }));
-          }
-          return;
-        }
-        if (host === 'note.open') {
-          const noteId = u.searchParams.get('id');
-          if (noteId) {
-            setStatsOpen(false);
-            navigateTo('notes');
-            window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openNote, { detail: { noteId } }));
-          }
-          return;
-        }
-        if (host === 'settings') {
-          const calStatus = u.searchParams.get('google_calendar');
-          if (calStatus) {
-            window.dispatchEvent(
-              new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
-                detail: { status: calStatus, detail: u.searchParams.get('detail') },
-              }),
-            );
-          }
-          const zoomStatus = u.searchParams.get('zoom');
-          if (zoomStatus) {
-            window.dispatchEvent(
-              new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
-                detail: { status: zoomStatus, detail: u.searchParams.get('detail') },
-              }),
-            );
-          }
-          navigateTo('settings');
-        }
-      } catch {
-        /* ignore malformed */
-      }
-    };
-
-    const offDeep = bridge.on('deepLink', ({ url }) => handleDeepLink(url));
-
-    // Cold start: the OAuth redirect may have launched the app before this
-    // listener attached, so pull any launch URL and process it once.
-    void window.nordly?.deepLink?.initial?.().then((url) => {
-      if (url) handleDeepLink(url);
-    });
-
     return () => {
       offAuth();
-      offDeep();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (status !== 'signed_in' || !userId) {
-      setVaultGateActive(false);
-      stopSyncEngine();
-      stopGoogleCalendarSyncWorker();
-      stopCalendarReminderWorker();
-      return;
-    }
-
-    let cancelled = false;
-
-    void (async () => {
-      await loadVaultPrefs(userId);
-      if (cancelled) return;
-      setVaultGateActive(isCloudEnabled() && isVaultEnabledSync());
-
-      if (sessionReauthRequired) {
-        stopSyncEngine();
-        stopGoogleCalendarSyncWorker();
-        stopCalendarReminderWorker();
-        return;
-      }
-
-      if (isCloudEnabled()) {
-        await hydrateGoogleCalendarCache();
-        if (cancelled) return;
-        startCalendarReminderWorker();
-        startSyncEngine();
-        startGoogleCalendarSyncWorker();
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      stopSyncEngine();
-      stopGoogleCalendarSyncWorker();
-      stopCalendarReminderWorker();
-    };
-  }, [status, userId, sessionReauthRequired]);
-
-  useEffect(() => {
-    if (status !== 'signed_in') return;
-    const roll = () => {
-      void runTaskRollover().catch((err: unknown) =>
-        setOperationError(err instanceof Error ? err : new Error(String(err))),
-      );
-    };
-    const startupTimer = window.setTimeout(roll, 2_000);
-    let focusTimer: number | null = null;
-    const onFocus = () => {
-      if (focusTimer !== null) window.clearTimeout(focusTimer);
-      focusTimer = window.setTimeout(roll, 2_000);
-    };
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') onFocus();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.clearTimeout(startupTimer);
-      if (focusTimer !== null) window.clearTimeout(focusTimer);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== 'signed_in') return;
-    void import('@shared/api/device').then(async ({ ensureDevice }) => {
-      const appVersion = await readAppVersion();
-      void ensureDevice({ appVersion }).catch((err: unknown) =>
-        setOperationError(err instanceof Error ? err : new Error(String(err))),
-      );
-    });
-  }, [status]);
+  }, [bootstrap, clear, hydrate]);
 
   const startFocus = useCallback(
     (args?: StartFocusArgs) => {
@@ -353,30 +185,14 @@ export default function App() {
     [navigateTo],
   );
 
-  const openStats = useCallback(() => {
-    navigateTo('home');
-    setStatsOpen(true);
-  }, [navigateTo]);
-
-  const closeStats = useCallback(() => {
-    setStatsOpen(false);
-  }, []);
-
-  const openCalendar = useCallback(() => {
-    navigateTo('calendar');
-  }, [navigateTo]);
-
-  const closeCalendar = useCallback(() => {
-    navigateTo('home');
-  }, [navigateTo]);
-
-  const openPlanning = useCallback(() => {
-    navigateTo('planning');
-  }, [navigateTo]);
-
-  const closePlanning = useCallback(() => {
-    navigateTo('home');
-  }, [navigateTo]);
+  useDeepLinkNavigation({
+    navigateTo,
+    beforeNavigate,
+    openTask: openTaskRequest,
+    openNote: openNoteRequest,
+    startFocus,
+    onError: captureOperationError,
+  });
 
   const openImpl = useCallback(
     (id: PaletteAction, args?: StartFocusArgs) => {
@@ -453,10 +269,10 @@ export default function App() {
         created = await scheduleTask(created.id, start, 30);
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
       } catch (err) {
-        setOperationError(err instanceof Error ? err : new Error(String(err)));
+        captureOperationError(err);
       }
     },
-    [closePalette],
+    [captureOperationError, closePalette],
   );
 
   useEffect(() => {
@@ -470,41 +286,6 @@ export default function App() {
     window.addEventListener(NORDLY_EVENTS.openPaletteAddTask, onAddTask);
     return () => window.removeEventListener(NORDLY_EVENTS.openPaletteAddTask, onAddTask);
   }, [openPalette]);
-
-  const goHome = useCallback(() => {
-    setStatsOpen(false);
-    navigateTo('home');
-  }, [navigateTo]);
-
-  useEffect(() => {
-    const onNavTask = (e: Event) => {
-      const taskId = (e as CustomEvent<{ taskId?: string }>).detail?.taskId;
-      if (!taskId) return;
-      setStatsOpen(false);
-      navigateTo('today');
-      window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openTask, { detail: { taskId } }));
-    };
-    window.addEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
-    return () => window.removeEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
-  }, [navigateTo]);
-
-  useEffect(() => {
-    const onNavHome = () => goHome();
-    window.addEventListener(NORDLY_EVENTS.navHome, onNavHome);
-    return () => window.removeEventListener(NORDLY_EVENTS.navHome, onNavHome);
-  }, [goHome]);
-
-  useEffect(() => {
-    const onOpenPlanning = () => openPlanning();
-    window.addEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
-    return () => window.removeEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
-  }, [openPlanning]);
-
-  useEffect(() => {
-    const onOpenSettings = () => navigateTo('settings');
-    window.addEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
-    return () => window.removeEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
-  }, [navigateTo]);
 
   useGlobalHotkeys({
     page,
@@ -534,9 +315,20 @@ export default function App() {
           case 'home':
             return <HomePage />;
           case 'today':
-            return <TaskBoardPage />;
+            return (
+              <TaskBoardPage
+                openRequest={taskOpenRequest}
+                onConsumeOpenRequest={consumeTaskOpenRequest}
+              />
+            );
           case 'notes':
-            return <NotesPage />;
+            return (
+              <NotesPage
+                openRequest={noteOpenRequest}
+                onConsumeOpenRequest={consumeNoteOpenRequest}
+                onRegisterFlush={registerNotesFlush}
+              />
+            );
           case 'whiteboard':
             return <WhiteboardPage boardCanvas={boardCanvas} />;
           case 'calendar':
@@ -559,7 +351,16 @@ export default function App() {
             return null;
         }
       },
-    [theme, boardCanvas, navigateTo],
+    [
+      theme,
+      boardCanvas,
+      navigateTo,
+      taskOpenRequest,
+      noteOpenRequest,
+      consumeTaskOpenRequest,
+      consumeNoteOpenRequest,
+      registerNotesFlush,
+    ],
   );
 
   const posterBoost = statsOpen || paletteMounted;

@@ -1,7 +1,10 @@
 import { translate } from '@nordly-i18n';
 
-import { endFocusSession, startFocusSession } from '@features/focus/api/focusClient';
-import { findOpenFocusSession } from '@features/focus/repository/focusStore';
+import {
+  endFocusSession,
+  getOpenFocusSession,
+  startFocusSession,
+} from '@features/focus/api/focusClient';
 import { notify } from '@shared/api/notifications';
 import { readEndBell } from '@shared/model/settings';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
@@ -28,7 +31,7 @@ export function snapMode(snap: PomodoroPersistSnap): FocusTimerMode {
 
 async function resolveSessionId(sessionRef: SessionRef): Promise<string | null> {
   if (sessionRef.current) return sessionRef.current;
-  return (await findOpenFocusSession())?.id ?? null;
+  return (await getOpenFocusSession())?.id ?? null;
 }
 
 export async function finishFocusSession(
@@ -56,7 +59,7 @@ export async function finishFocusSession(
 
 export async function reattachFocusSession(sessionRef: SessionRef): Promise<void> {
   if (sessionRef.current) return;
-  const open = await findOpenFocusSession();
+  const open = await getOpenFocusSession();
   if (open) {
     sessionRef.current = open.id;
     return;

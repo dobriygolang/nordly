@@ -29,7 +29,10 @@ pub fn set_traffic_lights(_window: &tauri::WebviewWindow, _visible: bool) -> Res
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn set_content_corner_radius(_window: &tauri::WebviewWindow, _radius: f64) -> Result<(), String> {
+pub fn set_content_corner_radius(
+    _window: &tauri::WebviewWindow,
+    _radius: f64,
+) -> Result<(), String> {
     Ok(())
 }
 

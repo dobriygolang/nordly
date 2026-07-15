@@ -39,11 +39,12 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Billing
 
-`ShareNoteToWeb` enforces `published_notes_active` quota on **new** publishes (unlimited on `default` plan). Re-sharing an already published note updates plaintext body + private-link settings in place (same slug). **Private link** (`publish_password` entitlement):
+`ShareNoteToWeb` enforces `published_notes_active` quota on **new** publishes (unlimited on `default` plan). Finite quotas are checked under a per-user PostgreSQL transaction lock. Re-sharing an already published note updates plaintext body + private-link settings in place (same slug). **Private link** (`publish_password` entitlement):
 
 - `password_protected` + `password` — bcrypt hash; public GET omits body until `AccessPublishedNote`.
 - Optional `expires_in_days` — link stops working after 7/30/90 days.
 - Opaque UUID slug when password is set.
+- Public password access is limited to 10 attempts per client IP per minute.
 
 `GetPublishStatus` returns `password_protected` and `expires_at` for the owner UI.
 
@@ -53,7 +54,9 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 - `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`, `publish_password_hash`, `publish_expires_at`
 - `note_links` — wiki-link graph metadata (`source_note_id`, optional `target_note_id`, `link_text`); **client-provided** on create/update (server does not parse encrypted `body_md`)
 
-Soft-delete: `archived_at` set on delete (`note_links` removed via FK cascade).
+Soft-delete: `archived_at` is set transactionally and all source/target `note_links` are removed.
+`ListNotes` is intentionally capped at 200 newest notes; cursor pagination is deferred until the
+desktop sync protocol can consume pages without introducing a second list path.
 
 ## Commands
 
@@ -68,4 +71,4 @@ Build: `GOWORK=off`
 
 `GET /metrics` — HTTP instrumentation only (no domain counters yet).
 
-Nordly client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault in `apps/nordly/src/renderer/src/features/notes/repository/vaultRemote.ts`.
+Nordly client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault HTTP in `apps/nordly/src/renderer/src/features/notes/remote/vaultRemote.ts`.

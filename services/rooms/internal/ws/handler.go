@@ -32,9 +32,13 @@ type Handler struct {
 	Upgrader websocket.Upgrader
 }
 
-func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger) *Handler {
+func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger, allowedOrigins []string) *Handler {
 	hub.RoomResolver = store.GetRoom
 	hub.RoleResolver = store.GetRole
+	origins := make(map[string]struct{}, len(allowedOrigins))
+	for _, origin := range allowedOrigins {
+		origins[origin] = struct{}{}
+	}
 	return &Handler{
 		Hub:   hub,
 		JWT:   v,
@@ -43,7 +47,14 @@ func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger) 
 		Upgrader: websocket.Upgrader{
 			ReadBufferSize:  8192,
 			WriteBufferSize: 8192,
-			CheckOrigin:     func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true
+				}
+				_, ok := origins[origin]
+				return ok
+			},
 		},
 	}
 }
@@ -87,6 +98,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	if repository.IsExpired(room, time.Now().UTC()) {
+		http.Error(w, "room expired", http.StatusGone)
 		return
 	}
 

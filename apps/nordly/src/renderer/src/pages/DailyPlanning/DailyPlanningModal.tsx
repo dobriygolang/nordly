@@ -3,23 +3,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
-import { getTrackerSettings, type TrackerSettings } from '@features/calendar/remote/calendarClient';
+import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
   buildDefaultScheduleDate,
   defaultDurationMin,
+  parseDayKey,
   startOfLocalDay,
   sumDurationMin,
   taskScheduleStart,
-  toDayKey,
 } from '@shared/lib/dates';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { zIndex } from '@shared/lib/z-index';
+import { useTodayKey } from '@shared/hooks/useTodayKey';
 
-import { finalizeDailyPlan, loadDailyPlan, saveDailyPlanObstacles } from '@features/planning/repository/dailyPlanStore';
+import { finalizeDailyPlan, loadDailyPlan, saveDailyPlanObstacles } from '@features/planning/api/dailyPlan';
 import { tasksForToday, totalDurationLabel } from '@features/planning/lib/planningTasks';
 import { usePlanningTaskBoard } from '@features/planning/hooks/usePlanningTaskBoard';
 import { useSyncStore } from '@shared/model/sync';
@@ -46,8 +47,8 @@ export function DailyPlanningModal({
   closing = false,
 }: DailyPlanningModalProps): JSX.Element {
   const t = useT();
-  const today = useMemo(() => startOfLocalDay(new Date()), []);
-  const todayKey = toDayKey(today);
+  const todayKey = useTodayKey();
+  const today = useMemo(() => startOfLocalDay(parseDayKey(todayKey)), [todayKey]);
   const { epics } = useTaskEpics();
   const [step, setStep] = useState<PlanningStep>('pick');
   const [tasks, setTasks] = useState<TaskCard[]>([]);

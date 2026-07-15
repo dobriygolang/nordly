@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import type { TrackerSettings } from '@features/calendar/remote/calendarClient';
+import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 
 import { TaskRow } from './TaskRow';
 
@@ -46,6 +46,14 @@ export const SortableTaskRow = memo(function SortableTaskRow({
     disabled,
     data: { type: 'task', containerId },
   });
+  const {
+    role,
+    tabIndex,
+    'aria-disabled': ariaDisabled,
+    'aria-pressed': ariaPressed,
+    'aria-roledescription': ariaRoleDescription,
+    'aria-describedby': ariaDescribedBy,
+  } = attributes;
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -53,16 +61,16 @@ export const SortableTaskRow = memo(function SortableTaskRow({
   };
 
   const dragHandleProps = useMemo<HTMLAttributes<HTMLElement>>(
-    () => ({ ...attributes, ...listeners }),
-    [
-      listeners,
-      attributes.role,
-      attributes.tabIndex,
-      attributes['aria-disabled'],
-      attributes['aria-pressed'],
-      attributes['aria-roledescription'],
-      attributes['aria-describedby'],
-    ],
+    () => ({
+      role,
+      tabIndex,
+      'aria-disabled': ariaDisabled,
+      'aria-pressed': ariaPressed,
+      'aria-roledescription': ariaRoleDescription,
+      'aria-describedby': ariaDescribedBy,
+      ...listeners,
+    }),
+    [role, tabIndex, ariaDisabled, ariaPressed, ariaRoleDescription, ariaDescribedBy, listeners],
   );
 
   return (

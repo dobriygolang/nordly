@@ -20,7 +20,7 @@ func main() {
 		panic(err)
 	}
 
-	redisClient, err := authrepo.New(ctx, cfg.RedisAddr)
+	redisClient, err := authrepo.New(ctx, cfg.RedisAddr, cfg.RedisPassword)
 	if err != nil {
 		panic(err)
 	}

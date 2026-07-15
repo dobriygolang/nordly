@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
 	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 )
@@ -88,6 +88,10 @@ func (s *roomService) CreateGuestRoom(
 	}
 	if language == "" {
 		language = model.LanguageGo
+	}
+	if roomType != model.RoomTypePractice && roomType != model.RoomTypeSystemDesign {
+		return nil, fmt.Errorf("guest rooms support only %q and %q: %w",
+			model.RoomTypePractice, model.RoomTypeSystemDesign, repository.ErrInvalidState)
 	}
 	if err := model.ValidateCreate(roomType, language); err != nil {
 		return nil, err
@@ -192,6 +196,9 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string)
 	if room.Visibility == model.VisibilityPrivate {
 		return nil, repository.ErrForbidden
 	}
+	if room.Type != model.RoomTypePractice && room.Type != model.RoomTypeSystemDesign {
+		return nil, repository.ErrForbidden
+	}
 
 	participants, err := s.repo.ListParticipants(ctx, rid)
 	if err != nil {
@@ -216,7 +223,7 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string)
 	if row, err := s.repo.AddParticipant(ctx, model.Participant{
 		RoomID:   rid,
 		UserID:   guestUUID,
-		Role:     model.RoleParticipant,
+		Role:     model.RoleForInvitee(room, participants),
 		JoinedAt: s.now().UTC(),
 	}); err != nil {
 		return nil, fmt.Errorf("GuestJoin participant: %w", err)

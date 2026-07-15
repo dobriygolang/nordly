@@ -46,7 +46,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpAddr := fmt.Sprintf(":%d", a.Config.HTTPPort)
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           ops.InstrumentHTTP("notes", httpMux),
+		Handler:           ops.InstrumentHTTP("notes", ops.PublishedAccessRateLimit(httpMux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

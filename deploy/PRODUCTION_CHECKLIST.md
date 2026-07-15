@@ -17,6 +17,7 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | Variable | How |
 |----------|-----|
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
+| `REDIS_PASSWORD` | `openssl rand -hex 32` (required by identity, identity-bot, and billing) |
 | `INTERNAL_API_TOKEN` | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms live/board links) |
 | `NORDLY_CALLBACK_URL` | `https://trynordly.app/oauth/google-calendar` (prod — web OAuth bridge → `nordly://settings`; dev desktop-only: `nordly://settings`) |
@@ -25,12 +26,15 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` (encrypts Google/Zoom refresh tokens at rest; **required** in tracker prod) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | BotFather |
 | `CADDY_EMAIL` | Let's Encrypt |
+| `DEPLOY_UID`, `DEPLOY_GID` | `id -u` and `id -g` for the account that runs `make keys`; lets identity read its mode-0600 private key without root |
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
 Optional: Tribute webhooks — see [RUNBOOK.md](./RUNBOOK.md).
 
 | `GRAFANA_ADMIN_PASSWORD` | required when using `--profile monitoring` (default in `make up`) |
+
+Set `TRIBUTE_WEBHOOK_SECRET` before production deployment, even when no current payment link is configured. Then run `make audit-env`; it rejects placeholders, missing required production secrets, and missing JWT key paths.
 
 ## 3. GitHub Actions deploy
 
@@ -61,5 +65,7 @@ Updates: merge to `main` → CI deploys automatically.
 - [ ] Nordly login (Telegram)
 - [ ] `https://grafana.trynordly.app` — Platform + Product dashboards load
 - [ ] `docker compose ps` — healthy
+- [ ] Quarterly isolated restore drill recorded from an off-site backup
+- [ ] Before any schema DROP: [schema contract gate](./docs/SCHEMA_CONTRACT_GATE.md) has 30 daily observations, two production releases, and complete approvals/evidence
 
-Ops: [RUNBOOK.md](./RUNBOOK.md)
+Ops: [RUNBOOK.md](./RUNBOOK.md) · [Disaster recovery](./docs/DISASTER_RECOVERY.md) (configure encrypted off-site backups and schedule a quarterly restore drill)

@@ -94,6 +94,8 @@ export async function remoteStartFocusSession(args: {
   planItemId?: string;
   pinnedTitle?: string;
   mode?: 'pomodoro' | 'stopwatch';
+  clientSessionId: string;
+  startedAt: string;
 }): Promise<FocusSession> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/focus/sessions/start`, {
     method: 'POST',
@@ -102,6 +104,8 @@ export async function remoteStartFocusSession(args: {
       mode: args.mode ?? 'pomodoro',
       pinnedTitle: args.pinnedTitle ?? '',
       taskId: args.planItemId ?? '',
+      clientSessionId: args.clientSessionId,
+      startedAt: args.startedAt,
     }),
   });
   if (!resp.ok) throw new Error(`startFocusSession failed: ${resp.status}`);
@@ -114,6 +118,7 @@ export async function remoteEndFocusSession(args: {
   sessionId: string;
   pomodorosCompleted: number;
   secondsFocused: number;
+  endedAt: string;
 }): Promise<FocusSession> {
   const resp = await apiFetch(
     `${API_BASE_URL}/v1/focus/sessions/${encodeURIComponent(args.sessionId)}/end`,
@@ -124,6 +129,7 @@ export async function remoteEndFocusSession(args: {
         sessionId: args.sessionId,
         pomodorosCompleted: args.pomodorosCompleted,
         secondsFocused: args.secondsFocused,
+        endedAt: args.endedAt,
       }),
     },
   );

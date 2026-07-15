@@ -222,9 +222,11 @@ func (s *notesService) ShareNoteToWeb(
 		return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL, meta)
 	}
 
-	if err := s.ensurePublishedNotesQuota(ctx, userID); err != nil {
+	quotaLimit, err := s.publishedNotesQuotaLimit(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
+	meta.QuotaLimit = quotaLimit
 	return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL, meta)
 }
 
@@ -346,24 +348,16 @@ func IsFeatureDisabled(err error) bool {
 	return errors.Is(err, ErrFeatureDisabled)
 }
 
-func (s *notesService) ensurePublishedNotesQuota(ctx context.Context, userID string) error {
+func (s *notesService) publishedNotesQuotaLimit(ctx context.Context, userID string) (*int, error) {
 	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementPublishedNotesActive)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if limit.Unlimited {
-		return nil
+		return nil, nil
 	}
 	if limit.Limit == nil {
-		return fmt.Errorf("billing: published_notes_active limit missing for user %s", userID)
+		return nil, fmt.Errorf("billing: published_notes_active limit missing for user %s", userID)
 	}
-	count, err := s.repo.CountPublishedNotes(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if count >= *limit.Limit {
-		return ErrQuotaExceeded
-	}
-	return nil
+	return limit.Limit, nil
 }
-

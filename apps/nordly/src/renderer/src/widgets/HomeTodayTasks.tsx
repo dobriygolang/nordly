@@ -3,22 +3,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { listTasks, moveTaskStatus, type TaskCard } from '@features/tasks/api/tasks';
-import { focusStoreList } from '@features/focus/repository/focusStore';
+import { listFocusSessions } from '@features/focus/api/focusClient';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
-import { loadDailyPlan, type DailyPlanRecord } from '@features/planning/repository/dailyPlanStore';
+import { loadDailyPlan, type DailyPlanRecord } from '@features/planning/api/dailyPlan';
 import { isPlanFinalizedToday, parseObstacleLines } from '@features/planning/lib/planningProgress';
 import { tasksForToday } from '@features/planning/lib/planningTasks';
-import { defaultDurationMin, toDayKey } from '@shared/lib/dates';
+import { defaultDurationMin } from '@shared/lib/dates';
 import { useFlipList } from '@shared/lib/useFlipList';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { useSessionStore } from '@shared/model/session';
+import { useTodayKey } from '@shared/hooks/useTodayKey';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
 function focusSecondsTodayForTask(
-  sessions: Awaited<ReturnType<typeof focusStoreList>>,
+  sessions: Awaited<ReturnType<typeof listFocusSessions>>,
   planItemId: string,
   dayKey: string,
 ): number {
@@ -39,10 +40,10 @@ function sortHomeTasks(a: TaskCard, b: TaskCard): number {
 export function HomeTodayTasks(): JSX.Element | null {
   const t = useT();
   const sessionReady = useSessionStore((s) => s.status === 'signed_in' && s.userId != null);
-  const todayKey = useMemo(() => toDayKey(new Date()), []);
+  const todayKey = useTodayKey();
   const { epics } = useTaskEpics();
   const [tasks, setTasks] = useState<TaskCard[]>([]);
-  const [focusSessions, setFocusSessions] = useState<Awaited<ReturnType<typeof focusStoreList>>>([]);
+  const [focusSessions, setFocusSessions] = useState<Awaited<ReturnType<typeof listFocusSessions>>>([]);
   const [dailyPlan, setDailyPlan] = useState<DailyPlanRecord>({});
   const [loadError, setLoadError] = useState<Error | null>(null);
 
@@ -58,7 +59,7 @@ export function HomeTodayTasks(): JSX.Element | null {
     const { status, userId } = useSessionStore.getState();
     if (status !== 'signed_in' || !userId) return;
 
-    const [taskList, sessions] = await Promise.all([listTasks(), focusStoreList()]);
+    const [taskList, sessions] = await Promise.all([listTasks(), listFocusSessions()]);
     setTasks(taskList);
     setFocusSessions(sessions);
     setLoadError(null);

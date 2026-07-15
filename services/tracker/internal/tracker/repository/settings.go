@@ -17,7 +17,6 @@ const userSettingsColumns = `user_id, google_calendar_sync_enabled,
 
 // UserSettingsPatch describes optional updates to user settings.
 type UserSettingsPatch struct {
-	GoogleSync       *bool
 	GoogleCalendarID *string
 }
 
@@ -37,6 +36,29 @@ func (r *Repository) GetUserSettings(ctx context.Context, userID string) (*model
 	return s, err
 }
 
+func (r *Repository) ListGoogleConnectedSettings(ctx context.Context) ([]model.UserSettings, error) {
+	rows, err := r.conn(ctx).Query(ctx, `
+		SELECT `+userSettingsColumns+`
+		FROM user_settings
+		WHERE google_refresh_token IS NOT NULL
+		  AND google_refresh_token <> ''
+		  AND google_reauth_required = false
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]model.UserSettings, 0)
+	for rows.Next() {
+		settings, err := scanUserSettings(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *settings)
+	}
+	return out, rows.Err()
+}
+
 func (r *Repository) UpsertUserSettings(ctx context.Context, userID string, patch UserSettingsPatch) (*model.UserSettings, error) {
 	uid, err := parseUserID(userID)
 	if err != nil {
@@ -46,23 +68,18 @@ func (r *Repository) UpsertUserSettings(ctx context.Context, userID string, patc
 	if err != nil {
 		return nil, err
 	}
-	gSync := current.GoogleCalendarSyncEnabled
-	if patch.GoogleSync != nil {
-		gSync = *patch.GoogleSync
-	}
 	calendarID := current.GoogleCalendarID
 	if patch.GoogleCalendarID != nil {
 		calendarID = patch.GoogleCalendarID
 	}
 	row := r.conn(ctx).QueryRow(ctx, `
 		INSERT INTO user_settings (user_id, google_calendar_sync_enabled, google_calendar_id)
-		VALUES ($1, $2, $3)
+		VALUES ($1, false, $2)
 		ON CONFLICT (user_id) DO UPDATE SET
-			google_calendar_sync_enabled = EXCLUDED.google_calendar_sync_enabled,
 			google_calendar_id = EXCLUDED.google_calendar_id,
 			updated_at = now()
 		RETURNING `+userSettingsColumns+`
-	`, uid, gSync, calendarID)
+	`, uid, calendarID)
 	return scanUserSettings(row)
 }
 
@@ -160,7 +177,8 @@ func (r *Repository) ClearGoogleConnection(ctx context.Context, userID string) e
 func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {
 	var s model.UserSettings
 	var uid uuid.UUID
-	if err := row.Scan(&uid, &s.GoogleCalendarSyncEnabled,
+	var deprecatedGoogleCalendarSyncEnabled bool
+	if err := row.Scan(&uid, &deprecatedGoogleCalendarSyncEnabled,
 		&s.GoogleRefreshToken, &s.GoogleOAuthState, &s.GoogleCalendarID,
 		&s.GoogleReauthRequired,
 		&s.ZoomRefreshToken, &s.ZoomOAuthState, &s.ZoomReauthRequired,

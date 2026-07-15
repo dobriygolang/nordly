@@ -1,8 +1,17 @@
 // Notes — Obsidian-minimal vault: file list + markdown editor (local-only).
 // Sidebar instant-create (⌘N), debounced autosave to IndexedDB.
 //
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+} from 'react';
 
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useT } from '@nordly-i18n';
 
 import {
@@ -41,18 +50,40 @@ import {
 import { Sidebar } from './Notes/Sidebar';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { Editor } from './Notes/Editor';
+import { FileDropOverlay } from './Notes/FileDropOverlay';
 import { VAULT_SIDEBAR_W } from './vaultSidebar';
+import { isTauriRuntime } from '@platform/runtime';
+import type { EntityNavigationRequest } from '@shared/model/navigation';
+import {
+  isFileDrag,
+  listDroppedMarkdownFiles,
+  listDroppedMarkdownPaths,
+  readMarkdownFile,
+  readMarkdownPath,
+  type MarkdownDraft,
+} from '@features/notes/lib/importMarkdownFiles';
+import {
+  NOTES_ZOOM_DEFAULT,
+  loadNotesEditorZoom,
+  saveNotesEditorZoom,
+  stepNotesEditorZoom,
+} from '@features/notes/lib/notesEditorZoom';
 
 const SAVE_STATUS_FADE_MS = 1200;
 const AUTOSAVE_DEBOUNCE_MS = 250;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
 
 export interface NotesPageProps {
-  initialSelectedId?: string | null;
-  onConsumeInitial?: () => void;
+  openRequest?: EntityNavigationRequest | null;
+  onConsumeOpenRequest?: (requestKey: number) => void;
+  onRegisterFlush?: (flush: (() => Promise<boolean>) | null) => void;
 }
 
-export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProps = {}) {
+export function NotesPage({
+  openRequest,
+  onConsumeOpenRequest,
+  onRegisterFlush,
+}: NotesPageProps = {}) {
   const t = useT();
   const [list, setList] = useState<ListState>(INITIAL_LIST);
   const listRef = useRef<ListState>(INITIAL_LIST);
@@ -61,7 +92,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const focusFolderIdRef = useRef<string | null>(null);
   const activeRef = useRef<Note | null>(null);
   const selectedIdRef = useRef<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(openRequest?.id ?? null);
   const [active, setActive] = useState<Note | null>(null);
   activeRef.current = active;
   selectedIdRef.current = selectedId;
@@ -69,7 +100,11 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [draftTitle, setDraftTitle] = useState('');
   const [draftBody, setDraftBody] = useState('');
+  const [fileDropActive, setFileDropActive] = useState(false);
+  const fileDragDepthRef = useRef(0);
+  const [editorZoom, setEditorZoom] = useState(loadNotesEditorZoom);
   const saveTimer = useRef<number | null>(null);
+  const saveInFlightRef = useRef<Promise<boolean> | null>(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -98,15 +133,6 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     const onToggle = () => setSidebarCollapsed((c) => !c);
     window.addEventListener(NORDLY_EVENTS.toggleSidebar, onToggle as EventListener);
     return () => window.removeEventListener(NORDLY_EVENTS.toggleSidebar, onToggle as EventListener);
-  }, []);
-
-  useEffect(() => {
-    const onOpen = (e: Event): void => {
-      const noteId = (e as CustomEvent<{ noteId?: string }>).detail?.noteId;
-      if (noteId) setSelectedId(noteId);
-    };
-    window.addEventListener(NORDLY_EVENTS.openNote, onOpen);
-    return () => window.removeEventListener(NORDLY_EVENTS.openNote, onOpen);
   }, []);
 
   const loadListGen = useRef(0);
@@ -174,7 +200,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         });
     });
     return unsub;
-  }, [loadList]);
+  }, [loadList, t]);
 
   useEffect(() => {
     const onSync = () => {
@@ -226,7 +252,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, t]);
 
   const draftRef = useRef({ title: '', body: '', activeId: '' });
   draftRef.current = {
@@ -239,34 +265,52 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
     if (active) lastSavedRef.current = { title: active.title, body: active.bodyMd };
   }, [active]);
 
-  const flushNow = useCallback(async () => {
+  const flushNow = useCallback(async (): Promise<boolean> => {
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    while (saveInFlightRef.current) {
+      if (!(await saveInFlightRef.current)) return false;
+    }
+
     const { activeId, title, body } = draftRef.current;
-    if (!activeId) return;
-    if (activeRef.current && isNoteVaultLocked(activeRef.current)) return;
-    if (lastSavedRef.current.title === title && lastSavedRef.current.body === body) return;
+    if (!activeId) return true;
+    if (activeRef.current && isNoteVaultLocked(activeRef.current)) return true;
+    if (lastSavedRef.current.title === title && lastSavedRef.current.body === body) return true;
 
     setSaveStatus('saving');
+    const save = (async (): Promise<boolean> => {
+      try {
+        const n = await updateNote(activeId, title, body);
+        lastSavedRef.current = { title: n.title, body: n.bodyMd };
+        setActive((cur) => (cur && cur.id === n.id ? n : cur));
+        setList((prev) => ({
+          ...prev,
+          notes: prev.notes.map((row) =>
+            row.id === activeId
+              ? { ...row, title: n.title, updatedAt: n.updatedAt, sizeBytes: n.sizeBytes }
+              : row,
+          ),
+        }));
+        setSaveStatus('saved');
+        window.setTimeout(() => {
+          setSaveStatus((cur) => (cur === 'saved' ? 'idle' : cur));
+        }, SAVE_STATUS_FADE_MS);
+        return true;
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+        setSaveStatus('idle');
+        return false;
+      }
+    })();
+    saveInFlightRef.current = save;
     try {
-      const n = await updateNote(activeId, title, body);
-      lastSavedRef.current = { title: n.title, body: n.bodyMd };
-      setActive((cur) => (cur && cur.id === n.id ? n : cur));
-      setList((prev) => ({
-        ...prev,
-        notes: prev.notes.map((row) =>
-          row.id === activeId
-            ? { ...row, title: n.title, updatedAt: n.updatedAt, sizeBytes: n.sizeBytes }
-            : row,
-        ),
-      }));
-      setSaveStatus('saved');
-      window.setTimeout(() => {
-        setSaveStatus((cur) => (cur === 'saved' ? 'idle' : cur));
-      }, SAVE_STATUS_FADE_MS);
-    } catch (err: unknown) {
-      setActiveError(errorMessage(err, t));
-      setSaveStatus('idle');
+      return await save;
+    } finally {
+      if (saveInFlightRef.current === save) saveInFlightRef.current = null;
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!active || isNoteVaultLocked(active)) return;
@@ -291,40 +335,235 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   }, [flushNow]);
 
   useEffect(() => {
-    if (initialSelectedId) {
-      setSelectedId(initialSelectedId);
-      onConsumeInitial?.();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onRegisterFlush?.(flushNow);
+    return () => onRegisterFlush?.(null);
+  }, [flushNow, onRegisterFlush]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+
+    void getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        event.preventDefault();
+        if (await flushNow()) {
+          await getCurrentWindow().destroy();
+        }
+      })
+      .then((off) => {
+        if (disposed) off();
+        else unlisten = off;
+      })
+      .catch((err: unknown) => {
+        if (!disposed) setActiveError(errorMessage(err, t));
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [flushNow, t]);
+
+  useEffect(() => {
+    if (!openRequest) return;
+    let cancelled = false;
+    void (async () => {
+      if (!(await flushNow()) || cancelled) return;
+      setSelectedId(openRequest.id);
+      onConsumeOpenRequest?.(openRequest.requestKey);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openRequest, flushNow, onConsumeOpenRequest]);
+
+  const prependAndSelectNote = useCallback((n: Note) => {
+    setList((prev) => ({
+      ...prev,
+      notes: [
+        {
+          id: n.id,
+          title: n.title,
+          updatedAt: n.updatedAt,
+          sizeBytes: n.sizeBytes,
+          folderId: n.folderId ?? null,
+        },
+        ...prev.notes,
+      ],
+    }));
+    setSelectedId(n.id);
+    setActive(n);
+    setDraftTitle(n.title);
+    setDraftBody(n.bodyMd);
+    setActiveError(null);
   }, []);
 
   const handleCreate = useCallback(async () => {
-    await flushNow();
+    if (!(await flushNow())) return;
     try {
       const folderId = focusFolderIdRef.current;
       const n = await createNote('Untitled', '', folderId);
-      setList((prev) => ({
-        ...prev,
-        notes: [
-          {
-            id: n.id,
-            title: n.title,
-            updatedAt: n.updatedAt,
-            sizeBytes: n.sizeBytes,
-            folderId: n.folderId ?? null,
-          },
-          ...prev.notes,
-        ],
-      }));
-      setSelectedId(n.id);
-      setActive(n);
-      setDraftTitle(n.title);
-      setDraftBody(n.bodyMd);
-      setActiveError(null);
+      prependAndSelectNote(n);
     } catch (err: unknown) {
       setActiveError(errorMessage(err, t));
     }
-  }, [flushNow, t]);
+  }, [flushNow, prependAndSelectNote, t]);
+
+  const clearFileDrop = useCallback(() => {
+    fileDragDepthRef.current = 0;
+    setFileDropActive(false);
+  }, []);
+
+  const importMarkdownDrafts = useCallback(
+    async (drafts: MarkdownDraft[]) => {
+      if (drafts.length === 0) {
+        setActiveError(t('nordly.notes.file_drop.only_md'));
+        return;
+      }
+      if (!(await flushNow())) return;
+
+      const folderId = focusFolderIdRef.current;
+      let last: Note | null = null;
+      try {
+        for (const draft of drafts) {
+          const n = await createNote(draft.title, draft.bodyMd, folderId);
+          setList((prev) => ({
+            ...prev,
+            notes: [
+              {
+                id: n.id,
+                title: n.title,
+                updatedAt: n.updatedAt,
+                sizeBytes: n.sizeBytes,
+                folderId: n.folderId ?? null,
+              },
+              ...prev.notes,
+            ],
+          }));
+          last = n;
+        }
+        if (last) {
+          setSelectedId(last.id);
+          setActive(last);
+          setDraftTitle(last.title);
+          setDraftBody(last.bodyMd);
+          setActiveError(null);
+        }
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+      }
+    },
+    [flushNow, t],
+  );
+
+  const onFileDragEnter = useCallback((e: ReactDragEvent) => {
+    if (isTauriRuntime() || !isFileDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    fileDragDepthRef.current += 1;
+    setFileDropActive(true);
+  }, []);
+
+  const onFileDragOver = useCallback((e: ReactDragEvent) => {
+    if (isTauriRuntime() || !isFileDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onFileDragLeave = useCallback(
+    (e: ReactDragEvent) => {
+      if (isTauriRuntime() || !isFileDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      fileDragDepthRef.current -= 1;
+      if (fileDragDepthRef.current <= 0) {
+        clearFileDrop();
+      }
+    },
+    [clearFileDrop],
+  );
+
+  const handleFileDrop = useCallback(
+    async (e: ReactDragEvent) => {
+      if (isTauriRuntime() || !isFileDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearFileDrop();
+
+      const markdownFiles = listDroppedMarkdownFiles(e.dataTransfer.files);
+      if (markdownFiles.length === 0) {
+        setActiveError(t('nordly.notes.file_drop.only_md'));
+        return;
+      }
+
+      try {
+        const drafts: MarkdownDraft[] = [];
+        for (const file of markdownFiles) {
+          drafts.push(await readMarkdownFile(file));
+        }
+        await importMarkdownDrafts(drafts);
+      } catch (err: unknown) {
+        setActiveError(errorMessage(err, t));
+      }
+    },
+    [clearFileDrop, importMarkdownDrafts, t],
+  );
+
+  // Tauri WebView does not deliver OS file drops via HTML5 File API — use native paths.
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void getCurrentWindow()
+      .onDragDropEvent((event) => {
+        const { payload } = event;
+        if (payload.type === 'enter' || payload.type === 'over') {
+          setFileDropActive(true);
+          return;
+        }
+        if (payload.type === 'leave') {
+          clearFileDrop();
+          return;
+        }
+        if (payload.type !== 'drop') return;
+        clearFileDrop();
+
+        const paths = listDroppedMarkdownPaths(payload.paths);
+        if (paths.length === 0) {
+          setActiveError(t('nordly.notes.file_drop.only_md'));
+          return;
+        }
+
+        void (async () => {
+          try {
+            const drafts: MarkdownDraft[] = [];
+            for (const path of paths) {
+              drafts.push(
+                await readMarkdownPath(path, (p) => invoke<string>('read_text_file', { path: p })),
+              );
+            }
+            if (!disposed) await importMarkdownDrafts(drafts);
+          } catch (err: unknown) {
+            if (!disposed) setActiveError(errorMessage(err, t));
+          }
+        })();
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch((err: unknown) => {
+        if (!disposed) setActiveError(errorMessage(err, t));
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [clearFileDrop, importMarkdownDrafts, t]);
 
   const handleCreateFolder = useCallback(async (): Promise<NoteFolder> => {
     try {
@@ -403,19 +642,39 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'n') {
+      if (!mod || e.altKey) return;
+
+      if (!e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         void handleCreate();
+        return;
       }
+
+      // Obsidian-like notes editor zoom — only while Notes is open.
+      const zoomIn =
+        e.key === '=' || e.key === '+' || e.code === 'NumpadAdd';
+      const zoomOut = e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract';
+      const zoomReset = e.key === '0' || e.code === 'Numpad0';
+      if (!zoomIn && !zoomOut && !zoomReset) return;
+
+      e.preventDefault();
+      setEditorZoom((prev) => {
+        const next = zoomReset
+          ? NOTES_ZOOM_DEFAULT
+          : stepNotesEditorZoom(prev, zoomIn ? 1 : -1);
+        saveNotesEditorZoom(next);
+        return next;
+      });
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [handleCreate]);
 
   const onSelectNote = useCallback(
     (id: string) => {
-      void flushNow();
-      setSelectedId(id);
+      void (async () => {
+        if (await flushNow()) setSelectedId(id);
+      })();
     },
     [flushNow],
   );
@@ -435,7 +694,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         if (!ok) return;
       }
       try {
-        if (selectedIdRef.current === id) await flushNow();
+        if (selectedIdRef.current === id && !(await flushNow())) return;
         return await publishNoteToWeb(id, options);
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
@@ -449,7 +708,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
       if (!isCloudApiAvailable()) return;
       if (!isVaultReadyForPublish()) return;
       try {
-        if (selectedIdRef.current === id) await flushNow();
+        if (selectedIdRef.current === id && !(await flushNow())) return;
         return await updatePublishedNoteOptions(id, options);
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
@@ -504,7 +763,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
         setActiveError(errorMessage(err, t));
       }
     },
-    [flushNow],
+    [t],
   );
 
   const noteTitles = useMemo(
@@ -514,7 +773,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
 
   const handleWikiLinkClick = useCallback(
     async (linkText: string) => {
-      await flushNow();
+      if (!(await flushNow())) return;
       try {
         const { noteId, created } = await openWikiLink(linkText);
         const note = await getNote(noteId);
@@ -548,7 +807,13 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
   const SIDEBAR_W = VAULT_SIDEBAR_W;
 
   return (
-    <div className="nordly-vault">
+    <div
+      className="nordly-vault"
+      onDragEnter={onFileDragEnter}
+      onDragOver={onFileDragOver}
+      onDragLeave={onFileDragLeave}
+      onDrop={(e) => void handleFileDrop(e)}
+    >
       <aside
         className="nordly-vault-sidebar-wrap"
         data-collapsed={sidebarCollapsed ? 'true' : 'false'}
@@ -589,6 +854,7 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
           draftBody={draftBody}
           saveStatus={saveStatus}
           noteTitles={noteTitles}
+          editorZoom={editorZoom}
           onTitleChange={setDraftTitle}
           onBodyChange={setDraftBody}
           onWikiLinkClick={(linkText) => void handleWikiLinkClick(linkText)}
@@ -596,6 +862,8 @@ export function NotesPage({ initialSelectedId, onConsumeInitial }: NotesPageProp
           onRetryList={loadList}
         />
       </div>
+
+      <FileDropOverlay active={fileDropActive} />
     </div>
   );
 }

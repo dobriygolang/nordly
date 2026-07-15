@@ -103,6 +103,7 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
             {themes.map((id, index) => {
               const offset = index - active;
               const isActive = index === active;
+              const shouldRenderPreview = Math.abs(offset) <= 1;
               return (
                 <button
                   type="button"
@@ -120,7 +121,9 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
                   }}
                 >
                   <div className="nordly-wallpaper-card__preview">
-                    <CanvasBg theme={id} mode="full" animated={false} />
+                    {shouldRenderPreview ? (
+                      <CanvasBg theme={id} mode="full" animated={false} />
+                    ) : null}
                   </div>
                   <span className="nordly-wallpaper-card__label mono">{t(themeLabelKey(id))}</span>
                 </button>

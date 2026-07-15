@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,10 +16,8 @@ const (
 	syncWindowFuture = 180 * 24 * time.Hour
 )
 
-// ListGoogleCalendarEvents serves calendar events from the local cache, refreshed
-// via an incremental sync. It requires only that the account is connected — the
-// task→Google sync toggle does not gate reads. Inbound sync covers all calendars
-// on the user's account (merged view), not only the write target calendar.
+// ListGoogleCalendarEvents serves calendar events from the local cache only.
+// Incremental Google API work is owned by RefreshGoogleCalendarCaches.
 func (s *trackerService) ListGoogleCalendarEvents(
 	ctx context.Context,
 	userID string,
@@ -33,9 +32,6 @@ func (s *trackerService) ListGoogleCalendarEvents(
 	}
 	if !settings.Connected() {
 		return []googleadapter.CalendarEvent{}, nil
-	}
-	if err := s.syncGoogleCache(ctx, userID, settings); err != nil {
-		return nil, err
 	}
 	cached, err := s.repo.ListGoogleEventsForUser(ctx, userID, timeMin, timeMax)
 	if err != nil {
@@ -55,6 +51,24 @@ func (s *trackerService) ListGoogleCalendarEvents(
 		})
 	}
 	return out, nil
+}
+
+// RefreshGoogleCalendarCaches incrementally refreshes every connected account.
+func (s *trackerService) RefreshGoogleCalendarCaches(ctx context.Context) error {
+	if !s.googleReady() {
+		return nil
+	}
+	settings, err := s.repo.ListGoogleConnectedSettings(ctx)
+	if err != nil {
+		return err
+	}
+	var syncErrs []error
+	for idx := range settings {
+		if err := s.syncGoogleCache(ctx, settings[idx].UserID, &settings[idx]); err != nil {
+			syncErrs = append(syncErrs, fmt.Errorf("sync google calendar for user %s: %w", settings[idx].UserID, err))
+		}
+	}
+	return errors.Join(syncErrs...)
 }
 
 // syncGoogleCache pulls incremental changes for every calendar on the account.

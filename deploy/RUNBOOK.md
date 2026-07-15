@@ -43,7 +43,9 @@ docker compose -f docker-compose.prod.yml logs -f identity tracker
 
 **sandbox timeout / go.mod not found** — `SANDBOX_DEFAULT_TIMEOUT_MS=10000`, host dir `/var/lib/sandbox-work` bind-mounted, `RUNNER_MODE=docker`.
 
-**JWT errors** — `make keys`, `chmod 644 deploy/secrets/jwt/*.pem`, same `public.pem` on all services.
+**sandbox Docker access** — the sandbox runs unprivileged and reaches Docker through `docker-socket-proxy`; it does not mount `/var/run/docker.sock`. Prepare the workspace with `sudo install -d -m 700 -o 65534 -g 65534 /var/lib/sandbox-work`. The proxy is still a privileged boundary: keep it on the internal `sandbox_docker` network and do not publish port 2375.
+
+**JWT errors** — run `make keys`; `private.pem` must remain `0600` and be owned by the account identified by `DEPLOY_UID`/`DEPLOY_GID` in `.env`. `public.pem` is `0644` and shared with JWT consumers.
 
 **migrations failed**
 
@@ -64,8 +66,25 @@ Normal schema change (new goose files after init): `docker compose … run --rm 
 ## Backups
 
 ```bash
-cd deploy && set -a && source .env && set +a && ./scripts/backup-postgres.sh
+cd deploy
+make backup-db
 ```
+
+Copy the archive and `.sha256` sidecar to encrypted off-site storage. Restore targets, verification, and drill procedure: [docs/DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md).
+Run and record the isolated restore drill quarterly; never use production as the drill target.
+
+Read-only schema deprecation observations:
+
+```bash
+cd deploy
+make audit-schema >"/var/lib/nordly-ops/schema-audit-$(date -u +%Y%m%dT%H%M%SZ).txt"
+```
+
+Keep output in private ops storage, never Git. Before any DROP, satisfy the
+full [schema contract gate](docs/SCHEMA_CONTRACT_GATE.md): at least 30 daily
+observations and two production releases, with PostgreSQL statistics resets
+accounted for, code/query evidence, approvals, and a successful isolated restore
+drill. Observation never authorizes a DROP by itself.
 
 ## Monitoring
 
@@ -88,6 +107,8 @@ Grafana: https://grafana.trynordly.app — configure alert notification channels
 
 Key metrics: `up`, `http_requests_total`, `http_request_duration_seconds`.
 
+Metrics endpoints are not published on host ports; Prometheus scrapes service names over the Compose network. Do not add a public `/metrics` route. A dedicated scrape-only network and bearer authentication should be added before any external metrics consumer is introduced; retain the current internal scrape path so Prometheus continues to work.
+
 **Business counters:** `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total`, `billing_usage_consume_total`, `billing_subscriptions_total`, `billing_webhook_events_total` — see Product dashboard and [grafana/README.md](grafana/README.md).
 
 ## Rooms scale
@@ -99,6 +120,10 @@ Single replica by default. Multiple pods need sticky `/ws/*` — see [services/r
 **INTERNAL_API_TOKEN** — update `.env`, restart services that use `x-internal-token` (tracker, billing adapters, etc.).
 
 **JWT keys** — maintenance window; redeploy all JWT consumers.
+
+## Pre-deploy security check
+
+Run `make audit-env` before a manual deployment (it is also a prerequisite of `make up` and `make deploy`). For production-like environments it rejects `CHANGE_ME` placeholders, missing Redis/Grafana/Tribute secrets, unset deploy UID/GID, and absent JWT key files.
 
 ## Deploy from CI
 

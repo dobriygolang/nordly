@@ -3,6 +3,7 @@ package sandboxapi
 import (
 	"context"
 
+	sandboxservice "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/service"
 	sandboxv1 "github.com/dobriygolang/project-nordly/services/sandbox/pkg/api/sandbox/v1"
 )
 
@@ -12,7 +13,12 @@ func (i *Implementation) FormatCode(ctx context.Context, req *sandboxv1.FormatCo
 	if err != nil {
 		return nil, err
 	}
-	code, err := i.svc.FormatCode(ctx, userID, req.GetLanguage(), req.GetCode())
+	code, err := i.svc.FormatCode(ctx, sandboxservice.FormatCodeInput{
+		UserID:   userID,
+		RoomID:   editorRoomIDFromContext(ctx),
+		Language: req.GetLanguage(),
+		Code:     req.GetCode(),
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

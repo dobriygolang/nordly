@@ -31,7 +31,7 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 | `/download` | `NordlyDownloadPage` | redirects to latest OS installer |
 | `/oauth/google-calendar` | `GoogleCalendarOAuthPage` | OAuth bridge → `nordly://settings?google_calendar=…` |
 | `/oauth/zoom` | `ZoomOAuthPage` | OAuth bridge → `nordly://settings?zoom=…` |
-| `/notes/:slug` | `PublishedNotePage` | — |
+| `/notes/:slug` | `PublishedNotePage` — Nordly-flavored markdown via `lib/markdown/renderNordlyMarkdown.ts` + `styles/published-note.css` | — |
 | `/n/:slug` | → `/notes/:slug` | — |
 | `/board/:slug` | `PublishedBoardPage` | — |
 | `/live/new` | `LiveNewPage` | — |

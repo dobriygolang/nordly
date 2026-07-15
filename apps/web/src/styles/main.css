@@ -1,4 +1,5 @@
 @import './_tokens.generated.css';
+@import './published-note.css';
 
 @tailwind base;
 @tailwind components;

@@ -8,32 +8,23 @@ import {
   publishedNoteDisplayTitle,
   type PublishedNote,
 } from '@/lib/api/publicNotes'
+import { renderNordlyMarkdown } from '@/lib/markdown/renderNordlyMarkdown'
 import { applyDocumentMeta } from '@/lib/site/documentMeta'
 import { useI18n } from '@/lib/i18n'
 
 function NoteBody({ bodyMd }: { bodyMd: string }) {
-  const blocks = useMemo(() => {
-    const trimmed = bodyMd.trim()
-    if (!trimmed) return []
-    return trimmed.split(/\n{2,}/)
-  }, [bodyMd])
+  const html = useMemo(() => renderNordlyMarkdown(bodyMd), [bodyMd])
 
-  if (blocks.length === 0) {
-    return (
-      <div className="space-y-4">
-        <p className="text-zinc-200 leading-7 whitespace-pre-wrap" />
-      </div>
-    )
+  if (!bodyMd.trim()) {
+    return <div className="nordly-published-md" />
   }
 
   return (
-    <div className="space-y-4">
-      {blocks.map((block, i) => (
-        <p key={i} className="text-zinc-200 leading-7 whitespace-pre-wrap break-words">
-          {block}
-        </p>
-      ))}
-    </div>
+    <div
+      className="nordly-published-md"
+      // Trusted pipeline: renderNordlyMarkdown escapes all text / disables raw HTML.
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   )
 }
 

@@ -1,6 +1,6 @@
 module github.com/dobriygolang/project-nordly/services/rooms
 
-go 1.25.8
+go 1.25.12
 
 require (
 	github.com/dobriygolang/project-nordly/services/identity v0.0.0

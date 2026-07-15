@@ -1,6 +1,6 @@
 module github.com/dobriygolang/project-nordly/services/notes
 
-go 1.25.8
+go 1.25.12
 
 require (
 	github.com/dobriygolang/project-nordly/services/billing v0.0.0

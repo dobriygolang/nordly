@@ -1,6 +1,6 @@
 module github.com/dobriygolang/project-nordly/services/template
 
-go 1.25.8
+go 1.25.12
 
 require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0

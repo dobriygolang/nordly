@@ -1,6 +1,8 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
-import { invalidateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
-import { refreshGoogleCalendarCache } from '@features/calendar/lib/googleCalendarSyncWorker';
+import {
+  invalidateGoogleCalendarCache,
+  refreshGoogleCalendarCache,
+} from '@features/calendar/api/calendar';
 import { isCloudEnabled } from '@shared/model/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {

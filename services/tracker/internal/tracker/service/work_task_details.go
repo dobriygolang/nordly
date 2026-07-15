@@ -133,7 +133,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 
 	hasSchedule := task.ScheduledStart != nil && task.ScheduledDurationMin != nil && *task.ScheduledDurationMin > 0
 	var meetURL string
-	var googleEventID *string
+	var googleEventID string
 
 	if hasSchedule {
 		start := *task.ScheduledStart
@@ -153,8 +153,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 				return nil, uerr
 			}
 			meetURL = withMeet.MeetURL
-			id := withMeet.Event.ID
-			googleEventID = &id
+			googleEventID = withMeet.Event.ID
 			_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(withMeet.Event)})
 		} else {
 			withMeet, cerr := s.google.CreateEventWithMeet(ctx, token, calID, input)
@@ -165,8 +164,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 				return nil, cerr
 			}
 			meetURL = withMeet.MeetURL
-			id := withMeet.Event.ID
-			googleEventID = &id
+			googleEventID = withMeet.Event.ID
 			_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(withMeet.Event)})
 		}
 	} else {
@@ -185,8 +183,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 			return nil, cerr
 		}
 		meetURL = withMeet.MeetURL
-		id := withMeet.Event.ID
-		googleEventID = &id
+		googleEventID = withMeet.Event.ID
 		_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(withMeet.Event)})
 	}
 
@@ -198,9 +195,7 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 	patch := repository.WorkTaskPatch{
 		ConferenceURL:      &meetURL,
 		ConferenceProvider: &provider,
-	}
-	if googleEventID != nil {
-		patch.GoogleEventID = googleEventID
+		GoogleEventID:      &googleEventID,
 	}
 	patched, err := s.repo.PatchWorkTask(ctx, task.ID, userID, patch)
 	if err != nil {

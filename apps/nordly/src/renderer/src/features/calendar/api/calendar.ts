@@ -13,3 +13,8 @@ export { useAppleCalendarEvents, resetAppleCalendarFetchBlock } from '../lib/use
 export { useCalendarRangeSelect } from '../lib/useCalendarRangeSelect';
 export { useGoogleCalendarConnection } from '../lib/useGoogleCalendarConnection';
 export { useGoogleCalendarEvents } from '../lib/useGoogleCalendarEvents';
+export {
+  inspectAppleCalendarEvent,
+  inspectCalendarEntry,
+  inspectCalendarPayload,
+} from '../lib/calendarInspect';

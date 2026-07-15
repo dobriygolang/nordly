@@ -16,7 +16,7 @@ import {
   type QueueStats,
 } from '@features/focus/remote/focusRemote';
 import { focusStoreList } from '@features/focus/repository/focusStore';
-import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
+import { addDays, parseDayKey, parseScheduleInstant, toDayKey } from '@shared/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
@@ -187,7 +187,7 @@ async function buildQueueStats(): Promise<QueueStats> {
   const today = toDayKey(new Date());
   const todayTasks = tasks.filter((t) => {
     if (!t.scheduledStart) return false;
-    return toDayKey(new Date(t.scheduledStart)) === today;
+    return toDayKey(parseScheduleInstant(t.scheduledStart)) === today;
   });
   const done = todayTasks.filter((t) => t.status === 'done').length;
   return {

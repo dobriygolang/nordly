@@ -25,13 +25,13 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 
 | Page | Component | Notes |
 |------|-----------|-------|
-| Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today list, obstacles; no plan header) |
+| Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today tasks, calendar meetings below, obstacles; no plan header) |
 | Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule; task UI in `features/tasks/components/` |
 | Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor; drop `.md` / `.markdown` onto the page to create a note (animated overlay while dragging); ⌘+/⌘−/⌘0 zooms editor text only (persisted) |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -180,7 +180,7 @@ Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pendin
 
 Conflict: LWW by `updatedAt`, with **local tombstones never revived** (`shared/sync/tombstone.ts`). Soft-delete cancels non-delete outbox ops then enqueues `delete`. Pull soft-deletes previously synced locals absent from the remote list. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
 
-Not synced via outbox: whiteboards (local + share/publish via rooms), vault prefs, publish status (direct API on user action). Google Calendar events are **cached** in IndexedDB (`calendar_events`) for offline display; refreshed by the background worker when online.
+Not synced via outbox: whiteboards (local + share/publish via rooms), vault prefs, publish status (direct API on user action). Google Calendar events are **cached** in IndexedDB (`calendar_events`) for offline display; refreshed by the background worker when online. UI hooks (`useGoogleCalendarEvents`, Home Today, DayTimeline, Calendar modal) read **only** from that local snapshot — they never fetch Google over the network.
 
 ## Feature layering (offline vs online)
 

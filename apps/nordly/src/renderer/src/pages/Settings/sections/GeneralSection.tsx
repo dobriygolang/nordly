@@ -244,6 +244,20 @@ export function GeneralSection({
         </SettingRow>
 
         <SettingRow
+          label={t('nordly.settings.notification_volume.label')}
+          hint={t('nordly.settings.notification_volume.hint')}
+        >
+          <Slider
+            min={0}
+            max={100}
+            step={5}
+            value={settings.notificationVolume}
+            onChange={(v) => update({ notificationVolume: v })}
+            unit="%"
+          />
+        </SettingRow>
+
+        <SettingRow
           label={t('nordly.settings.calendar_notifications.label')}
           hint={t('nordly.settings.calendar_notifications.hint')}
         >
@@ -252,6 +266,21 @@ export function GeneralSection({
             onChange={(b) => update({ calendarNotifications: b })}
             label={
               settings.calendarNotifications
+                ? t('nordly.settings.notifications.on')
+                : t('nordly.settings.notifications.off')
+            }
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('nordly.settings.task_notifications.label')}
+          hint={t('nordly.settings.task_notifications.hint')}
+        >
+          <Toggle
+            value={settings.taskNotifications}
+            onChange={(b) => update({ taskNotifications: b })}
+            label={
+              settings.taskNotifications
                 ? t('nordly.settings.notifications.on')
                 : t('nordly.settings.notifications.off')
             }

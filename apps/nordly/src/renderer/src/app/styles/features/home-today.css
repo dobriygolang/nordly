@@ -14,6 +14,11 @@
   margin-top: 4px;
 }
 
+.nordly-home-today__meetings {
+  margin-top: 2px;
+}
+
+.nordly-home-today__meetings-heading,
 .nordly-home-today__obstacles-heading {
   margin: 0 0 6px;
   font-size: 10px;
@@ -21,6 +26,45 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-40);
+}
+
+.nordly-home-today__main--static {
+  cursor: default;
+  pointer-events: none;
+}
+
+.nordly-home-today__when {
+  font-size: 10px;
+  color: var(--ink-40);
+  white-space: nowrap;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nordly-home-today__item--meeting .nordly-home-today__stripe[data-source='google'] {
+  background: #8ab4f8;
+}
+
+.nordly-home-today__item--meeting .nordly-home-today__stripe[data-source='apple'] {
+  background: #f5a97f;
+}
+
+.nordly-home-today__item--meeting .nordly-home-today__stripe[data-source='task'] {
+  background: #8ab4f8;
+}
+
+.nordly-home-today__item--meeting .nordly-home-today__when {
+  opacity: 1;
+  max-width: 72px;
+}
+
+.nordly-home-today__item--meeting:hover .nordly-home-today__play,
+.nordly-home-today__item--meeting:focus-within .nordly-home-today__play {
+  max-width: 22px;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
 }
 
 .nordly-home-today__obstacles-list {

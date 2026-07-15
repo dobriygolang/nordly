@@ -21,6 +21,21 @@ pub struct AppleCalendarEvent {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AppleCalendarEventDetail {
+    pub id: String,
+    pub title: String,
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub calendar_id: Option<String>,
+    pub calendar_title: Option<String>,
+    pub notes: Option<String>,
+    pub location: Option<String>,
+    pub url: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppleCalendarAuthStatus {
     pub status: String,
     pub authorized: bool,
@@ -56,7 +71,7 @@ mod macos {
 
     use super::{
         AppleCalendarAccessResult, AppleCalendarAuthStatus, AppleCalendarEvent,
-        AppleCalendarListEntry, AppleCalendarRuntimeInfo,
+        AppleCalendarEventDetail, AppleCalendarListEntry, AppleCalendarRuntimeInfo,
     };
 
     const EK_ENTITY_TYPE_EVENT: i64 = 0;
@@ -467,6 +482,15 @@ mod macos {
         }
     }
 
+    fn optional_nsstring(value: id) -> Option<String> {
+        let text = nsstring_to_string(value);
+        if text.trim().is_empty() {
+            None
+        } else {
+            Some(text)
+        }
+    }
+
     fn map_event(event: id) -> Option<AppleCalendarEvent> {
         unsafe {
             let title = nsstring_to_string(msg_send![event, title]);
@@ -498,6 +522,38 @@ mod macos {
                 end,
                 all_day,
                 calendar_id,
+            })
+        }
+    }
+
+    fn map_event_detail(event: id) -> Option<AppleCalendarEventDetail> {
+        let base = map_event(event)?;
+        unsafe {
+            let calendar: id = msg_send![event, calendar];
+            let calendar_title = if calendar.is_null() {
+                None
+            } else {
+                optional_nsstring(msg_send![calendar, title])
+            };
+            let notes = optional_nsstring(msg_send![event, notes]);
+            let location = optional_nsstring(msg_send![event, location]);
+            let url_obj: id = msg_send![event, URL];
+            let url = if url_obj.is_null() {
+                None
+            } else {
+                optional_nsstring(msg_send![url_obj, absoluteString])
+            };
+            Some(AppleCalendarEventDetail {
+                id: base.id,
+                title: base.title,
+                start: base.start,
+                end: base.end,
+                all_day: base.all_day,
+                calendar_id: base.calendar_id,
+                calendar_title,
+                notes,
+                location,
+                url,
             })
         }
     }
@@ -586,6 +642,55 @@ mod macos {
         open_privacy_settings()
     }
 
+    fn encode_ical_path_component(value: &str) -> String {
+        let mut out = String::with_capacity(value.len() * 3);
+        for byte in value.bytes() {
+            match byte {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                    out.push(byte as char);
+                }
+                _ => out.push_str(&format!("%{byte:02X}")),
+            }
+        }
+        out
+    }
+
+    /// Loads EventKit fields for an in-app detail sheet (no Calendar.app).
+    pub fn get_event(event_id: String) -> Result<AppleCalendarEventDetail, String> {
+        let store = event_store()?;
+        require_read_access(store)?;
+        unsafe {
+            let ns_id = NSString::alloc(nil).init_str(&event_id);
+            let event: id = msg_send![store, eventWithIdentifier: ns_id];
+            if event.is_null() {
+                return Err("Calendar event not found".into());
+            }
+            map_event_detail(event).ok_or_else(|| "Calendar event not found".into())
+        }
+    }
+
+    /// Opens the event in Calendar.app (main window + inspector). Prefer in-app details.
+    pub fn open_event(event_id: String) -> Result<(), String> {
+        let store = event_store()?;
+        require_read_access(store)?;
+        unsafe {
+            let ns_id = NSString::alloc(nil).init_str(&event_id);
+            let event: id = msg_send![store, eventWithIdentifier: ns_id];
+            if event.is_null() {
+                return Err("Calendar event not found".into());
+            }
+        }
+
+        let url = format!(
+            "ical://ekevent/{}?method=show&options=more",
+            encode_ical_path_component(&event_id)
+        );
+        if open_settings_url(&url) || open_settings_url_via_open_command(&url) {
+            return Ok(());
+        }
+        Err("Could not open event in Calendar.app".into())
+    }
+
     pub fn list_calendars() -> Result<Vec<AppleCalendarListEntry>, String> {
         let store = event_store()?;
         require_read_access(store)?;
@@ -656,7 +761,7 @@ mod macos {
 mod macos {
     use super::{
         AppleCalendarAccessResult, AppleCalendarAuthStatus, AppleCalendarEvent,
-        AppleCalendarListEntry, AppleCalendarRuntimeInfo,
+        AppleCalendarEventDetail, AppleCalendarListEntry, AppleCalendarRuntimeInfo,
     };
 
     const UNAVAILABLE: &str = "Apple Calendar is only available on macOS";
@@ -680,6 +785,14 @@ mod macos {
     }
 
     pub fn open_settings() -> Result<(), String> {
+        Err(UNAVAILABLE.into())
+    }
+
+    pub fn get_event(_event_id: String) -> Result<AppleCalendarEventDetail, String> {
+        Err(UNAVAILABLE.into())
+    }
+
+    pub fn open_event(_event_id: String) -> Result<(), String> {
         Err(UNAVAILABLE.into())
     }
 
@@ -735,6 +848,19 @@ pub async fn apple_calendar_request_access(
 #[tauri::command]
 pub async fn apple_calendar_open_settings(app: AppHandle) -> Result<(), String> {
     run_on_main(&app, macos::open_settings).await
+}
+
+#[tauri::command]
+pub async fn apple_calendar_open_event(app: AppHandle, event_id: String) -> Result<(), String> {
+    run_on_main(&app, move || macos::open_event(event_id)).await
+}
+
+#[tauri::command]
+pub async fn apple_calendar_get_event(
+    app: AppHandle,
+    event_id: String,
+) -> Result<AppleCalendarEventDetail, String> {
+    run_on_main(&app, move || macos::get_event(event_id)).await
 }
 
 #[tauri::command]

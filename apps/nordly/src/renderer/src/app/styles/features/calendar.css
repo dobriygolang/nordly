@@ -296,11 +296,9 @@
   color: var(--ink);
   overflow: hidden;
   text-align: left;
-  left: calc(
-    4px + var(--cal-col, 0) *
-      (((100% - 8px - (var(--cal-cols, 1) - 1) * 2px) / var(--cal-cols, 1)) + 2px)
-  );
-  width: calc((100% - 8px - (var(--cal-cols, 1) - 1) * 2px) / var(--cal-cols, 1));
+  /* Default single-column; overlapping layouts set left/width inline via calendarColumnStyle. */
+  left: 4px;
+  right: 4px;
   box-sizing: border-box;
 }
 .nordly-calendar-event[data-source='google'] {
@@ -597,6 +595,71 @@ button.nordly-calendar-event:hover {
 .nordly-calendar-editor__btn--danger {
   color: rgb(248 113 113);
   border-color: rgb(248 113 113 / 0.4);
+}
+.nordly-calendar-apple-detail__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.nordly-calendar-apple-detail__body {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-60);
+}
+.nordly-calendar-apple-detail__label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.nordly-calendar-apple-detail__notes {
+  margin: 12px 0 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.04);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.nordly-calendar-apple-detail__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #8ab4f8;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.nordly-calendar-apple-detail__link:hover {
+  text-decoration: underline;
+}
+.nordly-timeline-meeting {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+.nordly-timeline-meeting .nordly-timeline-task__resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+.nordly-calendar-event[data-source='task'][data-meeting='true'] {
+  background: rgb(66 133 244 / 0.16);
+  border-color: rgb(66 133 244 / 0.35);
 }
 .nordly-settings-google-actions {
   display: flex;

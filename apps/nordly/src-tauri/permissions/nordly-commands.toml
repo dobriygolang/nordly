@@ -19,6 +19,8 @@ commands.allow = [
   "apple_calendar_runtime_info",
   "apple_calendar_request_access",
   "apple_calendar_open_settings",
+  "apple_calendar_open_event",
+  "apple_calendar_get_event",
   "apple_calendar_list_calendars",
   "apple_calendar_list_events",
 ]

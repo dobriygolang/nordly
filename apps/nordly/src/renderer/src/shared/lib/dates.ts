@@ -68,7 +68,7 @@ export function formatWeekdayShort(iso: string, locale?: Locale): string {
 
 export function taskDayKey(task: { scheduledStart?: string; createdAt: string }): string {
   if (task.scheduledStart) {
-    const d = new Date(task.scheduledStart);
+    const d = parseScheduleInstant(task.scheduledStart);
     if (!Number.isNaN(d.getTime())) return toDayKey(d);
   }
   const created = new Date(task.createdAt);
@@ -140,7 +140,7 @@ export function buildCreateScheduleDate(
   return buildDefaultScheduleDate(day, now);
 }
 
-/** RFC3339 with explicit local UTC offset (wall clock the user sees). */
+/** RFC3339 with explicit local UTC offset (wall clock the user sees). Prefer for schedules. */
 export function toLocalISO(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const y = d.getFullYear();
@@ -154,6 +154,48 @@ export function toLocalISO(d: Date): string {
   const oh = pad(Math.floor(Math.abs(offsetMin) / 60));
   const om = pad(Math.abs(offsetMin) % 60);
   return `${y}-${m}-${day}T${h}:${min}:${sec}${sign}${oh}:${om}`;
+}
+
+/**
+ * Serialize a schedule instant for storage / API.
+ * Always local wall + offset (never Zulu wall-stamp).
+ */
+export function scheduleStartISO(start: Date | string): string {
+  if (typeof start === 'string') {
+    const parsed = parseScheduleInstant(start);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error(`Invalid schedule date: ${start}`);
+    }
+    return toLocalISO(parsed);
+  }
+  if (Number.isNaN(start.getTime())) {
+    throw new Error('Invalid schedule date');
+  }
+  return toLocalISO(start);
+}
+
+/**
+ * Parse a stored schedule ISO into a Date.
+ * Offset / Zulu → absolute instant. Bare `YYYY-MM-DDTHH:mm[:ss]` → local wall clock.
+ */
+export function parseScheduleInstant(iso: string): Date {
+  const trimmed = iso.trim();
+  if (!trimmed) return new Date(Number.NaN);
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+    return new Date(trimmed);
+  }
+  const m = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/,
+  );
+  if (!m) return new Date(trimmed);
+  return new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4] ?? 0),
+    Number(m[5] ?? 0),
+    Number(m[6] ?? 0),
+  );
 }
 
 export function applyTimeToDay(day: Date, hours: number, minutes: number): Date {
@@ -177,7 +219,7 @@ export function formatWhenChipWithTime(date: Date, locale?: Locale): string {
 
 export function taskScheduleStart(task: { scheduledStart?: string }): Date | null {
   if (!task.scheduledStart) return null;
-  const d = new Date(task.scheduledStart);
+  const d = parseScheduleInstant(task.scheduledStart);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -196,11 +238,11 @@ export function resolveScheduleStart(
   const blocks: ScheduledBlock[] = tasks
     .filter((t) => {
       if (t.id === excludeTaskId || !t.scheduledStart) return false;
-      const d = new Date(t.scheduledStart);
+      const d = parseScheduleInstant(t.scheduledStart);
       return !Number.isNaN(d.getTime()) && toDayKey(d) === dayKey;
     })
     .map((t) => {
-      const start = new Date(t.scheduledStart!);
+      const start = parseScheduleInstant(t.scheduledStart!);
       const dur = defaultDurationMin(t);
       return {
         startMs: start.getTime(),

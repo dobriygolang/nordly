@@ -10,6 +10,10 @@ import {
   startCalendarReminderWorker,
   stopCalendarReminderWorker,
 } from '@features/calendar/lib/calendarReminderWorker';
+import {
+  startTaskReminderWorker,
+  stopTaskReminderWorker,
+} from '@features/tasks/lib/taskReminderWorker';
 import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { isCloudEnabled } from '@shared/model/features';
@@ -71,6 +75,15 @@ export function useBackgroundWorkers({
     if (status !== 'signed_in') return;
     return startSessionRefreshLoop();
   }, [status]);
+
+  useEffect(() => {
+    if (status !== 'signed_in' || !userId) {
+      stopTaskReminderWorker();
+      return;
+    }
+    startTaskReminderWorker();
+    return () => stopTaskReminderWorker();
+  }, [status, userId]);
 
   useEffect(() => {
     if (status !== 'signed_in' || !userId) {

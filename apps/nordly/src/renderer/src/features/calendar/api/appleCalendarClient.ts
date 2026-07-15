@@ -16,6 +16,19 @@ export interface AppleCalendarEvent {
   calendarId?: string;
 }
 
+export interface AppleCalendarEventDetail {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  calendarId?: string;
+  calendarTitle?: string;
+  notes?: string;
+  location?: string;
+  url?: string;
+}
+
 export interface AppleCalendarAuthStatus {
   status: string;
   authorized: boolean;
@@ -49,6 +62,20 @@ export async function requestAppleCalendarAccess(): Promise<AppleCalendarAccessR
 export async function openAppleCalendarSettings(): Promise<void> {
   await invoke('apple_calendar_open_settings');
 }
+
+export async function getAppleCalendarEvent(eventId: string): Promise<AppleCalendarEventDetail> {
+  return invoke<AppleCalendarEventDetail>('apple_calendar_get_event', { eventId });
+}
+
+export async function openAppleCalendarEvent(eventId: string): Promise<void> {
+  await invoke('apple_calendar_open_event', { eventId });
+}
+
+export {
+  inspectAppleCalendarEvent,
+  inspectCalendarEntry,
+  inspectCalendarPayload,
+} from '../lib/calendarInspect';
 
 export async function listAppleCalendars(): Promise<AppleCalendarListEntry[]> {
   return invoke<AppleCalendarListEntry[]>('apple_calendar_list_calendars');

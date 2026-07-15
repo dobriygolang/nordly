@@ -39,13 +39,12 @@ function hour12Override(): boolean | undefined {
   return pref === undefined ? undefined : !pref;
 }
 
-/** Localized time — language follows the app locale, 12/24h follows the OS clock. */
+/** Localized time — follows the OS clock (same as Date.getHours / setHours). */
 export function formatLocaleTime(date: Date, locale?: Locale): string {
   return date.toLocaleTimeString(tag(locale), {
     hour: 'numeric',
     minute: '2-digit',
     hour12: hour12Override(),
-    timeZone: getUserTimeZone(),
   });
 }
 
@@ -55,7 +54,6 @@ export function formatLocaleHour(hour: number, locale?: Locale): string {
   return d.toLocaleTimeString(tag(locale), {
     hour: 'numeric',
     hour12: hour12Override(),
-    timeZone: getUserTimeZone(),
   });
 }
 
@@ -64,10 +62,7 @@ export function formatLocaleDate(
   locale?: Locale,
   options: Intl.DateTimeFormatOptions = {},
 ): string {
-  return date.toLocaleDateString(tag(locale), {
-    timeZone: getUserTimeZone(),
-    ...options,
-  });
+  return date.toLocaleDateString(tag(locale), options);
 }
 
 /** JS `getDay()` value for the first column of a week (0 = Sun … 6 = Sat). */

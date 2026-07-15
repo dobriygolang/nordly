@@ -78,8 +78,10 @@ func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime) {
 	if !endTime.After(in.Start) {
 		endTime = in.Start.Add(time.Hour)
 	}
-	return &calendar.EventDateTime{DateTime: in.Start.UTC().Format(time.RFC3339), TimeZone: "UTC"},
-		&calendar.EventDateTime{DateTime: endTime.UTC().Format(time.RFC3339), TimeZone: "UTC"}
+	// RFC3339 with offset when Location is set; omit TimeZone so Google uses the offset
+	// (forcing TimeZone=UTC with a Zulu stamp caused wall-clock skew in some clients).
+	return &calendar.EventDateTime{DateTime: in.Start.Format(time.RFC3339)},
+		&calendar.EventDateTime{DateTime: endTime.Format(time.RFC3339)}
 }
 
 // EventWithMeet is a calendar event plus an auto-generated Meet join URL.

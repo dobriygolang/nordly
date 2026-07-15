@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { GoogleReauthError, type GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
+import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { canReachNetwork } from '@shared/sync/syncConfig';
 
 import {
-  fetchGoogleCalendarEvents,
+  hydrateGoogleCalendarCache,
+  isGoogleCalendarRangeStale,
   peekGoogleCalendarEvents,
   subscribeGoogleCalendarCache,
   googleRangeKey,
-  isGoogleCalendarRangeStale,
 } from './googleCalendarCache';
-import { canReachNetwork } from '@shared/sync/syncConfig';
+import { refreshGoogleCalendarCache } from './googleCalendarSyncWorker';
 
+/**
+ * Display hook — reads only the local Google Calendar snapshot (memory + IndexedDB).
+ * Network refresh is owned by `googleCalendarSyncWorker` (poll → local → notify).
+ */
 export function useGoogleCalendarEvents(
   timeMin: Date,
   timeMax: Date,
@@ -37,63 +42,70 @@ export function useGoogleCalendarEvents(
     return peek() === null;
   });
   const [error, setError] = useState<string | null>(null);
-  const [reauthRequired, setReauthRequired] = useState(false);
+  const reauthRequired = false;
 
   const rangeRef = useRef({ timeMin, timeMax, enabled });
   rangeRef.current = { timeMin, timeMax, enabled };
 
   const applyCache = useCallback(() => {
-    const hit = peek();
-    if (hit === null) return;
-    setEvents(hit);
-    setLoading(false);
-  }, [peek]);
-
-  const load = useCallback(async (force = false) => {
-    const { timeMin: min, timeMax: max, enabled: on } = rangeRef.current;
+    const { enabled: on } = rangeRef.current;
     if (!on || !isCloudEnabled()) {
       setEvents([]);
       setLoading(false);
       setError(null);
-      setReauthRequired(false);
       return;
     }
-
-    const cached = peekGoogleCalendarEvents(min, max);
-    if (cached !== null) {
-      setEvents(cached);
-      setLoading(false);
-      setError(null);
-      setReauthRequired(false);
-      // Offline / fresh: show cache. Online + stale / force: refresh in background.
-      if (!force && (!canReachNetwork() || !isGoogleCalendarRangeStale(min, max))) return;
-    } else {
+    const hit = peek();
+    if (hit === null) {
       setLoading(true);
+      return;
     }
+    setEvents(hit);
+    setLoading(false);
+    setError(null);
+  }, [peek]);
 
-    try {
-      const next = await fetchGoogleCalendarEvents(min, max, { force: true });
-      setEvents(next);
-      setError(null);
-      setReauthRequired(false);
-    } catch (err) {
-      if (err instanceof GoogleReauthError) {
-        setReauthRequired(true);
-        setError('reauth');
-      } else {
-        setError('fetch');
-      }
-    } finally {
-      setLoading(false);
+  /** Soft nudge for the worker — never assigns network results into UI state. */
+  const nudgeSyncIfNeeded = useCallback(() => {
+    const { timeMin: min, timeMax: max, enabled: on } = rangeRef.current;
+    if (!on || !isCloudEnabled() || !canReachNetwork()) return;
+    const hit = peekGoogleCalendarEvents(min, max);
+    if (hit === null || isGoogleCalendarRangeStale(min, max)) {
+      void refreshGoogleCalendarCache();
     }
   }, []);
 
+  const refresh = useCallback(async () => {
+    if (!enabled || !isCloudEnabled()) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+    await refreshGoogleCalendarCache();
+    applyCache();
+  }, [enabled, applyCache]);
+
   useEffect(() => {
-    const hit = peek();
-    setEvents(hit ?? []);
-    setLoading(hit === null);
-    void load(false);
-  }, [rangeKey, load, peek]);
+    if (!enabled || !isCloudEnabled()) {
+      setEvents([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(peek() === null);
+    void (async () => {
+      await hydrateGoogleCalendarCache();
+      if (cancelled) return;
+      applyCache();
+      nudgeSyncIfNeeded();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rangeKey, enabled, peek, applyCache, nudgeSyncIfNeeded]);
 
   useEffect(() => subscribeGoogleCalendarCache(applyCache), [applyCache]);
 
@@ -109,6 +121,6 @@ export function useGoogleCalendarEvents(
     loading,
     error,
     reauthRequired,
-    refresh: () => load(true),
+    refresh,
   };
 }

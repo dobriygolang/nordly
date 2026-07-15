@@ -21,6 +21,7 @@ import {
   defaultDurationMin,
   parseDayKey,
   resolveScheduleStart,
+  scheduleStartISO,
   taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
@@ -162,7 +163,7 @@ export function usePlanningTaskBoard({
               : buildDefaultScheduleDate(parseDayKey(scheduleDayKey)),
             taskId,
           );
-      const startIso = resolved.toISOString();
+      const startIso = scheduleStartISO(resolved);
       const duration = Math.max(15, defaultDurationMin(task));
 
       setTasks((prev) =>

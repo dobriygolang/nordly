@@ -1,5 +1,7 @@
 // Soft three-note chime when a focus session completes (Web Audio API — no asset files).
 
+import { readNotificationVolume } from '@shared/model/settings';
+
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 
@@ -12,11 +14,17 @@ function getAudioContext(): AudioContext | null {
   if (!audioCtx) {
     audioCtx = new Ctx();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.82;
     masterGain.connect(audioCtx.destination);
   }
   return audioCtx;
 }
+
+function applyMasterVolume(): number {
+  const volume = Math.max(0, Math.min(100, readNotificationVolume())) / 100;
+  if (masterGain) masterGain.gain.value = volume;
+  return volume;
+}
+
 
 function playTone(
   ctx: AudioContext,
@@ -100,6 +108,7 @@ function playMalletTone(
 export async function playSessionCompleteSound(): Promise<void> {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
+  if (applyMasterVolume() <= 0) return;
 
   if (ctx.state === 'suspended') {
     try {
@@ -121,10 +130,11 @@ export async function playSessionCompleteSound(): Promise<void> {
   playTone(ctx, masterGain, 783.99, t0 + 0.38, 0.55, 0.035);
 }
 
-/** Warm calendar nudge — short marimba-like C major arpeggio, softer than completion. */
+/** Warm calendar / task nudge — short marimba-like C major arpeggio, softer than completion. */
 export async function playCalendarReminderSound(): Promise<void> {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
+  if (applyMasterVolume() <= 0) return;
 
   if (ctx.state === 'suspended') {
     try {

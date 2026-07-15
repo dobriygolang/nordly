@@ -12,6 +12,7 @@ import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { scheduleStartISO } from '@shared/lib/dates';
 
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'dismissed';
 export type TaskKind = 'algo' | 'sysdesign' | 'quiz' | 'reflection' | 'reading' | 'ml' | 'custom';
@@ -129,14 +130,7 @@ export async function scheduleTask(
 ): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  const startIso =
-    typeof start === 'string'
-      ? start
-      : Number.isNaN(start.getTime())
-        ? (() => {
-            throw new Error(`Invalid schedule date for task: ${taskId}`);
-          })()
-        : start.toISOString();
+  const startIso = scheduleStartISO(start);
   const task: TaskCard = {
     ...prev,
     scheduledStart: startIso,

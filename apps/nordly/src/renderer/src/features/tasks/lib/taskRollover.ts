@@ -7,7 +7,7 @@
 // idempotent via a per-user per-day marker in localStorage.
 import { listTasks, scheduleTask } from '@features/tasks/api/tasks';
 import { getDbUserId } from '@shared/db/nordlyDb';
-import { defaultDurationMin, toDayKey } from '@shared/lib/dates';
+import { defaultDurationMin, parseScheduleInstant, toDayKey } from '@shared/lib/dates';
 import { readTaskRollover } from '@shared/model/settings';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
@@ -50,7 +50,7 @@ export async function runTaskRollover(now: Date = new Date()): Promise<number> {
   for (const task of tasks) {
     if (task.status === 'done' || task.status === 'dismissed') continue;
     if (!task.scheduledStart) continue;
-    const start = new Date(task.scheduledStart);
+    const start = parseScheduleInstant(task.scheduledStart);
     if (Number.isNaN(start.getTime())) continue;
     if (toDayKey(start) >= todayKey) continue;
 

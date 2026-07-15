@@ -4,10 +4,12 @@ import { useT, useLocale } from '@nordly-i18n';
 
 import {
   getGoogleCalendarAuthURL,
+  inspectCalendarEntry,
   openExternalUrl,
   GoogleReauthError,
   buildWeekDays,
   calendarHourLabels,
+  calendarColumnStyle,
   allDayEntriesForDay,
   entriesForWeek,
   entriesForYear,
@@ -154,7 +156,6 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const {
     editor,
     saving: savingEvent,
-    openEntry: openEditorForEntry,
     openTaskRange: openCreateTaskRange,
     setTitle: setEditorTitle,
     close: closeEditor,
@@ -237,12 +238,18 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
   const onEntryClick = useCallback(
     (entry: CalendarEntry) => {
       if (entry.source === 'task' && entry.taskId) {
+        if (entry.conferenceUrl) {
+          inspectCalendarEntry(entry);
+          return;
+        }
         openTask(entry.taskId);
         return;
       }
-      if (entry.source === 'google') openEditorForEntry(entry);
+      if (entry.source === 'google' || entry.source === 'apple') {
+        inspectCalendarEntry(entry);
+      }
     },
-    [openTask, openEditorForEntry],
+    [openTask],
   );
 
   const viewOptions = useMemo(
@@ -518,7 +525,10 @@ function AllDayEventChip({
   onActivate: () => void;
 }): JSX.Element {
   const { epics } = useTaskEpics();
-  const isExternal = entry.source === 'google' || entry.source === 'apple';
+  const canOpen =
+    entry.source === 'task' ||
+    (entry.source === 'google' && Boolean(entry.googleHtmlLink || entry.googleEventId)) ||
+    (entry.source === 'apple' && Boolean(entry.appleEventId));
   const epicSurface = calendarEpicSurface(entry, epics);
   return (
     <button
@@ -526,7 +536,7 @@ function AllDayEventChip({
       className="nordly-calendar-allday-chip focus-ring"
       data-source={entry.source}
       data-epic={epicSurface ? 'true' : undefined}
-      data-readonly={isExternal ? 'true' : undefined}
+      data-readonly={canOpen ? undefined : 'true'}
       style={epicSurface ?? undefined}
       onClick={onActivate}
       title={entry.title}
@@ -558,13 +568,14 @@ function CalendarEventBlock({
   const { epics } = useTaskEpics();
   const done = entry.taskStatus === 'done';
   const isGoogle = entry.source === 'google';
-  const interactive = Boolean(onPointerDown) || isGoogle || Boolean(entry.taskId);
+  const isApple = entry.source === 'apple';
+  const interactive = Boolean(onPointerDown) || isGoogle || isApple || Boolean(entry.taskId);
   const epicSurface = calendarEpicSurface(entry, epics, { dragging });
   const style = {
     top,
     height,
-    '--cal-col': column,
-    '--cal-cols': columnCount,
+    ...calendarColumnStyle(column, columnCount),
+    right: 'auto',
     zIndex: dragging ? 5 : column + 1,
     ...(epicSurface ?? {}),
     boxShadow: epicSurface?.boxShadow ?? (dragging ? '0 10px 28px rgb(0 0 0 / 0.5)' : undefined),
@@ -581,9 +592,7 @@ function CalendarEventBlock({
       data-done={done ? 'true' : undefined}
       data-epic={epicSurface ? 'true' : undefined}
       data-readonly={
-        entry.source === 'apple' || (entry.source === 'google' && entry.googleEditable === false)
-          ? 'true'
-          : undefined
+        entry.source === 'google' && entry.googleEditable === false ? 'true' : undefined
       }
       style={style}
       onPointerDown={(e) => {

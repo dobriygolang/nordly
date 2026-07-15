@@ -14,6 +14,7 @@ import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
 import { PomodoroController } from '@widgets/PomodoroController';
+import { AppleEventInspectorHost } from '@features/calendar/components/AppleEventInspectorHost';
 import { type PageId, type PaletteAction } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { ReauthLoginOverlay } from '@widgets/ReauthLoginOverlay';
@@ -428,6 +429,7 @@ export default function App() {
         {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
 
         <PomodoroController />
+        <AppleEventInspectorHost />
 
         <Dock onMenu={() => openPalette()} />
 

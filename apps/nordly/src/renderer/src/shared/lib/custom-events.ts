@@ -36,4 +36,8 @@ export const NORDLY_EVENTS = {
   dailyPlanChanged: 'nordly:daily-plan-changed',
   /** Home / hotkey → App: navigate to daily planning. */
   openPlanning: 'nordly:open-planning',
+  /** Timeline / Home → App: show calendar / meeting details in-app. */
+  calendarInspect: 'nordly:calendar-inspect',
+  /** @deprecated prefer calendarInspect — Apple EventKit id only. */
+  appleCalendarInspect: 'nordly:apple-calendar-inspect',
 } as const;

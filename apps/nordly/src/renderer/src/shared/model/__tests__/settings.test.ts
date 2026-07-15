@@ -60,9 +60,13 @@ describe('settings', () => {
     const { readSettings } = await import('@shared/model/settings');
     const settings = readSettings();
     expect(settings.calendarNotifications).toBe(true);
+    expect(settings.taskNotifications).toBe(true);
+    expect(settings.notificationVolume).toBe(80);
     expect(settings.textScale).toBe('normal');
     expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!)).toMatchObject({
       calendarNotifications: true,
+      taskNotifications: true,
+      notificationVolume: 80,
       textScale: 'normal',
     });
   });

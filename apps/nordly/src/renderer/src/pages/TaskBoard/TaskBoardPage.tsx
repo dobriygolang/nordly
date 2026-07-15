@@ -33,6 +33,7 @@ import {
   defaultDurationMin,
   parseDayKey,
   resolveScheduleStart,
+  scheduleStartISO,
   taskDayKey,
   taskScheduleStart,
   toDayKey,
@@ -215,7 +216,7 @@ export function TaskBoardPage({
         ? applyTimeFromDay(parseDayKey(dayKey), existing)
         : buildDefaultScheduleDate(parseDayKey(dayKey));
       const resolved = resolveScheduleStart(dayKey, tasks, start, taskId);
-      const startIso = resolved.toISOString();
+      const startIso = scheduleStartISO(resolved);
       const duration = Math.max(15, defaultDurationMin(task));
 
       setTasks((prev) =>
@@ -429,7 +430,7 @@ export function TaskBoardPage({
   const handleReschedule = useCallback(
     async (task: TaskCard, start: Date) => {
       const duration = Math.max(15, defaultDurationMin(task));
-      const startIso = start.toISOString();
+      const startIso = scheduleStartISO(start);
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id ? { ...t, scheduledStart: startIso, scheduledDurationMin: duration } : t,

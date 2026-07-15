@@ -71,6 +71,8 @@ pub fn run() {
             eventkit::apple_calendar_runtime_info,
             eventkit::apple_calendar_request_access,
             eventkit::apple_calendar_open_settings,
+            eventkit::apple_calendar_open_event,
+            eventkit::apple_calendar_get_event,
             eventkit::apple_calendar_list_calendars,
             eventkit::apple_calendar_list_events,
         ])

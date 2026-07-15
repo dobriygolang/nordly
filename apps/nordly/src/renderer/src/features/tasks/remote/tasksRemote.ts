@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@shared/api/config';
 import { optionalJsonNumber, optionalJsonString, requireJsonString } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { scheduleStartISO } from '@shared/lib/dates';
 
 import type { TaskCard, TaskKind, TaskStatus, ConferenceProvider } from '../api/tasks';
 import type { TaskEpic } from '../api/epics';
@@ -105,14 +106,7 @@ export async function remoteScheduleTask(
   start: Date | string,
   durationMin: number,
 ): Promise<TaskCard> {
-  const startIso =
-    typeof start === 'string'
-      ? start
-      : Number.isNaN(start.getTime())
-        ? (() => {
-            throw new Error(`Invalid remote schedule date for task: ${taskId}`);
-          })()
-        : start.toISOString();
+  const startIso = scheduleStartISO(start);
   const duration = Math.max(15, Math.min(480, durationMin));
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/schedule`, {
     method: 'POST',

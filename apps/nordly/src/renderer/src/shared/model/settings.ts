@@ -23,6 +23,10 @@ export interface NordlySettings {
   endBell: boolean;
   notifications: boolean;
   calendarNotifications: boolean;
+  /** Reminder when a scheduled Nordly task starts. */
+  taskNotifications: boolean;
+  /** Notification / end-bell chime volume, 0–100. */
+  notificationVolume: number;
   autoUpdate: boolean;
   taskRollover: boolean;
   dailyGoalMin: number;
@@ -56,6 +60,8 @@ export const DEFAULTS: NordlySettings = {
   endBell: true,
   notifications: true,
   calendarNotifications: true,
+  taskNotifications: true,
+  notificationVolume: 80,
   autoUpdate: false,
   taskRollover: true,
   dailyGoalMin: 120,
@@ -116,6 +122,8 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
 
   const migrated =
     typeof parsed.calendarNotifications !== 'boolean' ||
+    typeof parsed.taskNotifications !== 'boolean' ||
+    parsed.notificationVolume === undefined ||
     parsed.timerMode === undefined ||
     typeof parsed.endBell !== 'boolean' ||
     typeof parsed.taskRollover !== 'boolean' ||
@@ -139,6 +147,14 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       typeof parsed.calendarNotifications === 'boolean'
         ? parsed.calendarNotifications
         : DEFAULTS.calendarNotifications,
+    taskNotifications:
+      typeof parsed.taskNotifications === 'boolean'
+        ? parsed.taskNotifications
+        : DEFAULTS.taskNotifications,
+    notificationVolume:
+      parsed.notificationVolume === undefined
+        ? DEFAULTS.notificationVolume
+        : clampInt(parsed.notificationVolume, 0, 100, 'notificationVolume'),
     autoUpdate: typeof parsed.autoUpdate === 'boolean' ? parsed.autoUpdate : DEFAULTS.autoUpdate,
     taskRollover:
       typeof parsed.taskRollover === 'boolean' ? parsed.taskRollover : DEFAULTS.taskRollover,
@@ -207,6 +223,10 @@ export function readTimerMode(): TimerMode {
 
 export function readEndBell(): boolean {
   return readSettings().endBell;
+}
+
+export function readNotificationVolume(): number {
+  return readSettings().notificationVolume;
 }
 
 export function readTaskRollover(): boolean {

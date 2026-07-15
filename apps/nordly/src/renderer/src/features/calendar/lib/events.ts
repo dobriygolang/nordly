@@ -39,6 +39,14 @@ export interface CalendarEntry {
   googleHtmlLink?: string;
   appleEventId?: string;
   appleCalendarId?: string;
+  /** Present when a Nordly task has Meet/Zoom — meeting mode on the timeline. */
+  conferenceUrl?: string;
+  conferenceProvider?: TaskCard['conferenceProvider'];
+}
+
+/** Task with a conference link is treated as a meeting (timeline + inspect), not a plain task. */
+export function taskIsMeeting(task: { conferenceUrl?: string | null }): boolean {
+  return Boolean(task.conferenceUrl?.trim());
 }
 
 export const CALENDAR_GRID_START_HOUR = 6;
@@ -90,6 +98,8 @@ function taskEntry(task: TaskCard, start: Date): CalendarEntry {
     epicId: task.epicId,
     epicColor: task.epicColor,
     googleEventId: task.googleEventId,
+    conferenceUrl: task.conferenceUrl,
+    conferenceProvider: task.conferenceProvider,
   };
 }
 
@@ -209,6 +219,24 @@ export function appleToCalendarEntries(events: AppleCalendarEvent[]): CalendarEn
   return out;
 }
 
+/**
+ * Timed meetings that have not ended yet, sorted by start.
+ * Google / Apple calendar events and Nordly tasks with a Meet/Zoom link.
+ */
+export function upcomingHomeMeetings(
+  entries: CalendarEntry[],
+  now = new Date(),
+): CalendarEntry[] {
+  const nowMs = now.getTime();
+  return entries
+    .filter((entry) => {
+      if (entry.allDay || entry.end.getTime() <= nowMs) return false;
+      if (entry.source === 'google' || entry.source === 'apple') return true;
+      return entry.source === 'task' && Boolean(entry.conferenceUrl?.trim());
+    })
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
 export function mergeCalendarEntries(
   tasks: TaskCard[],
   googleEvents: GoogleCalendarEvent[],
@@ -302,6 +330,22 @@ export interface TimedEventLayout {
   height: number;
   column: number;
   columnCount: number;
+}
+
+/** Explicit left/width so overlapping columns work in WKWebView (CSS vars in calc are flaky). */
+export function calendarColumnStyle(
+  column: number,
+  columnCount: number,
+): { left: string; width: string } {
+  const cols = Math.max(1, columnCount);
+  const col = Math.max(0, Math.min(column, cols - 1));
+  const edge = 4;
+  const gap = 2;
+  const inner = `100% - ${edge * 2}px - ${(cols - 1) * gap}px`;
+  return {
+    width: `calc((${inner}) / ${cols})`,
+    left: `calc(${edge}px + ${col} * (((${inner}) / ${cols}) + ${gap}px))`,
+  };
 }
 
 function entryTimeRangeMs(entry: CalendarEntry): { start: number; end: number } {

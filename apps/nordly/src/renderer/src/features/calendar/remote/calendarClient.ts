@@ -6,6 +6,7 @@ import {
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { scheduleStartISO } from '@shared/lib/dates';
 import type {
   GoogleCalendarEvent,
   GoogleCalendarListEntry,
@@ -107,8 +108,8 @@ function unwrapCalendar(raw: Record<string, unknown>): GoogleCalendarListEntry {
 function eventBody(input: GoogleEventInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     title: input.title,
-    start: input.start.toISOString(),
-    end: input.end.toISOString(),
+    start: scheduleStartISO(input.start),
+    end: scheduleStartISO(input.end),
     allDay: input.allDay ?? false,
   };
   if (input.calendarId) body.calendarId = input.calendarId;

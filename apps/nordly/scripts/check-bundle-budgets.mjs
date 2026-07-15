@@ -7,8 +7,9 @@ const manifestPath = resolve(dist, '.vite/manifest.json');
 
 const budgets = {
   main: { source: 'index.html', bytes: 410 * 1024 },
-  Notes: { source: 'src/pages/Notes.tsx', bytes: 1210 * 1024 },
-  Whiteboard: { entry: 'whiteboard', bytes: 1785 * 1024 },
+  // Shared App/CSS graph grew with Esc-layer + vault-disable shell work (DRU-88).
+  Notes: { source: 'src/pages/Notes.tsx', bytes: 1285 * 1024 },
+  Whiteboard: { entry: 'whiteboard', bytes: 1845 * 1024 },
 };
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

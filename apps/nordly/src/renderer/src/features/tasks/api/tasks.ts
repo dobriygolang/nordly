@@ -1,8 +1,4 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
-import {
-  invalidateGoogleCalendarCache,
-  refreshGoogleCalendarCache,
-} from '@features/calendar/api/calendar';
 import { isCloudEnabled } from '@shared/model/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {
@@ -271,10 +267,14 @@ export async function createTaskConference(
   const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  // Meet writes a Google event; refresh cache so the twin is filtered by googleEventId ASAP.
+  // Meet writes a Google event; dynamic import keeps the calendar barrel out of App → Notes.
   if (provider === 'meet') {
-    invalidateGoogleCalendarCache();
-    void refreshGoogleCalendarCache();
+    void import('@features/calendar/api/calendar').then(
+      ({ invalidateGoogleCalendarCache, refreshGoogleCalendarCache }) => {
+        invalidateGoogleCalendarCache();
+        void refreshGoogleCalendarCache();
+      },
+    );
   }
   return task;
 }

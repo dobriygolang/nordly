@@ -118,6 +118,7 @@ const AppleEventInspectorHost = lazy(() =>
 
 1. From `apps/nordly`: `npm run build:vite && node scripts/check-bundle-budgets.mjs`
 2. If Notes/main FAIL: lazy-load the new shell widget or narrow barrel imports — **do not** silently raise the budget unless the product intentionally ships that weight on cold Notes open.
+3. Never static-import `@features/calendar/api/calendar` from modules that App already imports (e.g. `features/tasks/api/tasks.ts`) — use a dynamic `import()` on the Meet path only.
 
 Vitest: alias `react` (and jsx-runtime / `react-dom`) to `apps/nordly/node_modules/...` in `vitest.config.ts` whenever code outside the package (e.g. `apps/shared/i18n`) is resolved — otherwise schedule/calendar unit tests fail with `Failed to resolve import "react"`.
 

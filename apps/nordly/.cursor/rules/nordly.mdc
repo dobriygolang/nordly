@@ -120,3 +120,11 @@ const AppleEventInspectorHost = lazy(() =>
 2. If Notes/main FAIL: lazy-load the new shell widget or narrow barrel imports — **do not** silently raise the budget unless the product intentionally ships that weight on cold Notes open.
 
 Vitest: alias `react` (and jsx-runtime / `react-dom`) to `apps/nordly/node_modules/...` in `vitest.config.ts` whenever code outside the package (e.g. `apps/shared/i18n`) is resolved — otherwise schedule/calendar unit tests fail with `Failed to resolve import "react"`.
+
+## Escape closes topmost overlay first
+
+Global Esc (`useGlobalHotkeys`, capture phase) must not `goHome()` while a modal/popover/picker is open.
+
+1. Register dismissible UI with `useEscapeLayer(onClose, active)` (`shared/hooks/useEscapeLayer.ts`).
+2. Stack is LIFO via `shared/lib/escapeLayer.ts` — Esc pops the top layer, then palette → planning → calendar → stats → page home.
+3. Do **not** rely on `window.confirm` for critical flows in Tauri (often returns `false`); use in-app dialogs that also call `useEscapeLayer`.

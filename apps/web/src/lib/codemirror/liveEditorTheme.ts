@@ -65,14 +65,15 @@ function liveEditorTheme() {
         color: 'rgb(var(--color-text-secondary))',
       },
       '.cm-cursor': {
-        borderLeftColor: 'rgb(var(--color-text-primary))',
+        borderLeftColor: 'var(--cm-local-caret, rgb(var(--color-text-primary)))',
         borderLeftWidth: '1.5px',
       },
+      // Prefer collab identity tint when set on the editor (see CollabCodeEditor).
       '.cm-selectionBackground, ::selection': {
-        backgroundColor: 'rgb(var(--editor-selection))',
+        backgroundColor: 'var(--cm-local-selection, rgb(var(--editor-selection)))',
       },
       '&.cm-focused .cm-selectionBackground': {
-        backgroundColor: 'rgb(var(--editor-selection))',
+        backgroundColor: 'var(--cm-local-selection, rgb(var(--editor-selection)))',
       },
       '.cm-lineNumbers .cm-gutterElement': { padding: '0 12px 0 16px' },
     },

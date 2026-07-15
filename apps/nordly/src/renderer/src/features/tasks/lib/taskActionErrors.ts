@@ -8,6 +8,8 @@ export function isRecoverableTaskActionError(err: unknown): boolean {
     msg.includes('google_reauth_required') ||
     msg.includes('zoom_reauth_required') ||
     msg.includes('conference_not_available') ||
-    msg.includes('integrations require cloud')
+    msg.includes('integrations require cloud') ||
+    msg.includes('Invalid response:') ||
+    msg.includes('Invalid focus')
   );
 }

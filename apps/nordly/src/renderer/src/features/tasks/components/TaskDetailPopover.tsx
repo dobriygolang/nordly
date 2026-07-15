@@ -10,6 +10,7 @@ import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/ca
 import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
 import { conferenceProvider } from '@features/tasks/lib/taskUi';
 import { Icon } from '@shared/ui/primitives/Icon';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 function openConferenceLink(url: string): void {
   void navigator.clipboard.writeText(url).catch(() => undefined);
@@ -54,6 +55,8 @@ export function TaskDetailPopover({
   const zoomReady =
     isCloudEnabled() && Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
 
+  useEscapeLayer(onClose, !closing);
+
   useEffect(() => {
     if (closing) return;
     const onDoc = (e: MouseEvent): void => {
@@ -62,14 +65,9 @@ export function TaskDetailPopover({
       if (anchorRef.current?.contains(target)) return;
       onClose();
     };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
     };
   }, [onClose, anchorRef, closing]);
 

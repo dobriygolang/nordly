@@ -185,6 +185,9 @@ func (s *trackerService) createMeetConference(ctx context.Context, userID string
 			return nil, cerr
 		}
 		meetURL = withMeet.MeetURL
+		id := withMeet.Event.ID
+		googleEventID = &id
+		_ = s.repo.UpsertGoogleEvents(ctx, userID, []model.CachedCalendarEvent{toCached(withMeet.Event)})
 	}
 
 	if meetURL == "" {

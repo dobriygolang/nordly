@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { useT, type TFunc } from '@nordly-i18n';
 
 import { zIndex } from '@shared/lib/z-index';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ export function SlashMenu({ x, y, query, editor, onClose, onBeforeAction }: Slas
   const filtered = useMemo(() => filterCommands(commands, query), [commands, query]);
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  useEscapeLayer(onClose);
   // Adjusted position — после первого render'а измеряем фактический rect и
   // clamp'аем чтобы меню не вылезало за viewport (правый/нижний край).
   // На первом рендере рисуем по anchor (x, y); useLayoutEffect синхронно
@@ -143,16 +145,10 @@ export function SlashMenu({ x, y, query, editor, onClose, onBeforeAction }: Slas
     setActive(0);
   }, [query]);
 
-  // Keyboard nav: ↑↓ Enter Esc. Обрабатываем на window — иначе
-  // textarea/CodeMirror перехватят все события первыми. preventDefault
-  // важен чтобы стрелки не двигали caret в редакторе.
+  // Keyboard nav: ↑↓ Enter. Esc via useEscapeLayer (before global goHome).
+  // Обрабатываем на window capture — иначе textarea/CodeMirror перехватят.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-        return;
-      }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setActive((i) => Math.min(filtered.length - 1, i + 1));

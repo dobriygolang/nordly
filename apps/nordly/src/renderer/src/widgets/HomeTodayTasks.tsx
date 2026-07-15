@@ -181,13 +181,13 @@ export function HomeTodayTasks(): JSX.Element | null {
     }));
     return upcomingHomeMeetings(
       [
-        ...googleToCalendarEntries(googleEvents, linkedGoogleIds),
+        ...googleToCalendarEntries(googleEvents, linkedGoogleIds, tasks),
         ...appleToCalendarEntries(appleEvents),
         ...taskMeetingEntries,
       ],
       new Date(nowMs),
     );
-  }, [googleEvents, appleEvents, linkedGoogleIds, todayAll, todayKey, nowMs]);
+  }, [googleEvents, appleEvents, linkedGoogleIds, tasks, todayAll, todayKey, nowMs]);
 
   const planFinalized = isPlanFinalizedToday(dailyPlan, todayKey);
   const obstacles = parseObstacleLines(dailyPlan.obstacles);
@@ -233,7 +233,14 @@ export function HomeTodayTasks(): JSX.Element | null {
 
   if (loadError) {
     if (loadError.message.includes('userId not set')) return null;
-    throw loadError;
+    // Soft-fail: do not tear down the whole app shell (ErrorBoundary / "signed out" feel).
+    return (
+      <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
+        <p className="nordly-home-today__empty mono" role="alert">
+          {loadError.message}
+        </p>
+      </section>
+    );
   }
 
   if (todayTasks.length === 0 && upcomingMeetings.length === 0 && !planFinalized) {

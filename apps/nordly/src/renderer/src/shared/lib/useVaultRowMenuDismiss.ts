@@ -1,5 +1,7 @@
 import { useEffect, type RefObject } from 'react';
 
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
+
 /** Outside click / scroll / resize / Escape — matches whiteboard vault row menus. */
 export function useVaultRowMenuDismiss(
   open: boolean,
@@ -8,6 +10,8 @@ export function useVaultRowMenuDismiss(
   menuRef: RefObject<HTMLElement | null>,
   updateMenuPos: () => void,
 ): void {
+  useEscapeLayer(onClose, open);
+
   useEffect(() => {
     if (!open) return;
 
@@ -19,9 +23,6 @@ export function useVaultRowMenuDismiss(
         onClose();
       }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     const onScroll = (e: Event) => {
       const target = e.target as Node;
       if (menuRef.current?.contains(target)) return;
@@ -30,12 +31,10 @@ export function useVaultRowMenuDismiss(
 
     // click (not mousedown) so menu item clicks register before the menu closes
     window.addEventListener('click', onDoc);
-    window.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', updateMenuPos);
     return () => {
       window.removeEventListener('click', onDoc);
-      window.removeEventListener('keydown', onKey);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', updateMenuPos);
     };

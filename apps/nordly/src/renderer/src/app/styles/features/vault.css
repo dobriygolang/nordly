@@ -289,6 +289,26 @@
   opacity: 0.45;
   cursor: default;
 }
+.nordly-vault-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.nordly-vault-modal__secondary {
+  padding: 10px 18px;
+  border: 1px solid var(--hair-2, rgb(255 255 255 / 0.12));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink, #fff);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nordly-vault-modal__secondary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 /* OS markdown file drop — always mounted; animate via data-active */
 .nordly-vault-file-drop {

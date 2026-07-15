@@ -19,7 +19,14 @@ import {
   type EditorWsEnvelope,
 } from '@/lib/ws/collabEditor'
 import { editorExtensionsForTheme } from '@/lib/codemirror/liveEditorTheme'
+import { lineNumberSelectLine } from '@/lib/codemirror/lineNumberSelectLine'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
+
+function applyLocalCollabChrome(view: EditorView, seed: string): void {
+  const colors = collabUserColors(seed)
+  view.dom.style.setProperty('--cm-local-selection', colors.colorLight)
+  view.dom.style.setProperty('--cm-local-caret', colors.color)
+}
 
 export type CollabCodeEditorHandle = {
   getCode: () => string
@@ -227,6 +234,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
       doc: ytext.toString(),
       extensions: [
         lineNumbers(),
+        lineNumberSelectLine(),
         keymap.of([indentWithTab, ...defaultKeymap, ...yUndoManagerKeymap]),
         cmLanguageExt(language),
         assistCompartment.current.of(editorAssistExtensions({ autocomplete: autocompleteEnabled })),
@@ -244,6 +252,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     })
     const view = new EditorView({ state, parent: mount })
     viewRef.current = view
+    applyLocalCollabChrome(view, userId ?? roomId)
     flushPendingEnvelopes()
 
     return () => {
@@ -316,6 +325,8 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
       colorLight: colors.colorLight,
       userId: userId ?? roomId,
     })
+    const view = viewRef.current
+    if (view) applyLocalCollabChrome(view, userId ?? roomId)
   }, [displayName, userId, roomId])
 
   useEffect(() => {

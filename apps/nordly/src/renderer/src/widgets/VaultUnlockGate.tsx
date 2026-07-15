@@ -12,6 +12,7 @@ import {
   subscribeVault,
   unlockVault,
 } from '@shared/crypto/vault';
+import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { useSessionStore } from '@shared/model/session';
 
 interface VaultUnlockGateProps {
@@ -118,7 +119,13 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
 
   useEffect(() => {
     const unsub = subscribeVault((u) => {
-      setState(u ? { kind: 'unlocked' } : { kind: 'needs-unlock' });
+      if (u) {
+        setState({ kind: 'unlocked' });
+        return;
+      }
+      // Disable path locks after clearing vault prefs — don't trap the user in unlock UI.
+      if (!isVaultEnabledSync()) return;
+      setState({ kind: 'needs-unlock' });
     });
     return unsub;
   }, []);

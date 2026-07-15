@@ -50,12 +50,13 @@ function unwrapSession(raw: Record<string, unknown>): FocusSession {
   return {
     id: requireJsonString(raw, 'id'),
     planItemId: optionalJsonStringOrEmpty(raw, 'taskId'),
-    pinnedTitle: requireJsonString(raw, 'pinnedTitle'),
+    // Proto3 omits empty strings; untitled focus sessions are valid.
+    pinnedTitle: optionalJsonStringOrEmpty(raw, 'pinnedTitle'),
     startedAt: optionalJsonDate(raw.startedAt),
     endedAt: optionalJsonDate(raw.endedAt),
     secondsFocused: requireJsonNumber(raw, 'secondsFocused'),
     pomodorosCompleted: requireJsonNumber(raw, 'pomodorosCompleted'),
-    mode: requireJsonString(raw, 'mode'),
+    mode: optionalJsonStringOrEmpty(raw, 'mode') || 'pomodoro',
   };
 }
 

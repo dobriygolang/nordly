@@ -29,11 +29,13 @@ import { useSessionStore } from '@shared/model/session';
 
 import { SettingRow, SettingsGroup } from '../primitives/SettingRow';
 import { Toggle } from '../primitives/Toggle';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 type Modal =
   | { kind: 'setup' }
   | { kind: 'unlock' }
   | { kind: 'recovery' }
+  | { kind: 'disable' }
   | { kind: 'show-recovery'; phrase: string };
 
 export function VaultSection() {
@@ -68,6 +70,10 @@ export function VaultSection() {
     return unsub;
   }, []);
 
+  useEscapeLayer(() => {
+    if (!busy) setModal(null);
+  }, Boolean(modal));
+
   const finishEnable = useCallback(
     async (passphrase: string, recoveryPhrase: string) => {
       if (!userId) return;
@@ -98,17 +104,35 @@ export function VaultSection() {
         setModal(salt ? { kind: 'unlock' } : { kind: 'setup' });
         return;
       }
-      if (
-        !window.confirm(t('nordly.settings.vault.disable_confirm'))
-      ) {
-        return;
-      }
-      lockVault();
-      await setVaultEnabled(false, userId);
-      setEnabled(false);
+      // Tauri WebView often returns false from window.confirm — use in-app dialog.
+      setModal({ kind: 'disable' });
     },
-    [userId, t],
+    [userId],
   );
+
+  const handleDisable = useCallback(async () => {
+    if (!userId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      // Clear enabled flag first so VaultUnlockGate unmounts before lockVault.
+      await setVaultEnabled(false, userId);
+      lockVault();
+      try {
+        const vaultBridge = window.nordly?.vault;
+        if (vaultBridge) await vaultBridge.passClear(userId);
+        else window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
+      } catch {
+        /* best-effort local passphrase cleanup */
+      }
+      setEnabled(false);
+      setModal(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [userId]);
 
   const handleSetup = async () => {
     setError(null);
@@ -317,6 +341,32 @@ export function VaultSection() {
                 >
                   {t('nordly.settings.vault.recovery_done')}
                 </button>
+              </>
+            )}
+
+            {modal.kind === 'disable' && (
+              <>
+                <h2 className="nordly-vault-modal__title">{t('nordly.settings.vault.disable_title')}</h2>
+                <p className="nordly-vault-modal__body">{t('nordly.settings.vault.disable_confirm')}</p>
+                {error && <p className="nordly-vault-modal__error mono">{error}</p>}
+                <div className="nordly-vault-modal__actions">
+                  <button
+                    type="button"
+                    className="nordly-vault-modal__secondary"
+                    disabled={busy}
+                    onClick={() => setModal(null)}
+                  >
+                    {t('nordly.settings.vault.disable_cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="nordly-vault-modal__primary"
+                    disabled={busy}
+                    onClick={() => void handleDisable()}
+                  >
+                    {t('nordly.settings.vault.disable_action')}
+                  </button>
+                </div>
               </>
             )}
 

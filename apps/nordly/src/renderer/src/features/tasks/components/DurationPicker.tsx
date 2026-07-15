@@ -4,6 +4,7 @@ import { useT } from '@nordly-i18n';
 
 import { zIndex } from '@shared/lib/z-index';
 import { formatDurationShort } from '@shared/lib/dates';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 export const DURATION_PRESETS_MIN = [15, 20, 30, 45, 60, 120, 180, 240, 360, 480] as const;
 
@@ -24,19 +25,16 @@ export function DurationPicker({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  useEscapeLayer(() => setOpen(false), open);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     document.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
     };
   }, [open]);
 

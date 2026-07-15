@@ -6,6 +6,7 @@ import { CanvasBg } from '@widgets/CanvasBg';
 import { Icon } from '@shared/ui/primitives/Icon';
 import type { ThemeId } from '@shared/model/theme';
 import { themeLabelKey } from '@shared/model/settings';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 interface WallpaperCarouselProps {
   themes: ThemeId[];
@@ -36,13 +37,10 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
     [onPick, themes],
   );
 
+  useEscapeLayer(onClose);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-        return;
-      }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         setActive((i) => {

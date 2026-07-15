@@ -386,8 +386,11 @@ export const ru = {
   'nordly.settings.vault.lock_label': 'Заблокировать vault',
   'nordly.settings.vault.lock_hint': 'Удаляет ключ шифрования из памяти.',
   'nordly.settings.vault.lock_now': 'Заблокировать',
+  'nordly.settings.vault.disable_title': 'Выключить шифрование?',
   'nordly.settings.vault.disable_confirm':
     'Выключить encrypted vault? Новый sync будет plaintext. Старый ciphertext на сервере останется, пока не разблокируешь vault.',
+  'nordly.settings.vault.disable_cancel': 'Отмена',
+  'nordly.settings.vault.disable_action': 'Выключить',
   'nordly.settings.vault.setup_hint':
     'Опционально — как Obsidian Sync E2EE. Получишь recovery phrase из 24 слов. Сохрани offline.',
   'nordly.settings.vault.recovery_label': 'Recovery phrase',

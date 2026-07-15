@@ -6,6 +6,7 @@ import { formatLocaleTime } from '@shared/lib/localeFormat';
 
 import { zIndex } from '@shared/lib/z-index';
 import { formatTimeShort } from '@shared/lib/dates';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 const DEFAULT_STEP_MIN = 30;
 const DEFAULT_START_H = 7;
@@ -89,19 +90,16 @@ export function TimePicker({
     return `${value.getHours()}:${value.getMinutes()}`;
   }, [value]);
 
+  useEscapeLayer(() => setOpen(false), open);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     document.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
     };
   }, [open]);
 

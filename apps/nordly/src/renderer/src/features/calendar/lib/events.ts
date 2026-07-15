@@ -172,10 +172,11 @@ export function tasksToCalendarEntries(tasks: TaskCard[], now = new Date()): Cal
 export function googleToCalendarEntries(
   events: GoogleCalendarEvent[],
   linkedGoogleIds: Set<string>,
+  tasks: TaskCard[] = [],
 ): CalendarEntry[] {
   const out: CalendarEntry[] = [];
   for (const ev of events) {
-    if (linkedGoogleIds.has(ev.id)) continue;
+    if (shouldHideGoogleEvent(ev, linkedGoogleIds, tasks)) continue;
     const start = new Date(ev.start);
     const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 60 * 60_000);
     if (Number.isNaN(start.getTime())) continue;
@@ -197,6 +198,31 @@ export function googleToCalendarEntries(
 
 export function linkedGoogleEventIds(tasks: TaskCard[]): Set<string> {
   return new Set(tasks.map((task) => task.googleEventId).filter((id): id is string => Boolean(id)));
+}
+
+/** Nordly Meet twins that we must not paint beside the task block. */
+function shouldHideGoogleEvent(
+  ev: GoogleCalendarEvent,
+  linkedGoogleIds: Set<string>,
+  tasks: TaskCard[],
+): boolean {
+  if (linkedGoogleIds.has(ev.id)) return true;
+  const evStart = new Date(ev.start).getTime();
+  if (Number.isNaN(evStart)) return false;
+  const evTitle = normalizeMeetingTitle(ev.title);
+  for (const task of tasks) {
+    if (task.conferenceProvider !== 'meet' || !task.conferenceUrl?.trim()) continue;
+    if (task.googleEventId === ev.id) return true;
+    const start = taskScheduleStart(task);
+    if (!start) continue;
+    if (Math.abs(start.getTime() - evStart) > 60_000) continue;
+    if (normalizeMeetingTitle(task.title) === evTitle) return true;
+  }
+  return false;
+}
+
+function normalizeMeetingTitle(title: string): string {
+  return title.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export function appleToCalendarEntries(events: AppleCalendarEvent[]): CalendarEntry[] {
@@ -245,7 +271,7 @@ export function mergeCalendarEntries(
 ): CalendarEntry[] {
   const taskEntries = tasksToCalendarEntries(tasks, now);
   const linked = linkedGoogleEventIds(tasks);
-  const googleEntries = googleToCalendarEntries(googleEvents, linked);
+  const googleEntries = googleToCalendarEntries(googleEvents, linked, tasks);
   const appleEntries = appleToCalendarEntries(appleEvents);
   return [...taskEntries, ...googleEntries, ...appleEntries].sort(
     (a, b) => a.start.getTime() - b.start.getTime(),

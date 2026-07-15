@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 
 import type { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { dismissTopEscapeLayer } from '@shared/lib/escapeLayer';
 
 interface GlobalHotkeysDeps {
   page: PageId;
@@ -56,26 +57,39 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
       }
 
       if (e.key === 'Escape') {
+        // Capture phase: beat CodeMirror / nested listeners so layers dismiss
+        // before page-level goHome.
+        if (dismissTopEscapeLayer()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         if (d.paletteOpen) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
           d.setPaletteOpen(() => false);
           return;
         }
         if (d.planningOpen) {
           e.preventDefault();
+          e.stopImmediatePropagation();
           d.closePlanning();
           return;
         }
         if (d.calendarOpen) {
           e.preventDefault();
+          e.stopImmediatePropagation();
           d.closeCalendar();
           return;
         }
         if (d.statsOpen) {
           e.preventDefault();
+          e.stopImmediatePropagation();
           d.closeStats();
           return;
         }
         if (d.page !== 'home') {
+          e.preventDefault();
           d.goHome();
         }
         return;
@@ -112,7 +126,8 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
       if (d.page === id) d.goHome();
       else d.open(id);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Escape must listen in capture so modal layers win over goHome and editors.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 }

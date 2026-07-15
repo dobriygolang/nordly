@@ -116,10 +116,10 @@ export const DayTimeline = memo(function DayTimeline({
 
   const calendarEntries = useMemo(
     () => [
-      ...googleToCalendarEntries(googleEvents, linkedGoogleIds),
+      ...googleToCalendarEntries(googleEvents, linkedGoogleIds, tasks),
       ...appleToCalendarEntries(appleEvents),
     ],
-    [googleEvents, appleEvents, linkedGoogleIds],
+    [googleEvents, appleEvents, linkedGoogleIds, tasks],
   );
   const allDayCalendar = useMemo(
     () => allDayEntriesForDay(calendarEntries, dayKey),

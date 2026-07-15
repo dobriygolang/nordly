@@ -1,4 +1,6 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
+import { invalidateGoogleCalendarCache } from '@features/calendar/lib/googleCalendarCache';
+import { refreshGoogleCalendarCache } from '@features/calendar/lib/googleCalendarSyncWorker';
 import { isCloudEnabled } from '@shared/model/features';
 import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
 import {
@@ -255,12 +257,22 @@ export async function createTaskConference(
   let serverId = await getServerId('tasks', taskId);
   if (!serverId && isSyncEnabled()) {
     // Meet/Zoom need the tracker id — push local creates first.
-    await flushSync();
+    // Best-effort: unrelated outbox failures must not block conference creation.
+    try {
+      await flushSync();
+    } catch (err) {
+      console.error('[nordly:tasks] flush before conference failed', err);
+    }
     serverId = await getServerId('tasks', taskId);
   }
   if (!serverId) throw new Error('task_not_synced');
   const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  // Meet writes a Google event; refresh cache so the twin is filtered by googleEventId ASAP.
+  if (provider === 'meet') {
+    invalidateGoogleCalendarCache();
+    void refreshGoogleCalendarCache();
+  }
   return task;
 }

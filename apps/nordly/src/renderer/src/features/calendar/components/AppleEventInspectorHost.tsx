@@ -13,6 +13,7 @@ import { parseScheduleInstant } from '@shared/lib/dates';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { zIndex } from '@shared/lib/z-index';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 type InspectorView = {
   title: string;
@@ -164,14 +165,7 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
     };
   }, [payload, t]);
 
-  useEffect(() => {
-    if (!payload) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPayload(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [payload]);
+  useEscapeLayer(() => setPayload(null), Boolean(payload));
 
   if (!payload) return null;
 

@@ -386,8 +386,11 @@ export const en = {
   'nordly.settings.vault.lock_label': 'Lock vault',
   'nordly.settings.vault.lock_hint': 'Clears the encryption key from memory.',
   'nordly.settings.vault.lock_now': 'Lock now',
+  'nordly.settings.vault.disable_title': 'Turn off encryption?',
   'nordly.settings.vault.disable_confirm':
     'Turn off encrypted vault? New sync will use plaintext. Existing ciphertext on the server stays until you unlock and migrate.',
+  'nordly.settings.vault.disable_cancel': 'Cancel',
+  'nordly.settings.vault.disable_action': 'Turn off',
   'nordly.settings.vault.setup_hint':
     'Optional — like Obsidian Sync E2EE. You will get a 24-word recovery phrase. Save it offline.',
   'nordly.settings.vault.recovery_label': 'Recovery phrase',

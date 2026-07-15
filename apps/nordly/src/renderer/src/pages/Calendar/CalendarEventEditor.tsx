@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { openExternalUrl, formatEntryTime } from '@features/calendar/api/calendar';
 import { useT, type Locale } from '@nordly-i18n';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 import { zIndex } from '@shared/lib/z-index';
 
 import type { CalendarEditorState } from './useCalendarEditor';
@@ -28,6 +29,7 @@ export function CalendarEventEditor({
 }: CalendarEventEditorProps): JSX.Element {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
+  useEscapeLayer(onClose);
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
@@ -78,7 +80,6 @@ export function CalendarEventEditor({
               event.preventDefault();
               onSave();
             }
-            if (event.key === 'Escape') onClose();
           }}
         />
         <p className="nordly-calendar-editor__when mono">{when}</p>

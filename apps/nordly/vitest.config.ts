@@ -12,7 +12,17 @@ const LAYERS = {
 };
 
 export default defineConfig({
-  resolve: { alias: LAYERS },
+  resolve: {
+    // apps/shared/i18n lives outside this package; pin React so Vite does not
+    // look for node_modules next to apps/shared/.
+    alias: {
+      ...LAYERS,
+      react: resolve(__dirname, 'node_modules/react'),
+      'react/jsx-runtime': resolve(__dirname, 'node_modules/react/jsx-runtime'),
+      'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
   test: {
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],

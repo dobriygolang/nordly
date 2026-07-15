@@ -179,6 +179,7 @@ jobs:
             fi
 
             cd deploy
+            # Re-apply JWT ownership from .env after repo chown -R (identity runs as DEPLOY_UID).
             make keys
             bash scripts/ensure-env-dsns.sh .env
             export DOCKER_BUILDKIT=1

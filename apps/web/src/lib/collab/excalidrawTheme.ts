@@ -44,11 +44,3 @@ export function excalidrawCanvasPatch(boardTheme: BoardCanvasTheme) {
     currentItemBackgroundColor: 'transparent',
   }
 }
-
-/** @deprecated use excalidrawThemeFor */
-export const EXCALIDRAW_THEME = 'dark' as const
-
-/** @deprecated use EXCALIDRAW_CANVAS */
-export const EXCALIDRAW_SITE_COLORS = {
-  canvas: EXCALIDRAW_CANVAS.light,
-} as const

@@ -249,7 +249,8 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     setShareMsg(null);
     try {
       const sceneJson = await getScenePayload();
-      const title = activeRef.current?.title;
+      const title = activeRef.current?.title?.trim();
+      if (!title) throw new Error('Board title is required');
       const res = await remoteShareWhiteboard(sceneJson, title);
       const url = `${requireNordlyWebBaseUrl()}/live/${res.roomId}`;
       const outcome = await copyLinkAndOpen(url);
@@ -272,7 +273,8 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     setShareMsg(null);
     try {
       const sceneJson = await getScenePayload();
-      const title = activeRef.current?.title;
+      const title = activeRef.current?.title?.trim();
+      if (!title) throw new Error('Board title is required');
       const res = await remotePublishWhiteboard(sceneJson, title);
       const outcome = await copyLinkAndOpen(res.url);
       if (outcome === 'copied') {

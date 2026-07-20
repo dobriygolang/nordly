@@ -41,10 +41,9 @@ export function useCalendarQuery(
   const {
     events: googleEvents,
     error: googleFetchError,
-    reauthRequired: fetchReauth,
   } = useGoogleCalendarEvents(range.start, range.end, googleEnabled);
   const { events: appleEvents } = useAppleCalendarEvents(range.start, range.end, true);
-  const googleReauthNeeded = connectionReauth || fetchReauth;
+  const googleReauthNeeded = connectionReauth;
 
   useEffect(() => {
     if (!googleReauthNeeded) setGoogleReauthDismissed(false);

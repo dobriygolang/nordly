@@ -44,6 +44,8 @@ Custom HTTP (not grpc-gateway):
 | `GET /v1/tracker/integrations/google/callback` | Google OAuth callback → redirect to `NORDLY_CALLBACK_URL?google_calendar=…` (default web: `https://trynordly.app/oauth/google-calendar`) |
 | `GET /v1/tracker/integrations/zoom/callback` | Zoom OAuth callback → redirect to web `/oauth/zoom?zoom=…` (derived from `NORDLY_CALLBACK_URL` host) or `nordly://settings?zoom=…` |
 
+Transport: one RPC per file under `internal/app/api/tracker/`.
+
 ## Outbox events
 
 Removed — no background consumers; no outbox table in current schema.
@@ -54,7 +56,9 @@ Removed — no background consumers; no outbox table in current schema.
 
 `epics(user_id, name, color, archived_at)` — seeded idempotently with Work/Personal/Learning/Health on first `ListEpics` when empty.
 
-Statuses: `todo` | `in_progress` | `in_review` | `done` | `dismissed`. Schedule duration 15–480 minutes. Soft-delete via `archived_at`.
+Statuses: `todo` | `in_progress` | `in_review` | `done` | `dismissed`.
+Kinds (required on create): `algo` | `sysdesign` | `quiz` | `reflection` | `reading` | `ml` | `custom`.
+Schedule duration 15–480 minutes. Soft-delete via `archived_at`.
 
 `user_settings(…, zoom_refresh_token, zoom_oauth_state, zoom_reauth_required)`
 

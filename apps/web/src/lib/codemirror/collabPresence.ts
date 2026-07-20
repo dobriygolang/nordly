@@ -26,11 +26,11 @@ export function peersFromAwareness(awareness: Awareness): CollabPeer[] {
     if (!user?.name) return
     peers.push({
       clientId,
-      userId: user.userId ?? String(clientId),
+      userId: requirePeerString(user.userId, 'userId'),
       name: user.name,
-      color: user.color ?? '#30bced',
+      color: requirePeerString(user.color, 'color'),
       isSelf: clientId === selfId,
-      active: user.active !== false,
+      active: user.active === true,
     })
   })
   peers.sort((a, b) => {
@@ -38,4 +38,11 @@ export function peersFromAwareness(awareness: Awareness): CollabPeer[] {
     return a.name.localeCompare(b.name)
   })
   return peers
+}
+
+function requirePeerString(value: string | undefined, field: string): string {
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`Invalid collab peer: missing ${field}`)
+  }
+  return value
 }

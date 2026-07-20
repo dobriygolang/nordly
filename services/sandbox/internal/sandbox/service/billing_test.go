@@ -4,49 +4,46 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
+	billingmocks "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing/mocks"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 )
 
-type stubBilling struct {
-	usageErr error
-	subject  string
-}
-
-func (s *stubBilling) CheckAndConsumeUsage(_ context.Context, subject, _ string, _ int) error {
-	s.subject = subject
-	return s.usageErr
-}
-
 func TestGateCodeRunConsumesUsage(t *testing.T) {
 	t.Parallel()
-	svc := New(Deps{
-		Billing: &stubBilling{usageErr: billingadapter.ErrQuotaExceeded},
-	}).(*sandboxService)
+	billing := billingmocks.NewClient(t)
+	billing.EXPECT().
+		CheckAndConsumeUsage(mock.Anything, "user-1", billingadapter.EntitlementCodeRunsPerDay, 1).
+		Return(billingadapter.ErrQuotaExceeded)
 
+	svc := New(Deps{Billing: billing}).(*sandboxService)
 	err := svc.gateCodeRun(context.Background(), "user-1")
-	if err != ErrQuotaExceeded {
-		t.Fatalf("expected quota exceeded, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrQuotaExceeded)
 }
 
 func TestQuotaSubjectUsesRoomID(t *testing.T) {
 	t.Parallel()
-	billing := &stubBilling{}
-	svc := New(Deps{Billing: billing}).(*sandboxService)
+	billing := billingmocks.NewClient(t)
+	billing.EXPECT().
+		CheckAndConsumeUsage(mock.Anything, "room-id", billingadapter.EntitlementCodeRunsPerDay, 1).
+		Return(nil)
 
-	if err := svc.gateCodeRun(context.Background(), quotaSubject("guest-user", "room-id")); err != nil {
-		t.Fatalf("gate code run: %v", err)
-	}
-	if billing.subject != "room-id" {
-		t.Fatalf("expected stable room quota subject, got %q", billing.subject)
-	}
+	svc := New(Deps{Billing: billing}).(*sandboxService)
+	require.NoError(t, svc.gateCodeRun(context.Background(), quotaSubject("guest-user", "room-id")))
 }
 
 func TestFormatCodeConsumesQuota(t *testing.T) {
 	t.Parallel()
+	billing := billingmocks.NewClient(t)
+	billing.EXPECT().
+		CheckAndConsumeUsage(mock.Anything, "user-1", billingadapter.EntitlementCodeRunsPerDay, 1).
+		Return(billingadapter.ErrQuotaExceeded)
+
 	svc := New(Deps{
-		Billing:      &stubBilling{usageErr: billingadapter.ErrQuotaExceeded},
+		Billing:      billing,
 		Runner:       runner.DefaultFakeRunner(),
 		MaxCodeBytes: 1024,
 	}).(*sandboxService)
@@ -56,7 +53,5 @@ func TestFormatCodeConsumesQuota(t *testing.T) {
 		Language: "go",
 		Code:     "package main",
 	})
-	if err != ErrQuotaExceeded {
-		t.Fatalf("expected format quota exceeded, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrQuotaExceeded)
 }

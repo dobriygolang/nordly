@@ -72,7 +72,6 @@ export async function openAppleCalendarEvent(eventId: string): Promise<void> {
 }
 
 export {
-  inspectAppleCalendarEvent,
   inspectCalendarEntry,
   inspectCalendarPayload,
 } from '../lib/calendarInspect';

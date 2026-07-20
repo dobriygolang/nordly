@@ -77,25 +77,6 @@ func replaceNoteLinksTx(
 	return nil
 }
 
-func (r *Repository) ReplaceNoteLinks(
-	ctx context.Context,
-	userID, sourceNoteID string,
-	links []notesmodel.WikiLinkRef,
-) error {
-	if err := r.validateWikiLinkTargets(ctx, userID, links); err != nil {
-		return err
-	}
-	tx, err := r.pg.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if err := replaceNoteLinksTx(ctx, tx, userID, sourceNoteID, links); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
 func (r *Repository) ListBacklinks(
 	ctx context.Context,
 	userID, targetNoteID string,

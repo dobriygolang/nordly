@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -132,7 +133,7 @@ func (p *Plans) ListPlanEntitlements(planID string) ([]model.PlanEntitlement, er
 		return nil, repository.ErrNotFound
 	}
 	IncPlansHit()
-	return append([]model.PlanEntitlement(nil), items...), nil
+	return slices.Clone(items), nil
 }
 
 // ListCatalog returns prebuilt public plan cards.
@@ -143,5 +144,5 @@ func (p *Plans) ListCatalog() ([]catalog.PlanCatalogItem, error) {
 		return nil, repository.ErrNotFound
 	}
 	IncPlansHit()
-	return append([]catalog.PlanCatalogItem(nil), snap.catalog...), nil
+	return slices.Clone(snap.catalog), nil
 }

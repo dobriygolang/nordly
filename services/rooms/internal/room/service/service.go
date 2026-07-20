@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -83,12 +84,6 @@ func (s *roomService) CreateGuestRoom(
 	roomType model.RoomType,
 	language model.Language,
 ) (*GuestCreateResult, error) {
-	if roomType == "" {
-		roomType = model.RoomTypePractice
-	}
-	if language == "" {
-		language = model.LanguageGo
-	}
 	if roomType != model.RoomTypePractice && roomType != model.RoomTypeSystemDesign {
 		return nil, fmt.Errorf("guest rooms support only %q and %q: %w",
 			model.RoomTypePractice, model.RoomTypeSystemDesign, repository.ErrInvalidState)
@@ -99,7 +94,7 @@ func (s *roomService) CreateGuestRoom(
 
 	name := strings.TrimSpace(displayName)
 	if name == "" {
-		name = "guest"
+		return nil, fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
 	}
 
 	roomID := uuid.New()
@@ -107,7 +102,7 @@ func (s *roomService) CreateGuestRoom(
 	scope := fmt.Sprintf("editor:%s", roomID)
 	ttlSec := int32(guestTTL.Seconds())
 	if ttlSec <= 0 {
-		ttlSec = int32(model.DefaultGuestRoomTTL.Seconds())
+		return nil, fmt.Errorf("guest room TTL misconfigured: %w", repository.ErrInvalidState)
 	}
 
 	token, ownerID, err := s.identity.MintScopedAccessToken(ctx, string(model.RoleOwner), scope, name, ttlSec)
@@ -178,7 +173,7 @@ func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) erro
 func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string) (*GuestJoinResult, error) {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
-		name = "guest"
+		return nil, fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
 	}
 
 	rid, err := uuid.Parse(roomID)
@@ -262,10 +257,10 @@ func (s *roomService) ensureAccess(ctx context.Context, uid, rid uuid.UUID, room
 	if uid == room.OwnerID {
 		return nil
 	}
-	for _, p := range participants {
-		if p.UserID == uid {
-			return nil
-		}
+	if slices.ContainsFunc(participants, func(p model.Participant) bool {
+		return p.UserID == uid
+	}) {
+		return nil
 	}
 	if room.Visibility == model.VisibilityShared {
 		return nil

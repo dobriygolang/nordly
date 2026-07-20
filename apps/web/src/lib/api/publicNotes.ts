@@ -28,11 +28,22 @@ function mapPublishedNote(j: Record<string, unknown>): PublishedNote {
   if (publishedAtRaw != null && typeof publishedAtRaw !== 'string') {
     throw new Error('Invalid published note: published_at must be a string')
   }
+  const passwordRequired = requireBool(j, 'password_required')
+  let bodyMd: string
+  if (passwordRequired) {
+    // Proto3 may omit empty body_md; any non-empty body before unlock is invalid.
+    if (j.body_md !== undefined && j.body_md !== null && j.body_md !== '') {
+      throw new Error('Invalid published note: password-gated body must be empty')
+    }
+    bodyMd = ''
+  } else {
+    bodyMd = requireStr(j, 'body_md')
+  }
   return {
     title: requireStr(j, 'title'),
-    bodyMd: typeof j.body_md === 'string' ? j.body_md : '',
+    bodyMd,
     publishedAt: typeof publishedAtRaw === 'string' && publishedAtRaw ? publishedAtRaw : null,
-    passwordRequired: requireBool(j, 'password_required'),
+    passwordRequired,
   }
 }
 

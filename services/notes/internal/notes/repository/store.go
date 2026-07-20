@@ -17,9 +17,6 @@ type Store interface {
 	UpdateNote(ctx context.Context, userID, id, title, body string, links []notesmodel.WikiLinkRef) (*notesmodel.Note, error)
 	DeleteNote(ctx context.Context, userID, id string) error
 	ListBacklinks(ctx context.Context, userID, targetNoteID string) ([]notesmodel.BacklinkEntry, error)
-	CountActiveNotes(ctx context.Context, userID string) (int, error)
-	CountPublishedNotes(ctx context.Context, userID string) (int, error)
-	SumActiveNoteBytes(ctx context.Context, userID string) (int64, error)
 	PutNoteAttachment(ctx context.Context, attachment notesmodel.NoteAttachment) (*notesmodel.NoteAttachment, error)
 	GetNoteAttachment(ctx context.Context, userID, noteID, id string) (*notesmodel.NoteAttachment, error)
 	ListNoteAttachments(ctx context.Context, userID, noteID string) ([]notesmodel.NoteAttachmentSummary, error)

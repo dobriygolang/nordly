@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -11,12 +12,20 @@ import (
 
 const usernameMaxLen = 32
 
-var nonUsernameChars = regexp.MustCompile(`[^a-z0-9_]+`)
+var (
+	nonUsernameChars         = regexp.MustCompile(`[^a-z0-9_]+`)
+	errUsernameBaseExhausted = errors.New("username base exhausted")
+)
+
+// UsernameExistsChecker looks up whether a username is already taken.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=UsernameExistsChecker --output=./mocks --outpkg=mocks --filename=username_exists_checker.go
+type UsernameExistsChecker interface {
+	UsernameExists(ctx context.Context, username string) (bool, error)
+}
 
 // AllocateUsername returns a unique normalized username.
-func AllocateUsername(ctx context.Context, users interface {
-	UsernameExists(ctx context.Context, username string) (bool, error)
-}, candidates ...string) (string, error) {
+func AllocateUsername(ctx context.Context, users UsernameExistsChecker, candidates ...string) (string, error) {
 	for _, candidate := range candidates {
 		base := normalizeUsername(candidate)
 		if base == "" {
@@ -24,6 +33,9 @@ func AllocateUsername(ctx context.Context, users interface {
 		}
 		username, err := ensureUnique(ctx, users, base)
 		if err != nil {
+			if isUsernameBaseExhausted(err) {
+				continue
+			}
 			return "", err
 		}
 		if username != "" {
@@ -39,6 +51,9 @@ func AllocateUsername(ctx context.Context, users interface {
 		base := "user_" + suffix
 		username, err := ensureUnique(ctx, users, base)
 		if err != nil {
+			if isUsernameBaseExhausted(err) {
+				continue
+			}
 			return "", err
 		}
 		if username != "" {
@@ -49,9 +64,11 @@ func AllocateUsername(ctx context.Context, users interface {
 	return "", fmt.Errorf("allocate username: exhausted candidates")
 }
 
-func ensureUnique(ctx context.Context, users interface {
-	UsernameExists(ctx context.Context, username string) (bool, error)
-}, base string) (string, error) {
+func isUsernameBaseExhausted(err error) bool {
+	return errors.Is(err, errUsernameBaseExhausted)
+}
+
+func ensureUnique(ctx context.Context, users UsernameExistsChecker, base string) (string, error) {
 	if base == "" {
 		return "", nil
 	}
@@ -79,7 +96,7 @@ func ensureUnique(ctx context.Context, users interface {
 		}
 	}
 
-	return "", nil
+	return "", fmt.Errorf("%w: %s", errUsernameBaseExhausted, base)
 }
 
 func normalizeUsername(raw string) string {

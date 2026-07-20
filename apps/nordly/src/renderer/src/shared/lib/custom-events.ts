@@ -38,6 +38,4 @@ export const NORDLY_EVENTS = {
   openPlanning: 'nordly:open-planning',
   /** Timeline / Home → App: show calendar / meeting details in-app. */
   calendarInspect: 'nordly:calendar-inspect',
-  /** @deprecated prefer calendarInspect — Apple EventKit id only. */
-  appleCalendarInspect: 'nordly:apple-calendar-inspect',
 } as const;

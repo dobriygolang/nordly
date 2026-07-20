@@ -1,4 +1,4 @@
-import { API_BASE, apiWithBearer, parseGuestAccessToken, readAccessToken } from '@/lib/apiClient'
+import { API_BASE, apiWithBearer, parseGuestAccessToken } from '@/lib/apiClient'
 import { normalizeProtoJson } from '@/lib/protoJson'
 
 export type CodeRoom = {
@@ -49,7 +49,9 @@ export function readGuestRoom(roomId: string): CodeRoom | null {
   try {
     const raw = sessionStorage.getItem(guestRoomKey(roomId))
     if (!raw) return null
-    return JSON.parse(raw) as CodeRoom
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    return mapCachedRoom(parsed as Record<string, unknown>)
   } catch {
     return null
   }
@@ -64,7 +66,7 @@ export function persistGuestRoom(roomId: string, room: CodeRoom): void {
 }
 
 function bearerForRoom(roomId: string): string | null {
-  return readGuestToken(roomId) ?? readAccessToken()
+  return readGuestToken(roomId)
 }
 
 function requireStringField(obj: Record<string, unknown>, key: string, label: string): string {
@@ -78,20 +80,10 @@ function requireStringField(obj: Record<string, unknown>, key: string, label: st
 function requireExpiresIn(body: Record<string, unknown>): number {
   const v = body.expires_in
   if (typeof v === 'number' && Number.isFinite(v)) return v
-  if (typeof v === 'string' && v.trim() !== '') {
-    const n = Number(v)
-    if (Number.isFinite(n)) return n
-  }
   throw new Error('Invalid room auth response: missing expiresIn')
 }
 
-/** Expects grpc-gateway JSON already normalized to snake_case (see normalizeProtoJson). */
-function mapRoom(raw: Record<string, unknown>): CodeRoom {
-  const room = raw.room
-  if (!room || typeof room !== 'object') {
-    throw new Error('Invalid room response: missing room')
-  }
-  const r = room as Record<string, unknown>
+function mapCachedRoom(r: Record<string, unknown>): CodeRoom {
   const expiresAt = r.expires_at
   const createdAt = r.created_at
   return {
@@ -102,6 +94,15 @@ function mapRoom(raw: Record<string, unknown>): CodeRoom {
     expires_at: typeof expiresAt === 'string' && expiresAt ? expiresAt : undefined,
     created_at: typeof createdAt === 'string' && createdAt ? createdAt : undefined,
   }
+}
+
+/** Expects grpc-gateway JSON already normalized to snake_case (see normalizeProtoJson). */
+function mapRoom(raw: Record<string, unknown>): CodeRoom {
+  const room = raw.room
+  if (!room || typeof room !== 'object') {
+    throw new Error('Invalid room response: missing room')
+  }
+  return mapCachedRoom(room as Record<string, unknown>)
 }
 
 function mapInvite(body: Record<string, unknown>): InviteLink {
@@ -115,20 +116,27 @@ function mapInvite(body: Record<string, unknown>): InviteLink {
 
 export async function createGuestRoom(input: {
   displayName: string
-  language?: string
-  roomType?: GuestRoomType
+  language: string
+  roomType: GuestRoomType
 }): Promise<GuestCreateResult> {
-  const roomType = input.roomType ?? 'practice'
-  if (roomType !== 'practice' && roomType !== 'system_design') {
+  if (input.roomType !== 'practice' && input.roomType !== 'system_design') {
     throw new Error('Invalid guest room type')
+  }
+  const language = input.language.trim()
+  if (!language) {
+    throw new Error('Invalid guest room language')
+  }
+  const displayName = input.displayName.trim()
+  if (!displayName) {
+    throw new Error('display name is required')
   }
   const res = await fetch(`${API_BASE}/rooms/guest-create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      displayName: input.displayName.trim() || 'guest',
-      language: input.language ?? 'go',
-      roomType,
+      displayName,
+      language,
+      roomType: input.roomType,
     }),
   })
   if (!res.ok) {
@@ -165,10 +173,14 @@ export async function guestJoin(
   if (!id) {
     throw new Error('missing room id')
   }
+  const name = displayName.trim()
+  if (!name) {
+    throw new Error('display name is required')
+  }
   const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(id)}/guest-join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ displayName: displayName.trim() || 'guest' }),
+    body: JSON.stringify({ displayName: name }),
     redirect: 'manual',
   })
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {

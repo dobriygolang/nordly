@@ -86,10 +86,10 @@ func (r *Repository) CreateWorkTask(ctx context.Context, userID, kind, title, st
 		return nil, fmt.Errorf("invalid user_id: %w", err)
 	}
 	if status == "" {
-		status = "todo"
+		return nil, fmt.Errorf("invalid status: empty")
 	}
 	if kind == "" {
-		kind = "custom"
+		return nil, fmt.Errorf("invalid kind: empty")
 	}
 	id, err := uuid.NewRandom()
 	if err != nil {

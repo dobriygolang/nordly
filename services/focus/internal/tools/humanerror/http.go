@@ -10,15 +10,15 @@ import (
 )
 
 type response struct {
-	Error string `json:"error"`
+	Message string `json:"message"`
 }
 
-// WriteHTTP maps an error to JSON and status code compatible with frontend clients.
+// WriteHTTP maps an error to JSON and status code compatible with grpc-gateway / frontend clients.
 func WriteHTTP(w http.ResponseWriter, err error) {
 	st, message := toStatus(err)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(runtimeHTTPStatus(st.Code()))
-	_ = json.NewEncoder(w).Encode(response{Error: message})
+	_ = json.NewEncoder(w).Encode(response{Message: message})
 }
 
 func toStatus(err error) (*status.Status, string) {
@@ -39,10 +39,14 @@ func runtimeHTTPStatus(code codes.Code) int {
 		return http.StatusBadRequest
 	case codes.Unauthenticated:
 		return http.StatusUnauthorized
+	case codes.PermissionDenied:
+		return http.StatusForbidden
 	case codes.NotFound:
 		return http.StatusNotFound
 	case codes.FailedPrecondition:
 		return http.StatusPreconditionFailed
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

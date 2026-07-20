@@ -139,7 +139,10 @@ func (c *Client) CreateEventWithMeet(ctx context.Context, refreshToken, calendar
 	if err != nil {
 		return EventWithMeet{}, classifyErr(fmt.Errorf("create calendar event with meet: %w", err))
 	}
-	ev, _ := calendarEventFromAPI(created, cid)
+	ev, err := requireCalendarEventFromAPI(created, cid)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
 	return EventWithMeet{Event: ev, MeetURL: meetURLFromEvent(created)}, nil
 }
 
@@ -165,7 +168,10 @@ func (c *Client) PatchEventWithMeet(ctx context.Context, refreshToken, calendarI
 	if err != nil {
 		return EventWithMeet{}, classifyErr(fmt.Errorf("patch calendar event with meet: %w", err))
 	}
-	ev, _ := calendarEventFromAPI(updated, cid)
+	ev, err := requireCalendarEventFromAPI(updated, cid)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
 	return EventWithMeet{Event: ev, MeetURL: meetURLFromEvent(updated)}, nil
 }
 
@@ -184,7 +190,10 @@ func (c *Client) CreateEvent(ctx context.Context, refreshToken, calendarID strin
 	if err != nil {
 		return CalendarEvent{}, classifyErr(fmt.Errorf("create calendar event: %w", err))
 	}
-	ev, _ := calendarEventFromAPI(created, cid)
+	ev, err := requireCalendarEventFromAPI(created, cid)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
 	return ev, nil
 }
 
@@ -203,7 +212,10 @@ func (c *Client) UpdateEvent(ctx context.Context, refreshToken, calendarID, even
 	if err != nil {
 		return CalendarEvent{}, classifyErr(fmt.Errorf("update calendar event: %w", err))
 	}
-	ev, _ := calendarEventFromAPI(updated, cid)
+	ev, err := requireCalendarEventFromAPI(updated, cid)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
 	return ev, nil
 }
 
@@ -318,11 +330,16 @@ func (c *Client) SyncEvents(
 	return res, nil
 }
 
+func requireCalendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEvent, error) {
+	ev, ok := calendarEventFromAPI(item, calendarID)
+	if !ok {
+		return CalendarEvent{}, fmt.Errorf("google calendar event missing usable start/end (%s)", item.Id)
+	}
+	return ev, nil
+}
+
 func calendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEvent, bool) {
 	title := strings.TrimSpace(item.Summary)
-	if title == "" {
-		title = "(No title)"
-	}
 	editable := item.Organizer == nil || item.Organizer.Self || item.GuestsCanModify
 	base := CalendarEvent{
 		ID:         item.Id,
@@ -336,11 +353,12 @@ func calendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEven
 		if err != nil {
 			return CalendarEvent{}, false
 		}
-		end := start.Add(24 * time.Hour)
-		if item.End != nil && item.End.Date != "" {
-			if parsed, err := time.Parse("2006-01-02", item.End.Date); err == nil {
-				end = parsed
-			}
+		if item.End == nil || item.End.Date == "" {
+			return CalendarEvent{}, false
+		}
+		end, err := time.Parse("2006-01-02", item.End.Date)
+		if err != nil {
+			return CalendarEvent{}, false
 		}
 		base.Start, base.End, base.AllDay = start, end, true
 		return base, true
@@ -352,11 +370,12 @@ func calendarEventFromAPI(item *calendar.Event, calendarID string) (CalendarEven
 	if err != nil {
 		return CalendarEvent{}, false
 	}
-	end := start.Add(time.Hour)
-	if item.End != nil && item.End.DateTime != "" {
-		if parsed, err := time.Parse(time.RFC3339, item.End.DateTime); err == nil {
-			end = parsed
-		}
+	if item.End == nil || item.End.DateTime == "" {
+		return CalendarEvent{}, false
+	}
+	end, err := time.Parse(time.RFC3339, item.End.DateTime)
+	if err != nil {
+		return CalendarEvent{}, false
 	}
 	base.Start, base.End, base.AllDay = start, end, false
 	return base, true

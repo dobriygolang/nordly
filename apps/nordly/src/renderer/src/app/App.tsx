@@ -28,7 +28,6 @@ import { patchSettings } from '@shared/model/settings';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { applyTheme, isLightTheme } from '@shared/lib/applyTheme';
 import { isTauriRuntime } from '@platform/runtime';
-import { isCloudEnabled } from '@shared/model/features';
 import { subscribeVaultEnabled } from '@shared/crypto/vaultPrefs';
 import { listenEffect } from '@shared/lib/tauriListen';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
@@ -109,7 +108,7 @@ export default function App() {
 
   useEffect(() => {
     return subscribeVaultEnabled((enabled) => {
-      setVaultGateActive(isCloudEnabled() && enabled);
+      setVaultGateActive(enabled);
     });
   }, []);
 

@@ -168,7 +168,9 @@ func scanRun(row rowScanner) (*model.CodeRun, error) {
 		run.RoomID = roomID.String()
 	}
 	if len(testResultsJSON) > 0 {
-		_ = json.Unmarshal(testResultsJSON, &run.TestResults)
+		if err := json.Unmarshal(testResultsJSON, &run.TestResults); err != nil {
+			return nil, fmt.Errorf("unmarshal test results: %w", err)
+		}
 	}
 	if run.TestResults == nil {
 		run.TestResults = []model.TestResult{}

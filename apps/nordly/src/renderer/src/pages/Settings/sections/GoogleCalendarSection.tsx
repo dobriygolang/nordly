@@ -50,10 +50,11 @@ export function GoogleCalendarSection({
     }
     try {
       setCalendars(await listGoogleCalendars());
-    } catch {
+    } catch (err) {
       setCalendars([]);
+      setError(err instanceof Error ? err.message : t('nordly.settings.google.error_load'));
     }
-  }, []);
+  }, [t]);
 
   const load = useCallback(async () => {
     if (!isCloudEnabled()) return;
@@ -133,10 +134,10 @@ export function GoogleCalendarSection({
 
   if (!isCloudEnabled()) return null;
 
-  const connected = settings?.googleCalendarConnected ?? false;
-  const reauthNeeded = settings?.googleReauthRequired ?? false;
-  const calendarId = settings?.googleCalendarId ?? 'primary';
-  const controlsDisabled = loading || busy || oauthPending;
+  const connected = settings?.googleCalendarConnected === true;
+  const reauthNeeded = settings?.googleReauthRequired === true;
+  const calendarId = settings?.googleCalendarId ?? '';
+  const controlsDisabled = loading || busy || oauthPending || !settings;
 
   const setCalendar = async (id: string) => {
     setBusy(true);

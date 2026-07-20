@@ -29,7 +29,7 @@ export interface StoredNote {
   bodyMd: string;
   createdAt: string;
   updatedAt: string;
-  deleted?: boolean;
+  deleted: boolean;
   /** Plaintext fields encrypted at rest in IndexedDB. */
   atRestEncrypted?: boolean;
   /** Outgoing wiki-link metadata (plaintext). */
@@ -231,6 +231,9 @@ export async function notesStoreSoftDelete(id: string): Promise<void> {
 }
 
 export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
+  if (typeof remote.deleted !== 'boolean') {
+    throw new Error(`Invalid remote note: missing deleted (${remote.id})`);
+  }
   const userId = requireUserId();
   const local = await dbGet<StoredNote>('notes', entityKey(remote.id, userId));
   if (!shouldAcceptRemoteEntity(local, remote.updatedAt)) return;
@@ -245,7 +248,7 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
       bodyMd: remote.bodyMd,
       createdAt: remote.createdAt,
       updatedAt: remote.updatedAt,
-      deleted: remote.deleted ?? false,
+      deleted: remote.deleted,
       wikiLinks: remote.wikiLinks ?? local?.wikiLinks,
       folderId: latest?.folderId ?? local?.folderId ?? null,
     });

@@ -17,16 +17,9 @@ type JsonWorkTask = Record<string, unknown>;
 
 function pickTs(obj: JsonWorkTask, key: string): string | undefined {
   const v = obj[key];
+  if (v === undefined || v === null) return undefined;
   if (typeof v === 'string' && v.length > 0) return v;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    if (typeof o.dateTime === 'string' && o.dateTime.length > 0) return o.dateTime;
-    const sec = o.seconds;
-    if (typeof sec === 'number' && Number.isFinite(sec)) {
-      return new Date(sec * 1000).toISOString();
-    }
-  }
-  return undefined;
+  throw new Error(`Invalid task response: bad ${key}`);
 }
 
 function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
@@ -71,13 +64,13 @@ export async function remoteListTasks(): Promise<TaskCard[]> {
   return j.tasks.map(unwrapWorkTask);
 }
 
-export async function remoteCreateTask(input: { title: string; kind?: TaskKind }): Promise<TaskCard> {
+export async function remoteCreateTask(input: { title: string; kind: TaskKind }): Promise<TaskCard> {
   const title = input.title.trim();
   if (!title) throw new Error('Cannot create task with empty title');
   const resp = await apiFetch(BASE, {
     method: 'POST',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: input.kind ?? 'custom', title }),
+    body: JSON.stringify({ kind: input.kind, title }),
   });
   if (!resp.ok) throw new Error(`createTask: ${resp.status}`);
   return unwrapTaskResponse(await resp.json());

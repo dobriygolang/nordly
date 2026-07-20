@@ -58,6 +58,9 @@ export async function initVault(): Promise<{ saltB64: string; isNewVault: boolea
   const j = (await resp.json()) as SaltResponse;
   const saltB64 = requireSaltB64(j);
   await cacheLocalSalt(saltB64);
+  if (typeof j.initialized !== 'boolean') {
+    throw new Error('vault init response missing initialized');
+  }
   const isNewVault = !j.initialized;
   if (isNewVault) await markVerifierPending();
   return { saltB64, isNewVault };

@@ -3,6 +3,8 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -246,9 +248,7 @@ func (h *Hub) SnapshotOf(roomID uuid.UUID) []byte {
 	if len(rh.lastSnapshot) == 0 {
 		return nil
 	}
-	out := make([]byte, len(rh.lastSnapshot))
-	copy(out, rh.lastSnapshot)
-	return out
+	return slices.Clone(rh.lastSnapshot)
 }
 
 // replayOpsToClient sends buffered Yjs ops to a newly connected client when no snapshot exists yet.
@@ -481,9 +481,15 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 func mustEnvelope(kind string, data any) []byte {
 	var raw json.RawMessage
 	if data != nil {
-		b, _ := json.Marshal(data)
+		b, err := json.Marshal(data)
+		if err != nil {
+			panic(fmt.Sprintf("mustEnvelope(%s) data: %v", kind, err))
+		}
 		raw = b
 	}
-	out, _ := json.Marshal(Envelope{Kind: kind, Data: raw})
+	out, err := json.Marshal(Envelope{Kind: kind, Data: raw})
+	if err != nil {
+		panic(fmt.Sprintf("mustEnvelope(%s): %v", kind, err))
+	}
 	return out
 }

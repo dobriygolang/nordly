@@ -20,6 +20,7 @@ export interface DraggableNoteRowProps {
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onError?: (message: string) => void;
 }
 
 export const DraggableNoteRow = memo(function DraggableNoteRow({

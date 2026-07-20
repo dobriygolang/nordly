@@ -10,7 +10,7 @@ export interface RemoteAttachmentMeta {
   mime: string;
   encrypted: boolean;
   sizeBytes: number;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 export interface RemoteAttachment extends RemoteAttachmentMeta {
@@ -25,7 +25,7 @@ function requireAttachment(j: Record<string, unknown>): RemoteAttachment {
     dataB64: requireJsonString(j, 'dataB64'),
     encrypted: requireJsonBoolean(j, 'encrypted'),
     sizeBytes: requireJsonNumber(j, 'sizeBytes'),
-    updatedAt: typeof j.updatedAt === 'string' ? j.updatedAt : undefined,
+    updatedAt: requireJsonString(j, 'updatedAt'),
   };
 }
 
@@ -96,7 +96,7 @@ export async function remoteListAttachments(
       mime: requireJsonString(row, 'mime'),
       encrypted: requireJsonBoolean(row, 'encrypted'),
       sizeBytes: requireJsonNumber(row, 'sizeBytes'),
-      updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : undefined,
+      updatedAt: requireJsonString(row, 'updatedAt'),
     };
   });
 }

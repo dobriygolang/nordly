@@ -89,10 +89,7 @@ func (r *Repository) ShareNoteToWeb(
 		return nil, err
 	}
 	if note.Published && note.PublishSlug != nil && note.PublishedAt != nil {
-		if err := tx.Commit(ctx); err != nil {
-			return nil, err
-		}
-		return r.updatePublishedShare(ctx, userID, noteID, plaintext, publicBaseURL, meta, assets)
+		return updatePublishedShareTx(ctx, tx, note, plaintext, publicBaseURL, meta, assets)
 	}
 	if meta.QuotaLimit != nil {
 		var count int
@@ -150,30 +147,24 @@ func publishQuotaExceeded(published int, limit *int) bool {
 	return limit != nil && published >= *limit
 }
 
-func (r *Repository) updatePublishedShare(
+// updatePublishedShareTx updates an already-published note inside the caller's
+// locked transaction (advisory lock + FOR UPDATE still held).
+func updatePublishedShareTx(
 	ctx context.Context,
-	userID, noteID, plaintext, publicBaseURL string,
+	tx pgx.Tx,
+	note *notesmodel.Note,
+	plaintext, publicBaseURL string,
 	meta notesmodel.PublishMeta,
 	assets []notesmodel.PublishedAttachment,
 ) (*notesmodel.ShareToWebResult, error) {
-	tx, err := r.pg.Begin(ctx)
-	if err != nil {
-		return nil, err
+	if note.PublishSlug == nil {
+		return nil, notesmodel.ErrInvalidArgument
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
+	existingSlug := *note.PublishSlug
 	var expiresAt *time.Time
 	if meta.ExpiresInDays > 0 {
 		t := time.Now().UTC().AddDate(0, 0, int(meta.ExpiresInDays))
 		expiresAt = &t
-	}
-	var existingSlug string
-	if err := tx.QueryRow(ctx, `
-		SELECT publish_slug FROM notes
-		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND published = true
-		FOR UPDATE
-	`, noteID, userID).Scan(&existingSlug); err != nil {
-		return nil, err
 	}
 	plaintext = rewritePublishedAssetRefs(plaintext, existingSlug, assets)
 	size := len(plaintext)
@@ -184,7 +175,7 @@ func (r *Repository) updatePublishedShare(
 		    size_bytes = $6, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND published = true
 		RETURNING publish_slug, published_at
-	`, noteID, userID, plaintext, meta.PasswordHash, expiresAt, size)
+	`, note.ID, note.UserID, plaintext, meta.PasswordHash, expiresAt, size)
 	var outSlug string
 	var publishedAt time.Time
 	if err := row.Scan(&outSlug, &publishedAt); err != nil {
@@ -260,8 +251,8 @@ func (r *Repository) MakeNotePrivate(ctx context.Context, userID, noteID, cipher
 	if _, err := tx.Exec(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = true, published = false, publish_slug = NULL,
-		    published_at = NULL, publish_password_hash = NULL,
-		    publish_expires_at = NULL, size_bytes = $4, updated_at = now()
+		    published_at = NULL, publish_password_hash = NULL, publish_expires_at = NULL,
+		    size_bytes = $4, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 	`, noteID, userID, ciphertext, size); err != nil {
 		return err

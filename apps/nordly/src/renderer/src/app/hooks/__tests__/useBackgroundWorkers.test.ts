@@ -73,19 +73,22 @@ describe('initializeCloudWorkers', () => {
     expect(deps.startWorkers).not.toHaveBeenCalled();
   });
 
-  it('skips calendar hydrate when cloud is disabled', async () => {
+  it('skips calendar hydrate when cloud is disabled but still gates vault', async () => {
     const deps = dependencies({
       isCloudEnabled: vi.fn(() => false),
+      isVaultEnabled: vi.fn(() => true),
     });
+    const setVaultGateActive = vi.fn();
 
     await initializeCloudWorkers({
       userId: 'user-1',
       isCancelled: () => false,
-      setVaultGateActive: vi.fn(),
+      setVaultGateActive,
       dependencies: deps,
     });
 
     expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
     expect(deps.startWorkers).not.toHaveBeenCalled();
+    expect(setVaultGateActive).toHaveBeenCalledWith(true);
   });
 });

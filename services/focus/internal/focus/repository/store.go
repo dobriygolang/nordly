@@ -8,6 +8,8 @@ import (
 )
 
 // Store is the persistence port consumed by the domain layer.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Store --output=./mocks --outpkg=mocks --filename=store.go
 type Store interface {
 	CreateSession(
 		ctx context.Context,

@@ -26,8 +26,8 @@ func (r *Repository) SetInitialScene(ctx context.Context, roomID uuid.UUID, scen
 }
 
 func (r *Repository) GetInitialScene(ctx context.Context, roomID uuid.UUID) (string, error) {
-	const q = `SELECT COALESCE(initial_scene_json, '') FROM code_rooms WHERE id = $1 AND archived_at IS NULL`
-	var scene string
+	const q = `SELECT initial_scene_json FROM code_rooms WHERE id = $1 AND archived_at IS NULL`
+	var scene *string
 	err := r.pg.QueryRow(ctx, q, roomID).Scan(&scene)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -35,7 +35,10 @@ func (r *Repository) GetInitialScene(ctx context.Context, roomID uuid.UUID) (str
 		}
 		return "", fmt.Errorf("GetInitialScene: %w", err)
 	}
-	return scene, nil
+	if scene == nil {
+		return "", nil
+	}
+	return *scene, nil
 }
 
 func (r *Repository) InsertPublishedBoard(

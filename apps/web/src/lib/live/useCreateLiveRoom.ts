@@ -10,15 +10,18 @@ export function useCreateLiveRoom() {
   return useMutation({
     mutationFn: async (input: {
       language: string
-      displayName?: string
-      roomType?: GuestRoomType
+      displayName: string
+      roomType: GuestRoomType
     }) => {
-      const name = input.displayName?.trim() || readGuestDisplayName() || 'Guest'
+      const name = input.displayName.trim() || readGuestDisplayName().trim()
+      if (!name) {
+        throw new Error('display name is required')
+      }
       persistGuestDisplayName(name)
       const result = await createGuestRoom({
         displayName: name,
         language: input.language,
-        roomType: input.roomType ?? 'practice',
+        roomType: input.roomType,
       })
       return {
         room: result.room,

@@ -14,16 +14,20 @@ export function LiveNewPage() {
   const [roomMode, setRoomMode] = useState<LiveRoomModeId>('code')
   const [language, setLanguage] = useState('go')
 
-  const modeConfig = LIVE_ROOM_MODES.find((m) => m.id === roomMode) ?? LIVE_ROOM_MODES[0]
+  const modeConfig = LIVE_ROOM_MODES.find((m) => m.id === roomMode)
   const isDiagram = roomMode === 'diagram'
   const createM = useCreateLiveRoom()
 
   function handleCreate() {
-    persistGuestDisplayName(displayName || t('common.guest'))
+    if (!modeConfig) {
+      throw new Error(`Unknown live room mode: ${roomMode}`)
+    }
+    const name = (displayName.trim() || t('common.guest')).trim()
+    persistGuestDisplayName(name)
     createM.mutate({
       language: isDiagram ? 'diagram' : language,
       roomType: modeConfig.roomType,
-      displayName: displayName || undefined,
+      displayName: name,
     })
   }
 

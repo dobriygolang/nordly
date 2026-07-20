@@ -26,7 +26,6 @@ export function useGoogleCalendarEvents(
   events: GoogleCalendarEvent[];
   loading: boolean;
   error: string | null;
-  reauthRequired: boolean;
   refresh: () => Promise<void>;
 } {
   const rangeKey = googleRangeKey(timeMin, timeMax);
@@ -42,7 +41,6 @@ export function useGoogleCalendarEvents(
     return peek() === null;
   });
   const [error, setError] = useState<string | null>(null);
-  const reauthRequired = false;
 
   const rangeRef = useRef({ timeMin, timeMax, enabled });
   rangeRef.current = { timeMin, timeMax, enabled };
@@ -120,7 +118,6 @@ export function useGoogleCalendarEvents(
     events,
     loading,
     error,
-    reauthRequired,
     refresh,
   };
 }

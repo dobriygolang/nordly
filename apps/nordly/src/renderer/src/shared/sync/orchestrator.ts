@@ -103,8 +103,11 @@ async function ensureCloudSyncRegistration(options: SyncOptions | undefined): Pr
     if (err instanceof DeviceRegisterError) {
       if (err.code === 'cloud_sync_disabled') {
         const deviceId = getDeviceId();
+        if (!deviceId) {
+          throw new SyncError('device_register_failed', 'device id missing after cloud_sync_disabled');
+        }
         featureStore.setDeviceRegistration({
-          deviceId: deviceId ?? '',
+          deviceId,
           devicesRegistered: 0,
           deviceLimit: 0,
           cloudSyncEnabled: false,

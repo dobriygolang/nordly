@@ -27,10 +27,13 @@ func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, ti
 	guestTTL := s.guestRoomTTL
 	scope := fmt.Sprintf("editor:%s", roomID)
 	ttlSec := int32(guestTTL.Seconds())
+	if ttlSec <= 0 {
+		return nil, fmt.Errorf("guest room TTL misconfigured")
+	}
 
 	displayName := strings.TrimSpace(title)
 	if displayName == "" {
-		displayName = "nordly"
+		return nil, fmt.Errorf("ShareWhiteboard: title required")
 	}
 
 	token, ownerID, err := s.identity.MintScopedAccessToken(ctx, string(model.RoleOwner), scope, displayName, ttlSec)
@@ -104,7 +107,7 @@ func (s *roomService) PublishWhiteboard(ctx context.Context, userID, sceneJSON, 
 	}
 	title = strings.TrimSpace(title)
 	if title == "" {
-		title = "Untitled board"
+		return nil, fmt.Errorf("PublishWhiteboard: title required")
 	}
 	slug := repository.NewBoardSlug(title)
 	row, err := s.repo.InsertPublishedBoard(ctx, uid, slug, title, sceneJSON)
@@ -112,8 +115,8 @@ func (s *roomService) PublishWhiteboard(ctx context.Context, userID, sceneJSON, 
 		return nil, fmt.Errorf("PublishWhiteboard: %w", err)
 	}
 	return &PublishBoardResult{
-		Slug: slug,
-		URL:  model.BoardPublishURL(s.publicBaseURL, slug),
+		Slug:        slug,
+		URL:         model.BoardPublishURL(s.publicBaseURL, slug),
 		PublishedAt: row,
 	}, nil
 }

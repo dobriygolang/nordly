@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@shared/api/config';
 import {
   optionalJsonStringOrEmpty,
   parseJsonDate,
+  requireJsonBoolean,
   requireJsonNumber,
   requireJsonString,
 } from '@shared/api/json';
@@ -40,7 +41,7 @@ function unwrapNote(raw: Record<string, unknown>): WireNote {
     createdAt: parseJsonDate(raw.createdAt, 'createdAt'),
     updatedAt: parseJsonDate(raw.updatedAt, 'updatedAt'),
     sizeBytes: requireJsonNumber(raw, 'sizeBytes'),
-    encrypted: raw.encrypted === true,
+    encrypted: requireJsonBoolean(raw, 'encrypted'),
   };
 }
 

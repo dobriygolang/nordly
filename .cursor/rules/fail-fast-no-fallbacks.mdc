@@ -16,6 +16,7 @@ alwaysApply: true
 - Mask failed parsing, storage, sync, or network with defaults or stale UI.
 - Add `if deps.X == nil` / `if s.x == nil` in domain/service code for dependencies that must always be wired at startup — fail in `config.Load()` / `run.go` instead.
 - Return empty proto / zero struct from mappers when input is `nil` on success paths — callers must guarantee non-nil or error before map.
+- Add redundant “just in case” conditionals that invent defaults after failed reads or re-check already-validated inputs.
 
 ## Do
 
@@ -38,7 +39,7 @@ alwaysApply: true
 
 - Rules: `apps/web/.cursor/rules/web.mdc`
 - API JSON: read camelCase from wire; use `normalizeProtoJson()` then **snake_case internal types only** — never `field ?? otherField`.
-- Auth: `parseAuthTokens` (identity) vs `parseGuestAccessToken` (rooms guest) — do not mix shapes.
+- Auth: `parseGuestAccessToken` (rooms guest only) — web has no identity session; do not revive user-token refresh.
 - API coverage: `docs/backend-client-matrix.md`
 
 ## Go backend (`services/*`)

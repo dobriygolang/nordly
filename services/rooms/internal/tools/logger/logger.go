@@ -55,3 +55,14 @@ func (l *zapLogger) Error(msg string, keysAndValues ...any) {
 func (l *zapLogger) Sync() error {
 	return l.sugar.Sync()
 }
+
+type nopLogger struct{}
+
+// Nop returns a no-op logger for tests.
+func Nop() Logger { return nopLogger{} }
+
+func (nopLogger) Debug(string, ...any) {}
+func (nopLogger) Info(string, ...any)  {}
+func (nopLogger) Warn(string, ...any)  {}
+func (nopLogger) Error(string, ...any) {}
+func (nopLogger) Sync() error          { return nil }

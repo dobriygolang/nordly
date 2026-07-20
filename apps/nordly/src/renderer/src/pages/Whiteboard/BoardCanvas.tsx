@@ -233,15 +233,21 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
       if (skipSaveRef.current || applyingThemeRef.current) return;
+      if (!appState || typeof appState !== 'object' || Array.isArray(appState)) {
+        throw new Error('BoardCanvas: invalid appState');
+      }
+      if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
+        throw new Error('BoardCanvas: invalid files');
+      }
       appStateRef.current = sanitizeAppStateForPersistence(
-        (appState as Record<string, unknown>) ?? {},
+        appState as Record<string, unknown>,
         boardTheme,
       ) ?? nordlyExcalidrawInitialAppState(boardTheme);
       sceneRef.current = {
         elements: canonicalizeElementsForStorage(
           elements as Parameters<typeof canonicalizeElementsForStorage>[0],
         ),
-        files: (files as Record<string, unknown>) ?? {},
+        files: (files as Record<string, unknown> | null | undefined) ?? {},
         appState: appStateRef.current,
       };
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);

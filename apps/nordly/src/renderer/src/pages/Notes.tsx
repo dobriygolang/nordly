@@ -1004,6 +1004,7 @@ export function NotesPage({
             onUpdatePublishOptions={handleUpdatePublishOptions}
             onUnpublish={handleUnpublish}
             onDelete={handleDeleteNote}
+            onError={setActiveError}
           />
         </div>
       </aside>

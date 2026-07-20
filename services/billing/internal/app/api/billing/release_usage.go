@@ -13,7 +13,7 @@ func (i *Implementation) ReleaseUsage(ctx context.Context, req *billingv1.Releas
 	}
 	amount := int(req.GetAmount())
 	if amount <= 0 {
-		amount = 1
+		return nil, invalidArgument("amount must be positive")
 	}
 	result, err := i.svc.ReleaseUsage(ctx, req.GetUserId(), req.GetKey(), req.GetIdempotencyKey(), amount)
 	if err != nil {

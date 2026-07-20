@@ -17,6 +17,30 @@ Follow service-local `AGENTS.md`, [.cursor/rules/architecture-standard.mdc](arch
 - Typed domain errors → gRPC codes in transport; no swallowed errors.
 - Tracker: `!google.Configured()` / `!zoom.Configured()` is the optional-integration pattern — not a nil guard on wired deps.
 
+## No redundant conditions
+
+- Do not add defensive `if` / early returns that cannot fail given validated input or wired deps.
+- Prefer one clear path over nested “just in case” branches, dual defaults, or invent-after-check.
+- Collapse `if x { return A }; return B` only when both arms stay readable — never invent values in the “else”.
+
+## Prefer `slices` (stdlib)
+
+Use `slices` instead of hand-rolled loops where it fits:
+
+- `slices.Clone` instead of `append([]T(nil), x...)` / `make`+`copy`
+- `slices.Contains` / `ContainsFunc` instead of scan loops
+- `slices.Index` / `IndexFunc` instead of find-by-key loops
+- `slices.DeleteFunc` / `Compact` when filtering in place
+
+Keep a `map` for non-consecutive uniqueness.
+
+## Tests: generated mocks only
+
+- **Do not** hand-write `fakeX` / `stubX` structs that implement domain ports in `*_test.go`.
+- Use **mockery** on the port (`//go:generate … mockery …`) + `mocks/` package; assert with expecters.
+- Exception: thin driver adapters (e.g. `pgx.Row`) when no port exists — keep minimal; do not grow them into domain fakes.
+- After changing a port: `go generate` in that package, then update tests.
+
 ## Range loops (Go 1.22+)
 
 Do **not** copy the range variable before append/map calls — per-iteration loop vars are already distinct:

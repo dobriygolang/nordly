@@ -13,7 +13,7 @@ func (i *Implementation) CheckAndConsumeUsage(ctx context.Context, req *billingv
 	}
 	amount := int(req.GetAmount())
 	if amount <= 0 {
-		amount = 1
+		return nil, invalidArgument("amount must be positive")
 	}
 	result, err := i.svc.CheckAndConsumeUsage(ctx, req.GetUserId(), req.GetKey(), amount)
 	if err != nil {

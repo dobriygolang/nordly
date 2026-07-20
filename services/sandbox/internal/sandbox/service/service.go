@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -257,8 +258,7 @@ func sanitizeTestResults(results []model.TestResult) []model.TestResult {
 	if results == nil {
 		return []model.TestResult{}
 	}
-	out := make([]model.TestResult, len(results))
-	copy(out, results)
+	out := slices.Clone(results)
 	for i := range out {
 		if out[i].Status == model.TestStatusFailed && out[i].IsHidden() {
 			out[i].ExpectedOutput = nil

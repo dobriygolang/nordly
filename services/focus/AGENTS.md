@@ -17,6 +17,7 @@ Pomodoro timer and focus statistics for Nordly (Tauri desktop):
   60-second grace period or the absolute 24-hour cap.
 - Ended sessions accept at most 24 hours of focused time. An hourly worker closes sessions left
   open for more than 24 hours as abandoned (zero focused seconds) while preserving `task_id`.
+- Transport: one RPC per file under `internal/app/api/focus/` (`start_focus_session.go`, …).
 
 ## Ports
 

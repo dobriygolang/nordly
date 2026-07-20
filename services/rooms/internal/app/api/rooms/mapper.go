@@ -5,9 +5,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	roomservice "github.com/dobriygolang/project-nordly/services/rooms/internal/room/service"
+	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
 func toProtoRoom(view *roomservice.RoomView) *roomsv1.Room {
@@ -37,18 +36,4 @@ func mapServiceError(err error) error {
 		return failedPrecondition("room quota exceeded")
 	}
 	return status.Errorf(codes.Internal, "internal error")
-}
-
-func defaultLanguage(lang string) model.Language {
-	if lang == "" {
-		return model.LanguageGo
-	}
-	return model.Language(lang)
-}
-
-func defaultRoomType(t string) model.RoomType {
-	if t == "" {
-		return model.RoomTypePractice
-	}
-	return model.RoomType(t)
 }

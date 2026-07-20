@@ -154,9 +154,18 @@ class MarkdownImageWidget extends WidgetType {
             showPlaceholder();
           }
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           if (cancelled) return;
           wrap.classList.remove('nordly-md-image--loading');
+          if (
+            err &&
+            typeof err === 'object' &&
+            'code' in err &&
+            (err as { code: unknown }).code === 'vault_locked'
+          ) {
+            placeholder.textContent = 'Vault locked';
+            wrap.classList.add('nordly-md-image--vault-locked');
+          }
           showPlaceholder();
         });
     } else {

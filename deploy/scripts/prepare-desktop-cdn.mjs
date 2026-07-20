@@ -132,7 +132,7 @@ const installers = pickInstaller(tagFiles)
 const releases = {
   version,
   tagName: args.tag,
-  releasePageUrl: 'https://trynordly.app/download',
+  downloadPageUrl: 'https://trynordly.app/download',
   macAarch64Url: installers.macAarch64 ? `${cdnTagBase}/${installers.macAarch64}` : null,
   macX64Url: installers.macX64 ? `${cdnTagBase}/${installers.macX64}` : null,
   windowsUrl: installers.windows ? `${cdnTagBase}/${installers.windows}` : null,

@@ -1,5 +1,4 @@
 // Local-first focus — sessions in IndexedDB; stats merged from server when sync enabled.
-import { listTasks } from '@features/tasks/api/tasks';
 import {
   findOpenFocusSession,
   focusStoreGet,
@@ -13,16 +12,15 @@ import {
   type FocusDay,
   type FocusSession,
   type NordlyStats,
-  type QueueStats,
 } from '@features/focus/remote/focusRemote';
 import { focusStoreList } from '@features/focus/repository/focusStore';
-import { addDays, parseDayKey, parseScheduleInstant, toDayKey } from '@shared/lib/dates';
+import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { canReachNetwork, isSyncEnabled, isSyncQueueEnabled } from '@shared/sync/syncConfig';
 
-export type { FocusDay, FocusSession, NordlyStats, QueueStats, StoredFocusSession };
+export type { FocusDay, FocusSession, NordlyStats, StoredFocusSession };
 export { padToSevenDays };
 
 export async function listFocusSessions(): Promise<StoredFocusSession[]> {
@@ -45,14 +43,17 @@ interface StoredSession {
   synced?: boolean;
 }
 
-type StatsCore = Omit<NordlyStats, 'queue'>;
+type StatsCore = NordlyStats;
 
 function toSession(row: StoredSession): FocusSession {
+  if (!row.startedAt) {
+    throw new Error(`Invalid focus session: missing startedAt (${row.id})`);
+  }
   return {
     id: row.id,
     planItemId: row.planItemId,
     pinnedTitle: row.pinnedTitle,
-    startedAt: row.startedAt ? new Date(row.startedAt) : null,
+    startedAt: new Date(row.startedAt),
     endedAt: row.endedAt ? new Date(row.endedAt) : null,
     pomodorosCompleted: row.pomodorosCompleted,
     secondsFocused: row.secondsFocused,
@@ -91,7 +92,7 @@ function statsFromSessions(sessions: StoredSession[], upToDate?: string): StatsC
   const anchor = upToDate ?? toDayKey(new Date());
   const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
   const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
-  const totalFocusedSeconds = sessions.reduce((sum, s) => sum + (s.secondsFocused ?? 0), 0);
+  const totalFocusedSeconds = sessions.reduce((sum, s) => sum + s.secondsFocused, 0);
 
   let longest = 0;
   for (const date of [...activeDays].sort()) {
@@ -182,29 +183,10 @@ function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): Stats
 }
 
 
-async function buildQueueStats(): Promise<QueueStats> {
-  const tasks = await listTasks();
-  const today = toDayKey(new Date());
-  const todayTasks = tasks.filter((t) => {
-    if (!t.scheduledStart) return false;
-    return toDayKey(parseScheduleInstant(t.scheduledStart)) === today;
-  });
-  const done = todayTasks.filter((t) => t.status === 'done').length;
-  return {
-    todayTotal: todayTasks.length,
-    todayDone: done,
-    aiShare: 0,
-    userShare: todayTasks.length ? 1 : 0,
-  };
-}
-
 async function buildLocalStats(upToDate?: string): Promise<NordlyStats> {
   const rows = await focusStoreList();
   const sessions = rows.filter((s) => s.endedAt) as StoredSession[];
-  return {
-    ...statsFromSessions(sessions, upToDate),
-    queue: await buildQueueStats(),
-  };
+  return statsFromSessions(sessions, upToDate);
 }
 
 export async function getStats(upToDate?: string): Promise<NordlyStats> {
@@ -222,7 +204,6 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
 
   const rows = await focusStoreList();
   const unsynced = rows.filter((s) => s.endedAt && !s.synced) as StoredSession[];
-  const queue = await buildQueueStats();
 
   if (unsynced.length === 0) {
     const mergedHeatmap = mergeFocusDaysMax(remoteCore.heatmap, local.heatmap);
@@ -234,7 +215,6 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
         remoteCore.longestStreakDays,
         local.longestStreakDays,
       ),
-      queue,
     };
   }
 
@@ -251,34 +231,33 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
       local.longestStreakDays,
       pending.longestStreakDays,
     ),
-    queue,
   };
 }
 
 export async function startFocusSession(args: {
   planItemId?: string;
   pinnedTitle?: string;
-  mode?: 'pomodoro' | 'stopwatch';
+  mode: 'pomodoro' | 'stopwatch';
 }): Promise<FocusSession> {
   const userId = requireUserId();
   const id = crypto.randomUUID();
   const row = rowFrom(userId, {
     id,
-    planItemId: args.planItemId ?? '',
-    pinnedTitle: args.pinnedTitle ?? '',
+    planItemId: args.planItemId?.trim() || '',
+    pinnedTitle: args.pinnedTitle?.trim() || '',
     startedAt: new Date().toISOString(),
     endedAt: null,
     pomodorosCompleted: 0,
     secondsFocused: 0,
-    mode: args.mode ?? 'pomodoro',
+    mode: args.mode,
     synced: false,
   });
   await focusStorePut(row);
   if (isSyncQueueEnabled()) {
     await enqueueOutbox('focus', 'session_start', id, {
-      planItemId: args.planItemId ?? '',
-      pinnedTitle: args.pinnedTitle ?? '',
-      mode: args.mode ?? 'pomodoro',
+      planItemId: row.planItemId,
+      pinnedTitle: row.pinnedTitle,
+      mode: args.mode,
       clientSessionId: id,
       startedAt: row.startedAt,
     });

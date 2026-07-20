@@ -218,7 +218,7 @@ Client: PBKDF2 200k + AES-256-GCM. Server stores salt + ciphertext only.
 | `shared/crypto/vault.ts` | Init, unlock, encrypt/decrypt |
 | `shared/crypto/vaultPrefs.ts` | Local vault enabled flag |
 | `shared/crypto/recoveryKey.ts` | Recovery phrase |
-| `widgets/VaultUnlockGate.tsx` | Unlock UI (mount in App when vault enabled) |
+| `widgets/VaultUnlockGate.tsx` | Unlock UI when vault enabled (local-only or cloud) |
 | `pages/Settings/sections/VaultSection.tsx` | Settings |
 
 Tauri IPC (OS keychain for passphrase):

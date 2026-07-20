@@ -3,6 +3,7 @@ import { API_BASE_URL } from '@shared/api/config';
 import {
   optionalJsonDate,
   optionalJsonStringOrEmpty,
+  parseJsonDate,
   requireJsonNumber,
   requireJsonString,
 } from '@shared/api/json';
@@ -21,21 +22,13 @@ export interface NordlyStats {
   totalFocusedSeconds: number;
   heatmap: FocusDay[];
   lastSevenDays: FocusDay[];
-  queue: QueueStats;
-}
-
-export interface QueueStats {
-  todayTotal: number;
-  todayDone: number;
-  aiShare: number;
-  userShare: number;
 }
 
 export interface FocusSession {
   id: string;
   planItemId: string;
   pinnedTitle: string;
-  startedAt: Date | null;
+  startedAt: Date;
   endedAt: Date | null;
   pomodorosCompleted: number;
   secondsFocused: number;
@@ -52,12 +45,20 @@ function unwrapSession(raw: Record<string, unknown>): FocusSession {
     planItemId: optionalJsonStringOrEmpty(raw, 'taskId'),
     // Proto3 omits empty strings; untitled focus sessions are valid.
     pinnedTitle: optionalJsonStringOrEmpty(raw, 'pinnedTitle'),
-    startedAt: optionalJsonDate(raw.startedAt),
+    startedAt: parseJsonDate(raw.startedAt, 'startedAt'),
     endedAt: optionalJsonDate(raw.endedAt),
     secondsFocused: requireJsonNumber(raw, 'secondsFocused'),
     pomodorosCompleted: requireJsonNumber(raw, 'pomodorosCompleted'),
-    mode: optionalJsonStringOrEmpty(raw, 'mode') || 'pomodoro',
+    mode: requireFocusMode(raw),
   };
+}
+
+function requireFocusMode(raw: Record<string, unknown>): string {
+  const mode = requireJsonString(raw, 'mode');
+  if (mode !== 'pomodoro' && mode !== 'stopwatch') {
+    throw new Error(`Invalid focus session response: bad mode ${mode}`);
+  }
+  return mode;
 }
 
 function unwrapDay(raw: Record<string, unknown>): FocusDay {
@@ -82,19 +83,13 @@ export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
     totalFocusedSeconds: requireJsonNumber(j, 'totalFocusedSeconds'),
     heatmap: j.heatmap.map((d) => unwrapDay(d as Record<string, unknown>)),
     lastSevenDays: lastSeven.map((d) => unwrapDay(d as Record<string, unknown>)),
-    queue: {
-      todayTotal: 0,
-      todayDone: 0,
-      aiShare: 0,
-      userShare: 0,
-    },
   };
 }
 
 export async function remoteStartFocusSession(args: {
   planItemId?: string;
   pinnedTitle?: string;
-  mode?: 'pomodoro' | 'stopwatch';
+  mode: 'pomodoro' | 'stopwatch';
   clientSessionId: string;
   startedAt: string;
 }): Promise<FocusSession> {
@@ -102,9 +97,9 @@ export async function remoteStartFocusSession(args: {
     method: 'POST',
     headers: focusJsonHeaders(),
     body: JSON.stringify({
-      mode: args.mode ?? 'pomodoro',
-      pinnedTitle: args.pinnedTitle ?? '',
-      taskId: args.planItemId ?? '',
+      mode: args.mode,
+      pinnedTitle: args.pinnedTitle,
+      taskId: args.planItemId,
       clientSessionId: args.clientSessionId,
       startedAt: args.startedAt,
     }),

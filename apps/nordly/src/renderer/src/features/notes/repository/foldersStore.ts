@@ -3,7 +3,7 @@ import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
 export interface NoteFolder {
   id: string;
   name: string;
-  /** Parent folder id; null = top-level. Missing on legacy rows → treated as null. */
+  /** Parent folder id; null = top-level. */
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +43,10 @@ function normalizeFolder(raw: NoteFolder): NoteFolder {
   };
 }
 
+function needsParentIdMigrate(raw: NoteFolder): boolean {
+  return !('parentId' in raw) || raw.parentId === undefined;
+}
+
 export function collectSubtreeIds(folders: NoteFolder[], rootId: string): string[] {
   const ids = new Set<string>([rootId]);
   let grew = true;
@@ -67,7 +71,7 @@ function siblingNameTaken(
   return folders.some(
     (f) =>
       f.id !== exceptId &&
-      (f.parentId ?? null) === parentId &&
+      f.parentId === parentId &&
       f.name === name,
   );
 }
@@ -75,7 +79,17 @@ function siblingNameTaken(
 export async function foldersStoreList(userId?: string): Promise<NoteFolder[]> {
   const uid = userId ?? requireUserId();
   const row = await dbGet<FoldersMetaRow>('meta', metaKey(uid));
-  return (row?.folders ?? []).map(normalizeFolder);
+  const raw = row?.folders ?? [];
+  const folders = raw.map(normalizeFolder);
+  if (raw.some(needsParentIdMigrate)) {
+    await dbPut('meta', {
+      key: metaKey(uid),
+      userId: uid,
+      folders,
+      updatedAt: Date.now(),
+    } satisfies FoldersMetaRow);
+  }
+  return folders;
 }
 
 async function updateFolders(
@@ -141,7 +155,7 @@ export async function foldersStoreFindOrCreate(
     throw new Error(`Folder not found: ${parentId}`);
   }
   const existing = folders.find(
-    (f) => (f.parentId ?? null) === parentId && f.name === trimmed,
+    (f) => f.parentId === parentId && f.name === trimmed,
   );
   if (existing) return existing;
   return foldersStoreCreate(trimmed, parentId, uid);
@@ -160,7 +174,7 @@ export async function foldersStoreRename(
     const idx = folders.findIndex((f) => f.id === id);
     if (idx < 0) throw new Error(`Folder not found: ${id}`);
     const current = folders[idx];
-    if (siblingNameTaken(folders, current.parentId ?? null, trimmed, id)) {
+    if (siblingNameTaken(folders, current.parentId, trimmed, id)) {
       throw new Error(`Folder already exists: ${trimmed}`);
     }
     updated = {

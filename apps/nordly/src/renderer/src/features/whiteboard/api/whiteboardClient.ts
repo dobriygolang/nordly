@@ -25,7 +25,7 @@ export async function getBoard(id: string): Promise<Board> {
   return board;
 }
 
-export async function createBoard(title = 'Untitled'): Promise<Board> {
+export async function createBoard(title: string): Promise<Board> {
   return boardsStoreCreate(title);
 }
 

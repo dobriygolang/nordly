@@ -1,7 +1,6 @@
 import {
   dbGet,
   dbGetAllByIndex,
-  dbGetAllByUser,
   dbPut,
   entityKey,
   requireUserId,
@@ -189,16 +188,15 @@ export async function attachmentsStorePutWire(row: {
   encrypted: boolean;
   sizeBytes: number;
   createdAt?: string;
-  updatedAt?: string;
+  updatedAt: string;
   userId?: string;
 }): Promise<void> {
   const uid = row.userId ?? requireUserId();
-  const now = new Date().toISOString();
   const existing = await attachmentsStoreGetRowIncludingDeleted(row.id, uid);
-  const remoteUpdated = row.updatedAt ?? now;
-  if (!shouldAcceptRemoteEntity(existing, remoteUpdated)) {
+  if (!shouldAcceptRemoteEntity(existing, row.updatedAt)) {
     return;
   }
+  const now = new Date().toISOString();
   await dbPut('note_attachments', {
     key: entityKey(row.id, uid),
     userId: uid,
@@ -210,7 +208,7 @@ export async function attachmentsStorePutWire(row: {
     atRestEncrypted: row.encrypted,
     sizeBytes: row.sizeBytes,
     createdAt: row.createdAt ?? existing?.createdAt ?? now,
-    updatedAt: remoteUpdated,
+    updatedAt: row.updatedAt,
   } satisfies StoredAttachment);
 }
 
@@ -270,10 +268,4 @@ export async function attachmentsStoreRemapNoteId(
     n += 1;
   }
   return n;
-}
-
-export async function attachmentsStoreListAll(userId?: string): Promise<StoredAttachment[]> {
-  const uid = userId ?? requireUserId();
-  const rows = await dbGetAllByUser<StoredAttachment>('note_attachments', uid);
-  return rows.filter((r) => !r.deleted);
 }

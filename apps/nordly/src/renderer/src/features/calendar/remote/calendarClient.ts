@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '@shared/api/config';
 import {
   jsonBoolTrue,
-  optionalJsonString,
+  optionalJsonStringOrEmpty,
   requireJsonString,
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
@@ -39,9 +39,8 @@ export class GoogleNotConnectedError extends Error {
 }
 
 async function readError(resp: Response): Promise<string> {
-  const body = (await resp.clone().json()) as { message?: string; error?: string };
+  const body = (await resp.clone().json()) as { message?: string };
   if (typeof body.message === 'string' && body.message) return body.message;
-  if (typeof body.error === 'string' && body.error) return body.error;
   return resp.statusText;
 }
 
@@ -59,15 +58,6 @@ async function throwForStatus(resp: Response, label: string): Promise<never> {
 
 function eventTimeIso(raw: unknown, field: string): string {
   if (typeof raw === 'string' && raw.length > 0) return raw;
-  if (raw && typeof raw === 'object') {
-    const o = raw as Record<string, unknown>;
-    if (typeof o.dateTime === 'string' && o.dateTime.length > 0) return o.dateTime;
-    if (typeof o.date === 'string' && o.date.length > 0) return o.date;
-    const sec = o.seconds;
-    if (typeof sec === 'number' && Number.isFinite(sec)) {
-      return new Date(sec * 1000).toISOString();
-    }
-  }
   throw new Error(`Invalid calendar event response: missing ${field}`);
 }
 
@@ -79,14 +69,13 @@ function unwrapGoogleEvent(raw: Record<string, unknown>): GoogleCalendarEvent {
     end: eventTimeIso(raw.end, 'end'),
     allDay: jsonBoolTrue(raw, 'allDay'),
     calendarId: requireJsonString(raw, 'calendarId'),
-    htmlLink: optionalJsonString(raw, 'htmlLink') ?? '',
-    editable: raw.editable !== false,
+    htmlLink: optionalJsonStringOrEmpty(raw, 'htmlLink'),
+    editable: jsonBoolTrue(raw, 'editable'),
   };
 }
 
 function unwrapSettings(raw: Record<string, unknown>): TrackerSettings {
   return {
-    googleCalendarSyncEnabled: jsonBoolTrue(raw, 'googleCalendarSyncEnabled'),
     googleCalendarConnected: jsonBoolTrue(raw, 'googleCalendarConnected'),
     googleReauthRequired: jsonBoolTrue(raw, 'googleReauthRequired'),
     googleCalendarId: requireJsonString(raw, 'googleCalendarId'),
@@ -110,7 +99,7 @@ function eventBody(input: GoogleEventInput): Record<string, unknown> {
     title: input.title,
     start: scheduleStartISO(input.start),
     end: scheduleStartISO(input.end),
-    allDay: input.allDay ?? false,
+    allDay: input.allDay,
   };
   if (input.calendarId) body.calendarId = input.calendarId;
   return body;

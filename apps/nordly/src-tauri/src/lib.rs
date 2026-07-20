@@ -316,10 +316,12 @@ fn resolve_under_root(root: &str, relative_path: &str) -> Result<std::path::Path
         return Err("import root is not a directory".into());
     }
     let rel = std::path::Path::new(relative_path);
-    if rel
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir))
-        || rel.is_absolute()
+    if rel.components().any(|c| {
+        matches!(
+            c,
+            std::path::Component::ParentDir | std::path::Component::RootDir
+        )
+    }) || rel.is_absolute()
     {
         return Err("path escape".into());
     }

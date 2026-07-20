@@ -1,18 +1,21 @@
-import { api, apiWithBearer } from '@/lib/apiClient'
+import { apiWithBearer } from '@/lib/apiClient'
 import { normalizeCodeRun } from '@/lib/api/normalize'
 import type { CodeRun } from '@/lib/types'
+
+function requireBearer(accessToken?: string | null): string {
+  const bearer = accessToken?.trim()
+  if (!bearer) {
+    throw new Error('sandbox requires guest access token')
+  }
+  return bearer
+}
 
 function sandboxRequest<T>(
   path: string,
   init: RequestInit,
   accessToken?: string | null,
-  options?: { redirectOnUnauthorized?: boolean },
 ): Promise<T> {
-  const bearer = accessToken?.trim()
-  if (bearer) {
-    return apiWithBearer<T>(path, init, bearer)
-  }
-  return api<T>(path, init, options)
+  return apiWithBearer<T>(path, init, requireBearer(accessToken))
 }
 
 export function runCode(
@@ -61,7 +64,6 @@ export function formatCode(
       }),
     },
     accessToken,
-    { redirectOnUnauthorized: false },
   )
 }
 

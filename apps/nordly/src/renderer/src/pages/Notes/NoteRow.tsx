@@ -41,6 +41,7 @@ export interface NoteRowProps {
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onError?: (message: string) => void;
 }
 
 export const NoteRow = memo(function NoteRow({
@@ -55,6 +56,7 @@ export const NoteRow = memo(function NoteRow({
   onUpdatePublishOptions,
   onUnpublish,
   onDelete,
+  onError,
 }: NoteRowProps) {
   const t = useT();
   const [hover, setHover] = useState(false);
@@ -116,10 +118,7 @@ export const NoteRow = memo(function NoteRow({
         await publishInFlightRef.current.catch(() => undefined);
         if (!live) return;
       }
-      const [status, billing] = await Promise.all([
-        getPublishStatus(note.id),
-        fetchBillingMeCached().catch(() => null),
-      ]);
+      const status = await getPublishStatus(note.id);
       if (!live) return;
       setPubStatus(status);
       if (!publishOptionsDirtyRef.current) {
@@ -128,19 +127,27 @@ export const NoteRow = memo(function NoteRow({
         serverPasswordProtectedRef.current = status.passwordProtected === true;
         lastAppliedOptionsRef.current = serializePublishOptions(opts);
       }
-      if (billing) {
+      try {
+        const billing = await fetchBillingMeCached();
+        if (!live) return;
         setPublishEntitlements({
           publishPrivateLink: billing.features.publish_password === true,
         });
+      } catch (err) {
+        if (!live) return;
+        // Fail closed for private-link UI; publish status still loaded.
+        setPublishEntitlements(null);
+        onError?.(err instanceof Error ? err.message : String(err));
       }
-    })().catch(() => {
+    })().catch((err: unknown) => {
       if (!live) return;
       setPubStatus(null);
+      onError?.(err instanceof Error ? err.message : String(err));
     });
     return () => {
       live = false;
     };
-  }, [menuOpen, note.id, publishingAvailable]);
+  }, [menuOpen, note.id, publishingAvailable, onError]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -165,13 +172,13 @@ export const NoteRow = memo(function NoteRow({
           if (serializePublishOptions(publishOptionsRef.current) !== snapshot) return;
           applyPublishResult(res, publishOptionsRef.current.password);
         })
-        .catch(() => {
-          /* surfaced in NotesPage */
+        .catch((err: unknown) => {
+          onError?.(err instanceof Error ? err.message : String(err));
         });
     }, PUBLISH_OPTIONS_SAVE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [menuOpen, note.id, onUpdatePublishOptions, pubStatus?.published, publishOptions, applyPublishResult]);
+  }, [menuOpen, note.id, onUpdatePublishOptions, pubStatus?.published, publishOptions, applyPublishResult, onError]);
 
   useVaultRowMenuDismiss(menuOpen, closeMenu, rowRef, menuRef, updateMenuPos);
 
@@ -181,10 +188,10 @@ export const NoteRow = memo(function NoteRow({
     closeMenu();
     try {
       await navigator.clipboard.writeText(url);
-    } catch {
-      /* ignore */
+    } catch (err: unknown) {
+      onError?.(err instanceof Error ? err.message : String(err));
     }
-  }, [pubStatus?.url, closeMenu]);
+  }, [pubStatus?.url, closeMenu, onError]);
 
   const viewPublic = useCallback(() => {
     const url = pubStatus?.url;

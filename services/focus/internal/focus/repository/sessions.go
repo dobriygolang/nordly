@@ -16,9 +16,6 @@ func (r *Repository) CreateSession(
 	taskID, clientSessionID *string,
 	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
-	if mode == "" {
-		mode = "pomodoro"
-	}
 	if startedAt != nil {
 		now := time.Now().UTC()
 		if startedAt.After(now) || startedAt.Before(now.AddDate(0, 0, -7)) {

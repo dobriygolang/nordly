@@ -156,31 +156,6 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 	return tx.Commit(ctx)
 }
 
-func (r *Repository) CountActiveNotes(ctx context.Context, userID string) (int, error) {
-	var n int
-	err := r.pg.QueryRow(ctx, `
-		SELECT COUNT(*)::int FROM notes WHERE user_id = $1 AND archived_at IS NULL
-	`, userID).Scan(&n)
-	return n, err
-}
-
-func (r *Repository) CountPublishedNotes(ctx context.Context, userID string) (int, error) {
-	var n int
-	err := r.pg.QueryRow(ctx, `
-		SELECT COUNT(*)::int FROM notes
-		WHERE user_id = $1 AND archived_at IS NULL AND published = true
-	`, userID).Scan(&n)
-	return n, err
-}
-
-func (r *Repository) SumActiveNoteBytes(ctx context.Context, userID string) (int64, error) {
-	var sum int64
-	err := r.pg.QueryRow(ctx, `
-		SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM notes WHERE user_id = $1 AND archived_at IS NULL
-	`, userID).Scan(&sum)
-	return sum, err
-}
-
 func (r *Repository) EncryptNote(ctx context.Context, userID, noteID, ciphertext string) error {
 	size := len(ciphertext)
 	tx, err := r.pg.Begin(ctx)

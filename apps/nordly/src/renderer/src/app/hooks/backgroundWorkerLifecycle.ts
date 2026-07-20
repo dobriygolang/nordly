@@ -24,9 +24,7 @@ export async function initializeCloudWorkers({
   await dependencies.loadVaultPrefs(userId);
   if (isCancelled()) return;
 
-  setVaultGateActive(
-    dependencies.isCloudEnabled() && dependencies.isVaultEnabled(),
-  );
+  setVaultGateActive(dependencies.isVaultEnabled());
   if (!dependencies.isCloudEnabled()) return;
 
   await dependencies.hydrateCalendarCache();

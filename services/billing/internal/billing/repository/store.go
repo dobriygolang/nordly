@@ -9,6 +9,8 @@ import (
 )
 
 // Store is the persistence port used by billing domain logic.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Store --output=./mocks --outpkg=mocks --filename=store.go
 type Store interface {
 	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
 	GetPlanBySlug(ctx context.Context, slug string) (*model.Plan, error)

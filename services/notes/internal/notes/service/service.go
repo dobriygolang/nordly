@@ -311,7 +311,7 @@ func (s *notesService) ShareNoteToWeb(
 		return nil, err
 	}
 
-	isUpdate := note.Published && note.PublishedAt != nil
+	isUpdate := note.Published && note.PublishedAt != nil && note.PublishSlug != nil && *note.PublishSlug != ""
 
 	meta, err := s.buildPublishMeta(ctx, userID, note, opts, isUpdate)
 	if err != nil {
@@ -494,12 +494,7 @@ func (s *notesService) AccessPublishedNote(ctx context.Context, slug, password s
 		return nil, err
 	}
 	if rec.PasswordHash == nil || *rec.PasswordHash == "" {
-		return &notesmodel.PublishedNote{
-			Title:            rec.Title,
-			BodyMD:           rec.BodyMD,
-			PublishedAt:      rec.PublishedAt,
-			PasswordRequired: false,
-		}, nil
+		return nil, ErrInvalidArgument
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(*rec.PasswordHash), []byte(password)); err != nil {
 		return nil, ErrAccessDenied

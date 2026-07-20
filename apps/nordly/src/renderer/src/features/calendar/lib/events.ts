@@ -178,14 +178,16 @@ export function googleToCalendarEntries(
   for (const ev of events) {
     if (shouldHideGoogleEvent(ev, linkedGoogleIds, tasks)) continue;
     const start = new Date(ev.start);
-    const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 60 * 60_000);
     if (Number.isNaN(start.getTime())) continue;
+    if (!ev.end) continue;
+    const end = new Date(ev.end);
+    if (Number.isNaN(end.getTime())) continue;
     out.push({
       id: `google:${ev.id}`,
       source: 'google',
       title: ev.title,
       start,
-      end: Number.isNaN(end.getTime()) ? new Date(start.getTime() + 60 * 60_000) : end,
+      end,
       allDay: ev.allDay,
       googleEventId: ev.id,
       googleCalendarId: ev.calendarId,
@@ -229,14 +231,16 @@ export function appleToCalendarEntries(events: AppleCalendarEvent[]): CalendarEn
   const out: CalendarEntry[] = [];
   for (const ev of events) {
     const start = new Date(ev.start);
-    const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 60 * 60_000);
     if (Number.isNaN(start.getTime())) continue;
+    if (!ev.end) continue;
+    const end = new Date(ev.end);
+    if (Number.isNaN(end.getTime())) continue;
     out.push({
       id: `apple:${ev.id}`,
       source: 'apple',
       title: ev.title,
       start,
-      end: Number.isNaN(end.getTime()) ? new Date(start.getTime() + 60 * 60_000) : end,
+      end,
       allDay: ev.allDay,
       appleEventId: ev.id,
       appleCalendarId: ev.calendarId,

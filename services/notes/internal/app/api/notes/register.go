@@ -1,8 +1,8 @@
 package notesapi
 
 import (
-	notesv1 "github.com/dobriygolang/project-nordly/services/notes/pkg/api/notes/v1"
 	notesservice "github.com/dobriygolang/project-nordly/services/notes/internal/notes/service"
+	notesv1 "github.com/dobriygolang/project-nordly/services/notes/pkg/api/notes/v1"
 	"google.golang.org/grpc"
 )
 

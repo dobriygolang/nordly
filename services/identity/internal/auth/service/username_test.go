@@ -4,38 +4,32 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
+	"github.com/dobriygolang/project-nordly/services/identity/internal/auth/service/mocks"
 )
 
-type stubUsernameRepo struct {
-	taken map[string]struct{}
-}
-
-func (s *stubUsernameRepo) UsernameExists(_ context.Context, username string) (bool, error) {
-	_, ok := s.taken[username]
-	return ok, nil
-}
-
 func TestAllocateUsernameUsesCandidate(t *testing.T) {
-	repo := &stubUsernameRepo{taken: map[string]struct{}{}}
+	t.Parallel()
+	repo := mocks.NewUsernameExistsChecker(t)
+	repo.EXPECT().UsernameExists(mock.Anything, "my_user").Return(false, nil)
 
 	username, err := service.AllocateUsername(context.Background(), repo, "@My_User")
-	if err != nil {
-		t.Fatalf("allocate username: %v", err)
-	}
-	if username != "my_user" {
-		t.Fatalf("expected my_user, got %s", username)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "my_user", username)
 }
 
 func TestAllocateUsernameAddsSuffixOnCollision(t *testing.T) {
-	repo := &stubUsernameRepo{taken: map[string]struct{}{"ivan": {}}}
+	t.Parallel()
+	repo := mocks.NewUsernameExistsChecker(t)
+	repo.EXPECT().UsernameExists(mock.Anything, "ivan").Return(true, nil)
+	repo.EXPECT().UsernameExists(mock.Anything, mock.MatchedBy(func(s string) bool {
+		return s != "ivan" && len(s) > 4
+	})).Return(false, nil)
 
 	username, err := service.AllocateUsername(context.Background(), repo, "Ivan")
-	if err != nil {
-		t.Fatalf("allocate username: %v", err)
-	}
-	if username == "ivan" {
-		t.Fatal("expected unique suffix username")
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, "ivan", username)
 }

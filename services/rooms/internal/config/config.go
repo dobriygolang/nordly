@@ -46,10 +46,16 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid GUEST_ROOM_TTL: %w", err)
 	}
+	if guestRoomTTL <= 0 {
+		return nil, fmt.Errorf("GUEST_ROOM_TTL must be > 0")
+	}
 
 	archiveInterval, err := time.ParseDuration(getEnv("ROOM_ARCHIVE_INTERVAL", "1m"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid ROOM_ARCHIVE_INTERVAL: %w", err)
+	}
+	if roomTTL <= 0 {
+		return nil, fmt.Errorf("ROOM_TTL must be > 0")
 	}
 
 	publicKey, err := loadPEM("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")

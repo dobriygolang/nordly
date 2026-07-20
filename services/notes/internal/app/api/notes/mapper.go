@@ -23,21 +23,21 @@ func toProtoNote(n *notesmodel.Note) *notesv1.Note {
 	}
 }
 
-func fromProtoWikiLinks(links []*notesv1.WikiLinkRef) []notesmodel.WikiLinkRef {
+func fromProtoWikiLinks(links []*notesv1.WikiLinkRef) ([]notesmodel.WikiLinkRef, error) {
 	if len(links) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]notesmodel.WikiLinkRef, 0, len(links))
 	for _, l := range links {
 		if l == nil {
-			continue
+			return nil, status.Error(codes.InvalidArgument, "wikiLinks contains null entry")
 		}
 		out = append(out, notesmodel.WikiLinkRef{
 			TargetNoteID: l.GetTargetNoteId(),
 			LinkText:     l.GetLinkText(),
 		})
 	}
-	return out
+	return out, nil
 }
 
 func toProtoBacklinkEntry(e notesmodel.BacklinkEntry) *notesv1.BacklinkEntry {
@@ -88,14 +88,15 @@ func fromProtoAttachmentInput(a *notesv1.PublishedAttachmentInput) notesservice.
 	}
 }
 
-func fromProtoPublishedAttachments(inputs []*notesv1.PublishedAttachmentInput) []notesservice.AttachmentInput {
+func fromProtoPublishedAttachments(inputs []*notesv1.PublishedAttachmentInput) ([]notesservice.AttachmentInput, error) {
 	out := make([]notesservice.AttachmentInput, 0, len(inputs))
 	for _, input := range inputs {
-		if input != nil {
-			out = append(out, fromProtoAttachmentInput(input))
+		if input == nil {
+			return nil, status.Error(codes.InvalidArgument, "attachments contains null entry")
 		}
+		out = append(out, fromProtoAttachmentInput(input))
 	}
-	return out
+	return out, nil
 }
 
 func mapServiceError(err error) error {

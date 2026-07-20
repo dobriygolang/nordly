@@ -5,80 +5,62 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	focusmodel "github.com/dobriygolang/project-nordly/services/focus/internal/focus/model"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/repository/mocks"
 )
 
-type fakeStore struct {
-	taskID        *string
-	cleanupCutoff time.Time
-}
-
-func (f *fakeStore) CreateSession(
-	_ context.Context,
-	userID, mode, pinnedTitle string,
-	taskID, _ *string,
-	_ *time.Time,
-) (*focusmodel.Session, error) {
-	f.taskID = taskID
-	return &focusmodel.Session{UserID: userID, Mode: mode, PinnedTitle: pinnedTitle, TaskID: taskID}, nil
-}
-
-func (*fakeStore) EndSession(
-	_ context.Context,
-	userID, sessionID string,
-	secondsFocused, pomodorosCompleted int,
-	_ *time.Time,
-) (*focusmodel.Session, error) {
-	return &focusmodel.Session{
-		ID:                 sessionID,
-		UserID:             userID,
-		SecondsFocused:     secondsFocused,
-		PomodorosCompleted: pomodorosCompleted,
-	}, nil
-}
-
-func (f *fakeStore) AbandonSessionsStartedBefore(_ context.Context, cutoff time.Time) (int64, error) {
-	f.cleanupCutoff = cutoff
-	return 2, nil
-}
-
-func (*fakeStore) GetStats(context.Context, string, time.Time) (*focusmodel.Stats, error) {
-	return &focusmodel.Stats{}, nil
-}
-
 func TestEndFocusSessionRejectsUnboundedSeconds(t *testing.T) {
-	svc := New(Deps{Repo: &fakeStore{}})
-	if _, err := svc.EndFocusSession(
+	t.Parallel()
+	store := mocks.NewStore(t)
+	svc := New(Deps{Repo: store})
+	_, err := svc.EndFocusSession(
 		context.Background(),
 		"user",
 		"session",
 		maxFocusSessionSeconds+1,
 		1,
 		nil,
-	); err != ErrInvalidArgument {
-		t.Fatalf("expected ErrInvalidArgument, got %v", err)
-	}
+	)
+	require.ErrorIs(t, err, ErrInvalidArgument)
 }
 
 func TestCleanupAbandonedSessionsUsesStableCutoff(t *testing.T) {
-	store := &fakeStore{}
-	svc := New(Deps{Repo: store})
+	t.Parallel()
+	store := mocks.NewStore(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.FixedZone("local", 3*60*60))
-	count, err := svc.CleanupAbandonedSessions(context.Background(), now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Fatalf("expected 2 abandoned sessions, got %d", count)
-	}
 	want := now.UTC().Add(-24 * time.Hour)
-	if !store.cleanupCutoff.Equal(want) {
-		t.Fatalf("cutoff = %v, want %v", store.cleanupCutoff, want)
-	}
+	store.EXPECT().AbandonSessionsStartedBefore(mock.Anything, want).Return(int64(2), nil)
+
+	svc := New(Deps{Repo: store})
+	count, err := svc.CleanupAbandonedSessions(context.Background(), now)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count)
 }
 
 func TestStartFocusSessionKeepsTaskID(t *testing.T) {
-	store := &fakeStore{}
+	t.Parallel()
+	store := mocks.NewStore(t)
+	store.EXPECT().
+		CreateSession(mock.Anything, "user", "pomodoro", "Task", mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(
+			_ context.Context,
+			userID, mode, pinnedTitle string,
+			taskID, _ *string,
+			_ *time.Time,
+		) (*focusmodel.Session, error) {
+			require.NotNil(t, taskID)
+			require.Equal(t, "task-id", *taskID)
+			return &focusmodel.Session{
+				UserID:      userID,
+				Mode:        mode,
+				PinnedTitle: pinnedTitle,
+				TaskID:      taskID,
+			}, nil
+		})
+
 	svc := New(Deps{Repo: store})
 	session, err := svc.StartFocusSession(
 		context.Background(),
@@ -89,13 +71,7 @@ func TestStartFocusSessionKeepsTaskID(t *testing.T) {
 		"",
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if store.taskID == nil || *store.taskID != "task-id" {
-		t.Fatalf("stored task id = %v", store.taskID)
-	}
-	if session.TaskID == nil || *session.TaskID != "task-id" {
-		t.Fatalf("session task id = %v", session.TaskID)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, session.TaskID)
+	require.Equal(t, "task-id", *session.TaskID)
 }

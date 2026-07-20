@@ -32,10 +32,8 @@ function parseRelease(body: unknown): NordlyReleaseInfo | null {
   if (typeof o.version !== 'string' || !o.version) return null
   if (typeof o.tagName !== 'string' || !/^nordly-v/i.test(o.tagName)) return null
   const strOrNull = (v: unknown) => (typeof v === 'string' && v ? v : null)
-  const downloadPage =
-    strOrNull(o.downloadPageUrl) ??
-    strOrNull(o.releasePageUrl) ??
-    NORDLY_DOWNLOAD_PAGE
+  const downloadPage = strOrNull(o.downloadPageUrl)
+  if (!downloadPage) return null
   return {
     version: o.version,
     tagName: o.tagName,
@@ -72,16 +70,24 @@ export async function fetchLatestNordlyRelease(): Promise<NordlyReleaseInfo | nu
 
   try {
     const res = await fetch(RELEASES_JSON_URL, { cache: 'no-store' })
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.error(`[nordlyRelease] releases.json HTTP ${res.status}`)
+      return null
+    }
     const info = parseRelease(await res.json())
-    if (info) writeCache(info)
+    if (!info) {
+      console.error('[nordlyRelease] invalid releases.json payload')
+      return null
+    }
+    writeCache(info)
     return info
-  } catch {
+  } catch (err) {
+    console.error('[nordlyRelease] fetchLatestNordlyRelease failed', err)
     return null
   }
 }
 
-export async function detectMacArch(): Promise<'aarch64' | 'x64'> {
+export async function detectMacArch(): Promise<'aarch64' | 'x64' | null> {
   try {
     const nav = navigator as Navigator & {
       userAgentData?: {
@@ -93,8 +99,8 @@ export async function detectMacArch(): Promise<'aarch64' | 'x64'> {
       if (architecture === 'x86') return 'x64'
       if (architecture === 'arm') return 'aarch64'
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.error('[nordlyRelease] detectMacArch failed', err)
   }
-  return 'aarch64'
+  return null
 }

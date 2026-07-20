@@ -2,7 +2,6 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +22,8 @@ type RoomStore interface {
 	GetRole(ctx context.Context, roomID, userID uuid.UUID) (model.Role, error)
 	AddParticipant(ctx context.Context, p model.Participant) (model.Participant, error)
 }
+
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=RoomStore --output=./mocks --outpkg=mocks --filename=room_store.go
 
 type Handler struct {
 	Hub      *Hub
@@ -157,9 +158,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go c.writeLoop()
 
 	if snap := h.Hub.SnapshotOf(roomID); len(snap) > 0 {
-		payload, _ := json.Marshal(opPayload{Payload: snap})
-		env, _ := json.Marshal(Envelope{Kind: KindSnapshot, Data: payload})
-		c.enqueue(env)
+		c.enqueue(mustEnvelope(KindSnapshot, opPayload{Payload: snap}))
 	} else {
 		h.Hub.replayOpsToClient(roomID, c)
 	}

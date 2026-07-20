@@ -17,12 +17,14 @@ export interface PublishWhiteboardResult {
 
 export async function remoteShareWhiteboard(
   sceneJson: string,
-  title?: string,
+  title: string,
 ): Promise<ShareWhiteboardResult> {
+  const trimmed = title.trim();
+  if (!trimmed) throw new Error('Board title is required');
   const resp = await apiFetch(`${API_BASE_URL}/v1/rooms/share-whiteboard`, {
     method: 'POST',
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ sceneJson, title: title ?? '' }),
+    body: JSON.stringify({ sceneJson, title: trimmed }),
   });
   if (!resp.ok) throw new Error(`shareWhiteboard: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;
@@ -37,12 +39,14 @@ export async function remoteShareWhiteboard(
 
 export async function remotePublishWhiteboard(
   sceneJson: string,
-  title?: string,
+  title: string,
 ): Promise<PublishWhiteboardResult> {
+  const trimmed = title.trim();
+  if (!trimmed) throw new Error('Board title is required');
   const resp = await apiFetch(`${API_BASE_URL}/v1/rooms/publish-whiteboard`, {
     method: 'POST',
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ sceneJson, title: title ?? '' }),
+    body: JSON.stringify({ sceneJson, title: trimmed }),
   });
   if (!resp.ok) throw new Error(`publishWhiteboard: ${resp.status}`);
   const j = (await resp.json()) as Record<string, unknown>;

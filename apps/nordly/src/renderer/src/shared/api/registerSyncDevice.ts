@@ -72,6 +72,15 @@ export async function registerSyncDevice(opts: {
   const deviceId = getDeviceId();
   if (!deviceId) throw new Error('device id missing — call ensureDevice first');
 
+  const body: Record<string, string> = {
+    deviceId,
+    appVersion: opts.appVersion,
+  };
+  if (opts.name !== undefined) {
+    const name = opts.name.trim();
+    if (!name) throw new Error('device name must be non-empty when provided');
+    body.name = name;
+  }
   const resp = await apiFetch(`${API_BASE_URL}/v1/devices/register`, {
     method: 'POST',
     headers: {
@@ -79,11 +88,7 @@ export async function registerSyncDevice(opts: {
       'content-type': 'application/json',
       'X-Device-ID': deviceId,
     },
-    body: JSON.stringify({
-      deviceId,
-      name: opts.name ?? '',
-      appVersion: opts.appVersion,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!resp.ok) {

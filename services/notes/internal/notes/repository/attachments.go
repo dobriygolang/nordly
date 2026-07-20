@@ -75,6 +75,10 @@ func (r *Repository) PutNoteAttachment(
 		RETURNING`+attachmentSelectCols,
 		attachment.ID, attachment.UserID, attachment.NoteID, attachment.FileName, attachment.MIME,
 		attachment.Data, attachment.Encrypted, attachment.SizeBytes))
+	if errors.Is(err, notesmodel.ErrNotFound) {
+		// CONFLICT hit but WHERE filtered the row out (id owned by another note/user).
+		return nil, notesmodel.ErrInvalidArgument
+	}
 	if err != nil {
 		return nil, err
 	}

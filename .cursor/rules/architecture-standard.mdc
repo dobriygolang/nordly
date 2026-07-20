@@ -35,8 +35,12 @@ under `internal/<worker>/` or `internal/services/`.
 - **Consumer-side interfaces**: declare the narrow interface a handler needs in the
   handler package; the concrete repo/adapter satisfies it. Never depend on a concrete
   `*Repository` from the service/usecase layer.
-- **Mocks**: `//go:generate go run github.com/vektra/mockery/v2@... --case=underscore --with-expecter`
-  on each port; run `go generate ./...` after changing an interface.
+- **Mocks**: `//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter`
+  on each port; run `go generate ./...` after changing an interface. **Never** hand-write
+  `fakeRepo` / `stubBilling` structs in tests — only generated `mocks/` (+ expecters).
+  Thin `pgx.Row`-style driver stubs are the only exception.
+- **Prefer `slices`**: `Clone`, `Contains`/`ContainsFunc`, `Index`/`IndexFunc`, `DeleteFunc` over manual loops.
+- **No redundant conditions**: do not guard required wired deps or already-validated inputs “just in case”.
 - **Validation**: each `Command`/`Query` has a `Validate()`; missing/bad input wraps a
   sentinel (`ErrInvalidArgument`/`ErrInvalidInput`), mapped to gRPC `InvalidArgument`.
 - **Errors**: wrap with `%w`; domain sentinels live in `model/errors.go` (shared by

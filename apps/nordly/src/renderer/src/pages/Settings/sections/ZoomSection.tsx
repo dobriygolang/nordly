@@ -103,8 +103,8 @@ export function ZoomSection(): JSX.Element | null {
 
   if (!isCloudEnabled()) return null;
 
-  const connected = settings?.zoomConnected ?? false;
-  const reauthNeeded = settings?.zoomReauthRequired ?? false;
+  const connected = settings?.zoomConnected === true;
+  const reauthNeeded = settings?.zoomReauthRequired === true;
   const controlsDisabled = loading || busy || oauthPending;
 
   const connect = async (): Promise<void> => {

@@ -149,6 +149,7 @@ export interface SidebarProps {
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onError?: (message: string) => void;
 }
 
 export const Sidebar = memo(function Sidebar({
@@ -166,6 +167,7 @@ export const Sidebar = memo(function Sidebar({
   onUpdatePublishOptions,
   onUnpublish,
   onDelete,
+  onError,
 }: SidebarProps) {
   const t = useT();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -201,8 +203,9 @@ export const Sidebar = memo(function Sidebar({
   useEffect(() => {
     try {
       window.localStorage.setItem(FOLDERS_OPEN_KEY, JSON.stringify([...openFolderIds]));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      // Quota / private mode — open state is best-effort UI prefs only.
+      console.warn('[nordly:notes] failed to persist open folders', err);
     }
   }, [openFolderIds]);
 
@@ -344,6 +347,7 @@ export const Sidebar = memo(function Sidebar({
       onUpdatePublishOptions={onUpdatePublishOptions}
       onUnpublish={onUnpublish}
       onDelete={onDelete}
+      onError={onError}
     />
   );
 

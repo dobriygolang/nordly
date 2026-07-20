@@ -31,7 +31,7 @@ func (s *trackerService) ListGoogleCalendarEvents(
 		return nil, err
 	}
 	if !settings.Connected() {
-		return []googleadapter.CalendarEvent{}, nil
+		return nil, model.ErrGoogleNotConnected
 	}
 	cached, err := s.repo.ListGoogleEventsForUser(ctx, userID, timeMin, timeMax)
 	if err != nil {

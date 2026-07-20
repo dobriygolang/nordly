@@ -15,13 +15,13 @@ type Command struct {
 	Amount int
 }
 
-// Validate checks required fields and defaults the amount.
+// Validate checks required fields.
 func (c *Command) Validate() error {
 	if c.UserID == "" || c.Key == "" {
 		return fmt.Errorf("user_id and key required: %w", model.ErrInvalidInput)
 	}
 	if c.Amount <= 0 {
-		c.Amount = 1
+		return fmt.Errorf("amount must be positive: %w", model.ErrInvalidInput)
 	}
 	return nil
 }

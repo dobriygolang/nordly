@@ -17,15 +17,3 @@ func (i *Implementation) GetZoomAuthURL(ctx context.Context, _ *trackerv1.GetZoo
 	}
 	return &trackerv1.GetZoomAuthURLResponse{Url: authURL}, nil
 }
-
-func (i *Implementation) DisconnectZoom(ctx context.Context, _ *trackerv1.DisconnectZoomRequest) (*trackerv1.DisconnectZoomResponse, error) {
-	userID, err := requireUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	settings, err := i.svc.DisconnectZoom(ctx, userID)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	return &trackerv1.DisconnectZoomResponse{Settings: userSettingsToProto(settings)}, nil
-}

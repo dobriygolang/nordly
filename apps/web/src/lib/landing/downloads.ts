@@ -31,10 +31,11 @@ async function urlFromRelease(
   if (platform === 'windows') return release.windowsUrl
   if (platform === 'mac') {
     const arch = await detectMacArch()
-    if (arch === 'x64') return release.macX64Url ?? release.macAarch64Url
-    return release.macAarch64Url ?? release.macX64Url
+    if (arch === 'x64') return release.macX64Url
+    if (arch === 'aarch64') return release.macAarch64Url
+    return null
   }
-  return release.macAarch64Url ?? release.windowsUrl ?? release.macX64Url
+  return null
 }
 
 function urlFromEnv(platform: DownloadPlatform): string | null {
@@ -70,8 +71,6 @@ export async function resolveDownloadUrl(platform: DownloadPlatform): Promise<st
   const direct = await urlFromRelease(release, platform)
   if (direct) return direct
 
-  const anyInstaller = release.macAarch64Url ?? release.windowsUrl ?? release.macX64Url
-  if (anyInstaller) return anyInstaller
-
+  // No matching installer for this OS/arch — send users to the download page.
   return release.downloadPageUrl
 }

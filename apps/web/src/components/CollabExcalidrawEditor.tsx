@@ -54,9 +54,11 @@ export type CollabExcalidrawHandle = {
 type Props = {
   roomId: string
   boardTheme?: LiveRoomTheme
-  userId?: string
+  /** Stable presence id (JWT subject or guest display name). */
+  userId: string
   displayName?: string
-  accessToken?: string
+  /** Guest JWT for the collab websocket. */
+  accessToken: string
   onPeersChange?: (peers: CollabPeer[]) => void
   onWsStatusChange?: (status: import('@/lib/ws/collabEditor').EditorWsStatus) => void
   onRoomClosed?: () => void
@@ -118,7 +120,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const onRoomClosedRef = useRef(onRoomClosed)
     onRoomClosedRef.current = onRoomClosed
 
-    const token = accessToken ?? ''
+    const token = accessToken
+    if (!token) throw new Error('CollabExcalidrawEditor: accessToken required')
 
     const handleWsEnvelope = useCallback((env: EditorWsEnvelope) => {
       handleCollabSideEffect(env, {
@@ -199,8 +202,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     }, [])
 
     useEffect(() => {
-      if (!token) return
-
       canPublishLocalRef.current = false
       gotRemoteRef.current = false
       prevThemeRef.current = null
@@ -217,15 +218,27 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
               elements?: unknown[]
               files?: Record<string, unknown>
             }
-            const elements = Array.isArray(parsed.elements) ? parsed.elements : []
-            if (elements.length === 0) return
-            writeSceneToYjs(ydoc, elements, parsed.files ?? {}, 'seed')
-          } catch {
-            /* ignore corrupt seed */
+            const elements = Array.isArray(parsed.elements) ? parsed.elements : null
+            if (!elements || elements.length === 0) {
+              if (parsed.elements !== undefined && !Array.isArray(parsed.elements)) {
+                throw new Error('Invalid initial scene: elements must be an array')
+              }
+              return
+            }
+            const files =
+              parsed.files === undefined || parsed.files === null
+                ? null
+                : typeof parsed.files === 'object' && !Array.isArray(parsed.files)
+                  ? (parsed.files as Record<string, unknown>)
+                  : null
+            if (!files) throw new Error('Invalid initial scene: files must be an object')
+            writeSceneToYjs(ydoc, elements, files, 'seed')
+          } catch (err) {
+            console.error('[CollabExcalidraw] corrupt initial scene seed', err)
           }
         })
-        .catch(() => {
-          /* optional seed */
+        .catch((err) => {
+          console.error('[CollabExcalidraw] failed to load initial scene seed', err)
         })
         .finally(() => {
           // Allow local edits once initial scene seed is done. Do not gate on peer
@@ -238,14 +251,15 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           }, 300)
         })
 
-      const label = displayName ?? userId?.slice(0, 8) ?? 'you'
-      const colors = collabUserColors(userId ?? roomId)
+      if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
+      const label = displayName ?? userId.slice(0, 8)
+      const colors = collabUserColors(userId)
       const syncLocalUser = (active = isTabActive()) => {
         awareness.setLocalStateField('user', {
           name: label,
           color: colors.color,
           colorLight: colors.colorLight,
-          userId: userId ?? roomId,
+          userId,
           active,
         })
       }
@@ -499,12 +513,15 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         }
         const ydoc = ydocRef.current
         if (!ydoc) return
+        if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
+          throw new Error('CollabExcalidrawEditor: invalid files')
+        }
 
         pendingLocalRef.current = {
           elements: canonicalizeElementsForStorage(
             elements as Parameters<typeof canonicalizeElementsForStorage>[0],
           ),
-          files: (files as Record<string, unknown>) ?? {},
+          files: (files as Record<string, unknown> | null | undefined) ?? {},
         }
         if (localRafRef.current) return
         localRafRef.current = requestAnimationFrame(() => {
@@ -514,10 +531,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       },
       [flushLocalToYjs],
     )
-
-    if (!token) {
-      return <div className="grid h-full place-items-center text-sm text-text-muted">No token</div>
-    }
 
     return (
       <div

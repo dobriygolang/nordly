@@ -68,7 +68,9 @@ function filterEventsInRange(
   return events.filter((ev) => {
     const start = new Date(ev.start).getTime();
     if (Number.isNaN(start)) return false;
-    const end = ev.end ? new Date(ev.end).getTime() : start + 3_600_000;
+    if (!ev.end) return false;
+    const end = new Date(ev.end).getTime();
+    if (Number.isNaN(end)) return false;
     return start < max && end > min;
   });
 }
@@ -131,12 +133,6 @@ export function isGoogleCalendarRangeStale(
   const hit = rangeCache.get(googleRangeKey(timeMin, timeMax));
   if (!hit || hit.fetchedAt === 0) return true;
   return now - hit.fetchedAt > GOOGLE_CALENDAR_STALE_MS;
-}
-
-/** @deprecated prefer isGoogleCalendarRangeStale for UI refresh gates */
-export function isGoogleCalendarSnapshotStale(now = Date.now()): boolean {
-  if (!snapshot) return true;
-  return now - snapshot.fetchedAt > GOOGLE_CALENDAR_STALE_MS;
 }
 
 /** Load last snapshot from IndexedDB into memory (idempotent). */
@@ -242,7 +238,8 @@ export async function syncGoogleCalendarSnapshot(
   const gen = cacheGeneration;
   const events = await listGoogleCalendarEvents(timeMin, timeMax);
   if (gen !== cacheGeneration) {
-    return snapshot?.events ?? events;
+    // Invalidated while fetching — return the fresh network result, never a stale snapshot.
+    return events;
   }
   setGoogleCalendarSnapshot(events, timeMin, timeMax);
   rangeCache.set(googleRangeKey(timeMin, timeMax), { events, fetchedAt: Date.now() });

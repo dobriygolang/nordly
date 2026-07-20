@@ -44,12 +44,14 @@ function readBrowserPersist(): PersistedSession | null {
   if (!raw) return null;
   const s = JSON.parse(raw) as Partial<PersistedSession>;
   if (!s.userId) throw new Error('Invalid browser session: missing userId');
-  if (!s.accessToken && !s.refreshToken) throw new Error('Invalid browser session: missing tokens');
+  if (typeof s.accessToken !== 'string' || !s.accessToken) {
+    throw new Error('Invalid browser session: missing accessToken');
+  }
   if (typeof s.expiresAt !== 'number') throw new Error('Invalid browser session: missing expiresAt');
   return {
     userId: s.userId,
-    accessToken: s.accessToken ?? '',
-    refreshToken: s.refreshToken ?? null,
+    accessToken: s.accessToken,
+    refreshToken: typeof s.refreshToken === 'string' ? s.refreshToken : null,
     expiresAt: s.expiresAt,
   };
 }
@@ -57,6 +59,7 @@ function readBrowserPersist(): PersistedSession | null {
 async function persistSessionToNative(session: PersistedSession, epoch: number): Promise<void> {
   const bridge = window.nordly;
   if (!bridge) return;
+  // Native AuthSession.refreshToken is a required string; empty means "no refresh token".
   await bridge.auth.persist({
     userId: session.userId,
     accessToken: session.accessToken,
@@ -105,7 +108,7 @@ interface SessionState {
     userId: string;
     accessToken: string;
     refreshToken?: string;
-    expiresAt?: number;
+    expiresAt: number;
   }) => void;
 
   /** Clears in-memory + keychain. Used by logout. */
@@ -218,11 +221,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   hydrate: ({ userId, accessToken, refreshToken, expiresAt }) => {
+    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
+      throw new Error('Invalid session hydrate: missing expiresAt');
+    }
     const session: PersistedSession = {
       userId,
       accessToken,
       refreshToken: refreshToken ?? null,
-      expiresAt: expiresAt ?? 0,
+      expiresAt,
     };
     if (get().userId !== userId) {
       lockVault();
@@ -234,7 +240,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       userId,
       accessToken,
       refreshToken: refreshToken ?? null,
-      expiresAt: expiresAt ?? 0,
+      expiresAt,
     });
     writeBrowserPersist(session);
     persistSessionInBackground(session);

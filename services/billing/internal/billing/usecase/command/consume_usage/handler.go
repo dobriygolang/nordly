@@ -3,6 +3,7 @@ package consume_usage
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/billing/internal/billing/entitlement"
@@ -108,10 +109,9 @@ func (h *Handler) findEntitlement(ctx context.Context, planID, key string) (*mod
 	if err != nil {
 		return nil, err
 	}
-	for i := range items {
-		if items[i].Key == key {
-			return &items[i], nil
-		}
+	i := slices.IndexFunc(items, func(e model.PlanEntitlement) bool { return e.Key == key })
+	if i < 0 {
+		return nil, repository.ErrNotFound
 	}
-	return nil, repository.ErrNotFound
+	return &items[i], nil
 }

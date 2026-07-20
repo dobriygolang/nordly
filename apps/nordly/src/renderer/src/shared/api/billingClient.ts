@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '@shared/api/config';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
-import { optionalJsonNumber, requireJsonBoolean, requireJsonString } from '@shared/api/json';
+import { optionalJsonNumber, requireJsonBoolean, requireJsonNumber, requireJsonObject, requireJsonString } from '@shared/api/json';
 
 export const FEATURE_KEYS = [
   'cloud_sync_enabled',
@@ -27,7 +27,7 @@ export interface BillingMe {
 
 function parseUsageLimit(raw: Record<string, unknown>): UsageLimitWire {
   const unlimited = requireJsonBoolean(raw, 'unlimited');
-  const used = optionalJsonNumber(raw, 'used') ?? 0;
+  const used = requireJsonNumber(raw, 'used');
   const limit = optionalJsonNumber(raw, 'limit');
   const remaining = optionalJsonNumber(raw, 'remaining');
   return {
@@ -40,21 +40,21 @@ function parseUsageLimit(raw: Record<string, unknown>): UsageLimitWire {
 
 function parseBillingMe(body: Record<string, unknown>): BillingMe {
   const features: Record<string, boolean> = {};
-  const rawFeatures = body.features;
-  if (rawFeatures && typeof rawFeatures === 'object' && !Array.isArray(rawFeatures)) {
-    for (const [k, v] of Object.entries(rawFeatures as Record<string, unknown>)) {
-      if (typeof v === 'boolean') features[k] = v;
+  const rawFeatures = requireJsonObject(body, 'features');
+  for (const [k, v] of Object.entries(rawFeatures)) {
+    if (typeof v !== 'boolean') {
+      throw new Error(`Invalid billing me: bad feature ${k}`);
     }
+    features[k] = v;
   }
 
   const limits: Record<string, UsageLimitWire> = {};
-  const rawLimits = body.limits;
-  if (rawLimits && typeof rawLimits === 'object' && !Array.isArray(rawLimits)) {
-    for (const [k, v] of Object.entries(rawLimits as Record<string, unknown>)) {
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        limits[k] = parseUsageLimit(v as Record<string, unknown>);
-      }
+  const rawLimits = requireJsonObject(body, 'limits');
+  for (const [k, v] of Object.entries(rawLimits)) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      throw new Error(`Invalid billing me: bad limit ${k}`);
     }
+    limits[k] = parseUsageLimit(v as Record<string, unknown>);
   }
 
   return {

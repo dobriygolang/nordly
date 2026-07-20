@@ -50,8 +50,8 @@ func (s *trackerService) CreateWorkTask(ctx context.Context, userID string, in C
 		return nil, fmt.Errorf("%w: title required", model.ErrInvalidArgument)
 	}
 	kind := strings.TrimSpace(in.Kind)
-	if kind == "" {
-		kind = "custom"
+	if !validWorkKind(kind) {
+		return nil, fmt.Errorf("%w: invalid kind", model.ErrInvalidArgument)
 	}
 	task, err := s.repo.CreateWorkTask(ctx, userID, kind, title, "todo")
 	if err != nil {
@@ -175,6 +175,15 @@ func workTaskFromModel(t *model.WorkTask) WorkTask {
 func validWorkStatus(s string) bool {
 	switch s {
 	case "todo", "in_progress", "in_review", "done", "dismissed":
+		return true
+	default:
+		return false
+	}
+}
+
+func validWorkKind(s string) bool {
+	switch s {
+	case "algo", "sysdesign", "quiz", "reflection", "reading", "ml", "custom":
 		return true
 	default:
 		return false

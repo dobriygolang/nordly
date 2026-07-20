@@ -64,9 +64,6 @@ func (s *focusService) StartFocusSession(
 		return nil, ErrInvalidArgument
 	}
 	mode = strings.TrimSpace(mode)
-	if mode == "" {
-		mode = "pomodoro"
-	}
 	if mode != "pomodoro" && mode != "stopwatch" {
 		return nil, ErrInvalidArgument
 	}

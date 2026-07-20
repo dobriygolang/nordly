@@ -1,5 +1,5 @@
 import { requireUserId } from '@shared/db/nordlyDb';
-import type { TaskCard, TaskKind, TaskStatus } from '@features/tasks/api/tasks';
+import type { TaskCard, TaskStatus } from '@features/tasks/api/tasks';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { findEpicByColor } from '@features/tasks/lib/epicColor';
 import { pullEpicsCache } from '@features/tasks/lib/useTaskEpics';
@@ -132,7 +132,7 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     }
     const created = await remoteCreateTask({
       title,
-      kind: (payload.kind as TaskKind | undefined) ?? local.kind ?? 'custom',
+      kind: local.kind,
     });
     await setServerId('tasks', entry.entityId, created.id, userId);
     await tasksStoreReplaceId(entry.entityId, created);

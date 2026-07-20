@@ -122,19 +122,9 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
       setError(null);
       setLoading(detail.source === 'apple');
     };
-    const onLegacyApple = (e: Event) => {
-      const id = (e as CustomEvent<{ eventId?: string }>).detail?.eventId?.trim();
-      if (!id) return;
-      setPayload({ source: 'apple', eventId: id });
-      setView(null);
-      setError(null);
-      setLoading(true);
-    };
     window.addEventListener(NORDLY_EVENTS.calendarInspect, onInspect);
-    window.addEventListener(NORDLY_EVENTS.appleCalendarInspect, onLegacyApple);
     return () => {
       window.removeEventListener(NORDLY_EVENTS.calendarInspect, onInspect);
-      window.removeEventListener(NORDLY_EVENTS.appleCalendarInspect, onLegacyApple);
     };
   }, []);
 

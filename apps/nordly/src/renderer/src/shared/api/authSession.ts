@@ -219,13 +219,9 @@ export function startSessionRefreshLoop(): () => void {
       return;
     }
 
-    if (isSessionExpired() || isAccessTokenExpiringSoon()) {
-      void refreshAccessToken().catch((err: unknown) => {
-        console.error('[nordly:auth] background token refresh failed', err);
-      });
-    } else {
-      setSessionReauthRequired(false);
-    }
+    void refreshAccessToken().catch((err: unknown) => {
+      console.error('[nordly:auth] background token refresh failed', err);
+    });
   };
 
   tick();

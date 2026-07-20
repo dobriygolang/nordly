@@ -52,6 +52,7 @@ Consumers: **identity** (cloud sync), **notes** (publish), **sandbox** (code run
 
 ## Invariants
 
+- `CheckAndConsumeUsage` / `ReleaseUsage` require `amount > 0` (no silent default to 1)
 - `resolvePlan` always returns active `default` plan (subscriptions do not change entitlements)
 - Atomic consume (`INSERT … ON CONFLICT … WHERE used+amount<=limit`)
 - Webhook + subscription changes in one tx; duplicate webhooks idempotent

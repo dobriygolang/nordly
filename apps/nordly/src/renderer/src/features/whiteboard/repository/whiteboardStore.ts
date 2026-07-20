@@ -58,16 +58,45 @@ function toSummary(row: StoredWhiteboard): BoardSummary {
 }
 
 function toBoard(row: StoredWhiteboard): Board {
+  if (!row.createdAt) {
+    throw new Error(`Invalid whiteboard: missing createdAt (${row.id})`);
+  }
   return {
     ...toSummary(row),
     sceneJson: row.sceneJson,
-    createdAt: parseTs(row.createdAt ?? row.updatedAt),
+    createdAt: parseTs(row.createdAt),
   };
+}
+
+/** One-shot: legacy rows without createdAt get updatedAt written forward. */
+async function migrateCreatedAt(row: StoredWhiteboard): Promise<StoredWhiteboard> {
+  if (row.createdAt) return row;
+  if (!row.updatedAt) {
+    throw new Error(`Invalid whiteboard: missing createdAt/updatedAt (${row.id})`);
+  }
+  const next: StoredWhiteboard = { ...row, createdAt: row.updatedAt };
+  await dbPut('whiteboards', next);
+  return next;
+}
+
+/** One-shot: legacy empty sceneJson → canonical blank scene. */
+async function migrateEmptyScene(row: StoredWhiteboard): Promise<StoredWhiteboard> {
+  if (row.sceneJson.trim()) return row;
+  const next: StoredWhiteboard = {
+    ...row,
+    sceneJson: serializeScene(emptyWhiteboardScene()),
+  };
+  await dbPut('whiteboards', next);
+  return next;
+}
+
+export function emptyWhiteboardScene(): WhiteboardScene {
+  return { elements: [], files: {}, appState: nordlyExcalidrawInitialAppState() };
 }
 
 export function parseSceneJson(raw: string): WhiteboardScene {
   if (!raw.trim()) {
-    return { elements: [], files: {}, appState: nordlyExcalidrawInitialAppState() };
+    throw new Error('Invalid whiteboard scene: empty');
   }
   const parsed = JSON.parse(raw) as Partial<WhiteboardScene>;
   if (!Array.isArray(parsed.elements)) throw new Error('Invalid whiteboard scene: missing elements');
@@ -99,7 +128,8 @@ export async function boardsStoreList(): Promise<BoardSummary[]> {
 export async function boardsStoreGet(id: string): Promise<Board | null> {
   const userId = requireUserId();
   const row = await dbGet<StoredWhiteboard>('whiteboards', entityKey(id, userId));
-  return row ? toBoard(row) : null;
+  if (!row) return null;
+  return toBoard(await migrateEmptyScene(await migrateCreatedAt(row)));
 }
 
 export async function boardsStoreCreate(title: string): Promise<Board> {
@@ -111,7 +141,7 @@ export async function boardsStoreCreate(title: string): Promise<Board> {
   const row = rowFrom(userId, {
     id,
     title: cleanTitle,
-    sceneJson: '',
+    sceneJson: serializeScene(emptyWhiteboardScene()),
     createdAt: now,
     updatedAt: now,
   });
@@ -124,8 +154,9 @@ export async function boardsStoreUpdateScene(id: string, sceneJson: string): Pro
   const key = entityKey(id, userId);
   const existing = await dbGet<StoredWhiteboard>('whiteboards', key);
   if (!existing) throw new Error(`Board not found: ${id}`);
+  const migrated = await migrateEmptyScene(await migrateCreatedAt(existing));
   const now = new Date().toISOString();
-  const row: StoredWhiteboard = { ...existing, sceneJson, updatedAt: now };
+  const row: StoredWhiteboard = { ...migrated, sceneJson, updatedAt: now };
   await dbPut('whiteboards', row);
   return toBoard(row);
 }
@@ -137,8 +168,9 @@ export async function boardsStoreUpdateTitle(id: string, title: string): Promise
   const key = entityKey(id, userId);
   const existing = await dbGet<StoredWhiteboard>('whiteboards', key);
   if (!existing) throw new Error(`Board not found: ${id}`);
+  const migrated = await migrateEmptyScene(await migrateCreatedAt(existing));
   const now = new Date().toISOString();
-  const row: StoredWhiteboard = { ...existing, title: cleanTitle, updatedAt: now };
+  const row: StoredWhiteboard = { ...migrated, title: cleanTitle, updatedAt: now };
   await dbPut('whiteboards', row);
   return toBoard(row);
 }

@@ -40,9 +40,11 @@ type Props = {
   language: string
   theme?: LiveRoomTheme
   autocompleteEnabled?: boolean
-  userId?: string
+  /** Stable presence id (JWT subject or guest display name). */
+  userId: string
   displayName?: string
-  accessToken?: string
+  /** Guest JWT for the collab websocket. */
+  accessToken: string
   fontSize?: number
   onRun?: () => void
   onFormat?: () => void
@@ -98,7 +100,8 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   onRoomClosedRef.current = onRoomClosed
   onRemoteCodeRunRef.current = onRemoteCodeRun
 
-  const token = accessToken ?? ''
+  const token = accessToken
+  if (!token) throw new Error('CollabCodeEditor: accessToken required')
 
   const handleWsEnvelope = useCallback((env: EditorWsEnvelope) => {
     handleCollabSideEffect(env, {
@@ -158,7 +161,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
 
   useEffect(() => {
     const mount = mountRef.current
-    if (!mount || !token) return
+    if (!mount) return
 
     const ydoc = new Y.Doc()
     ydocRef.current = ydoc
@@ -166,14 +169,15 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     const awareness = new Awareness(ydoc)
     awarenessRef.current = awareness
 
-    const label = displayName ?? userId?.slice(0, 8) ?? 'you'
-    const colors = collabUserColors(userId ?? roomId)
+    if (!userId) throw new Error('CollabCodeEditor: userId required')
+    const label = displayName ?? userId.slice(0, 8)
+    const colors = collabUserColors(userId)
     const syncLocalUser = (active = isTabActive()) => {
       awareness.setLocalStateField('user', {
         name: label,
         color: colors.color,
         colorLight: colors.colorLight,
-        userId: userId ?? roomId,
+        userId,
         active,
       })
     }
@@ -252,7 +256,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     })
     const view = new EditorView({ state, parent: mount })
     viewRef.current = view
-    applyLocalCollabChrome(view, userId ?? roomId)
+    applyLocalCollabChrome(view, userId)
     flushPendingEnvelopes()
 
     return () => {
@@ -315,19 +319,20 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   useEffect(() => {
     const awareness = awarenessRef.current
     if (!awareness) return
-    const label = displayName ?? userId?.slice(0, 8) ?? 'you'
-    const colors = collabUserColors(userId ?? roomId)
+    if (!userId) throw new Error('CollabCodeEditor: userId required')
+    const label = displayName ?? userId.slice(0, 8)
+    const colors = collabUserColors(userId)
     const prev = awareness.getLocalState()?.user as Record<string, unknown> | undefined
     awareness.setLocalStateField('user', {
       ...prev,
       name: label,
       color: colors.color,
       colorLight: colors.colorLight,
-      userId: userId ?? roomId,
+      userId,
     })
     const view = viewRef.current
-    if (view) applyLocalCollabChrome(view, userId ?? roomId)
-  }, [displayName, userId, roomId])
+    if (view) applyLocalCollabChrome(view, userId)
+  }, [displayName, userId])
 
   useEffect(() => {
     if (!onRun && !onFormat) return

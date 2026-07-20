@@ -63,8 +63,3 @@ export function inspectCalendarEntry(entry: CalendarEntry): void {
     });
   }
 }
-
-/** @deprecated prefer inspectCalendarEntry — kept for call sites that only have EventKit id */
-export function inspectAppleCalendarEvent(eventId: string): void {
-  inspectCalendarPayload({ source: 'apple', eventId });
-}

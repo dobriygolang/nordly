@@ -51,15 +51,19 @@ import {
 } from '@/lib/live/runPanelWidth'
 import { cn } from '@/lib/cn'
 
-function jwtSubject(token: string): string | null {
+function jwtSubject(token: string): string {
   const part = token.split('.')[1]
-  if (!part) return null
+  if (!part) throw new Error('Invalid guest token: missing payload')
   try {
     const padded = part.replace(/-/g, '+').replace(/_/g, '/')
     const json = JSON.parse(atob(padded)) as { sub?: string }
-    return json.sub ?? null
-  } catch {
-    return null
+    if (typeof json.sub !== 'string' || !json.sub) {
+      throw new Error('Invalid guest token: missing sub')
+    }
+    return json.sub
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Invalid guest token:')) throw err
+    throw new Error('Invalid guest token: bad payload')
   }
 }
 
@@ -115,7 +119,12 @@ export default function CollabRoomPage() {
   }, [roomId, roomQ.data])
 
   const guestJoinM = useMutation({
-    mutationFn: () => guestJoin(roomId, guestName.trim() || 'guest'),
+    mutationFn: () => {
+      const name = guestName.trim()
+      if (!name) throw new Error('display name is required')
+      persistGuestDisplayName(name)
+      return guestJoin(roomId, name)
+    },
     onSuccess: (result) => {
       persistGuestToken(roomId, result.access_token)
       persistGuestRoom(roomId, result.room)
@@ -141,9 +150,9 @@ export default function CollabRoomPage() {
     },
   })
 
-  const wsToken = guestToken ?? ''
-  const run = useSandboxRun(wsToken || null)
-  const fmt = useFormatCode(wsToken || null)
+  const wsToken = guestToken
+  const run = useSandboxRun(wsToken)
+  const fmt = useFormatCode(wsToken)
 
   const handleRoomExpired = useCallback(() => {
     navigate('/', { replace: true, state: { liveExpired: true } })
@@ -229,7 +238,40 @@ export default function CollabRoomPage() {
     )
   }
 
-  const sessionUserId = wsToken ? jwtSubject(wsToken) : null
+  if (!wsToken) {
+    return (
+      <EditorShell
+        message={t('live.roomNotFound')}
+        sub="Invalid session token"
+        action={
+          <Link to="/live/new">
+            <Button variant="secondary" size="sm">
+              {t('live.createNew')}
+            </Button>
+          </Link>
+        }
+      />
+    )
+  }
+
+  let sessionUserId: string
+  try {
+    sessionUserId = jwtSubject(wsToken)
+  } catch {
+    return (
+      <EditorShell
+        message={t('live.roomNotFound')}
+        sub="Invalid session token"
+        action={
+          <Link to="/live/new">
+            <Button variant="secondary" size="sm">
+              {t('live.createNew')}
+            </Button>
+          </Link>
+        }
+      />
+    )
+  }
   const isOwner = sessionUserId === room.owner_id
   const canRun = !!hasSession
   const closeTo = '/'
@@ -304,7 +346,7 @@ export default function CollabRoomPage() {
             ref={diagramEditorRef}
             roomId={room.id}
             boardTheme={theme}
-            userId={sessionUserId ?? guestName}
+            userId={sessionUserId}
             displayName={displayName}
             accessToken={wsToken}
             onPeersChange={setPeers}
@@ -320,7 +362,7 @@ export default function CollabRoomPage() {
                 language={room.language}
                 theme={theme}
                 autocompleteEnabled={autocompleteEnabled}
-                userId={sessionUserId ?? guestName}
+                userId={sessionUserId}
                 displayName={displayName}
                 accessToken={wsToken}
                 fontSize={fontSize}
@@ -477,7 +519,12 @@ function GuestGate({
                   />
                 </div>
               ) : null}
-              <Button className="mt-5 w-full" loading={loading} onClick={onJoin}>
+              <Button
+                className="mt-5 w-full"
+                loading={loading}
+                disabled={!guestName.trim()}
+                onClick={onJoin}
+              >
                 {t('live.joinRoom')}
               </Button>
             </>

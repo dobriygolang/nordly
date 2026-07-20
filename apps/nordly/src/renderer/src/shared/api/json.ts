@@ -15,12 +15,20 @@ export function optionalJsonString(obj: Record<string, unknown>, key: string): s
 
 export function optionalJsonStringOrEmpty(obj: Record<string, unknown>, key: string): string {
   const v = obj[key];
-  return typeof v === 'string' ? v : '';
+  if (v === undefined || v === null) return '';
+  if (typeof v !== 'string') {
+    throw new Error(`Invalid response: bad ${key}`);
+  }
+  return v;
 }
 
 export function optionalJsonNumber(obj: Record<string, unknown>, key: string): number | undefined {
   const v = obj[key];
-  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    throw new Error(`Invalid response: bad ${key}`);
+  }
+  return v;
 }
 
 export function requireJsonNumber(obj: Record<string, unknown>, key: string): number {
@@ -31,6 +39,7 @@ export function requireJsonNumber(obj: Record<string, unknown>, key: string): nu
   return v;
 }
 
+/** Proto3 JSON may omit `false`; treat only explicit `true` as true. */
 export function jsonBoolTrue(obj: Record<string, unknown>, key: string): boolean {
   return obj[key] === true;
 }
@@ -63,7 +72,13 @@ export function parseJsonDate(value: unknown, field: string): Date {
 }
 
 export function optionalJsonDate(value: unknown): Date | null {
-  if (typeof value !== 'string' || !value) return null;
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') {
+    throw new Error('Invalid response: bad date');
+  }
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) {
+    throw new Error('Invalid response: bad date');
+  }
+  return d;
 }

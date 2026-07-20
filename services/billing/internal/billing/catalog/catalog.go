@@ -15,13 +15,15 @@ type PlanPresentation struct {
 }
 
 // ParsePlanPresentation decodes plans.metadata JSON.
-func ParsePlanPresentation(raw json.RawMessage) PlanPresentation {
+func ParsePlanPresentation(raw json.RawMessage) (PlanPresentation, error) {
 	if len(raw) == 0 {
-		return PlanPresentation{}
+		return PlanPresentation{}, nil
 	}
 	var out PlanPresentation
-	_ = json.Unmarshal(raw, &out)
-	return out
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return PlanPresentation{}, fmt.Errorf("parse plan metadata: %w", err)
+	}
+	return out, nil
 }
 
 // PlanCatalogItem is a public plan card for pricing UI.
@@ -45,7 +47,10 @@ type PlanLimitSpec struct {
 
 // BuildPlanCatalog assembles one pricing card from DB plan + entitlements.
 func BuildPlanCatalog(plan model.Plan, items []model.PlanEntitlement) (PlanCatalogItem, error) {
-	pres := ParsePlanPresentation(plan.Metadata)
+	pres, err := ParsePlanPresentation(plan.Metadata)
+	if err != nil {
+		return PlanCatalogItem{}, err
+	}
 	specs := make(map[string]PlanLimitSpec, len(items))
 	features := make(map[string]bool, len(items))
 

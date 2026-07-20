@@ -22,6 +22,7 @@ export function isVaultEnabledSync(): boolean {
 /** Subscribe to vault enabled flag changes (Settings toggle, prefs load). */
 export function subscribeVaultEnabled(listener: VaultEnabledListener): () => void {
   listeners.add(listener);
+  listener(cachedEnabled);
   return () => {
     listeners.delete(listener);
   };

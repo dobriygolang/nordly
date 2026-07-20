@@ -270,7 +270,7 @@ func (r *Repository) GetUsage(ctx context.Context, userID, key string, periodSta
 // and the WHERE guard rejects increments that would exceed the limit.
 func (r *Repository) ConsumeUsage(ctx context.Context, userID, key string, periodStart, periodEnd time.Time, amount, limit int) (int, error) {
 	if amount <= 0 {
-		amount = 1
+		return 0, fmt.Errorf("amount must be positive")
 	}
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -304,7 +304,7 @@ func (r *Repository) ConsumeUsage(ctx context.Context, userID, key string, perio
 
 func (r *Repository) ConsumeUsageUnlimited(ctx context.Context, userID, key string, periodStart, periodEnd time.Time, amount int) (int, error) {
 	if amount <= 0 {
-		amount = 1
+		return 0, fmt.Errorf("amount must be positive")
 	}
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -326,7 +326,7 @@ func (r *Repository) ConsumeUsageUnlimited(ctx context.Context, userID, key stri
 // ReleaseUsage atomically decrements a usage counter, floored at zero.
 func (r *Repository) ReleaseUsage(ctx context.Context, userID, key string, periodStart, periodEnd time.Time, amount int) (int, error) {
 	if amount <= 0 {
-		amount = 1
+		return 0, fmt.Errorf("amount must be positive")
 	}
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -351,7 +351,7 @@ func (r *Repository) ReleaseUsage(ctx context.Context, userID, key string, perio
 // MarkUsageReleaseProcessed records an idempotent release. Returns false when the key already exists.
 func (r *Repository) MarkUsageReleaseProcessed(ctx context.Context, idempotencyKey, userID, key string, amount int) (bool, error) {
 	if amount <= 0 {
-		amount = 1
+		return false, fmt.Errorf("amount must be positive")
 	}
 	uid, err := uuid.Parse(userID)
 	if err != nil {

@@ -63,6 +63,8 @@ Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fai
 - **Deep links:** `task.open?id=…`, `note.open?id=…` only (no legacy `task` / `note` query aliases).
 - **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / throw / inline on intentional online actions). `SyncStatusBanner` is reauth-only; no passive offline/unreachable banners. Do not `catch {}` and refresh silently.
 - **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
+- **No redundant conditions:** do not nest “just in case” branches or invent defaults after a failed read; throw or surface empty honest state.
+- **Tests:** Vitest — `vi.fn` / `vi.mock` / shared harness only. Do **not** hand-write stub classes that re-implement feature ports; prefer mocking the module under test’s imports.
 
 ## Renderer layering
 

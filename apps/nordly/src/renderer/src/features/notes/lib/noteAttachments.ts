@@ -50,7 +50,7 @@ export function isAllowedImageMime(mime: string): boolean {
 }
 
 export function markdownImage(alt: string, href: string): string {
-  const safeAlt = alt.replace(/[\[\]]/g, '');
+  const safeAlt = alt.replace(/[[\]]/g, '');
   return `![${safeAlt}](${href})`;
 }
 

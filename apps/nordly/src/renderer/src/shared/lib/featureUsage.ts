@@ -27,11 +27,12 @@ function publishedNotesFeature(
   publishedCount: number,
 ): FeatureRow {
   const lim = me.limits.published_notes_active;
-  const unlimited = lim?.unlimited ?? false;
-  const limit = lim?.limit ?? null;
+  if (!lim) {
+    throw new Error('Invalid billing me: missing published_notes_active limit');
+  }
   return {
     key: 'published_notes_active',
-    status: { kind: 'meter', used: publishedCount, limit, unlimited },
+    status: { kind: 'meter', used: publishedCount, limit: lim.limit, unlimited: lim.unlimited },
   };
 }
 
@@ -48,12 +49,13 @@ function devicesFeature(
     return { key: 'cloud_sync_devices', status: { kind: 'disabled' } };
   }
   const lim = me.limits.cloud_sync_devices;
-  const unlimited = lim?.unlimited ?? false;
-  const limit = lim?.limit ?? null;
-  const used = deviceRegistration?.devicesRegistered ?? lim?.used ?? 0;
+  if (!lim) {
+    throw new Error('Invalid billing me: missing cloud_sync_devices limit');
+  }
+  const used = deviceRegistration ? deviceRegistration.devicesRegistered : lim.used;
   return {
     key: 'cloud_sync_devices',
-    status: { kind: 'meter', used, limit, unlimited },
+    status: { kind: 'meter', used, limit: lim.limit, unlimited: lim.unlimited },
   };
 }
 

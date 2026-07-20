@@ -2,13 +2,13 @@ import {
   attachmentsStoreDeleteForNote,
   attachmentsStoreGetPlainBytes,
   attachmentsStoreGetRow,
-  attachmentsStoreListByNote,
   attachmentsStoreSoftDelete,
   attachmentsStoreUpsert,
   type NoteAttachment,
 } from '@features/notes/repository/attachmentsStore';
 import {
   AttachmentError,
+  isAllowedImageMime,
   markdownImage,
   mimeFromFilename,
   nordlyAssetHref,
@@ -16,8 +16,6 @@ import {
 import { enqueueOutbox, enqueueOutboxOnce, removeOutboxForEntity } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { isVaultUnlocked } from '@shared/crypto/vault';
 
 export type { NoteAttachment };
 
@@ -31,25 +29,16 @@ export function revokeAttachmentBlobUrl(id: string): void {
   }
 }
 
-export async function listNoteAttachments(noteId: string): Promise<NoteAttachment[]> {
-  return attachmentsStoreListByNote(noteId);
-}
-
 /** Resolve plaintext image for preview; returns object URL (cached). */
 export async function resolveAttachmentObjectUrl(id: string): Promise<string | null> {
   const cached = blobUrlCache.get(id);
   if (cached) return cached;
-  try {
-    const plain = await attachmentsStoreGetPlainBytes(id);
-    if (!plain) return null;
-    const blob = new Blob([new Uint8Array(plain.bytes)], { type: plain.mime });
-    const url = URL.createObjectURL(blob);
-    blobUrlCache.set(id, url);
-    return url;
-  } catch (err) {
-    if (err instanceof AttachmentError && err.code === 'vault_locked') return null;
-    throw err;
-  }
+  const plain = await attachmentsStoreGetPlainBytes(id);
+  if (!plain) return null;
+  const blob = new Blob([new Uint8Array(plain.bytes)], { type: plain.mime });
+  const url = URL.createObjectURL(blob);
+  blobUrlCache.set(id, url);
+  return url;
 }
 
 export async function createNoteAttachment(
@@ -60,7 +49,10 @@ export async function createNoteAttachment(
   id?: string,
 ): Promise<{ attachment: NoteAttachment; markdown: string }> {
   const attachmentId = id ?? crypto.randomUUID();
-  const resolvedMime = mime || mimeFromFilename(fileName) || '';
+  const resolvedMime = (mime || mimeFromFilename(fileName) || '').toLowerCase();
+  if (!resolvedMime || !isAllowedImageMime(resolvedMime)) {
+    throw new AttachmentError('bad_type', `unsupported image type: ${resolvedMime || fileName}`);
+  }
   const attachment = await attachmentsStoreUpsert({
     id: attachmentId,
     noteId,
@@ -125,29 +117,4 @@ export async function deleteAttachmentsForNote(
     }
   }
   if (ids.length > 0 && syncRemote && isSyncQueueEnabled()) scheduleSync();
-}
-
-/** Wire payload for sync push — ciphertext if vault on. */
-export async function getAttachmentSyncPayload(id: string): Promise<{
-  noteId: string;
-  fileName: string;
-  mime: string;
-  dataB64: string;
-  encrypted: boolean;
-  sizeBytes: number;
-} | null> {
-  const row = await attachmentsStoreGetRow(id);
-  if (!row) return null;
-  return {
-    noteId: row.noteId,
-    fileName: row.fileName,
-    mime: row.mime,
-    dataB64: row.dataB64,
-    encrypted: row.atRestEncrypted,
-    sizeBytes: row.sizeBytes,
-  };
-}
-
-export function canDecryptAttachments(): boolean {
-  return !isVaultEnabledSync() || isVaultUnlocked();
 }

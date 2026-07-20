@@ -120,7 +120,12 @@ export function useAppNavigation(): AppNavigation {
 
   const beforeNavigate = useCallback(async (target: PageId): Promise<boolean> => {
     if (!shouldFlushBeforeNavigation(pageRef.current, target)) return true;
-    return (await notesFlushRef.current?.()) ?? true;
+    const flush = notesFlushRef.current;
+    if (!flush) {
+      console.error('[nav] notes flush required but not registered');
+      return false;
+    }
+    return flush();
   }, []);
 
   useEffect(() => {

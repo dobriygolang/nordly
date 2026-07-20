@@ -25,12 +25,11 @@ type LimitContext = 'notes_create' | 'notes_publish' | 'device_register' | 'gene
 async function readErrorBody(resp: Response): Promise<{ message: string; code?: string }> {
   try {
     const body = (await resp.json()) as Record<string, unknown>;
-    const message =
-      (typeof body.message === 'string' && body.message) ||
-      (typeof body.error === 'string' && body.error) ||
-      `HTTP ${resp.status}`;
+    if (typeof body.message !== 'string' || !body.message) {
+      return { message: `HTTP ${resp.status}` };
+    }
     const code = typeof body.code === 'string' ? body.code : undefined;
-    return { message, code };
+    return { message: body.message, code };
   } catch {
     return { message: `HTTP ${resp.status}` };
   }
@@ -42,38 +41,18 @@ function mapStatusToLimitError(
   code: string | undefined,
   context: LimitContext,
 ): LimitError | null {
-  const lower = message.toLowerCase();
-
   if (code === 'cloud_sync_disabled') {
     return new LimitError('cloud_sync_disabled', message);
   }
   if (code === 'device_limit_exceeded') {
     return new LimitError('device_limit_exceeded', message);
   }
-
-  if (status === 403) {
-    if (lower.includes('feature') || lower.includes('plan')) {
-      return new LimitError('feature_disabled', message);
-    }
-    if (lower.includes('cloud sync')) {
-      return new LimitError('cloud_sync_disabled', message);
-    }
-    if (lower.includes('device')) {
-      return new LimitError('device_limit_exceeded', message);
-    }
+  if (code === 'feature_disabled') {
+    return new LimitError('feature_disabled', message);
   }
 
-  if (status === 429 || (status === 400 && lower.includes('quota'))) {
-    if (context === 'notes_publish' || lower.includes('publish')) {
-      return new LimitError('published_notes_quota', message);
-    }
-    if (context === 'notes_create' || lower.includes('notes')) {
-      return new LimitError('cloud_notes_quota', message);
-    }
-    return new LimitError('quota_exceeded', message);
-  }
-
-  if (lower.includes('quota exceeded') || lower.includes('resource exhausted')) {
+  // grpc-gateway ResourceExhausted → HTTP 429; classify by call context only.
+  if (status === 429) {
     if (context === 'notes_publish') return new LimitError('published_notes_quota', message);
     if (context === 'notes_create') return new LimitError('cloud_notes_quota', message);
     return new LimitError('quota_exceeded', message);

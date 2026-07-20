@@ -10,7 +10,6 @@ export interface GoogleCalendarEvent {
 }
 
 export interface TrackerSettings {
-  googleCalendarSyncEnabled: boolean;
   googleCalendarConnected: boolean;
   googleReauthRequired: boolean;
   googleCalendarId: string;
@@ -30,6 +29,6 @@ export interface GoogleEventInput {
   title: string;
   start: Date;
   end: Date;
-  allDay?: boolean;
+  allDay: boolean;
   calendarId?: string;
 }

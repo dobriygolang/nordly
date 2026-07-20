@@ -76,8 +76,8 @@ OAuth scopes (`internal/adapter/google/oauth.go`): `calendar.events` (event CRUD
 - **Direct event CRUD:** `CreateGoogleCalendarEvent` / `UpdateGoogleCalendarEvent` / `DeleteGoogleCalendarEvent` write to Google and update the cache; `ListGoogleCalendars` lists calendars for write-target selection (`google_calendar_id`, default `primary`).
 - **Meet on tasks:** `CreateWorkTaskConference` with `provider=meet` creates/patches a Google Calendar event with Meet link and always stores `google_event_id` on the task (including when the task has no schedule — a 30‑minute event starting now). Upserts the event into `google_calendar_events` so `ListGoogleCalendarEvents` can show it immediately. Clients hide that Google row next to the Nordly task block. This is **not** automatic task mirroring — only explicit conference creation.
 
-**Task→Google schedule mirroring removed.** `google_calendar_sync_enabled` is deprecated (always false). Scheduling or completing a task does not create/update Google events.
-The service no longer writes this field from settings updates and always emits `false`; the column remains for a minimum 30-day production observation window. Run `deploy/scripts/audit-schema-usage.sql` and confirm zero `true` rows plus zero application reads/writes before preparing a later DROP migration.
+**Task→Google schedule mirroring removed.** Wire field `google_calendar_sync_enabled` is reserved/removed from `UserSettings`; DB column still written `false` on insert/update for schema observation. Scheduling or completing a task does not create/update Google events.
+The column remains for a minimum 30-day production observation window. Run `deploy/scripts/audit-schema-usage.sql` and confirm zero `true` rows plus zero application reads/writes before preparing a later DROP migration.
 
 **Token security.** `TOKEN_ENCRYPTION_KEY` is **required** at startup. Refresh tokens are stored encrypted (AES-GCM). Plaintext tokens at rest are rejected — user must reconnect Google/Zoom after enabling encryption.
 
@@ -91,7 +91,7 @@ Optional env: `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_REDIRECT_URI` (callb
 
 User OAuth scopes (`internal/adapter/zoom/oauth.go`): `meeting:write:meeting`, `user:read:user`.
 
-`CreateWorkTaskConference` with `provider=zoom` creates a meeting via Zoom REST API and stores `conference_url` + `zoom_meeting_id` on the task. With `provider=meet`, adds a Google Meet link via Calendar API (`ConferenceData`); requires Google connected (not necessarily sync enabled).
+`CreateWorkTaskConference` with `provider=zoom` creates a meeting via Zoom REST API and stores `conference_url` + `zoom_meeting_id` on the task. Topic is the task title (required, no invented default); duration is taken from the task schedule when set, otherwise omitted for Zoom’s own default. With `provider=meet`, adds a Google Meet link via Calendar API (`ConferenceData`); requires Google connected (not necessarily sync enabled).
 
 `PatchWorkTask` JSON body: `epicId`, `clearEpic`, `clearConference` (grpc-gateway camelCase).
 

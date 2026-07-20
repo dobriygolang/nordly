@@ -759,16 +759,23 @@ export function NotesPage({
   const handleDeleteFolder = useCallback(
     async (id: string) => {
       try {
-        const deletedIds = await deleteFolder(id);
-        const deleted = new Set(deletedIds);
-        setFolders((prev) => prev.filter((f) => !deleted.has(f.id)));
-        setList((prev) => ({
-          ...prev,
-          notes: prev.notes.map((n) =>
-            n.folderId && deleted.has(n.folderId) ? { ...n, folderId: null } : n,
-          ),
-        }));
-        if (focusFolderIdRef.current && deleted.has(focusFolderIdRef.current)) {
+        const { deletedFolderIds, deletedNoteIds } = await deleteFolder(id);
+        const deletedFolders = new Set(deletedFolderIds);
+        const deletedNotes = new Set(deletedNoteIds);
+        setFolders((prev) => prev.filter((f) => !deletedFolders.has(f.id)));
+        setList((prev) => {
+          const notes = prev.notes.filter((n) => !deletedNotes.has(n.id));
+          if (selectedIdRef.current && deletedNotes.has(selectedIdRef.current)) {
+            const next = notes[0]?.id ?? null;
+            setSelectedId(next);
+            setActive(null);
+            setDraftTitle('');
+            setDraftBody('');
+            draftRef.current = { title: '', body: '', activeId: '' };
+          }
+          return { ...prev, notes };
+        });
+        if (focusFolderIdRef.current && deletedFolders.has(focusFolderIdRef.current)) {
           focusFolderIdRef.current = null;
         }
       } catch (err: unknown) {
@@ -901,23 +908,30 @@ export function NotesPage({
     [t],
   );
 
-  const handleDeleteNote = useCallback(
-    async (id: string) => {
+  const handleDeleteNotes = useCallback(
+    async (ids: string[]) => {
+      const unique = [...new Set(ids)];
+      if (unique.length === 0) return;
       try {
         if (saveTimer.current !== null) {
           window.clearTimeout(saveTimer.current);
           saveTimer.current = null;
         }
-        if (selectedIdRef.current === id) {
+        const deletingOpen =
+          selectedIdRef.current !== null && unique.includes(selectedIdRef.current);
+        if (deletingOpen) {
           setActive(null);
           setDraftTitle('');
           setDraftBody('');
           draftRef.current = { title: '', body: '', activeId: '' };
         }
-        await deleteNote(id);
+        for (const id of unique) {
+          await deleteNote(id);
+        }
+        const removed = new Set(unique);
         setList((prev) => {
-          const notes = prev.notes.filter((n) => n.id !== id);
-          if (selectedIdRef.current === id) {
+          const notes = prev.notes.filter((n) => !removed.has(n.id));
+          if (deletingOpen) {
             const next = notes[0]?.id ?? null;
             setSelectedId(next);
             if (!next) {
@@ -933,6 +947,13 @@ export function NotesPage({
       }
     },
     [t],
+  );
+
+  const handleDeleteNote = useCallback(
+    async (id: string) => {
+      await handleDeleteNotes([id]);
+    },
+    [handleDeleteNotes],
   );
 
   const noteTitles = useMemo(
@@ -1004,6 +1025,7 @@ export function NotesPage({
             onUpdatePublishOptions={handleUpdatePublishOptions}
             onUnpublish={handleUnpublish}
             onDelete={handleDeleteNote}
+            onDeleteMany={handleDeleteNotes}
             onError={setActiveError}
           />
         </div>

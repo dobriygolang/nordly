@@ -57,8 +57,8 @@ export function useEditorWs(
         try {
           const env = JSON.parse(ev.data) as EditorWsEnvelope
           onEnvelopeRef.current?.(env)
-        } catch {
-          /* ignore */
+        } catch (err) {
+          console.error('[collabEditor] corrupt WS envelope', err)
         }
       }
       ws.onerror = () => {
@@ -143,8 +143,8 @@ export function extractPresenceUpdate(data: unknown): string | null {
     try {
       const parsed = JSON.parse(nested) as { update?: unknown }
       if (typeof parsed.update === 'string') return parsed.update
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error('[collabEditor] corrupt nested presence JSON', err)
     }
   }
   return null
@@ -155,8 +155,8 @@ function applyPresenceUpdate(awareness: Awareness, data: unknown): void {
   if (!b64) return
   try {
     applyAwarenessUpdate(awareness, b64ToBytes(b64), 'remote')
-  } catch {
-    /* ignore malformed awareness */
+  } catch (err) {
+    console.error('[collabEditor] malformed awareness update', err)
   }
 }
 

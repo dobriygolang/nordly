@@ -1,6 +1,6 @@
 import { translate } from '@nordly-i18n';
 
-import { listTasks, type TaskCard } from '@features/tasks/api/tasks';
+import { listTasks, displayTaskTitle, type TaskCard } from '@features/tasks/api/tasks';
 import { notify } from '@shared/api/notifications';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { parseScheduleInstant } from '@shared/lib/dates';
@@ -55,7 +55,7 @@ async function emitReminder(task: TaskCard, start: Date): Promise<void> {
   await notify(
     translate('nordly.task.reminder.title'),
     translate('nordly.task.reminder.body', {
-      title: task.title || translate('nordly.taskboard.untitled'),
+      title: displayTaskTitle(task.title, task.id, translate('nordly.taskboard.untitled')),
       time: formatReminderTime(start),
     }),
     { sound: 'calendar' },

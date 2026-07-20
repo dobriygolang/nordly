@@ -14,7 +14,7 @@ func (i *Implementation) EndFocusSession(
 	if err != nil {
 		return nil, err
 	}
-	endedAt, err := validTimestamp(req.GetEndedAt())
+	endedAt, err := requireTimestamp(req.GetEndedAt())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

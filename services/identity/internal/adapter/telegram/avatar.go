@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -75,9 +76,15 @@ func OpenFile(ctx context.Context, botToken, filePath string) (io.ReadCloser, st
 		_ = resp.Body.Close()
 		return nil, "", fmt.Errorf("telegram file download: status %d", resp.StatusCode)
 	}
-	ct := resp.Header.Get("Content-Type")
+	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	if ct == "" {
-		ct = "image/jpeg"
+		_ = resp.Body.Close()
+		return nil, "", fmt.Errorf("telegram file download: missing Content-Type")
 	}
-	return resp.Body, ct, nil
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil || !strings.HasPrefix(mediaType, "image/") {
+		_ = resp.Body.Close()
+		return nil, "", fmt.Errorf("telegram file download: unexpected Content-Type %q", ct)
+	}
+	return resp.Body, mediaType, nil
 }

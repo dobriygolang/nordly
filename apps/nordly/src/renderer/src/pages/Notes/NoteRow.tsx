@@ -32,11 +32,13 @@ const PUBLISH_OPTIONS_SAVE_MS = 800;
 export interface NoteRowProps {
   note: NoteSummary;
   active: boolean;
+  /** Multi-select highlight (⌘/⇧ click). */
+  selected?: boolean;
   menuOpen: boolean;
   dragging?: boolean;
   dragHandleProps?: HTMLAttributes<HTMLElement>;
   onMenuOpenChange: (open: boolean) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, mods: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
@@ -47,6 +49,7 @@ export interface NoteRowProps {
 export const NoteRow = memo(function NoteRow({
   note,
   active,
+  selected = false,
   menuOpen,
   dragging = false,
   dragHandleProps,
@@ -92,7 +95,7 @@ export const NoteRow = memo(function NoteRow({
     setPublishOptions((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const showMore = hover || menuOpen || active;
+  const showMore = hover || menuOpen || active || selected;
   const vaultLocked = isNoteVaultLocked(note);
   const rowLabel = vaultLocked
     ? t('nordly.notes.vault_locked_list')
@@ -263,6 +266,7 @@ export const NoteRow = memo(function NoteRow({
         ref={rowRef}
         className="nordly-note-row-wrap"
         data-active={active ? 'true' : 'false'}
+        data-selected={selected ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-vault-locked={vaultLocked ? 'true' : 'false'}
         data-dragging={dragging ? 'true' : 'false'}
@@ -272,7 +276,11 @@ export const NoteRow = memo(function NoteRow({
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (target.closest('button, [data-no-drag]')) return;
-          onSelect(note.id);
+          onSelect(note.id, {
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+          });
         }}
       >
         <span className="nordly-note-row__icon" aria-hidden>

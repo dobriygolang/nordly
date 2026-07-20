@@ -68,6 +68,19 @@ export const en = {
   'nordly.notes.menu.view_public': 'View public',
   'nordly.notes.menu.unpublish': 'Unpublish',
   'nordly.notes.menu.delete': 'Delete note',
+  'nordly.notes.delete_many_confirm': 'Delete {{count}} selected items? This cannot be undone.',
+  'nordly.notes.delete_confirm_title': 'Delete permanently?',
+  'nordly.notes.delete_confirm_body':
+    'Delete {{notes}} notes and {{folders}} folders? This cannot be undone.',
+  'nordly.notes.delete_confirm_body_notes':
+    'Delete {{count}} notes? This cannot be undone.',
+  'nordly.notes.delete_confirm_body_folders':
+    'Delete {{count}} folders and everything inside them? This cannot be undone.',
+  'nordly.notes.delete_confirm_body_one_note': 'Delete this note? This cannot be undone.',
+  'nordly.notes.delete_confirm_body_one_folder':
+    'Delete this folder and everything inside it? This cannot be undone.',
+  'nordly.notes.delete_confirm_cancel': 'Cancel',
+  'nordly.notes.delete_confirm_action': 'Delete',
   'nordly.notes.menu.publish_requires_cloud': 'Sign in to publish notes to the web.',
   'nordly.notes.menu.publish_e2ee_warning':
     'Publishing will send this note as plaintext on the web. Anyone with the link can read it. Continue?',
@@ -269,6 +282,9 @@ export const en = {
   'nordly.settings.shortcuts.notes_zoom_in': 'Zoom notes in',
   'nordly.settings.shortcuts.notes_zoom_out': 'Zoom notes out',
   'nordly.settings.shortcuts.notes_zoom_reset': 'Reset notes zoom',
+  'nordly.settings.shortcuts.notes_select_all': 'Select all notes',
+  'nordly.settings.shortcuts.notes_delete': 'Delete selected notes',
+  'nordly.settings.shortcuts.notes_move_selection': 'Move note selection',
   'nordly.settings.shortcuts.in_app': 'In Nordly',
   'nordly.settings.update.label': 'Software',
   'nordly.settings.update.version': 'Current version: {{version}}',

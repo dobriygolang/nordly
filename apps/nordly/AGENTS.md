@@ -177,7 +177,7 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 
 Task fields **device-only** (preserved on pull/replace): `order`.
 
-Note fields **device-only** (preserved on pull/replace): `folderId`. Nested folder list lives in IndexedDB `meta` (`note_folders::{userId}`, each folder has `parentId`) — local-only until a sync follow-up.
+Note fields **device-only** (preserved on pull/replace): `folderId`. Nested folder list lives in IndexedDB `meta` (`note_folders::{userId}`, each folder has `parentId`) — local-only until a sync follow-up. Deleting a folder removes its subtree **and soft-deletes notes inside** (same path as note delete: attachments + outbox).
 
 **Note images:** PNG/JPEG/GIF/WebP ≤5 MiB, 50 per note. Markdown uses `nordly-asset:<uuid>` (HTTPS URLs unchanged). Local store encrypts with vault when enabled; outbox `attachment_put` (lean `{ noteId }`, blob read at push) / `attachment_delete` (`{ noteId }`). List attachments is metadata-only; pull GETs bytes only when newer/missing. Tombstones never revive. Publish sends plaintext attachment bytes; public pages load `/v1/notes/public/{slug}/assets/{id}` (password shares embed data URLs, ≤15 MiB raw).
 
@@ -252,7 +252,7 @@ Registered in `src-tauri/src/lib.rs`:
 | Command | Purpose |
 |---------|---------|
 | `auth_session` | Load session from keychain |
-| `auth_persist` | Save session + emit `auth:changed` |
+| `auth_persist` | Save session to keychain (no event; renderer already updated store) |
 | `auth_logout` | Clear session |
 | `vault_pass_load/save/clear` | Vault passphrase keychain |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |

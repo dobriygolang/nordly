@@ -67,6 +67,9 @@ func (s *focusService) StartFocusSession(
 	if mode != "pomodoro" && mode != "stopwatch" {
 		return nil, ErrInvalidArgument
 	}
+	if startedAt == nil {
+		return nil, ErrInvalidArgument
+	}
 	var taskPtr *string
 	if tid := strings.TrimSpace(taskID); tid != "" {
 		taskPtr = &tid
@@ -103,6 +106,9 @@ func (s *focusService) EndFocusSession(
 		return nil, ErrInvalidArgument
 	}
 	if secondsFocused < 0 || secondsFocused > maxFocusSessionSeconds || pomodorosCompleted < 0 {
+		return nil, ErrInvalidArgument
+	}
+	if endedAt == nil {
 		return nil, ErrInvalidArgument
 	}
 	sess, err := s.repo.EndSession(

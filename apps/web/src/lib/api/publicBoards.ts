@@ -30,7 +30,9 @@ export async function fetchPublishedBoard(slug: string): Promise<PublishedBoard>
 
 export function publishedBoardDisplayTitle(title: string): string {
   const t = title.trim()
-  return t || 'Untitled board'
+  if (t) return t
+  console.error('[publicBoards] published board missing title')
+  return 'Untitled board'
 }
 
 export { ApiError }

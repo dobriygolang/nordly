@@ -158,11 +158,9 @@ fn auth_session(window: WebviewWindow, app: AppHandle) -> Result<Option<AuthSess
 #[tauri::command]
 fn auth_persist(window: WebviewWindow, app: AppHandle, session: AuthSession) -> Result<(), String> {
     require_main_window(&window)?;
-    auth::save_session(&app, &session)?;
-    window
-        .emit("auth:changed", session)
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    // Do not emit auth:changed here — the renderer already updated the store before
+    // invoking persist. Emitting would re-enter hydrate → persist in a loop.
+    auth::save_session(&app, &session)
 }
 
 #[tauri::command]

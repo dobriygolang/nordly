@@ -95,7 +95,8 @@ func NewBoardSlug(title string) string {
 	}
 	slug := strings.Trim(b.String(), "-")
 	if slug == "" {
-		slug = "board"
+		// Empty/non-latin title — do not invent a fake word; use a random slug.
+		return uuid.NewString()
 	}
 	if len(slug) > 40 {
 		slug = slug[:40]

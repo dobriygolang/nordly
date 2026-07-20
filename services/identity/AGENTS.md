@@ -37,7 +37,7 @@ Other services verify JWT via `pkg/jwt` or `GET /v1/jwt/public.pem`.
 | GET | `/v1/auth/config` | no — Telegram bot username for login widget |
 | POST | `/v1/devices/register` | JWT — cloud sync device registration (billing gates) |
 
-Internal gRPC (s2s token): `GetUser`, `GetUserByTelegramID`, `ValidateToken`, `MintScopedAccessToken` (rooms guests).
+Internal gRPC (s2s token): `GetUser`, `GetUserByTelegramID`, `ValidateToken`, `MintScopedAccessToken` (rooms guests; `role` + `scope` required — no silent `guest` invent).
 
 Custom HTTP contracts (not in proto):
 

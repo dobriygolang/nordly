@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -50,11 +51,12 @@ type SyncResult struct {
 	FullResync    bool // caller must clear its cache + syncToken and retry from scratch
 }
 
-func normalizeCalendarID(id string) string {
-	if strings.TrimSpace(id) == "" {
-		return "primary"
+func requireCalendarID(id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", fmt.Errorf("calendar id required")
 	}
-	return id
+	return id, nil
 }
 
 func (c *Client) service(ctx context.Context, refreshToken string) (*calendar.Service, error) {
@@ -65,23 +67,24 @@ func (c *Client) service(ctx context.Context, refreshToken string) (*calendar.Se
 	return svc, nil
 }
 
-func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime) {
-	if in.AllDay {
-		endDate := in.End
-		if !endDate.After(in.Start) {
-			endDate = in.Start.Add(24 * time.Hour)
-		}
-		return &calendar.EventDateTime{Date: in.Start.Format("2006-01-02")},
-			&calendar.EventDateTime{Date: endDate.Format("2006-01-02")}
+func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime, err error) {
+	if in.Start.IsZero() {
+		return nil, nil, fmt.Errorf("event start required")
 	}
-	endTime := in.End
-	if !endTime.After(in.Start) {
-		endTime = in.Start.Add(time.Hour)
+	if in.End.IsZero() {
+		return nil, nil, fmt.Errorf("event end required")
+	}
+	if !in.End.After(in.Start) {
+		return nil, nil, fmt.Errorf("event end must be after start")
+	}
+	if in.AllDay {
+		return &calendar.EventDateTime{Date: in.Start.Format("2006-01-02")},
+			&calendar.EventDateTime{Date: in.End.Format("2006-01-02")}, nil
 	}
 	// RFC3339 with offset when Location is set; omit TimeZone so Google uses the offset
 	// (forcing TimeZone=UTC with a Zulu stamp caused wall-clock skew in some clients).
 	return &calendar.EventDateTime{DateTime: in.Start.Format(time.RFC3339)},
-		&calendar.EventDateTime{DateTime: endTime.Format(time.RFC3339)}
+		&calendar.EventDateTime{DateTime: in.End.Format(time.RFC3339)}, nil
 }
 
 // EventWithMeet is a calendar event plus an auto-generated Meet join URL.
@@ -126,8 +129,14 @@ func (c *Client) CreateEventWithMeet(ctx context.Context, refreshToken, calendar
 	if err != nil {
 		return EventWithMeet{}, err
 	}
-	cid := normalizeCalendarID(calendarID)
-	start, end := toEventDateTimes(in)
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
+	start, end, err := toEventDateTimes(in)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
 	created, err := svc.Events.Insert(cid, &calendar.Event{
 		Summary: in.Title,
 		Start:   start,
@@ -155,8 +164,14 @@ func (c *Client) PatchEventWithMeet(ctx context.Context, refreshToken, calendarI
 	if err != nil {
 		return EventWithMeet{}, err
 	}
-	cid := normalizeCalendarID(calendarID)
-	start, end := toEventDateTimes(in)
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
+	start, end, err := toEventDateTimes(in)
+	if err != nil {
+		return EventWithMeet{}, err
+	}
 	updated, err := svc.Events.Patch(cid, eventID, &calendar.Event{
 		Summary: in.Title,
 		Start:   start,
@@ -184,8 +199,14 @@ func (c *Client) CreateEvent(ctx context.Context, refreshToken, calendarID strin
 	if err != nil {
 		return CalendarEvent{}, err
 	}
-	cid := normalizeCalendarID(calendarID)
-	start, end := toEventDateTimes(in)
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
+	start, end, err := toEventDateTimes(in)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
 	created, err := svc.Events.Insert(cid, &calendar.Event{Summary: in.Title, Start: start, End: end}).Context(ctx).Do()
 	if err != nil {
 		return CalendarEvent{}, classifyErr(fmt.Errorf("create calendar event: %w", err))
@@ -206,8 +227,14 @@ func (c *Client) UpdateEvent(ctx context.Context, refreshToken, calendarID, even
 	if err != nil {
 		return CalendarEvent{}, err
 	}
-	cid := normalizeCalendarID(calendarID)
-	start, end := toEventDateTimes(in)
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
+	start, end, err := toEventDateTimes(in)
+	if err != nil {
+		return CalendarEvent{}, err
+	}
 	updated, err := svc.Events.Patch(cid, eventID, &calendar.Event{Summary: in.Title, Start: start, End: end}).Context(ctx).Do()
 	if err != nil {
 		return CalendarEvent{}, classifyErr(fmt.Errorf("update calendar event: %w", err))
@@ -221,14 +248,21 @@ func (c *Client) UpdateEvent(ctx context.Context, refreshToken, calendarID, even
 
 // DeleteEvent removes a calendar event; already-deleted events are treated as success.
 func (c *Client) DeleteEvent(ctx context.Context, refreshToken, calendarID, eventID string) error {
-	if !c.Configured() || eventID == "" {
-		return nil
+	if !c.Configured() {
+		return fmt.Errorf("google calendar not configured")
+	}
+	if strings.TrimSpace(eventID) == "" {
+		return fmt.Errorf("event id required")
 	}
 	svc, err := c.service(ctx, refreshToken)
 	if err != nil {
 		return err
 	}
-	if err := svc.Events.Delete(normalizeCalendarID(calendarID), eventID).Context(ctx).Do(); err != nil {
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return err
+	}
+	if err := svc.Events.Delete(cid, eventID).Context(ctx).Do(); err != nil {
 		var ge *googleapi.Error
 		if errors.As(err, &ge) && (ge.Code == 404 || ge.Code == 410) {
 			return nil
@@ -281,7 +315,10 @@ func (c *Client) SyncEvents(
 	if err != nil {
 		return SyncResult{}, err
 	}
-	cid := normalizeCalendarID(calendarID)
+	cid, err := requireCalendarID(calendarID)
+	if err != nil {
+		return SyncResult{}, err
+	}
 	var res SyncResult
 	pageToken := ""
 	for {
@@ -316,6 +353,7 @@ func (c *Client) SyncEvents(
 			}
 			ev, ok := calendarEventFromAPI(item, cid)
 			if !ok {
+				log.Printf("google calendar sync: skip event id=%q calendar=%q (missing usable start/end)", item.Id, cid)
 				continue
 			}
 			res.Upserts = append(res.Upserts, ev)

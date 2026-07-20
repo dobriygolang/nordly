@@ -34,7 +34,8 @@ export function ZoomSection(): JSX.Element | null {
     setError(null);
     try {
       setSettings(await getTrackerSettings());
-    } catch {
+    } catch (err) {
+      console.error('[zoom] load settings failed', err);
       setError(t('nordly.settings.zoom.error_load'));
     } finally {
       setLoading(false);
@@ -80,8 +81,8 @@ export function ZoomSection(): JSX.Element | null {
           setError(null);
           return;
         }
-      } catch {
-        /* keep polling */
+      } catch (err) {
+        console.warn('[zoom] oauth poll settings failed', err);
       }
       if (Date.now() - started >= OAUTH_POLL_MAX_MS) {
         setOauthPending(false);
@@ -114,7 +115,8 @@ export function ZoomSection(): JSX.Element | null {
       const url = await getZoomAuthURL();
       setOauthPending(true);
       openExternalUrl(url);
-    } catch {
+    } catch (err) {
+      console.error('[nordly.settings.zoom] connect failed', err);
       setError(t('nordly.settings.zoom.error_connect'));
     } finally {
       setBusy(false);
@@ -126,7 +128,8 @@ export function ZoomSection(): JSX.Element | null {
     setError(null);
     try {
       setSettings(await disconnectZoom());
-    } catch {
+    } catch (err) {
+      console.error('[zoom] disconnect failed', err);
       setError(t('nordly.settings.zoom.error_disconnect'));
     } finally {
       setBusy(false);

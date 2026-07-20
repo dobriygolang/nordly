@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useT, useLocale, type Locale } from '@nordly-i18n';
 
-import { listTasks, moveTaskStatus, type TaskCard } from '@features/tasks/api/tasks';
+import { listTasks, displayTaskTitle, moveTaskStatus, type TaskCard } from '@features/tasks/api/tasks';
 import { listFocusSessions } from '@features/focus/api/focusClient';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
@@ -168,7 +168,7 @@ export function HomeTodayTasks(): JSX.Element | null {
     ).map(({ task, start, end }) => ({
       id: `task:${task.id}`,
       source: 'task',
-      title: task.title || 'Untitled',
+      title: displayTaskTitle(task.title, task.id),
       start,
       end,
       allDay: false,

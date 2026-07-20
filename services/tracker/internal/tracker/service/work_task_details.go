@@ -78,12 +78,16 @@ func (s *trackerService) createZoomConference(ctx context.Context, userID string
 	if !settings.ZoomConnected() {
 		return nil, model.ErrZoomNotConnected
 	}
+	topic := strings.TrimSpace(task.Title)
+	if topic == "" {
+		return nil, fmt.Errorf("%w: task title required for zoom meeting", model.ErrInvalidArgument)
+	}
 	token, err := s.zoomRefreshToken(settings)
 	if err != nil {
 		return nil, err
 	}
 
-	input := zoomadapter.MeetingInput{Topic: task.Title}
+	input := zoomadapter.MeetingInput{Topic: topic}
 	if task.ScheduledStart != nil {
 		input.Start = *task.ScheduledStart
 	}

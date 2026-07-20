@@ -34,9 +34,10 @@ artifact, or incomplete release coverage resets the candidate's gate.
 
 These objects are candidates only. Their presence here is not DROP approval.
 
-- `nordly_tracker.user_settings.google_calendar_sync_enabled`: tracker must
-  always expose and persist `false`. Confirm zero `true` rows and no remaining
-  application dependency before a future contract proposal.
+- `nordly_tracker.user_settings.google_calendar_sync_enabled`: API no longer
+  exposes the field (expand stop-use). Tracker still persists `false` on
+  insert/update. Confirm zero `true` rows and no remaining application
+  dependency before a future contract proposal.
 - `nordly.users.timezone`: confirm values remain unused by deployed identity
   clients and services; preserve any non-empty production data for review.
 - `nordly_notes.note_links.updated_at`: confirm no ordering, sync, audit, or

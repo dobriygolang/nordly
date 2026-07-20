@@ -18,6 +18,7 @@ import {
   type CalendarEntry,
 } from '@features/calendar/api/calendar';
 import type { TaskCard } from '@features/tasks/api/tasks';
+import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
 import { readSettings } from '@shared/model/settings';
@@ -65,7 +66,7 @@ function taskEntryFromPlanned(
   return {
     id: `task:${task.id}`,
     source: 'task',
-    title: task.title || 'Untitled',
+    title: displayTaskTitle(task.title, task.id),
     start,
     end,
     allDay: false,

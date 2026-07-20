@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { createGuestRoom, persistGuestToken, type GuestRoomType } from '@/lib/api/rooms'
-import { persistGuestDisplayName, readGuestDisplayName } from '@/lib/live/guestDisplayName'
+import { persistGuestDisplayName } from '@/lib/live/guestDisplayName'
 import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 
 export function useCreateLiveRoom() {
@@ -13,7 +13,7 @@ export function useCreateLiveRoom() {
       displayName: string
       roomType: GuestRoomType
     }) => {
-      const name = input.displayName.trim() || readGuestDisplayName().trim()
+      const name = input.displayName.trim()
       if (!name) {
         throw new Error('display name is required')
       }

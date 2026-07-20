@@ -51,6 +51,7 @@ export function GoogleCalendarSection({
     try {
       setCalendars(await listGoogleCalendars());
     } catch (err) {
+      console.error('[googleCalendar] list calendars failed', err);
       setCalendars([]);
       setError(err instanceof Error ? err.message : t('nordly.settings.google.error_load'));
     }
@@ -64,7 +65,8 @@ export function GoogleCalendarSection({
       const s = await getTrackerSettings();
       setSettings(s);
       void loadCalendars(s);
-    } catch {
+    } catch (err) {
+      console.error('[googleCalendar] load settings failed', err);
       setError(t('nordly.settings.google.error_load'));
     } finally {
       setLoading(false);
@@ -111,8 +113,8 @@ export function GoogleCalendarSection({
           setError(null);
           return;
         }
-      } catch {
-        /* keep polling until timeout */
+      } catch (err) {
+        console.warn('[googleCalendar] oauth poll settings failed', err);
       }
       if (Date.now() - started >= OAUTH_POLL_MAX_MS) {
         setOauthPending(false);
@@ -144,7 +146,8 @@ export function GoogleCalendarSection({
     setError(null);
     try {
       setSettings(await updateTrackerSettings({ googleCalendarId: id }));
-    } catch {
+    } catch (err) {
+      console.error('[googleCalendar] save calendar id failed', err);
       setError(t('nordly.settings.google.error_save'));
     } finally {
       setBusy(false);
@@ -158,7 +161,8 @@ export function GoogleCalendarSection({
       const url = await getGoogleCalendarAuthURL();
       openExternalUrl(url);
       setOauthPending(true);
-    } catch {
+    } catch (err) {
+      console.error('[googleCalendar] connect failed', err);
       setError(t('nordly.settings.google.error_connect'));
     } finally {
       setBusy(false);
@@ -172,7 +176,8 @@ export function GoogleCalendarSection({
       setSettings(await disconnectGoogleCalendar());
       invalidateGoogleCalendarCache();
       window.dispatchEvent(new Event(NORDLY_EVENTS.googleCalendarChanged));
-    } catch {
+    } catch (err) {
+      console.error('[googleCalendar] disconnect failed', err);
       setError(t('nordly.settings.google.error_disconnect'));
     } finally {
       setBusy(false);

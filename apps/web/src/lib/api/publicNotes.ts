@@ -75,7 +75,9 @@ export async function accessPublishedNote(slug: string, password: string): Promi
 
 export function publishedNoteDisplayTitle(title: string): string {
   const t = title.trim()
-  return t || 'Untitled note'
+  if (t) return t
+  console.error('[publicNotes] published note missing title')
+  return 'Untitled note'
 }
 
 export { ApiError }

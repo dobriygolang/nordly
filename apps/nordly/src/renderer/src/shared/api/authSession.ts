@@ -87,7 +87,7 @@ async function persistRefreshedTokens(
     throw new Error('Discarding refreshed tokens for a stale session');
   }
 
-  useSessionStore.getState().applyTokens({
+  await useSessionStore.getState().applyTokens({
     userId: expectedUserId,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,

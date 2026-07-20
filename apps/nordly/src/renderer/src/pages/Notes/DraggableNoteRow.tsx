@@ -9,13 +9,16 @@ import { NoteRow } from './NoteRow';
 export interface DraggableNoteRowProps {
   note: NoteSummary;
   active: boolean;
+  selected?: boolean;
   menuOpen: boolean;
   nested: boolean;
   /** Folder nesting depth (0 = top-level folder). Used for indent. */
   depth?: number;
   dragDisabled?: boolean;
+  /** Keep origin slot hidden after preview remount mid-drag. */
+  forceDragging?: boolean;
   onMenuOpenChange: (open: boolean) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, mods: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUnpublish: (id: string) => Promise<void>;
@@ -29,6 +32,8 @@ export const DraggableNoteRow = memo(function DraggableNoteRow({
   depth = 0,
   dragDisabled,
   menuOpen,
+  /** True while this note is the active drag — survives preview remount (isDragging resets). */
+  forceDragging = false,
   ...rowProps
 }: DraggableNoteRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -58,10 +63,12 @@ export const DraggableNoteRow = memo(function DraggableNoteRow({
     [role, tabIndex, ariaDisabled, ariaPressed, ariaRoleDescription, ariaDescribedBy, listeners],
   );
 
+  const hiding = isDragging || forceDragging;
+
   return (
     <div
       ref={setNodeRef}
-      className={`nordly-note-row-slot${isDragging ? ' nordly-note-row-slot--dragging' : ''}`}
+      className={`nordly-note-row-slot${hiding ? ' nordly-note-row-slot--dragging' : ''}`}
       data-nested={nested ? 'true' : 'false'}
       data-depth={depth}
       style={
@@ -73,7 +80,7 @@ export const DraggableNoteRow = memo(function DraggableNoteRow({
       <NoteRow
         note={note}
         menuOpen={menuOpen}
-        dragging={isDragging}
+        dragging={hiding}
         dragHandleProps={dragHandleProps}
         {...rowProps}
       />

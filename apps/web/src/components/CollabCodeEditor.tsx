@@ -170,7 +170,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     awarenessRef.current = awareness
 
     if (!userId) throw new Error('CollabCodeEditor: userId required')
-    const label = displayName ?? userId.slice(0, 8)
+    const label = displayName?.trim() || userId.slice(0, 8)
     const colors = collabUserColors(userId)
     const syncLocalUser = (active = isTabActive()) => {
       awareness.setLocalStateField('user', {
@@ -263,8 +263,8 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
       pendingEnvelopesRef.current = []
       try {
         sendFullSnapshot()
-      } catch {
-        /* ignore */
+      } catch (err) {
+        console.error('[CollabCodeEditor] final snapshot failed', err)
       }
       document.removeEventListener('visibilitychange', onTabActivity)
       window.removeEventListener('focus', onTabActivity)
@@ -320,7 +320,7 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
     const awareness = awarenessRef.current
     if (!awareness) return
     if (!userId) throw new Error('CollabCodeEditor: userId required')
-    const label = displayName ?? userId.slice(0, 8)
+    const label = displayName?.trim() || userId.slice(0, 8)
     const colors = collabUserColors(userId)
     const prev = awareness.getLocalState()?.user as Record<string, unknown> | undefined
     awareness.setLocalStateField('user', {

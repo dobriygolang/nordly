@@ -51,7 +51,8 @@ function readCache(): NordlyReleaseInfo | null {
     const { at, data } = JSON.parse(raw) as { at: number; data: NordlyReleaseInfo }
     if (Date.now() - at > CACHE_MS) return null
     return data
-  } catch {
+  } catch (err) {
+    console.warn('[nordlyRelease] cache read failed', err)
     return null
   }
 }
@@ -59,8 +60,8 @@ function readCache(): NordlyReleaseInfo | null {
 function writeCache(data: NordlyReleaseInfo): void {
   try {
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
-  } catch {
-    /* ignore quota */
+  } catch (err) {
+    console.warn('[nordlyRelease] cache write failed', err)
   }
 }
 

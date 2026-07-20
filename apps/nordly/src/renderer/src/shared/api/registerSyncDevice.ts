@@ -95,8 +95,8 @@ export async function registerSyncDevice(opts: {
     let body: Record<string, unknown> = {};
     try {
       body = (await resp.json()) as Record<string, unknown>;
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn('[nordly:device] register error body is not JSON', resp.status, err);
     }
     if (resp.status === 403) {
       const err = parseDeviceRegisterError(resp.status, body);

@@ -49,7 +49,8 @@ async function probeServer(): Promise<boolean> {
       signal: AbortSignal.timeout(5_000),
     });
     return response.status < 500;
-  } catch {
+  } catch (err) {
+    console.warn('[nordly:sync] health probe failed', err);
     return false;
   }
 }

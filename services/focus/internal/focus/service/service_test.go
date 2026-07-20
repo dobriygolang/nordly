@@ -16,14 +16,23 @@ func TestEndFocusSessionRejectsUnboundedSeconds(t *testing.T) {
 	t.Parallel()
 	store := mocks.NewStore(t)
 	svc := New(Deps{Repo: store})
+	endedAt := time.Now().UTC()
 	_, err := svc.EndFocusSession(
 		context.Background(),
 		"user",
 		"session",
 		maxFocusSessionSeconds+1,
 		1,
-		nil,
+		&endedAt,
 	)
+	require.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestEndFocusSessionRequiresEndedAt(t *testing.T) {
+	t.Parallel()
+	store := mocks.NewStore(t)
+	svc := New(Deps{Repo: store})
+	_, err := svc.EndFocusSession(context.Background(), "user", "session", 60, 1, nil)
 	require.ErrorIs(t, err, ErrInvalidArgument)
 }
 
@@ -43,21 +52,24 @@ func TestCleanupAbandonedSessionsUsesStableCutoff(t *testing.T) {
 func TestStartFocusSessionKeepsTaskID(t *testing.T) {
 	t.Parallel()
 	store := mocks.NewStore(t)
+	startedAt := time.Now().UTC().Add(-time.Minute)
 	store.EXPECT().
 		CreateSession(mock.Anything, "user", "pomodoro", "Task", mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(
 			_ context.Context,
 			userID, mode, pinnedTitle string,
 			taskID, _ *string,
-			_ *time.Time,
+			gotStarted *time.Time,
 		) (*focusmodel.Session, error) {
 			require.NotNil(t, taskID)
 			require.Equal(t, "task-id", *taskID)
+			require.NotNil(t, gotStarted)
 			return &focusmodel.Session{
 				UserID:      userID,
 				Mode:        mode,
 				PinnedTitle: pinnedTitle,
 				TaskID:      taskID,
+				StartedAt:   *gotStarted,
 			}, nil
 		})
 
@@ -69,9 +81,17 @@ func TestStartFocusSessionKeepsTaskID(t *testing.T) {
 		"Task",
 		" task-id ",
 		"",
-		nil,
+		&startedAt,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, session.TaskID)
 	require.Equal(t, "task-id", *session.TaskID)
+}
+
+func TestStartFocusSessionRequiresStartedAt(t *testing.T) {
+	t.Parallel()
+	store := mocks.NewStore(t)
+	svc := New(Deps{Repo: store})
+	_, err := svc.StartFocusSession(context.Background(), "user", "pomodoro", "Task", "task-id", "", nil)
+	require.ErrorIs(t, err, ErrInvalidArgument)
 }

@@ -211,7 +211,7 @@ func (s *service) MintScopedAccessToken(
 		return "", "", 0, errors.New("scope is required")
 	}
 	if role == "" {
-		role = "guest"
+		return "", "", 0, errors.New("role is required")
 	}
 	ttl := time.Duration(ttlSeconds) * time.Second
 	if ttl <= 0 {

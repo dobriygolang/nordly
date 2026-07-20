@@ -13,11 +13,13 @@ const MENU_W = 168;
 export interface FolderRowProps {
   folder: NoteFolder;
   open: boolean;
+  selected?: boolean;
   menuOpen: boolean;
   renaming: boolean;
   depth?: number;
   onMenuOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
+  onSelect: (id: string, mods: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }) => void;
   onStartRename: (id: string) => void;
   onCommitRename: (id: string, name: string) => void;
   onCancelRename: () => void;
@@ -27,11 +29,13 @@ export interface FolderRowProps {
 export const FolderRow = memo(function FolderRow({
   folder,
   open,
+  selected = false,
   menuOpen,
   renaming,
   depth = 0,
   onMenuOpenChange,
   onToggle,
+  onSelect,
   onStartRename,
   onCommitRename,
   onCancelRename,
@@ -47,7 +51,7 @@ export const FolderRow = memo(function FolderRow({
   const moreRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const showMore = hover || menuOpen;
+  const showMore = hover || menuOpen || selected;
 
   const updateMenuPos = useCallback(() => {
     const el = moreRef.current;
@@ -95,14 +99,22 @@ export const FolderRow = memo(function FolderRow({
         ref={rowRef}
         className="nordly-note-row-wrap nordly-folder-row"
         data-open={open ? 'true' : 'false'}
+        data-selected={selected ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-renaming={renaming ? 'true' : 'false'}
         data-depth={depth}
         style={depth > 0 ? { paddingLeft: 10 + depth * 16 } : undefined}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onClick={() => {
+        onClick={(e) => {
           if (renaming) return;
+          const mods = {
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+          };
+          onSelect(folder.id, mods);
+          if (mods.metaKey || mods.ctrlKey || mods.shiftKey) return;
           onToggle(folder.id);
         }}
       >
@@ -137,6 +149,7 @@ export const FolderRow = memo(function FolderRow({
           <span
             className="nordly-note-row__label"
             onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey) return;
               event.stopPropagation();
               closeMenu();
               onStartRename(folder.id);

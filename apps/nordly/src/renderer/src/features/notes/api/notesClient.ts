@@ -2,6 +2,7 @@
 import { encryptText, isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import {
+  collectSubtreeIds,
   foldersStoreCreate,
   foldersStoreDelete,
   foldersStoreList,
@@ -12,8 +13,8 @@ import {
   notesStoreGet,
   notesStoreList,
   notesStoreSetFolderId,
+  notesStoreIdsInFolders,
   notesStoreSoftDelete,
-  notesStoreUnfileFolder,
   notesStoreUpsert,
   type StoredWikiLink,
 } from '@features/notes/repository/notesStore';
@@ -175,11 +176,25 @@ export async function ensureFolderPath(
   return { folderId: parentId, created };
 }
 
-/** Deletes the folder (and descendants) and moves their notes to unfiled (local-only). */
-export async function deleteFolder(id: string): Promise<string[]> {
-  const deletedIds = await foldersStoreDelete(id);
-  await notesStoreUnfileFolder(deletedIds);
-  return deletedIds;
+/**
+ * Deletes the folder (and descendants) and soft-deletes every note inside them
+ * (attachments + sync outbox via deleteNote). Notes are removed first so a mid-loop
+ * failure cannot leave orphans after the folder row is already gone.
+ */
+export async function deleteFolder(
+  id: string,
+): Promise<{ deletedFolderIds: string[]; deletedNoteIds: string[] }> {
+  const folders = await foldersStoreList();
+  if (!folders.some((f) => f.id === id)) {
+    throw new Error(`Folder not found: ${id}`);
+  }
+  const deletedFolderIds = collectSubtreeIds(folders, id);
+  const noteIds = await notesStoreIdsInFolders(deletedFolderIds);
+  for (const noteId of noteIds) {
+    await deleteNote(noteId);
+  }
+  await foldersStoreDelete(id);
+  return { deletedFolderIds, deletedNoteIds: noteIds };
 }
 
 export async function moveNoteToFolder(noteId: string, folderId: string | null): Promise<void> {
@@ -361,7 +376,8 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
 
 export async function deleteNote(id: string): Promise<void> {
   const prev = await resolveNote(id);
-  if (!prev) throw new Error(`Note not found: ${id}`);
+  // Idempotent — bulk/folder cascade may already have removed the row.
+  if (!prev) return;
   const canonicalId = prev.id;
   // Local soft-delete only — server note delete cascades attachments; avoid stuck
   // attachment_delete outbox when the note was never synced.

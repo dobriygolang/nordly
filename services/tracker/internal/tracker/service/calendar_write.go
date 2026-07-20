@@ -31,7 +31,10 @@ func validateEventInput(in GoogleEventInput) error {
 	if in.Start.IsZero() {
 		return fmt.Errorf("%w: start required", model.ErrInvalidArgument)
 	}
-	if !in.AllDay && !in.End.IsZero() && !in.End.After(in.Start) {
+	if in.End.IsZero() {
+		return fmt.Errorf("%w: end required", model.ErrInvalidArgument)
+	}
+	if !in.End.After(in.Start) {
 		return fmt.Errorf("%w: end must be after start", model.ErrInvalidArgument)
 	}
 	return nil

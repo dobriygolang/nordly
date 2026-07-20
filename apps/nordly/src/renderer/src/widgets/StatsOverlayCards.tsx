@@ -775,7 +775,8 @@ function TodayPlanReviewCard({ closing, t }: { closing: boolean; t: TFunc }) {
           total: computed.plannedTotal,
           remaining: computed.activeRemaining,
         });
-      } catch {
+      } catch (err) {
+        console.error('[nordly:stats] today plan progress failed', err);
         if (!cancelled) setProgress(null);
       }
     })();

@@ -14,7 +14,7 @@ func (i *Implementation) StartFocusSession(
 	if err != nil {
 		return nil, err
 	}
-	startedAt, err := validTimestamp(req.GetStartedAt())
+	startedAt, err := requireTimestamp(req.GetStartedAt())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

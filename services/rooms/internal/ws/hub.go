@@ -139,19 +139,7 @@ func (h *Hub) unregister(roomID uuid.UUID, c *wsConn) {
 }
 
 func (h *Hub) Broadcast(roomID uuid.UUID, kind string, data any) {
-	var raw json.RawMessage
-	if data != nil {
-		b, err := json.Marshal(data)
-		if err != nil {
-			h.Log.Error("ws.Broadcast marshal", "err", err)
-			return
-		}
-		raw = b
-	}
-	env, err := json.Marshal(Envelope{Kind: kind, Data: raw})
-	if err != nil {
-		return
-	}
+	env := mustEnvelope(kind, data)
 	h.mu.RLock()
 	rh := h.rooms[roomID]
 	h.mu.RUnlock()
@@ -228,7 +216,7 @@ func (h *Hub) FlushRoom(roomID uuid.UUID) []byte {
 		idx := (start + i) % replayBufferCap
 		line, err := json.Marshal(rh.buffer[idx])
 		if err != nil {
-			continue
+			panic(fmt.Sprintf("FlushRoom marshal: %v", err))
 		}
 		out = append(out, line...)
 		out = append(out, '\n')
@@ -271,17 +259,9 @@ func (h *Hub) replayOpsToClient(roomID uuid.UUID, c *wsConn) {
 		if entry.Kind != KindOp || len(entry.Payload) == 0 {
 			continue
 		}
-		data, err := json.Marshal(map[string]any{
+		c.enqueue(mustEnvelope(KindOp, map[string]any{
 			"seq": entry.Seq, "user_id": entry.UserID, "payload": entry.Payload,
-		})
-		if err != nil {
-			continue
-		}
-		env, err := json.Marshal(Envelope{Kind: KindOp, Data: data})
-		if err != nil {
-			continue
-		}
-		c.enqueue(env)
+		}))
 	}
 }
 
@@ -422,6 +402,7 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 		}
 		var env Envelope
 		if err := json.Unmarshal(data, &env); err != nil {
+			c.log.Warn("ws bad envelope", "err", err)
 			continue
 		}
 		switch env.Kind {
@@ -434,6 +415,7 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 			}
 			var p opPayload
 			if err := json.Unmarshal(env.Data, &p); err != nil {
+				c.log.Warn("ws bad op payload", "err", err)
 				continue
 			}
 			seq := h.nextSeq(c.roomID)
@@ -446,6 +428,7 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 		case InCursor:
 			var p cursorPayload
 			if err := json.Unmarshal(env.Data, &p); err != nil {
+				c.log.Warn("ws bad cursor payload", "err", err)
 				continue
 			}
 			h.room(c.roomID).pushEntry(bufferedEntry{
@@ -465,7 +448,12 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 				continue
 			}
 			var p opPayload
-			if err := json.Unmarshal(env.Data, &p); err != nil || len(p.Payload) == 0 {
+			if err := json.Unmarshal(env.Data, &p); err != nil {
+				c.log.Warn("ws bad snapshot payload", "err", err)
+				continue
+			}
+			if len(p.Payload) == 0 {
+				c.log.Warn("ws empty snapshot payload")
 				continue
 			}
 			rh := h.room(c.roomID)

@@ -68,6 +68,19 @@ export const ru = {
   'nordly.notes.menu.view_public': 'Открыть публичную',
   'nordly.notes.menu.unpublish': 'Снять с публикации',
   'nordly.notes.menu.delete': 'Удалить заметку',
+  'nordly.notes.delete_many_confirm': 'Удалить {{count}} выбранных элементов? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_title': 'Удалить безвозвратно?',
+  'nordly.notes.delete_confirm_body':
+    'Удалить {{notes}} заметок и {{folders}} папок? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_body_notes':
+    'Удалить {{count}} заметок? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_body_folders':
+    'Удалить {{count}} папок и всё содержимое? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_body_one_note': 'Удалить эту заметку? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_body_one_folder':
+    'Удалить эту папку и всё содержимое? Это нельзя отменить.',
+  'nordly.notes.delete_confirm_cancel': 'Отмена',
+  'nordly.notes.delete_confirm_action': 'Удалить',
   'nordly.notes.menu.publish_requires_cloud': 'Войди, чтобы опубликовать заметку в интернете.',
   'nordly.notes.menu.publish_e2ee_warning':
     'При публикации заметка станет plaintext в сети. Любой со ссылкой сможет прочитать. Продолжить?',
@@ -269,6 +282,9 @@ export const ru = {
   'nordly.settings.shortcuts.notes_zoom_in': 'Увеличить масштаб заметок',
   'nordly.settings.shortcuts.notes_zoom_out': 'Уменьшить масштаб заметок',
   'nordly.settings.shortcuts.notes_zoom_reset': 'Сбросить масштаб заметок',
+  'nordly.settings.shortcuts.notes_select_all': 'Выделить все заметки',
+  'nordly.settings.shortcuts.notes_delete': 'Удалить выделенные заметки',
+  'nordly.settings.shortcuts.notes_move_selection': 'Переместить выделение в списке',
   'nordly.settings.shortcuts.in_app': 'В Nordly',
   'nordly.settings.update.label': 'ПО',
   'nordly.settings.update.version': 'Текущая версия: {{version}}',

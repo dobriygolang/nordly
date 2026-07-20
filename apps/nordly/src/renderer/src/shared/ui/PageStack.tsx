@@ -71,6 +71,9 @@ export function PageStack({
     return () => {
       cancelAnimationFrame(enterRaf);
       window.clearTimeout(timerRef.current);
+      // Rapid page switches cancel the fade timeout — prune leaving layers so two
+      // Notes (or any page) trees cannot stay stacked until remount.
+      setLayers((prev) => prev.filter((l) => l.status !== 'leaving'));
     };
   }, [page]);
 

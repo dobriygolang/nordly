@@ -10,12 +10,11 @@ import (
 
 func userSettingsToProto(s *model.UserSettingsView) *trackerv1.UserSettings {
 	return &trackerv1.UserSettings{
-		GoogleCalendarSyncEnabled: false,
-		GoogleCalendarConnected:   s.GoogleCalendarConnected,
-		GoogleReauthRequired:      s.GoogleReauthRequired,
-		GoogleCalendarId:          s.GoogleCalendarID,
-		ZoomConnected:             s.ZoomConnected,
-		ZoomReauthRequired:        s.ZoomReauthRequired,
+		GoogleCalendarConnected: s.GoogleCalendarConnected,
+		GoogleReauthRequired:    s.GoogleReauthRequired,
+		GoogleCalendarId:        s.GoogleCalendarID,
+		ZoomConnected:           s.ZoomConnected,
+		ZoomReauthRequired:      s.ZoomReauthRequired,
 	}
 }
 

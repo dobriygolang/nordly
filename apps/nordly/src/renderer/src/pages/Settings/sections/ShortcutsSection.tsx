@@ -26,6 +26,9 @@ function buildAppShortcuts(mod: string): Shortcut[] {
     { labelKey: 'nordly.settings.shortcuts.notes_zoom_in', keys: [mod, '+'] },
     { labelKey: 'nordly.settings.shortcuts.notes_zoom_out', keys: [mod, '−'] },
     { labelKey: 'nordly.settings.shortcuts.notes_zoom_reset', keys: [mod, '0'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_select_all', keys: [mod, 'A'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_delete', keys: ['⌫'] },
+    { labelKey: 'nordly.settings.shortcuts.notes_move_selection', keys: ['↑', '↓'] },
   ];
 }
 

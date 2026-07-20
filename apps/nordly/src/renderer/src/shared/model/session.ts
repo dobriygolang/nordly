@@ -31,6 +31,13 @@ function isPersistedUserId(userId: string): boolean {
   return USER_ID_RE.test(userId);
 }
 
+/** Native IPC uses "" for "no refresh token"; never treat empty as a real token. */
+function normalizeRefreshToken(token: string | null | undefined): string | null {
+  if (typeof token !== 'string') return null;
+  const trimmed = token.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 interface PersistedSession {
   userId: string;
   accessToken: string;
@@ -51,7 +58,7 @@ function readBrowserPersist(): PersistedSession | null {
   return {
     userId: s.userId,
     accessToken: s.accessToken,
-    refreshToken: typeof s.refreshToken === 'string' ? s.refreshToken : null,
+    refreshToken: normalizeRefreshToken(s.refreshToken),
     expiresAt: s.expiresAt,
   };
 }
@@ -75,10 +82,23 @@ async function persistSessionToNative(session: PersistedSession, epoch: number):
   }
 }
 
-function persistSessionInBackground(session: PersistedSession): void {
-  void persistSessionToNative(session, sessionPersistEpoch).catch((err: unknown) => {
+/** Last in-flight keychain write — awaited on login/refresh so quit cannot race an empty keychain. */
+let pendingNativePersist: Promise<void> | null = null;
+
+function queueNativePersist(session: PersistedSession): Promise<void> {
+  const epoch = sessionPersistEpoch;
+  const pending = persistSessionToNative(session, epoch).catch((err: unknown) => {
     console.error('[nordly:session] native session persistence failed', err);
   });
+  pendingNativePersist = pending;
+  void pending.finally(() => {
+    if (pendingNativePersist === pending) pendingNativePersist = null;
+  });
+  return pending;
+}
+
+export async function flushNativeSessionPersist(): Promise<void> {
+  if (pendingNativePersist) await pendingNativePersist;
 }
 
 function writeBrowserPersist(s: PersistedSession): void {
@@ -109,16 +129,14 @@ interface SessionState {
     accessToken: string;
     refreshToken?: string;
     expiresAt: number;
-  }) => void;
+  }) => Promise<void>;
 
   /** Clears in-memory + keychain. Used by logout. */
   clear: (opts?: { skipNativeLogout?: boolean }) => Promise<void>;
 
   /** Updates tokens after refresh — persists to browser + keychain. */
-  applyTokens: (s: PersistedSession) => void;
+  applyTokens: (s: PersistedSession) => Promise<void>;
 }
-
-const BOOTSTRAP_IPC_TIMEOUT_MS = 4_000;
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -133,6 +151,9 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     if (timer !== undefined) clearTimeout(timer);
   }
 }
+
+/** Keychain unlock after full quit can exceed a few seconds — do not treat that as guest. */
+const BOOTSTRAP_IPC_TIMEOUT_MS = 30_000;
 
 export const useSessionStore = create<SessionState>((set, get) => ({
 
@@ -198,15 +219,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       native = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
     } catch (err) {
       console.error('[nordly:session] native session bootstrap failed', err);
-      native = null;
+      try {
+        await new Promise<void>((r) => {
+          window.setTimeout(r, 750);
+        });
+        native = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
+      } catch (retryErr) {
+        console.error('[nordly:session] native session bootstrap retry failed', retryErr);
+        native = null;
+      }
     }
 
-    if (native?.userId && (native.accessToken || native.refreshToken)) {
+    if (native?.userId && (native.accessToken || normalizeRefreshToken(native.refreshToken))) {
       if (typeof native.expiresAt !== 'number') throw new Error('Invalid native session: missing expiresAt');
       applySession({
         userId: native.userId,
         accessToken: native.accessToken,
-        refreshToken: native.refreshToken ?? null,
+        refreshToken: normalizeRefreshToken(native.refreshToken),
         expiresAt: native.expiresAt,
       });
       return;
@@ -220,14 +249,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
   },
 
-  hydrate: ({ userId, accessToken, refreshToken, expiresAt }) => {
+  hydrate: async ({ userId, accessToken, refreshToken, expiresAt }) => {
     if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
       throw new Error('Invalid session hydrate: missing expiresAt');
     }
     const session: PersistedSession = {
       userId,
       accessToken,
-      refreshToken: refreshToken ?? null,
+      refreshToken: normalizeRefreshToken(refreshToken),
       expiresAt,
     };
     if (get().userId !== userId) {
@@ -239,14 +268,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       status: 'signed_in',
       userId,
       accessToken,
-      refreshToken: refreshToken ?? null,
+      refreshToken: session.refreshToken,
       expiresAt,
     });
     writeBrowserPersist(session);
-    persistSessionInBackground(session);
+    await queueNativePersist(session);
   },
 
-  applyTokens: ({ userId, accessToken, refreshToken, expiresAt }) => {
+  applyTokens: async ({ userId, accessToken, refreshToken, expiresAt }) => {
     const currentUserId = get().userId;
     if (currentUserId !== userId) {
       lockVault();
@@ -257,12 +286,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const session: PersistedSession = {
       userId,
       accessToken,
-      refreshToken,
+      refreshToken: normalizeRefreshToken(refreshToken),
       expiresAt,
     };
-    set({ accessToken, refreshToken, expiresAt });
+    set({ accessToken, refreshToken: session.refreshToken, expiresAt });
     writeBrowserPersist(session);
-    persistSessionInBackground(session);
+    await queueNativePersist(session);
   },
 
   clear: async (opts) => {

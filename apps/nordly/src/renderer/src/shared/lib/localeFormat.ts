@@ -3,9 +3,14 @@ import { getLocale, localeToBcp47, type Locale } from '@nordly-i18n';
 /** IANA timezone from the OS / browser (e.g. Europe/Moscow). */
 export function getUserTimeZone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!tz) {
+      throw new Error('empty timeZone from Intl');
+    }
+    return tz;
+  } catch (err) {
+    console.error('[localeFormat] timeZone unavailable', err);
+    throw err instanceof Error ? err : new Error('timeZone unavailable');
   }
 }
 

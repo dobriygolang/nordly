@@ -497,9 +497,12 @@ mod macos {
             let start_date: id = msg_send![event, startDate];
             let end_date: id = msg_send![event, endDate];
             let start = nsdate_to_iso(start_date)?;
-            let end = nsdate_to_iso(end_date).unwrap_or_else(|| start.clone());
+            let end = nsdate_to_iso(end_date)?;
             let all_day: bool = msg_send![event, isAllDay];
             let identifier = nsstring_to_string(msg_send![event, eventIdentifier]);
+            if identifier.trim().is_empty() {
+                return None;
+            }
             let calendar: id = msg_send![event, calendar];
             let calendar_id = if calendar.is_null() {
                 None
@@ -512,11 +515,7 @@ mod macos {
                 }
             };
             Some(AppleCalendarEvent {
-                id: if identifier.is_empty() {
-                    format!("{title}:{start}")
-                } else {
-                    identifier
-                },
+                id: identifier,
                 title,
                 start,
                 end,

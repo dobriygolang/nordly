@@ -16,8 +16,16 @@ export async function readAppVersion(): Promise<string> {
 
 /** Semver compare: 1 if a>b, -1 if a<b, 0 if equal (MAJOR.MINOR.PATCH only). */
 export function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/i, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
-  const pb = b.replace(/^v/i, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const parse = (v: string): number[] =>
+    v.replace(/^v/i, '').split('.').map((n) => {
+      const part = Number.parseInt(n, 10);
+      if (!Number.isFinite(part) || part < 0) {
+        throw new Error(`Invalid semver part in ${v}`);
+      }
+      return part;
+    });
+  const pa = parse(a);
+  const pb = parse(b);
   const len = Math.max(pa.length, pb.length, 3);
   for (let i = 0; i < len; i++) {
     const da = pa[i] ?? 0;
@@ -33,10 +41,18 @@ export async function fetchPublishedVersion(): Promise<string | null> {
   if (!isTauriRuntime()) return null;
   try {
     const resp = await tauriFetch(UPDATER_JSON_URL, { cache: 'no-store' });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.warn('[nordly:updater] latest.json HTTP', resp.status);
+      return null;
+    }
     const j = (await resp.json()) as { version?: string };
-    return typeof j.version === 'string' && j.version.length > 0 ? j.version : null;
-  } catch {
+    if (typeof j.version !== 'string' || j.version.length === 0) {
+      console.warn('[nordly:updater] latest.json missing version');
+      return null;
+    }
+    return j.version;
+  } catch (err) {
+    console.warn('[nordly:updater] latest.json fetch failed', err);
     return null;
   }
 }

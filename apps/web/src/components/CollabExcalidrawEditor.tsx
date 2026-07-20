@@ -114,6 +114,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const canPublishLocalRef = useRef(false)
 
     const [ready, setReady] = useState(false)
+    const [seedError, setSeedError] = useState<string | null>(null)
+    const seedFailedRef = useRef(false)
     /** Last board theme we imperatively applied — distinguishes real toggles from initial mount. */
     const prevThemeRef = useRef<BoardCanvasTheme | null>(null)
 
@@ -205,10 +207,18 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       canPublishLocalRef.current = false
       gotRemoteRef.current = false
       prevThemeRef.current = null
+      seedFailedRef.current = false
+      setSeedError(null)
       const ydoc = new Y.Doc()
       ydocRef.current = ydoc
       const awareness = new Awareness(ydoc)
       awarenessRef.current = awareness
+
+      const failSeed = (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        seedFailedRef.current = true
+        setSeedError(message)
+      }
 
       void fetchInitialScene(roomId)
         .then((raw) => {
@@ -235,24 +245,26 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
             writeSceneToYjs(ydoc, elements, files, 'seed')
           } catch (err) {
             console.error('[CollabExcalidraw] corrupt initial scene seed', err)
+            failSeed(err)
           }
         })
         .catch((err) => {
           console.error('[CollabExcalidraw] failed to load initial scene seed', err)
+          failSeed(err)
         })
         .finally(() => {
           // Allow local edits once initial scene seed is done. Do not gate on peer
           // count — with 2+ clients connected, awareness size is always > 1 and
           // edits would never sync without a prior remote snapshot.
           window.setTimeout(() => {
-            if (!gotRemoteRef.current) {
+            if (!gotRemoteRef.current && !seedFailedRef.current) {
               canPublishLocalRef.current = true
             }
           }, 300)
         })
 
       if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
-      const label = displayName ?? userId.slice(0, 8)
+      const label = displayName?.trim() || userId.slice(0, 8)
       const colors = collabUserColors(userId)
       const syncLocalUser = (active = isTabActive()) => {
         awareness.setLocalStateField('user', {
@@ -336,8 +348,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
         try {
           if (canPublishLocalRef.current) sendFullSnapshot()
-        } catch {
-          /* ignore */
+        } catch (err) {
+          console.error('[CollabExcalidraw] final snapshot failed', err)
         }
         stopObserving()
         ydoc.off('afterTransaction', onAfterTransaction)
@@ -534,12 +546,20 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
     return (
       <div
-        className={`${EXCALIDRAW_MOUNT_CLASS} h-full w-full`}
+        className={`${EXCALIDRAW_MOUNT_CLASS} h-full w-full relative`}
         data-board-theme={boardTheme}
         onWheelCapture={(e) => {
           if (e.ctrlKey || e.metaKey) e.preventDefault()
         }}
       >
+        {seedError ? (
+          <div
+            role="alert"
+            className="absolute left-4 top-4 z-[25] max-w-md rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
+          >
+            Failed to load board seed: {seedError}
+          </div>
+        ) : null}
         {ready && excalidrawInitialData ? (
           <Excalidraw
             key={roomId}

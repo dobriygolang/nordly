@@ -24,12 +24,27 @@ import { getServerId, setServerId } from '@shared/sync/idMap';
 import { listOutbox, removeOutbox } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 
+const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'in_review', 'done', 'dismissed']);
+
 function isRemoteNotFound(err: unknown): boolean {
   return err instanceof Error && err.message.includes(': 404');
 }
 
-function titleFromPayload(payload: Record<string, unknown>): string {
-  return typeof payload.title === 'string' ? payload.title.trim() : '';
+function titleFromPayload(payload: Record<string, unknown>): string | null {
+  if (!('title' in payload)) return null;
+  if (typeof payload.title !== 'string') {
+    throw new Error('Invalid tasks outbox payload: title must be a string');
+  }
+  const title = payload.title.trim();
+  return title || null;
+}
+
+function requireTaskStatus(payload: Record<string, unknown>, entryId: string): TaskStatus {
+  const status = payload.status;
+  if (typeof status !== 'string' || !TASK_STATUSES.has(status as TaskStatus)) {
+    throw new Error(`Invalid tasks status outbox (${entryId}): ${String(status)}`);
+  }
+  return status as TaskStatus;
 }
 
 async function resolveTaskTitle(
@@ -144,8 +159,9 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   if (!serverId) return;
 
   if (entry.op === 'status') {
+    const status = requireTaskStatus(payload, entry.id);
     const updated = await runTaskRemote(entry, userId, () =>
-      remoteMoveTaskStatus(serverId, payload.status as TaskStatus),
+      remoteMoveTaskStatus(serverId, status),
     );
     if (!updated) return;
     await tasksStoreMergeRemote(updated);
@@ -197,11 +213,19 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     const patch: Parameters<typeof remotePatchTask>[1] = {};
     if (payload.clearEpic === true) patch.clearEpic = true;
     if (payload.clearConference === true) patch.clearConference = true;
-    if (payload.epicId) {
-      patch.epicId = String(payload.epicId);
-    } else if (payload.epicColor) {
+    if (payload.epicId !== undefined) {
+      if (typeof payload.epicId !== 'string' || !payload.epicId.trim()) {
+        throw new Error(`Invalid tasks patch outbox (${entry.id}): epicId must be a non-empty string`);
+      }
+      patch.epicId = payload.epicId.trim();
+    } else if (payload.epicColor !== undefined) {
+      if (typeof payload.epicColor !== 'string' || !payload.epicColor.trim()) {
+        throw new Error(
+          `Invalid tasks patch outbox (${entry.id}): epicColor must be a non-empty string`,
+        );
+      }
       const epics = await pullEpicsCache();
-      const match = findEpicByColor(epics, String(payload.epicColor));
+      const match = findEpicByColor(epics, payload.epicColor.trim());
       if (!match || isOfflineEpicId(match.id)) {
         throw new SyncDeferredError(`Cannot resolve epic color in outbox entry ${entry.id}`);
       }

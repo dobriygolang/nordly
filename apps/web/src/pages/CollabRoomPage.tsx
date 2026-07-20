@@ -63,6 +63,7 @@ function jwtSubject(token: string): string {
     return json.sub
   } catch (err) {
     if (err instanceof Error && err.message.startsWith('Invalid guest token:')) throw err
+    console.error('[live] jwtSubject decode failed', err)
     throw new Error('Invalid guest token: bad payload')
   }
 }
@@ -257,7 +258,8 @@ export default function CollabRoomPage() {
   let sessionUserId: string
   try {
     sessionUserId = jwtSubject(wsToken)
-  } catch {
+  } catch (err) {
+    console.error('[live] invalid session token', err)
     return (
       <EditorShell
         message={t('live.roomNotFound')}
@@ -276,7 +278,7 @@ export default function CollabRoomPage() {
   const canRun = !!hasSession
   const closeTo = '/'
   const designRoom = isDesignRoom(room)
-  const displayName = guestName || t('common.guest')
+  const displayName = guestName.trim()
 
   const handleClose = () => {
     if (isOwner) {

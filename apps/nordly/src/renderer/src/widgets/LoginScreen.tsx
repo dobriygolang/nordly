@@ -23,7 +23,7 @@ async function persistSession(session: {
   refreshToken: string;
   expiresAt: number;
 }): Promise<void> {
-  useSessionStore.getState().hydrate(session);
+  await useSessionStore.getState().hydrate(session);
   resetAuthRefreshState();
 }
 

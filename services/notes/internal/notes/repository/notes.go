@@ -275,7 +275,8 @@ func newPublishSlug(title string, privateLink bool) string {
 	}
 	slug := strings.Trim(b.String(), "-")
 	if slug == "" {
-		slug = "note"
+		// Empty/non-latin title — do not invent a fake word; use a random slug.
+		return uuid.NewString()
 	}
 	if len(slug) > 40 {
 		slug = slug[:40]

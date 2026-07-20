@@ -54,7 +54,7 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 
 	topic := strings.TrimSpace(in.Topic)
 	if topic == "" {
-		topic = "Nordly meeting"
+		return MeetingResult{}, fmt.Errorf("zoom meeting topic required")
 	}
 
 	reqBody := createMeetingRequest{
@@ -64,8 +64,6 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 	}
 	if in.Duration > 0 {
 		reqBody.Duration = in.Duration
-	} else {
-		reqBody.Duration = 30
 	}
 	if !in.Start.IsZero() {
 		reqBody.StartTime = in.Start.UTC().Format("2006-01-02T15:04:05Z")

@@ -115,7 +115,7 @@ export function useCalendarEditor({
 
   const dependencies = useCallback(
     (): CalendarEditorDependencies => ({
-      createTask: (title) => createTask({ title }),
+      createTask: (title) => createTask({ title, kind: 'custom' }),
       scheduleTask,
       notifyTasksChanged: () =>
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged)),

@@ -18,15 +18,3 @@ func (i *Implementation) RefreshToken(ctx context.Context, req *identityv1.Refre
 	}
 	return toAuthResponse(result), nil
 }
-
-// ValidateToken validates access token for internal callers.
-func (i *Implementation) ValidateToken(ctx context.Context, req *identityv1.ValidateTokenRequest) (*identityv1.ValidateTokenResponse, error) {
-	userID, err := i.service.ValidateToken(ctx, req.GetAccessToken())
-	if err != nil {
-		return &identityv1.ValidateTokenResponse{Valid: false}, nil
-	}
-	return &identityv1.ValidateTokenResponse{
-		UserId: userID,
-		Valid:  true,
-	}, nil
-}

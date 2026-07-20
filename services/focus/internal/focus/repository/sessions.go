@@ -16,19 +16,20 @@ func (r *Repository) CreateSession(
 	taskID, clientSessionID *string,
 	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
-	if startedAt != nil {
-		now := time.Now().UTC()
-		if startedAt.After(now) || startedAt.Before(now.AddDate(0, 0, -7)) {
-			return nil, focusmodel.ErrInvalidArgument
-		}
+	if startedAt == nil {
+		return nil, focusmodel.ErrInvalidArgument
+	}
+	now := time.Now().UTC()
+	if startedAt.After(now) || startedAt.Before(now.AddDate(0, 0, -7)) {
+		return nil, focusmodel.ErrInvalidArgument
 	}
 	row := r.pg.QueryRow(ctx, `
 		INSERT INTO focus_sessions (user_id, mode, pinned_title, task_id, client_session_id, started_at)
-		VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()))
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (user_id, client_session_id) WHERE client_session_id IS NOT NULL DO NOTHING
 		RETURNING id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
 		          seconds_focused, pomodoros_completed
-	`, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
+	`, userID, mode, pinnedTitle, taskID, clientSessionID, *startedAt)
 	sess, err := scanSession(row)
 	if !errors.Is(err, ErrNotFound) || clientSessionID == nil {
 		return sess, err
@@ -73,23 +74,23 @@ func (r *Repository) EndSession(
 		return nil, focusmodel.ErrInvalidArgument
 	}
 
-	effectiveEndedAt := time.Now().UTC()
-	if endedAt != nil {
-		effectiveEndedAt = *endedAt
+	if endedAt == nil {
+		return nil, focusmodel.ErrInvalidArgument
 	}
+	effectiveEndedAt := *endedAt
 	if err := validateEndDuration(existing.StartedAt, effectiveEndedAt, secondsFocused); err != nil {
 		return nil, err
 	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE focus_sessions
-		SET ended_at = COALESCE($3, now()),
+		SET ended_at = $3,
 		    seconds_focused = $4,
 		    pomodoros_completed = $5
 		WHERE id = $1 AND user_id = $2 AND ended_at IS NULL
 		RETURNING id, user_id, mode, pinned_title, task_id, client_session_id, started_at, ended_at,
 		          seconds_focused, pomodoros_completed
-	`, sessionID, userID, endedAt, secondsFocused, pomodorosCompleted)
+	`, sessionID, userID, effectiveEndedAt, secondsFocused, pomodorosCompleted)
 	sess, err := scanSession(row)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {

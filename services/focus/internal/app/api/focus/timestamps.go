@@ -7,9 +7,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func validTimestamp(value *timestamppb.Timestamp) (*time.Time, error) {
+func requireTimestamp(value *timestamppb.Timestamp) (*time.Time, error) {
 	if value == nil {
-		return nil, nil
+		return nil, focusservice.ErrInvalidArgument
 	}
 	if err := value.CheckValid(); err != nil {
 		return nil, focusservice.ErrInvalidArgument

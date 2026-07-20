@@ -1,6 +1,7 @@
 import type { AppleCalendarEvent } from '@features/calendar/api/appleCalendarClient';
 import type { GoogleCalendarEvent } from '@features/calendar/model/calendar';
 import type { TaskCard } from '@features/tasks/api/tasks';
+import { displayTaskTitle } from '@features/tasks/api/tasks';
 import { translate, type Locale } from '@nordly-i18n';
 import {
   formatLocaleDate,
@@ -89,7 +90,7 @@ function taskEntry(task: TaskCard, start: Date): CalendarEntry {
   return {
     id: `task:${task.id}`,
     source: 'task',
-    title: task.title || 'Untitled',
+    title: displayTaskTitle(task.title, task.id),
     start,
     end: new Date(start.getTime() + mins * 60_000),
     allDay: false,

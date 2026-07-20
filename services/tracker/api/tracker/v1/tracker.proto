@@ -123,10 +123,8 @@ service TrackerService {
 }
 
 message UserSettings {
-  reserved 1;
-  reserved "user_id";
-  // Deprecated: task→Google mirroring removed; always false.
-  bool google_calendar_sync_enabled = 2;
+  reserved 1, 2;
+  reserved "user_id", "google_calendar_sync_enabled";
   bool google_calendar_connected = 3;
   // Set when the stored Google token was revoked/expired and the user must reconnect.
   bool google_reauth_required = 4;

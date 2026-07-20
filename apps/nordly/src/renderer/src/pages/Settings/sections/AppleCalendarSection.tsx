@@ -55,10 +55,12 @@ export function AppleCalendarSection(): JSX.Element | null {
     }
     try {
       setCalendars(await listAppleCalendars());
-    } catch {
+    } catch (err) {
+      console.error('[appleCalendar] list calendars failed', err);
       setCalendars([]);
+      setError(t('nordly.settings.apple.error_load'));
     }
-  }, []);
+  }, [t]);
 
   const applyConnected = useCallback(
     async (auth: { authorized: boolean; status: string }) => {
@@ -93,7 +95,8 @@ export function AppleCalendarSection(): JSX.Element | null {
         resetAppleCalendarFetchBlock();
       }
       await loadCalendars(auth.authorized);
-    } catch {
+    } catch (err) {
+      console.error('[appleCalendar] load failed', err);
       setError(t('nordly.settings.apple.error_load'));
     } finally {
       setLoading(false);
@@ -155,6 +158,7 @@ export function AppleCalendarSection(): JSX.Element | null {
           : t('nordly.settings.apple.error_access'),
       );
     } catch (err) {
+      console.error('[appleCalendar] request access failed', err);
       setError(readInvokeError(err) || t('nordly.settings.apple.error_access'));
     } finally {
       setBusy(false);

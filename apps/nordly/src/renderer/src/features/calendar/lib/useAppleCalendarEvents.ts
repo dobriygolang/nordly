@@ -88,6 +88,7 @@ export function useAppleCalendarEvents(
       if (isAuthFetchError(err)) {
         authFetchBlocked = true;
       }
+      console.error('[appleCalendar] fetch failed', err);
       setError('fetch');
     } finally {
       setLoading(false);

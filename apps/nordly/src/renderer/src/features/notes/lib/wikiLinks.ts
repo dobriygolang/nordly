@@ -89,10 +89,16 @@ export function resolveWikiLinks(
 }
 
 export function toWikiLinkWire(links: ResolvedWikiLink[]): WikiLinkWire[] {
-  return links.map((l) => ({
-    linkText: l.linkText,
-    targetNoteId: l.targetNoteId ?? '',
-  }));
+  return links.map((l) => {
+    if (l.targetNoteId === null) {
+      // Proto3 wire: empty string means unresolved (NULL in note_links).
+      return { linkText: l.linkText, targetNoteId: '' };
+    }
+    if (!l.targetNoteId.trim()) {
+      throw new Error('wiki link targetNoteId must be null or a non-empty id');
+    }
+    return { linkText: l.linkText, targetNoteId: l.targetNoteId };
+  });
 }
 
 export function buildWikiLinksWire(bodyMd: string, notes: NoteTitleRef[]): WikiLinkWire[] {

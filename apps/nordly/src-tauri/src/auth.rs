@@ -22,7 +22,11 @@ pub fn load_session(_app: &AppHandle) -> Result<Option<AuthSession>, String> {
     match entry.get_password() {
         Ok(raw) => {
             let parsed: AuthSession = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
-            if parsed.access_token.is_empty() || parsed.user_id.is_empty() {
+            if parsed.user_id.is_empty() {
+                return Ok(None);
+            }
+            // Access may be empty after a partial write; refresh alone is enough to restore.
+            if parsed.access_token.is_empty() && parsed.refresh_token.is_empty() {
                 return Ok(None);
             }
             Ok(Some(parsed))

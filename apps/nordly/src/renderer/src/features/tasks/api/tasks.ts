@@ -18,6 +18,14 @@ export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'dismis
 export type TaskKind = 'algo' | 'sysdesign' | 'quiz' | 'reflection' | 'reading' | 'ml' | 'custom';
 export type ConferenceProvider = 'meet' | 'zoom';
 
+/** UI label when a task somehow has an empty title — logs so corruption stays visible. */
+export function displayTaskTitle(title: string, taskId?: string, fallback = 'Untitled'): string {
+  const trimmed = title.trim();
+  if (trimmed) return trimmed;
+  console.error('[nordly:tasks] missing title', taskId ?? '');
+  return fallback;
+}
+
 export type TaskEpicSelection = { epicId: string } | { color: string } | null;
 
 export interface TaskCard {
@@ -53,14 +61,15 @@ export async function listTasks(): Promise<TaskCard[]> {
   return tasksStoreList();
 }
 
-export async function createTask(input: { title: string; kind?: TaskKind }): Promise<TaskCard> {
+export async function createTask(input: { title: string; kind: TaskKind }): Promise<TaskCard> {
   const title = input.title.trim();
   if (!title) throw new Error('Task title is required');
+  if (!input.kind) throw new Error('Task kind is required');
   const now = new Date().toISOString();
   const task: TaskCard = {
     id: crypto.randomUUID(),
     status: 'todo',
-    kind: input.kind ?? 'custom',
+    kind: input.kind,
     title,
     createdAt: now,
     updatedAt: now,

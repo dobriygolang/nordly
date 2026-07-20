@@ -19,7 +19,8 @@ export function loadNotesEditorZoom(): number {
     const raw = window.localStorage.getItem(NOTES_EDITOR_ZOOM_KEY);
     if (raw == null) return NOTES_ZOOM_DEFAULT;
     return clampNotesEditorZoom(Number.parseFloat(raw));
-  } catch {
+  } catch (err) {
+    console.warn('[notesEditorZoom] load failed', err);
     return NOTES_ZOOM_DEFAULT;
   }
 }
@@ -28,8 +29,8 @@ export function saveNotesEditorZoom(value: number): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(NOTES_EDITOR_ZOOM_KEY, String(clampNotesEditorZoom(value)));
-  } catch {
-    /* ignore quota / private mode */
+  } catch (err) {
+    console.warn('[notesEditorZoom] save failed', err);
   }
 }
 

@@ -32,7 +32,8 @@ const guestRoomKey = (roomId: string) => `nordly_guest_room_${roomId}`
 export function readGuestToken(roomId: string): string | null {
   try {
     return sessionStorage.getItem(guestTokenKey(roomId))
-  } catch {
+  } catch (err) {
+    console.warn('[rooms] guest token read failed', err)
     return null
   }
 }
@@ -40,8 +41,8 @@ export function readGuestToken(roomId: string): string | null {
 export function persistGuestToken(roomId: string, token: string): void {
   try {
     sessionStorage.setItem(guestTokenKey(roomId), token)
-  } catch {
-    /* sessionStorage unavailable — non-critical */
+  } catch (err) {
+    console.warn('[rooms] guest token persist failed', err)
   }
 }
 
@@ -50,9 +51,13 @@ export function readGuestRoom(roomId: string): CodeRoom | null {
     const raw = sessionStorage.getItem(guestRoomKey(roomId))
     if (!raw) return null
     const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object') return null
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('[rooms] guest room cache invalid shape')
+      return null
+    }
     return mapCachedRoom(parsed as Record<string, unknown>)
-  } catch {
+  } catch (err) {
+    console.warn('[rooms] guest room cache read failed', err)
     return null
   }
 }
@@ -60,8 +65,8 @@ export function readGuestRoom(roomId: string): CodeRoom | null {
 export function persistGuestRoom(roomId: string, room: CodeRoom): void {
   try {
     sessionStorage.setItem(guestRoomKey(roomId), JSON.stringify(room))
-  } catch {
-    /* sessionStorage unavailable — non-critical */
+  } catch (err) {
+    console.warn('[rooms] guest room persist failed', err)
   }
 }
 

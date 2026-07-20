@@ -29,7 +29,7 @@ HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
 
 WebSocket: `GET /ws/editor/{room_id}?token=JWT` requires `editor:{room_id}` and rejects expired rooms. Browser origins must match `CORS_ALLOWED_ORIGINS`; this setting is required in production.
 
-**Whiteboard (Nordly):** `ShareWhiteboard` seeds an Excalidraw scene and returns `room_id` + scoped JWT + invite URL (title required). `PublishWhiteboard` stores a read-only snapshot (title + scene_json required); `GetPublishedBoard` serves them by slug.
+**Whiteboard (Nordly):** `ShareWhiteboard` seeds an Excalidraw scene and returns `room_id` + scoped JWT + invite URL (title required). `PublishWhiteboard` stores a read-only snapshot (title + scene_json required); `GetPublishedBoard` serves them by slug. Empty/non-latin titles get a random UUID slug (no invented word like `board`).
 
 **Public `Room` JSON:** `id`, `owner_id`, `room_type`, `language`, `expires_at`, `created_at` only (no ws_url, visibility, participants).
 

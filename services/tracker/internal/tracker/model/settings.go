@@ -39,23 +39,21 @@ func (s *UserSettings) CalendarID() string {
 
 // UserSettingsView is the API-safe projection (no secrets).
 type UserSettingsView struct {
-	GoogleCalendarSyncEnabled bool
-	GoogleCalendarConnected   bool
-	GoogleCalendarID          string
-	GoogleReauthRequired      bool
-	ZoomConnected             bool
-	ZoomReauthRequired        bool
+	GoogleCalendarConnected bool
+	GoogleCalendarID        string
+	GoogleReauthRequired    bool
+	ZoomConnected           bool
+	ZoomReauthRequired      bool
 }
 
 func (s *UserSettings) View() UserSettingsView {
 	connected := s.Connected()
 	zoomConnected := s.ZoomConnected()
 	return UserSettingsView{
-		GoogleCalendarSyncEnabled: false,
-		GoogleCalendarConnected:   connected,
-		GoogleCalendarID:          s.CalendarID(),
-		GoogleReauthRequired:      connected && s.GoogleReauthRequired,
-		ZoomConnected:             zoomConnected,
-		ZoomReauthRequired:        zoomConnected && s.ZoomReauthRequired,
+		GoogleCalendarConnected: connected,
+		GoogleCalendarID:        s.CalendarID(),
+		GoogleReauthRequired:    connected && s.GoogleReauthRequired,
+		ZoomConnected:           zoomConnected,
+		ZoomReauthRequired:      zoomConnected && s.ZoomReauthRequired,
 	}
 }

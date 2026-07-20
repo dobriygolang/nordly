@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -67,4 +68,12 @@ func requireUserID(ctx context.Context) (string, error) {
 		return "", unauthorized()
 	}
 	return userID, nil
+}
+
+func editorRoomIDFromContext(ctx context.Context) string {
+	roomID, ok := jwt.EditorRoomID(TokenScopeFromContext(ctx))
+	if !ok {
+		return ""
+	}
+	return roomID
 }

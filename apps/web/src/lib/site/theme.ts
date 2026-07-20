@@ -6,8 +6,8 @@ export function readSiteTheme(): SiteTheme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored === 'light' || stored === 'dark') return stored
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[site] theme read failed', err)
   }
   return 'dark'
 }
@@ -15,7 +15,7 @@ export function readSiteTheme(): SiteTheme {
 export function writeSiteTheme(theme: SiteTheme): void {
   try {
     localStorage.setItem(STORAGE_KEY, theme)
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[site] theme write failed', err)
   }
 }

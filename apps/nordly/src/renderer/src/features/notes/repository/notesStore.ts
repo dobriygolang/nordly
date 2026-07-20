@@ -201,22 +201,21 @@ export async function notesStoreSetFolderId(
   });
 }
 
-/** Clear folderId on every note that referenced any of the deleted folders. */
-export async function notesStoreUnfileFolder(
+/** Note ids that currently live in any of the given folders (non-deleted). */
+export async function notesStoreIdsInFolders(
   folderId: string | string[],
   userId?: string,
-): Promise<number> {
+): Promise<string[]> {
   const uid = userId ?? requireUserId();
   const ids = new Set(Array.isArray(folderId) ? folderId : [folderId]);
-  if (ids.size === 0) return 0;
+  if (ids.size === 0) return [];
   const rows = await dbGetAllByUser<StoredNote>('notes', uid);
-  let n = 0;
+  const out: string[] = [];
   for (const row of rows) {
     if (row.deleted || !row.folderId || !ids.has(row.folderId)) continue;
-    await dbPut('notes', { ...row, folderId: null });
-    n += 1;
+    out.push(row.id);
   }
-  return n;
+  return out;
 }
 
 export async function notesStoreSoftDelete(id: string): Promise<void> {

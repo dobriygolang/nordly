@@ -14,6 +14,9 @@ func (i *Implementation) MintScopedAccessToken(
 	if req.GetScope() == "" {
 		return nil, invalidArgument("scope is required")
 	}
+	if req.GetRole() == "" {
+		return nil, invalidArgument("role is required")
+	}
 	token, userID, expiresIn, err := i.service.MintScopedAccessToken(
 		ctx,
 		req.GetRole(),

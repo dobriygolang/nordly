@@ -105,7 +105,8 @@ export function useDeepLinkNavigation({
       let action: DeepLinkAction | null;
       try {
         action = parseDeepLink(url);
-      } catch {
+      } catch (err) {
+        console.warn('[deepLink] invalid url', url, err);
         return;
       }
       if (!action) return;

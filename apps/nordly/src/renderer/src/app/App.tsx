@@ -185,7 +185,7 @@ export default function App() {
       if (session) {
         // Ignore stale auth_persist emissions after explicit sign-out.
         if (useSessionStore.getState().status === 'guest') return;
-        hydrate({
+        void hydrate({
           userId: session.userId,
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
@@ -289,7 +289,7 @@ export default function App() {
       const dayKey = toDayKey(date);
       try {
         const existing = await listTasks();
-        let created = await createTask({ title });
+        let created = await createTask({ title, kind: 'custom' });
         const start = resolveScheduleStart(dayKey, existing, date);
         created = await scheduleTask(created.id, start, 30);
         window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));

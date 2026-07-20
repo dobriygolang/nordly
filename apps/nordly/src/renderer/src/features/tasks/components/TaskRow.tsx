@@ -11,6 +11,7 @@ import {
 import { useT } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
+import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { Icon } from '@shared/ui/primitives/Icon';
@@ -231,7 +232,7 @@ export const TaskRow = memo(function TaskRow({
                     }
                   }}
                 >
-                  {task.title || t('nordly.taskboard.untitled')}
+                  {displayTaskTitle(task.title, task.id, t('nordly.taskboard.untitled'))}
                 </div>
               )}
             </div>

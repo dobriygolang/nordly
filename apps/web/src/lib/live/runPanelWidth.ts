@@ -22,8 +22,8 @@ export function readRunPanelWidth(): number {
       const n = Number.parseInt(raw, 10)
       if (Number.isFinite(n)) return clampRunPanelWidth(n)
     }
-  } catch {
-    /* sessionStorage blocked */
+  } catch (err) {
+    console.warn('[live] run panel width read failed', err)
   }
   return defaultRunPanelWidth()
 }
@@ -31,7 +31,7 @@ export function readRunPanelWidth(): number {
 export function persistRunPanelWidth(width: number): void {
   try {
     sessionStorage.setItem(RUN_PANEL_WIDTH_KEY, String(clampRunPanelWidth(width)))
-  } catch {
-    /* sessionStorage blocked */
+  } catch (err) {
+    console.warn('[live] run panel width persist failed', err)
   }
 }

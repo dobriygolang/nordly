@@ -23,6 +23,13 @@ export interface ShareToWebResult {
   alreadyPublished: boolean;
 }
 
+export interface PublishedAttachmentInput {
+  id: string;
+  fileName: string;
+  mime: string;
+  dataB64: string;
+}
+
 export async function remoteGetPublishStatus(noteId: string): Promise<PublishStatus | null> {
   if (!isCloudApiAvailable()) {
     throw new Error('Cloud API unavailable');
@@ -53,11 +60,18 @@ export async function remoteShareNoteToWeb(
   noteId: string,
   plaintextMd: string,
   options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
+  attachments: PublishedAttachmentInput[] = [],
 ): Promise<ShareToWebResult> {
   const body: Record<string, unknown> = {
     plaintextMd,
     passwordProtected: options.passwordProtected,
     expiresInDays: options.expiresInDays,
+    attachments: attachments.map((a) => ({
+      id: a.id,
+      fileName: a.fileName,
+      mime: a.mime,
+      dataB64: a.dataB64,
+    })),
   };
   if (options.passwordProtected && options.password) {
     body.password = options.password;

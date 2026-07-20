@@ -26,8 +26,14 @@ export function formatTime(d: string | Date | null | undefined): string {
 }
 
 import { formatLimitError } from '@shared/api/limitErrors';
+import { AttachmentError } from '@features/notes/lib/noteAttachments';
 
 function errorMessage(err: unknown, t?: (key: string) => string): string {
+  if (err instanceof AttachmentError && t) {
+    const key = `nordly.notes.attachment.${err.code}`;
+    const msg = t(key);
+    if (msg !== key) return msg;
+  }
   if (t) return formatLimitError(err, t);
   return err instanceof Error ? err.message : String(err);
 }

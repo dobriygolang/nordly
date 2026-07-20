@@ -7,10 +7,15 @@ import { Icon } from '@shared/ui/primitives/Icon';
 interface NoteInsertPreviewProps {
   note: NoteSummary;
   nested?: boolean;
+  depth?: number;
 }
 
 /** In-list preview of where the dragged note would land (mirrors Today insert slot). */
-export function NoteInsertPreview({ note, nested = false }: NoteInsertPreviewProps): JSX.Element {
+export function NoteInsertPreview({
+  note,
+  nested = false,
+  depth = 0,
+}: NoteInsertPreviewProps): JSX.Element {
   const t = useT();
   const vaultLocked = isNoteVaultLocked(note);
   const label = vaultLocked
@@ -21,6 +26,12 @@ export function NoteInsertPreview({ note, nested = false }: NoteInsertPreviewPro
     <div
       className="nordly-note-insert-preview"
       data-nested={nested ? 'true' : 'false'}
+      data-depth={depth}
+      style={
+        nested
+          ? { ['--note-nest-pad' as string]: `${28 + depth * 16}px` }
+          : undefined
+      }
       aria-hidden
     >
       <div className="nordly-note-row-wrap" data-active="false">

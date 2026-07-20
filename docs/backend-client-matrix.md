@@ -52,10 +52,13 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 |------------|--------|-----|----------------|
 | Notes CRUD | ✅ | — | `CreateNote` / `UpdateNote` also accept `wikiLinks[]` (`linkText`, `targetNoteId`) |
 | GET `/v1/notes/{id}/backlinks` | — | — | API only (no UI yet) |
+| PUT/GET/DELETE `/v1/notes/{noteId}/attachments/{id}` | ✅ sync + editor | — | PNG/JPEG/GIF/WebP ≤5 MiB; 50/note; body base64 |
+| GET `/v1/notes/{noteId}/attachments` | ✅ sync list | — | metadata only (no dataB64) |
 | Vault init/salt/encrypt | ✅ | — | |
-| Publish flow (status, share, unpublish, make-private) | ✅ | — | |
+| Publish flow (status, share, unpublish, make-private) | ✅ `attachments[]` on share | — | client sends plaintext image bytes; server rewrites `nordly-asset:`; password shares embed data URLs (≤15 MiB raw) |
 | GET `/v1/notes/public/{slug}` | — | ✅ `title`, `body_md`, `password_required` | `published_at` parsed, **not shown** |
 | POST `/v1/notes/public/{slug}/access` | — | ✅ `password` → `title`, `body_md` | `published_at` parsed, **not shown** |
+| GET `/v1/notes/public/{slug}/assets/{assetId}` | — | ✅ published `<img>` | raw bytes + nosniff; public shares only (`publish_password_hash IS NULL`) |
 
 **Removed:** ListNotes pagination (`limit`/`cursor`/`next_cursor`).
 

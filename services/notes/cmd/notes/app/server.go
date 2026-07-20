@@ -24,7 +24,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		notesapi.AuthInterceptor(a.JWT),
 	))
-	notesapi.NewRegisteredImplementation(grpcSrv, a.Service)
+	impl := notesapi.NewRegisteredImplementation(grpcSrv, a.Service)
 	reflection.Register(grpcSrv)
 
 	go func() {
@@ -37,6 +37,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", notesapi.HealthzHTTP())
 	httpMux.Handle("/metrics", ops.MetricsHandler())
+	notesapi.RegisterPublicAssetHandler(httpMux, impl)
 
 	if err := notesapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()

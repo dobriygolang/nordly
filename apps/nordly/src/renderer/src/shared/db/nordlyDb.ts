@@ -3,7 +3,7 @@
 import { useSessionStore } from '@shared/model/session';
 
 const DB_NAME = 'nordly-db';
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 
 const STORES = [
   'notes',
@@ -14,6 +14,7 @@ const STORES = [
   'meta',
   'id_map',
   'calendar_events',
+  'note_attachments',
 ] as const;
 export type NordlyStore = (typeof STORES)[number];
 
@@ -59,11 +60,20 @@ function openDb(): Promise<IDBDatabase> {
     req.onerror = () => reject(req.error ?? new Error('IDB open failed'));
     req.onupgradeneeded = () => {
       const db = req.result;
+      const tx = req.transaction;
       for (const name of STORES) {
         if (!db.objectStoreNames.contains(name)) {
           const store = db.createObjectStore(name, { keyPath: 'key' });
           if (name !== 'meta' && name !== 'id_map') {
             store.createIndex('userId', 'userId', { unique: false });
+          }
+          if (name === 'note_attachments') {
+            store.createIndex('userId_noteId', ['userId', 'noteId'], { unique: false });
+          }
+        } else if (name === 'note_attachments' && tx) {
+          const store = tx.objectStore(name);
+          if (!store.indexNames.contains('userId_noteId')) {
+            store.createIndex('userId_noteId', ['userId', 'noteId'], { unique: false });
           }
         }
       }
@@ -111,6 +121,17 @@ export async function dbGetAllByUser<T extends { userId: string }>(
   return runTx<T[]>(store, 'readonly', (s) => {
     const idx = s.index('userId');
     return idx.getAll(userId);
+  });
+}
+
+export async function dbGetAllByIndex<T>(
+  store: NordlyStore,
+  indexName: string,
+  query: IDBValidKey | IDBKeyRange,
+): Promise<T[]> {
+  return runTx<T[]>(store, 'readonly', (s) => {
+    const idx = s.index(indexName);
+    return idx.getAll(query);
   });
 }
 

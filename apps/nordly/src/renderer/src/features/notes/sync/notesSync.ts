@@ -24,11 +24,28 @@ import { isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { getServerId, resolveEntityId, resolveNotesServerId, setServerId } from '@shared/sync/idMap';
 import { SyncDeferredError } from '@shared/sync/errors';
-import { removeOutbox, removeOutboxForEntity } from '@shared/sync/outbox';
+import { hasOutboxForEntity, removeOutbox, removeOutboxForEntity } from '@shared/sync/outbox';
 import type { OutboxEntry } from '@shared/sync/types';
 import { mapPool } from '@shared/lib/mapPool';
+import {
+  remoteDeleteAttachment,
+  remoteGetAttachment,
+  remoteListAttachments,
+  remotePutAttachment,
+} from '@features/notes/remote/attachmentsRemote';
+import {
+  attachmentsStoreDeleteForNote,
+  attachmentsStoreGetRow,
+  attachmentsStoreGetRowIncludingDeleted,
+  attachmentsStoreListByNote,
+  attachmentsStorePutWire,
+  attachmentsStoreRemapNoteId,
+  attachmentsStoreSoftDelete,
+} from '@features/notes/repository/attachmentsStore';
+import { revokeAttachmentBlobUrl } from '@features/notes/api/attachmentsClient';
 
 const NOTE_PULL_CONCURRENCY = 6;
+const ATTACHMENT_PULL_CONCURRENCY = 4;
 const notesMutationTails = new Map<string, Promise<void>>();
 
 /** Serialize remote note mutations per user so create/sync/publish cannot race. */
@@ -111,12 +128,14 @@ async function resolveNoteServerId(
     await remoteEncryptNoteBody(created.id, encBody);
     const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
     await notesStoreReplaceId(entry.entityId, plain);
+    await attachmentsStoreRemapNoteId(entry.entityId, created.id, userId);
     return created.id;
   }
 
   const created = await remoteCreateNote(title, bodyMd, wikiLinks);
   await setServerId('notes', entry.entityId, created.id, userId);
   await notesStoreReplaceId(entry.entityId, created);
+  await attachmentsStoreRemapNoteId(entry.entityId, created.id, userId);
   return created.id;
 }
 
@@ -183,6 +202,15 @@ async function pushPlainNote(
 
 async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
   const userId = requireUserId();
+
+  if (entry.op === 'attachment_put') {
+    await pushAttachmentPut(entry, userId);
+    return;
+  }
+  if (entry.op === 'attachment_delete') {
+    await pushAttachmentDelete(entry, userId);
+    return;
+  }
 
   if (entry.op === 'delete') {
     const serverId = await resolveNotesServerId(entry.entityId, userId);
@@ -267,6 +295,116 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
   }
 }
 
+async function pushAttachmentPut(entry: OutboxEntry, userId: string): Promise<void> {
+  if (isVaultEnabledSync() && !isVaultUnlocked()) {
+    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+  }
+  const payload = entry.payload as Record<string, unknown>;
+  const row = await attachmentsStoreGetRow(entry.entityId, userId);
+  if (!row) {
+    // Soft-deleted or missing — nothing to put.
+    await removeOutbox(entry.id, userId);
+    return;
+  }
+  const noteId =
+    row.noteId ||
+    (typeof payload.noteId === 'string' ? payload.noteId : '');
+  if (!noteId) {
+    throw new Error(`Invalid notes outbox payload: noteId (${entry.id})`);
+  }
+  const noteServerId = await getServerId('notes', noteId, userId);
+  if (!noteServerId) {
+    throw new SyncDeferredError(`Note not synced yet for attachment ${entry.entityId}`);
+  }
+  try {
+    await remotePutAttachment(noteServerId, {
+      id: entry.entityId,
+      fileName: row.fileName,
+      mime: row.mime,
+      dataB64: row.dataB64,
+      encrypted: row.atRestEncrypted,
+    });
+  } catch (err) {
+    if (isRemoteNotFound(err)) {
+      await removeOutbox(entry.id, userId);
+      return;
+    }
+    throw err;
+  }
+  await removeOutbox(entry.id, userId);
+}
+
+async function pushAttachmentDelete(entry: OutboxEntry, userId: string): Promise<void> {
+  const payload = entry.payload as Record<string, unknown>;
+  const row = await attachmentsStoreGetRowIncludingDeleted(entry.entityId, userId);
+  const noteId =
+    row?.noteId ??
+    (typeof payload.noteId === 'string' ? payload.noteId : null);
+  if (!noteId) {
+    throw new Error(`Invalid notes outbox payload: noteId (${entry.id})`);
+  }
+  const noteServerId = await getServerId('notes', noteId, userId);
+  if (!noteServerId) {
+    const noteRow = await notesStoreGetRow(noteId, userId);
+    // Note never reached the server (or already tombstoned without id_map) —
+    // nothing to delete remotely; drop the outbox entry.
+    if (!noteRow || noteRow.deleted) {
+      await removeOutbox(entry.id, userId);
+      return;
+    }
+    throw new SyncDeferredError(`Note not synced yet for attachment delete ${entry.entityId}`);
+  }
+  try {
+    await remoteDeleteAttachment(noteServerId, entry.entityId);
+  } catch (err) {
+    if (isRemoteNotFound(err)) {
+      await removeOutbox(entry.id, userId);
+      return;
+    }
+    throw err;
+  }
+  await removeOutbox(entry.id, userId);
+}
+
+async function pullAttachmentsForNote(localNoteId: string, serverNoteId: string, userId: string): Promise<void> {
+  const remoteList = await remoteListAttachments(serverNoteId);
+  const remoteIds = new Set(remoteList.map((a) => a.id));
+  await mapPool(remoteList, ATTACHMENT_PULL_CONCURRENCY, async (meta) => {
+    const local = await attachmentsStoreGetRowIncludingDeleted(meta.id, userId);
+    if (local?.deleted) return;
+    if (
+      local &&
+      local.noteId === localNoteId &&
+      meta.updatedAt &&
+      new Date(local.updatedAt).getTime() >= new Date(meta.updatedAt).getTime()
+    ) {
+      return;
+    }
+    const full = await remoteGetAttachment(serverNoteId, meta.id);
+    await attachmentsStorePutWire({
+      id: full.id,
+      noteId: localNoteId,
+      fileName: full.fileName,
+      mime: full.mime,
+      dataB64: full.dataB64,
+      encrypted: full.encrypted,
+      sizeBytes: full.sizeBytes,
+      updatedAt: full.updatedAt ?? meta.updatedAt,
+      userId,
+    });
+    revokeAttachmentBlobUrl(full.id);
+  });
+  const locals = await attachmentsStoreListByNote(localNoteId, userId);
+  for (const local of locals) {
+    if (remoteIds.has(local.id)) continue;
+    if (await hasOutboxForEntity('notes', local.id, 'attachment_put', userId)) {
+      continue;
+    }
+    await attachmentsStoreSoftDelete(local.id, userId);
+    revokeAttachmentBlobUrl(local.id);
+  }
+}
+
 export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
   return withNotesRemoteMutation(() => pushNotesOutboxLocked(entry));
 }
@@ -292,12 +430,20 @@ export async function pullNotes(): Promise<void> {
       }
       const plain = await decryptNoteFromRemote(wire);
       await notesStoreMergeRemote(noteToStored(plain, userId, true));
-      return;
+    } else {
+      await notesStoreMergeRemote(noteToStored(wire, userId, false));
     }
-    await notesStoreMergeRemote(noteToStored(wire, userId, false));
+    await pullAttachmentsForNote(s.id, s.id, userId);
   });
 
-  await notesStoreApplyRemoteAbsences(remoteIds, userId);
+  const absentNoteIds = await notesStoreApplyRemoteAbsences(remoteIds, userId);
+  for (const noteId of absentNoteIds) {
+    const attIds = await attachmentsStoreDeleteForNote(noteId, userId);
+    for (const attId of attIds) {
+      revokeAttachmentBlobUrl(attId);
+      await removeOutboxForEntity('notes', attId, undefined, userId);
+    }
+  }
 }
 
 /** Re-push all local notes as encrypted after enabling vault. */

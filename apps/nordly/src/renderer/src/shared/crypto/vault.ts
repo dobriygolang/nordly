@@ -94,7 +94,9 @@ export async function fetchVaultSalt(): Promise<string | null> {
 
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: syncAuthHeaders() });
   if (resp.status === 404) return local?.saltB64 ?? null;
-  if (!resp.ok) throw new Error(`vault salt: ${resp.status}`);
+  if (!resp.ok) {
+    throw new Error(`vault salt: ${resp.status}`);
+  }
   const j = (await resp.json()) as SaltResponse;
   const saltB64 = requireSaltB64(j);
   await cacheLocalSalt(saltB64);
@@ -167,16 +169,21 @@ export function lockVault(): void {
 
 export async function encryptText(plaintext: string): Promise<string> {
   const key = requireCurrentKey();
+  return encryptWithKey(key, new TextEncoder().encode(plaintext));
+}
+
+/** Encrypt raw bytes → base64(IV ‖ ciphertext). Same AES-GCM envelope as text. */
+export async function encryptBytes(plaintext: Uint8Array): Promise<string> {
+  const key = requireCurrentKey();
   return encryptWithKey(key, plaintext);
 }
 
-async function encryptWithKey(key: CryptoKey, plaintext: string): Promise<string> {
+async function encryptWithKey(key: CryptoKey, plaintext: Uint8Array): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const enc = new TextEncoder();
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: iv as BufferSource },
     key,
-    enc.encode(plaintext),
+    plaintext as BufferSource,
   );
   const ctBytes = new Uint8Array(ct);
   const out = new Uint8Array(IV_BYTES + ctBytes.length);
@@ -186,10 +193,21 @@ async function encryptWithKey(key: CryptoKey, plaintext: string): Promise<string
 }
 
 export async function decryptText(b64: string): Promise<string> {
-  return decryptWithKey(requireCurrentKey(), b64);
+  const pt = await decryptBytesWithKey(requireCurrentKey(), b64);
+  return new TextDecoder().decode(pt);
+}
+
+/** Decrypt base64(IV ‖ ciphertext) → raw bytes. */
+export async function decryptBytes(b64: string): Promise<Uint8Array> {
+  return decryptBytesWithKey(requireCurrentKey(), b64);
 }
 
 async function decryptWithKey(key: CryptoKey, b64: string): Promise<string> {
+  const pt = await decryptBytesWithKey(key, b64);
+  return new TextDecoder().decode(pt);
+}
+
+async function decryptBytesWithKey(key: CryptoKey, b64: string): Promise<Uint8Array> {
   const buf = base64Decode(b64);
   if (buf.length <= IV_BYTES) throw new Error('Invalid ciphertext');
   const iv = buf.slice(0, IV_BYTES);
@@ -204,7 +222,7 @@ async function decryptWithKey(key: CryptoKey, b64: string): Promise<string> {
   } catch {
     throw new Error('Decryption failed — wrong passphrase or corrupted data');
   }
-  return new TextDecoder().decode(pt);
+  return new Uint8Array(pt);
 }
 
 function requireCurrentKey(): CryptoKey {
@@ -243,7 +261,7 @@ async function verifyCandidateKey(key: CryptoKey, userId: string): Promise<void>
 }
 
 async function saveVerifier(key: CryptoKey, userId: string): Promise<void> {
-  const ciphertextB64 = await encryptWithKey(key, VERIFIER_PLAINTEXT);
+  const ciphertextB64 = await encryptWithKey(key, new TextEncoder().encode(VERIFIER_PLAINTEXT));
   await dbPut('meta', { key: verifierKey(userId), userId, ciphertextB64 });
   await dbDelete('meta', verifierPendingKey(userId));
 }

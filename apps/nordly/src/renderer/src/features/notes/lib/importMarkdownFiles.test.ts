@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_MARKDOWN_IMPORT_DEPTH,
+  MarkdownImportError,
+  assertImportLimits,
+  folderSegmentsForDirEntry,
   isFileDrag,
   isMarkdownFilename,
   listDroppedMarkdownFiles,
   listDroppedMarkdownPaths,
   readMarkdownFile,
   readMarkdownPath,
+  shouldSkipDirName,
+  splitRelativeDir,
   titleFromMarkdownFilename,
 } from './importMarkdownFiles';
 
@@ -39,11 +45,12 @@ describe('titleFromMarkdownFilename', () => {
 });
 
 describe('readMarkdownFile', () => {
-  it('reads title and body', async () => {
+  it('reads title and body with folder segments', async () => {
     const file = new File(['# Hello\n'], 'hello.md', { type: 'text/markdown' });
-    await expect(readMarkdownFile(file)).resolves.toEqual({
+    await expect(readMarkdownFile(file, ['Vault', 'a'])).resolves.toEqual({
       title: 'hello',
       bodyMd: '# Hello\n',
+      folderSegments: ['Vault', 'a'],
     });
   });
 
@@ -80,7 +87,42 @@ describe('listDroppedMarkdownPaths / readMarkdownPath', () => {
 
   it('reads via injected reader', async () => {
     await expect(
-      readMarkdownPath('/Users/me/Notes/Hello.md', async () => '# Hi\n'),
-    ).resolves.toEqual({ title: 'Hello', bodyMd: '# Hi\n' });
+      readMarkdownPath('/Users/me/Notes/Hello.md', async () => '# Hi\n', ['Notes']),
+    ).resolves.toEqual({
+      title: 'Hello',
+      bodyMd: '# Hi\n',
+      folderSegments: ['Notes'],
+      sourceDir: '/Users/me/Notes',
+    });
+  });
+});
+
+describe('shouldSkipDirName / splitRelativeDir / folderSegmentsForDirEntry', () => {
+  it('skips hidden and node_modules', () => {
+    expect(shouldSkipDirName('.git')).toBe(true);
+    expect(shouldSkipDirName('.obsidian')).toBe(true);
+    expect(shouldSkipDirName('node_modules')).toBe(true);
+    expect(shouldSkipDirName('notes')).toBe(false);
+  });
+
+  it('splits relative dirs', () => {
+    expect(splitRelativeDir('')).toEqual([]);
+    expect(splitRelativeDir('a/b')).toEqual(['a', 'b']);
+    expect(splitRelativeDir('a\\\\b')).toEqual(['a', 'b']);
+  });
+
+  it('builds folder segments from root + relative dir', () => {
+    expect(folderSegmentsForDirEntry('Vault', '')).toEqual(['Vault']);
+    expect(folderSegmentsForDirEntry('Vault', 'a/b')).toEqual(['Vault', 'a', 'b']);
+  });
+});
+
+describe('assertImportLimits', () => {
+  it('throws typed errors', () => {
+    expect(() => assertImportLimits(501, 1)).toThrow(MarkdownImportError);
+    expect(() => assertImportLimits(1, MAX_MARKDOWN_IMPORT_DEPTH + 1)).toThrow(
+      MarkdownImportError,
+    );
+    expect(() => assertImportLimits(1, MAX_MARKDOWN_IMPORT_DEPTH)).not.toThrow();
   });
 });

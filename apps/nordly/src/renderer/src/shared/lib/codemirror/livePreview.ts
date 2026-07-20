@@ -10,6 +10,7 @@ import {
 } from '@codemirror/view';
 
 import { notesCodeLangLabel } from './notesCodeLanguages';
+import { NORDLY_ASSET_SCHEME } from '@shared/lib/nordlyAsset';
 
 interface DecorationSink {
   add(from: number, to: number, decoration: Decoration): void;
@@ -32,6 +33,19 @@ export const wikiLinkTitlesFacet = Facet.define<ReadonlySet<string>, ReadonlySet
   combine(values) {
     if (values.length === 0) return new Set();
     return values[values.length - 1] ?? new Set();
+  },
+});
+
+/** Resolve markdown image href → displayable URL (blob or https). */
+export type ImageHrefResolver = (href: string) => Promise<string | null>;
+
+export const imageHrefResolverFacet = Facet.define<
+  ImageHrefResolver | null,
+  ImageHrefResolver | null
+>({
+  combine(values) {
+    if (values.length === 0) return null;
+    return values[values.length - 1] ?? null;
   },
 });
 
@@ -69,6 +83,91 @@ class CodeLangBadgeWidget extends WidgetType {
     badge.setAttribute('aria-hidden', 'true');
     bar.appendChild(badge);
     return bar;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+class MarkdownImageWidget extends WidgetType {
+  constructor(
+    readonly href: string,
+    readonly alt: string,
+    readonly resolver: ImageHrefResolver | null,
+  ) {
+    super();
+  }
+
+  eq(other: MarkdownImageWidget): boolean {
+    return other.href === this.href && other.alt === this.alt && other.resolver === this.resolver;
+  }
+
+  toDOM(): HTMLElement {
+    const wrap = document.createElement('span');
+    wrap.className = 'nordly-md-image';
+    wrap.setAttribute('contenteditable', 'false');
+
+    const img = document.createElement('img');
+    img.alt = this.alt || 'image';
+    img.className = 'nordly-md-image__img';
+    img.draggable = false;
+
+    const placeholder = document.createElement('span');
+    placeholder.className = 'nordly-md-image__placeholder';
+    placeholder.textContent = this.alt || 'image';
+
+    let cancelled = false;
+    (wrap as HTMLElement & { __nordlyCancel?: () => void }).__nordlyCancel = () => {
+      cancelled = true;
+    };
+
+    const showPlaceholder = () => {
+      if (cancelled) return;
+      img.remove();
+      if (!placeholder.isConnected) wrap.appendChild(placeholder);
+      wrap.classList.add('nordly-md-image--unresolved');
+    };
+
+    const showImg = (src: string) => {
+      if (cancelled) return;
+      placeholder.remove();
+      wrap.classList.remove('nordly-md-image--unresolved');
+      img.src = src;
+      if (!img.isConnected) wrap.appendChild(img);
+    };
+
+    if (/^https:\/\//i.test(this.href)) {
+      img.onerror = () => showPlaceholder();
+      showImg(this.href);
+    } else if (this.href.startsWith(NORDLY_ASSET_SCHEME) && this.resolver) {
+      wrap.appendChild(placeholder);
+      wrap.classList.add('nordly-md-image--loading');
+      void this.resolver(this.href)
+        .then((src) => {
+          if (cancelled) return;
+          wrap.classList.remove('nordly-md-image--loading');
+          if (src) {
+            img.onerror = () => showPlaceholder();
+            showImg(src);
+          } else {
+            showPlaceholder();
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          wrap.classList.remove('nordly-md-image--loading');
+          showPlaceholder();
+        });
+    } else {
+      showPlaceholder();
+    }
+
+    return wrap;
+  }
+
+  destroy(dom: HTMLElement): void {
+    (dom as HTMLElement & { __nordlyCancel?: () => void }).__nordlyCancel?.();
   }
 
   ignoreEvent(): boolean {
@@ -188,6 +287,43 @@ function applyWikiLinkInline(
   }
 }
 
+function applyImageInline(
+  builder: DecorationSink,
+  state: EditorState,
+  lineFrom: number,
+  text: string,
+  occupied: [number, number][],
+): void {
+  const re = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+  const resolver = state.facet(imageHrefResolverFacet);
+  let match = re.exec(text);
+  while (match != null) {
+    const relStart = match.index;
+    const relEnd = relStart + match[0].length;
+    if (!overlapsRange(occupied, relStart, relEnd)) {
+      const alt = match[1] ?? '';
+      const href = match[2] ?? '';
+      const start = lineFrom + relStart;
+      const end = lineFrom + relEnd;
+      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
+      if (showSyntax) {
+        addMark(builder, start, end, { class: 'nordly-md-image-syntax' });
+      } else {
+        builder.add(
+          start,
+          end,
+          Decoration.replace({
+            widget: new MarkdownImageWidget(href, alt, resolver),
+            inclusive: false,
+          }),
+        );
+      }
+      occupied.push([relStart, relEnd]);
+    }
+    match = re.exec(text);
+  }
+}
+
 function applyLinkInline(
   builder: DecorationSink,
   state: EditorState,
@@ -200,6 +336,11 @@ function applyLinkInline(
   while (match != null) {
     const relStart = match.index;
     const relEnd = relStart + match[0].length;
+    // Skip markdown images already handled (![...](...)).
+    if (relStart > 0 && text[relStart - 1] === '!') {
+      match = re.exec(text);
+      continue;
+    }
     if (!overlapsRange(occupied, relStart, relEnd)) {
       const labelLen = match[1].length;
       const start = lineFrom + relStart;
@@ -229,6 +370,7 @@ function decorateInlines(
   const occupied: [number, number][] = [];
   const resolvedTitles = state.facet(wikiLinkTitlesFacet);
   applyDelimitedInline(builder, state, lineFrom, text, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
+  applyImageInline(builder, state, lineFrom, text, occupied);
   applyLinkInline(builder, state, lineFrom, text, occupied);
   applyWikiLinkInline(builder, state, lineFrom, text, occupied, resolvedTitles);
   applyDelimitedInline(builder, state, lineFrom, text, /\*\*([^*\n]+)\*\*/g, 'nordly-md-bold', 2, 2, occupied);

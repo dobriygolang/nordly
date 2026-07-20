@@ -164,7 +164,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         expiresAt: s.expiresAt,
       });
       writeBrowserPersist(s);
-      if (s.expiresAt > 0 && Date.now() > s.expiresAt) {
+      // Expired access JWT is fine for local-first use. Demand interactive reauth
+      // only when there is no refresh token to recover with once online.
+      if (s.expiresAt > 0 && Date.now() > s.expiresAt && !s.refreshToken) {
         useSyncStore.getState().setSessionReauthRequired(true);
       }
       return true;

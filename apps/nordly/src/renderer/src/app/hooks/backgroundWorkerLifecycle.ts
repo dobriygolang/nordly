@@ -9,15 +9,14 @@ export interface CloudWorkerDependencies {
 
 export interface InitializeCloudWorkersOptions {
   userId: string;
-  reauthRequired: boolean;
   isCancelled: () => boolean;
   setVaultGateActive: (active: boolean) => void;
   dependencies: CloudWorkerDependencies;
 }
 
+/** Vault prefs + calendar cache only — sync workers are started separately. */
 export async function initializeCloudWorkers({
   userId,
-  reauthRequired,
   isCancelled,
   setVaultGateActive,
   dependencies,
@@ -28,13 +27,7 @@ export async function initializeCloudWorkers({
   setVaultGateActive(
     dependencies.isCloudEnabled() && dependencies.isVaultEnabled(),
   );
-  if (reauthRequired) {
-    dependencies.stopWorkers();
-    return;
-  }
   if (!dependencies.isCloudEnabled()) return;
 
   await dependencies.hydrateCalendarCache();
-  if (isCancelled()) return;
-  dependencies.startWorkers();
 }

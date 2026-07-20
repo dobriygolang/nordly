@@ -250,10 +250,24 @@ export const Sidebar = memo(function Sidebar({
     return map;
   }, [list.notes, folders, folderIds]);
 
-  const sortedFolders = useMemo(
-    () => [...folders].sort((a, b) => a.name.localeCompare(b.name)),
-    [folders],
-  );
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, NoteFolder[]>();
+    const idSet = new Set(folders.map((f) => f.id));
+    for (const f of folders) {
+      const rawParent = f.parentId ?? null;
+      const parent = rawParent && idSet.has(rawParent) ? rawParent : null;
+      const listForParent = map.get(parent);
+      if (listForParent) listForParent.push(f);
+      else map.set(parent, [f]);
+    }
+    for (const [, kids] of map) {
+      kids.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return map;
+  }, [folders]);
+
+  const rootFolders = childrenByParent.get(null) ?? [];
+  const hasFolders = folders.length > 0;
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -315,14 +329,15 @@ export const Sidebar = memo(function Sidebar({
   const activeNoteFolderId =
     activeNote?.folderId && folderIds.has(activeNote.folderId) ? activeNote.folderId : null;
 
-  const renderNote = (n: NoteSummary, nested: boolean) => (
+  const renderNote = (n: NoteSummary, nested: boolean, depth: number) => (
     <DraggableNoteRow
       key={n.id}
       note={n}
       nested={nested}
+      depth={depth}
       active={selectedId === n.id}
       menuOpen={openMenuId === n.id}
-      dragDisabled={sortedFolders.length === 0}
+      dragDisabled={!hasFolders}
       onMenuOpenChange={(open) => setOpenMenuId(open ? n.id : null)}
       onSelect={onSelect}
       onPublish={onPublish}
@@ -336,13 +351,19 @@ export const Sidebar = memo(function Sidebar({
     notes: NoteSummary[],
     nested: boolean,
     targetFolderId: string | null,
+    depth: number,
   ): React.ReactNode => {
-    if (!activeNote) return notes.map((note) => renderNote(note, nested));
+    if (!activeNote) return notes.map((note) => renderNote(note, nested, depth));
 
-    const rows = notes.map((note) => renderNote(note, nested));
+    const rows = notes.map((note) => renderNote(note, nested, depth));
     if (activeNoteFolderId !== targetFolderId) {
       return [
-        <NoteInsertPreview key={`preview:${targetFolderId ?? 'unfiled'}`} note={activeNote} nested={nested} />,
+        <NoteInsertPreview
+          key={`preview:${targetFolderId ?? 'unfiled'}`}
+          note={activeNote}
+          nested={nested}
+          depth={depth}
+        />,
         ...rows,
       ];
     }
@@ -350,11 +371,11 @@ export const Sidebar = memo(function Sidebar({
     return notes.map((note) =>
       note.id === activeNote.id ? (
         <div className="nordly-note-drag-origin" key={`preview:${note.id}`}>
-          {renderNote(note, nested)}
-          <NoteInsertPreview note={activeNote} nested={nested} />
+          {renderNote(note, nested, depth)}
+          <NoteInsertPreview note={activeNote} nested={nested} depth={depth} />
         </div>
       ) : (
-        renderNote(note, nested)
+        renderNote(note, nested, depth)
       ),
     );
   };
@@ -363,6 +384,7 @@ export const Sidebar = memo(function Sidebar({
     notes: NoteSummary[],
     nested: boolean,
     containerFolderId: string | null,
+    depth: number,
   ): React.ReactNode =>
     notes
       .filter(
@@ -372,7 +394,56 @@ export const Sidebar = memo(function Sidebar({
           activeNoteFolderId !== containerFolderId ||
           previewFolderId === containerFolderId,
       )
-      .map((note) => renderNote(note, nested));
+      .map((note) => renderNote(note, nested, depth));
+
+  const renderFolderTree = (folderList: NoteFolder[], depth: number): React.ReactNode =>
+    folderList.map((folder) => {
+      const open = openFolderIds.has(folder.id) || renamingFolderId === folder.id;
+      const childNotes = notesByFolder.get(folder.id) ?? [];
+      const childFolders = childrenByParent.get(folder.id) ?? [];
+      return (
+        <FolderDropZone
+          key={folder.id}
+          folderId={folder.id}
+          disabled={renamingFolderId === folder.id}
+          previewChildren={renderDropPreview(childNotes, true, folder.id, depth)}
+          previewActive={activeNote != null && previewFolderId === folder.id}
+          open={open}
+          onHoverOpen={openFolderOnHover}
+          header={
+            <FolderRow
+              folder={folder}
+              open={open}
+              depth={depth}
+              menuOpen={openMenuId === `folder:${folder.id}`}
+              renaming={renamingFolderId === folder.id}
+              onMenuOpenChange={(menuOpen) =>
+                setOpenMenuId(menuOpen ? `folder:${folder.id}` : null)
+              }
+              onToggle={toggleFolder}
+              onStartRename={(id) => {
+                setRenamingFolderId(id);
+                setOpenFolderIds((prev) => new Set(prev).add(id));
+                onFocusFolder(id);
+              }}
+              onCommitRename={(id, name) => {
+                setRenamingFolderId(null);
+                onRenameFolder(id, name);
+              }}
+              onCancelRename={() => setRenamingFolderId(null)}
+              onDelete={onDeleteFolder}
+            />
+          }
+        >
+          {open ? (
+            <>
+              {renderIdleRows(childNotes, true, folder.id, depth)}
+              {renderFolderTree(childFolders, depth + 1)}
+            </>
+          ) : null}
+        </FolderDropZone>
+      );
+    });
 
   return (
     <aside className="nordly-vault-sidebar">
@@ -465,56 +536,17 @@ export const Sidebar = memo(function Sidebar({
       >
         <div className="nordly-vault-sidebar__list">
           <UnfiledDropZone
-            enabled={sortedFolders.length > 0}
-            previewChildren={renderDropPreview(unfiledNotes, false, null)}
+            enabled={hasFolders}
+            previewChildren={renderDropPreview(unfiledNotes, false, null, 0)}
             previewActive={activeNote != null && previewFolderId === null}
           >
-            {sortedFolders.length > 0 ? (
+            {hasFolders ? (
               <div className="nordly-notes-section-label">{t('nordly.notes.unfiled')}</div>
             ) : null}
-            {renderIdleRows(unfiledNotes, false, null)}
+            {renderIdleRows(unfiledNotes, false, null, 0)}
           </UnfiledDropZone>
 
-          {sortedFolders.map((folder) => {
-            const open = openFolderIds.has(folder.id) || renamingFolderId === folder.id;
-            const childNotes = notesByFolder.get(folder.id) ?? [];
-            return (
-              <FolderDropZone
-                key={folder.id}
-                folderId={folder.id}
-                disabled={renamingFolderId === folder.id}
-                previewChildren={renderDropPreview(childNotes, true, folder.id)}
-                previewActive={activeNote != null && previewFolderId === folder.id}
-                open={open}
-                onHoverOpen={openFolderOnHover}
-                header={
-                  <FolderRow
-                    folder={folder}
-                    open={open}
-                    menuOpen={openMenuId === `folder:${folder.id}`}
-                    renaming={renamingFolderId === folder.id}
-                    onMenuOpenChange={(menuOpen) =>
-                      setOpenMenuId(menuOpen ? `folder:${folder.id}` : null)
-                    }
-                    onToggle={toggleFolder}
-                    onStartRename={(id) => {
-                      setRenamingFolderId(id);
-                      setOpenFolderIds((prev) => new Set(prev).add(id));
-                      onFocusFolder(id);
-                    }}
-                    onCommitRename={(id, name) => {
-                      setRenamingFolderId(null);
-                      onRenameFolder(id, name);
-                    }}
-                    onCancelRename={() => setRenamingFolderId(null)}
-                    onDelete={onDeleteFolder}
-                  />
-                }
-              >
-                {open ? renderIdleRows(childNotes, true, folder.id) : null}
-              </FolderDropZone>
-            );
-          })}
+          {renderFolderTree(rootFolders, 0)}
         </div>
 
         {createPortal(

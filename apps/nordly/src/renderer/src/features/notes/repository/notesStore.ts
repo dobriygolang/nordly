@@ -201,13 +201,18 @@ export async function notesStoreSetFolderId(
   });
 }
 
-/** Clear folderId on every note that referenced a deleted folder. */
-export async function notesStoreUnfileFolder(folderId: string, userId?: string): Promise<number> {
+/** Clear folderId on every note that referenced any of the deleted folders. */
+export async function notesStoreUnfileFolder(
+  folderId: string | string[],
+  userId?: string,
+): Promise<number> {
   const uid = userId ?? requireUserId();
+  const ids = new Set(Array.isArray(folderId) ? folderId : [folderId]);
+  if (ids.size === 0) return 0;
   const rows = await dbGetAllByUser<StoredNote>('notes', uid);
   let n = 0;
   for (const row of rows) {
-    if (row.deleted || row.folderId !== folderId) continue;
+    if (row.deleted || !row.folderId || !ids.has(row.folderId)) continue;
     await dbPut('notes', { ...row, folderId: null });
     n += 1;
   }
@@ -295,7 +300,7 @@ export async function notesStoreReplaceId(oldId: string, note: Note): Promise<vo
 export async function notesStoreApplyRemoteAbsences(
   remoteIds: Set<string>,
   userId?: string,
-): Promise<number> {
+): Promise<string[]> {
   const uid = userId ?? requireUserId();
   const rows = await dbGetAllByUser<StoredNote>('notes', uid);
   const candidates: { id: string; serverId: string | null }[] = [];
@@ -308,7 +313,7 @@ export async function notesStoreApplyRemoteAbsences(
   for (const id of absent) {
     await notesStoreSoftDelete(id);
   }
-  return absent.length;
+  return absent;
 }
 
 export { toNote, toSummary, rowFrom, decryptAtRest };

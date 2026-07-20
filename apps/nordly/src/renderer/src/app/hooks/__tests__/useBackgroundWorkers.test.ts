@@ -20,7 +20,7 @@ function dependencies(
 }
 
 describe('initializeCloudWorkers', () => {
-  it('hydrates prerequisites before starting workers', async () => {
+  it('hydrates vault and calendar without starting sync workers', async () => {
     const calls: string[] = [];
     const deps = dependencies({
       loadVaultPrefs: vi.fn(async () => {
@@ -37,21 +37,21 @@ describe('initializeCloudWorkers', () => {
 
     await initializeCloudWorkers({
       userId: 'user-1',
-      reauthRequired: false,
       isCancelled: () => false,
       setVaultGateActive,
       dependencies: deps,
     });
 
-    expect(calls).toEqual(['vault', 'calendar', 'start']);
+    expect(calls).toEqual(['vault', 'calendar']);
+    expect(deps.startWorkers).not.toHaveBeenCalled();
     expect(setVaultGateActive).toHaveBeenCalledWith(true);
   });
 
-  it('does not start workers after cancellation', async () => {
+  it('does not hydrate calendar after cancellation', async () => {
     let release!: () => void;
     let cancelled = false;
     const deps = dependencies({
-      hydrateCalendarCache: vi.fn(
+      loadVaultPrefs: vi.fn(
         () => new Promise<void>((resolve) => {
           release = resolve;
         }),
@@ -60,7 +60,6 @@ describe('initializeCloudWorkers', () => {
 
     const pending = initializeCloudWorkers({
       userId: 'user-1',
-      reauthRequired: false,
       isCancelled: () => cancelled,
       setVaultGateActive: vi.fn(),
       dependencies: deps,
@@ -70,21 +69,22 @@ describe('initializeCloudWorkers', () => {
     release();
     await pending;
 
+    expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
     expect(deps.startWorkers).not.toHaveBeenCalled();
   });
 
-  it('keeps workers stopped while reauthentication is required', async () => {
-    const deps = dependencies();
+  it('skips calendar hydrate when cloud is disabled', async () => {
+    const deps = dependencies({
+      isCloudEnabled: vi.fn(() => false),
+    });
 
     await initializeCloudWorkers({
       userId: 'user-1',
-      reauthRequired: true,
       isCancelled: () => false,
       setVaultGateActive: vi.fn(),
       dependencies: deps,
     });
 
-    expect(deps.stopWorkers).toHaveBeenCalledOnce();
     expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
     expect(deps.startWorkers).not.toHaveBeenCalled();
   });

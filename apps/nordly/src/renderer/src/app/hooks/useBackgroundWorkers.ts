@@ -85,6 +85,7 @@ export function useBackgroundWorkers({
     return () => stopTaskReminderWorker();
   }, [status, userId]);
 
+  // Vault + calendar hydrate once per signed-in user — do not remount on reauth flips.
   useEffect(() => {
     if (status !== 'signed_in' || !userId) {
       setVaultGateActive(false);
@@ -95,7 +96,6 @@ export function useBackgroundWorkers({
     let cancelled = false;
     void initializeCloudWorkers({
       userId,
-      reauthRequired: sessionReauthRequired,
       isCancelled: () => cancelled,
       setVaultGateActive,
       dependencies: cloudWorkerDependencies,
@@ -105,13 +105,18 @@ export function useBackgroundWorkers({
       cancelled = true;
       cloudWorkerDependencies.stopWorkers();
     };
-  }, [
-    status,
-    userId,
-    sessionReauthRequired,
-    setVaultGateActive,
-    onError,
-  ]);
+  }, [status, userId, setVaultGateActive, onError]);
+
+  // Pause cloud workers while interactive reauth is required; local app stays up.
+  useEffect(() => {
+    if (status !== 'signed_in' || !userId || !isCloudEnabled()) return;
+    if (sessionReauthRequired) {
+      cloudWorkerDependencies.stopWorkers();
+      return;
+    }
+    cloudWorkerDependencies.startWorkers();
+    return () => cloudWorkerDependencies.stopWorkers();
+  }, [status, userId, sessionReauthRequired]);
 
   useEffect(() => {
     if (status !== 'signed_in') return;

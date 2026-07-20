@@ -14,7 +14,7 @@ Tauri 2 + React desktop focus workspace: pomodoro timer, notes (E2EE vault), tas
 |-------|------|
 | Native shell | `src-tauri/` — auth keychain, vault passphrase, pomodoro snapshot, deep links |
 | Renderer | `src/renderer/src/` — React + Vite |
-| Local DB | IndexedDB `nordly-db` v3 — `shared/db/nordlyDb.ts` |
+| Local DB | IndexedDB `nordly-db` v5 — `shared/db/nordlyDb.ts` |
 | Sync | `shared/sync/` — outbox push + pull (notes, tasks, focus) |
 | Platform bridge | `platform/ipc.ts`, `platform/native-bridge.ts` → `window.nordly` |
 | HTTP (renderer) | `shared/api/http.ts` → `apiFetch()` — dev: browser `fetch` + Vite proxy; release: `tauri-plugin-http` |
@@ -27,7 +27,7 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 |------|-----------|-------|
 | Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today tasks, calendar meetings below, obstacles; no plan header) |
 | Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule; task UI in `features/tasks/components/` |
-| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor; drop `.md` / `.markdown` onto the page to create a note (animated overlay while dragging); ⌘+/⌘−/⌘0 zooms editor text only (persisted) |
+| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor; paste/drop images → `![alt](nordly-asset:<uuid>)` (IDB + vault + sync); drop `.md` / folders (Obsidian `![[img]]` / relative images rewritten on import); ⌘+/⌘−/⌘0 zooms editor text only |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
@@ -139,11 +139,12 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 
 ## IndexedDB schema
 
-Database: `nordly-db` v3. All entity stores use composite key `userId::id`.
+Database: `nordly-db` v5. All entity stores use composite key `userId::id`.
 
 | Store | Purpose |
 |-------|---------|
 | `notes` | Note bodies + wiki-link metadata (`wikiLinks` on create/update) |
+| `note_attachments` | Note images (`nordly-asset:<uuid>` in markdown); vault may store ciphertext; index `userId_noteId` |
 | `tasks` | Work task cards |
 | `focus_sessions` | Local pomodoro sessions |
 | `whiteboards` | Excalidraw scene JSON |
@@ -158,15 +159,17 @@ Scoped by `setDbUserId()` on sign-in.
 
 **Local app access** (`canUseLocalApp()`): signed in with `userId` — works offline even when access token expired.
 
-**Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid access token **or** refresh token when online. Offline + expired session → local-only grace (no sync, no logout).
+**Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid (non-expired) access token, and registered sync device.
 
-**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests; logout only if refresh fails. Offline 401/expiry: keep local session silently; `SyncStatusBanner` shows **reauth only** (no passive offline/unreachable/error banners). Network errors surface inline on intentional online actions (Meet/Zoom, note share, whiteboard share/publish, Settings connect).
+**Outbox queue** (`isSyncQueueEnabled()`): same as sync but ignores access expiry — local mutations still enqueue while offline/expired; push waits for a fresh token.
+
+**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone or transient network errors. Offline + expired session → silent local-only grace (no sync, no logout, no reauth overlay). Network errors surface inline on intentional online actions (Meet/Zoom, note share, whiteboard share/publish, Settings connect).
 
 Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Calls `ensureAccessTokenForSync()` before each run.
 
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|
-| notes | create, update, delete | full list + get each | notes CRUD + vault encrypt |
+| notes | create, update, delete, attachment_put, attachment_delete | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
@@ -174,7 +177,9 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 
 Task fields **device-only** (preserved on pull/replace): `order`.
 
-Note fields **device-only** (preserved on pull/replace): `folderId`. Folder list lives in IndexedDB `meta` (`note_folders::{userId}`) — local-only until a sync follow-up.
+Note fields **device-only** (preserved on pull/replace): `folderId`. Nested folder list lives in IndexedDB `meta` (`note_folders::{userId}`, each folder has `parentId`) — local-only until a sync follow-up.
+
+**Note images:** PNG/JPEG/GIF/WebP ≤5 MiB, 50 per note. Markdown uses `nordly-asset:<uuid>` (HTTPS URLs unchanged). Local store encrypts with vault when enabled; outbox `attachment_put` (lean `{ noteId }`, blob read at push) / `attachment_delete` (`{ noteId }`). List attachments is metadata-only; pull GETs bytes only when newer/missing. Tombstones never revive. Publish sends plaintext attachment bytes; public pages load `/v1/notes/public/{slug}/assets/{id}` (password shares embed data URLs, ≤15 MiB raw).
 
 Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
 
@@ -256,6 +261,8 @@ Registered in `src-tauri/src/lib.rs`:
 | `focus_main_window` | Raise main window (notification click) |
 | `shell_open_external` | Open URL in browser |
 | `read_text_file` | Read a dropped `.md` / `.markdown` file from disk (Notes import) |
+| `read_binary_file` | Read image under import root (`root` + `relative_path`); rejects `..` escapes; png/jpeg/gif/webp ≤5 MiB |
+| `list_markdown_import_entries` | Recursively list markdown files under a dropped directory (Notes folder import) |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
@@ -302,7 +309,7 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 
 | Gap | Status |
 |-----|--------|
-| Note folders sync | Local folders UI in vault sidebar; `folderId` device-only (not synced) |
+| Note folders sync | Nested local folders UI in vault sidebar (`parentId`); `folderId` device-only (not synced) |
 | Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
 | Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
 

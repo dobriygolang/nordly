@@ -64,6 +64,8 @@ pub fn run() {
             deep_link_initial,
             tray_show_main,
             read_text_file,
+            read_binary_file,
+            list_markdown_import_entries,
             notification::show_notification,
             notification::hide_notification,
             notification::focus_main_window,
@@ -232,6 +234,108 @@ fn tray_show_main(app: AppHandle) -> Result<(), String> {
 
 /// Read a user-dropped markdown file from disk (Tauri OS drop gives paths, not File blobs).
 const MAX_IMPORT_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_BINARY_IMPORT_BYTES: u64 = 5 * 1024 * 1024;
+const MAX_IMPORT_FILES: usize = 500;
+const MAX_IMPORT_DEPTH: usize = 20;
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MarkdownImportEntry {
+    path: String,
+    relative_dir: String,
+    name: String,
+}
+
+fn is_markdown_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown")
+}
+
+fn should_skip_import_name(name: &str) -> bool {
+    name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.starts_with('.')
+        || name == "node_modules"
+}
+
+fn walk_markdown_import(
+    dir: &std::path::Path,
+    relative_dir: &str,
+    folder_depth: usize,
+    out: &mut Vec<MarkdownImportEntry>,
+) -> Result<(), String> {
+    if folder_depth > MAX_IMPORT_DEPTH {
+        return Err("too_deep".into());
+    }
+    let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for ent in entries {
+        let ent = ent.map_err(|e| e.to_string())?;
+        let name = ent.file_name().to_string_lossy().into_owned();
+        if should_skip_import_name(&name) {
+            continue;
+        }
+        let path = ent.path();
+        let file_type = ent.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_dir() {
+            let next_rel = if relative_dir.is_empty() {
+                name.clone()
+            } else {
+                format!("{relative_dir}/{name}")
+            };
+            walk_markdown_import(&path, &next_rel, folder_depth + 1, out)?;
+        } else if file_type.is_file() && is_markdown_name(&name) {
+            if out.len() >= MAX_IMPORT_FILES {
+                return Err("too_many".into());
+            }
+            out.push(MarkdownImportEntry {
+                path: path.to_string_lossy().into_owned(),
+                relative_dir: relative_dir.to_string(),
+                name,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn is_image_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".webp")
+}
+
+/// Resolve `relative_path` under `root`, rejecting absolute paths and `..` escapes.
+fn resolve_under_root(root: &str, relative_path: &str) -> Result<std::path::PathBuf, String> {
+    let root_path = std::path::Path::new(root)
+        .canonicalize()
+        .map_err(|e| format!("invalid import root: {e}"))?;
+    if !root_path.is_dir() {
+        return Err("import root is not a directory".into());
+    }
+    let rel = std::path::Path::new(relative_path);
+    if rel
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir))
+        || rel.is_absolute()
+    {
+        return Err("path escape".into());
+    }
+    let joined = root_path.join(rel);
+    let canon = match joined.canonicalize() {
+        Ok(p) => p,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err("not_found".into());
+        }
+        Err(e) => return Err(format!("failed to resolve path: {e}")),
+    };
+    if !canon.starts_with(&root_path) {
+        return Err("path escape".into());
+    }
+    Ok(canon)
+}
 
 #[tauri::command]
 fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String> {
@@ -241,8 +345,7 @@ fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String>
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "invalid file path".to_string())?;
-    let lower = name.to_ascii_lowercase();
-    if !(lower.ends_with(".md") || lower.ends_with(".markdown")) {
+    if !is_markdown_name(name) {
         return Err(format!("not a markdown file: {name}"));
     }
     if !p.is_file() {
@@ -253,6 +356,52 @@ fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String>
         return Err("file exceeds 2 MiB import limit".into());
     }
     std::fs::read_to_string(p).map_err(|e| format!("failed to read file: {e}"))
+}
+
+/// Read a local image under an import root (rejects path traversal).
+#[tauri::command]
+fn read_binary_file(
+    window: WebviewWindow,
+    root: String,
+    relative_path: String,
+) -> Result<Vec<u8>, String> {
+    require_main_window(&window)?;
+    let p = resolve_under_root(&root, &relative_path)?;
+    let name = p
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "invalid file path".to_string())?;
+    if !is_image_name(name) {
+        return Err(format!("not an image file: {name}"));
+    }
+    if !p.is_file() {
+        return Err("not_found".into());
+    }
+    let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+    if meta.len() > MAX_BINARY_IMPORT_BYTES {
+        return Err("file exceeds 5 MiB import limit".into());
+    }
+    std::fs::read(&p).map_err(|e| format!("failed to read file: {e}"))
+}
+
+/// Recursively list markdown files under a dropped directory (paths for `read_text_file`).
+#[tauri::command]
+fn list_markdown_import_entries(
+    window: WebviewWindow,
+    root: String,
+) -> Result<Vec<MarkdownImportEntry>, String> {
+    require_main_window(&window)?;
+    let p = std::path::Path::new(&root);
+    if !p.is_dir() {
+        return Err(format!("not a directory: {root}"));
+    }
+    let mut out = Vec::new();
+    // folder_depth 1 = the dropped root folder itself.
+    walk_markdown_import(p, "", 1, &mut out)?;
+    if out.is_empty() {
+        return Err("empty_folder".into());
+    }
+    Ok(out)
 }
 
 /// Returns the deep-link URL that cold-launched the app (custom scheme), if any.
@@ -282,7 +431,27 @@ fn deep_link_initial(window: WebviewWindow, app: AppHandle) -> Result<Option<Str
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_deep_link, validate_external_url};
+    use super::{resolve_under_root, validate_deep_link, validate_external_url};
+
+    #[test]
+    fn resolve_under_root_rejects_parent_escape() {
+        let tmp = std::env::temp_dir().join(format!("nordly-import-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).expect("tmpdir");
+        let nested = tmp.join("vault");
+        std::fs::create_dir_all(&nested).expect("nested");
+        let img = nested.join("ok.png");
+        std::fs::write(&img, b"x").expect("write");
+        assert!(resolve_under_root(nested.to_str().unwrap(), "ok.png").is_ok());
+        assert_eq!(
+            resolve_under_root(nested.to_str().unwrap(), "../ok.png").unwrap_err(),
+            "path escape"
+        );
+        assert_eq!(
+            resolve_under_root(nested.to_str().unwrap(), "/etc/passwd").unwrap_err(),
+            "path escape"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     #[test]
     fn deep_links_accept_only_supported_routes() {

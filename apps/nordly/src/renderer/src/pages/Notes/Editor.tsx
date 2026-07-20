@@ -1,10 +1,18 @@
+import { useCallback, useMemo } from 'react';
+
 import { useT } from '@nordly-i18n';
 
 import type { Note } from '@features/notes/api/notesClient';
 import { isNoteVaultLocked } from '@features/notes/api/notesClient';
+import {
+  createNoteAttachmentFromFile,
+  resolveAttachmentObjectUrl,
+} from '@features/notes/api/attachmentsClient';
+import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 import { Kbd } from '@shared/ui/primitives/Kbd';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { LiveMarkdownEditor } from '@shared/ui/LiveMarkdownEditor';
+import type { ImageHrefResolver } from '@shared/lib/codemirror/livePreview';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { formatTime, type ListState } from './utils';
 
@@ -22,6 +30,7 @@ export interface EditorProps {
   onWikiLinkClick: (linkText: string) => void;
   onCreate: () => void;
   onRetryList: () => void;
+  onError?: (message: string) => void;
 }
 
 export function Editor({
@@ -38,6 +47,7 @@ export function Editor({
   onWikiLinkClick,
   onCreate,
   onRetryList,
+  onError,
 }: EditorProps) {
   return (
     <section
@@ -56,12 +66,14 @@ export function Editor({
         ) : (
           <ActiveEditor
             key={active.id}
+            noteId={active.id}
             title={draftTitle}
             body={draftBody}
             noteTitles={noteTitles}
             onTitleChange={onTitleChange}
             onBodyChange={onBodyChange}
             onWikiLinkClick={onWikiLinkClick}
+            onError={onError}
           />
         )}
       </div>
@@ -99,21 +111,60 @@ function VaultLockedPane() {
 }
 
 function ActiveEditor({
+  noteId,
   title,
   body,
   noteTitles,
   onTitleChange,
   onBodyChange,
   onWikiLinkClick,
+  onError,
 }: {
+  noteId: string;
   title: string;
   body: string;
   noteTitles: string[];
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
   onWikiLinkClick: (linkText: string) => void;
+  onError?: (message: string) => void;
 }) {
   const t = useT();
+
+  const resolveImageHref = useMemo((): ImageHrefResolver => {
+    return async (href: string) => {
+      if (/^https:\/\//i.test(href)) return href;
+      const id = parseNordlyAssetId(href);
+      if (!id) return null;
+      return resolveAttachmentObjectUrl(id);
+    };
+  }, []);
+
+  const onInsertImageFile = useCallback(
+    async (file: File) => {
+      const { markdown } = await createNoteAttachmentFromFile(noteId, file);
+      return markdown;
+    },
+    [noteId],
+  );
+
+  const onAttachmentError = useCallback(
+    (err: unknown) => {
+      if (err && typeof err === 'object' && 'code' in err) {
+        const code = String((err as { code: string }).code);
+        const key = `nordly.notes.attachment.${code}`;
+        const msg = t(key);
+        if (msg !== key) {
+          onError?.(msg);
+          return;
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      onError?.(message);
+    },
+    [onError, t],
+  );
+
   return (
     <div className="nordly-notes-editor-shell">
       <input
@@ -129,6 +180,9 @@ function ActiveEditor({
         placeholder={t('nordly.notes.editor.body_placeholder')}
         noteTitles={noteTitles}
         onWikiLinkClick={onWikiLinkClick}
+        resolveImageHref={resolveImageHref}
+        onInsertImageFile={onInsertImageFile}
+        onAttachmentError={onAttachmentError}
       />
     </div>
   );

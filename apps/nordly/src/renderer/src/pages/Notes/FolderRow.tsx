@@ -15,6 +15,7 @@ export interface FolderRowProps {
   open: boolean;
   menuOpen: boolean;
   renaming: boolean;
+  depth?: number;
   onMenuOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
   onStartRename: (id: string) => void;
@@ -28,6 +29,7 @@ export const FolderRow = memo(function FolderRow({
   open,
   menuOpen,
   renaming,
+  depth = 0,
   onMenuOpenChange,
   onToggle,
   onStartRename,
@@ -95,6 +97,8 @@ export const FolderRow = memo(function FolderRow({
         data-open={open ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-renaming={renaming ? 'true' : 'false'}
+        data-depth={depth}
+        style={depth > 0 ? { paddingLeft: 10 + depth * 16 } : undefined}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => {

@@ -9,7 +9,9 @@ export type OutboxOp =
   | 'unschedule'
   | 'status'
   | 'session_start'
-  | 'session_end';
+  | 'session_end'
+  | 'attachment_put'
+  | 'attachment_delete';
 
 export interface OutboxEntry {
   id: string;

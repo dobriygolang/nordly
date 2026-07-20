@@ -20,6 +20,7 @@ import {
   getNote,
   createNote,
   createFolder,
+  ensureFolderPath,
   renameFolder,
   deleteFolder,
   moveNoteToFolder,
@@ -55,13 +56,18 @@ import { VAULT_SIDEBAR_W } from './vaultSidebar';
 import { isTauriRuntime } from '@platform/runtime';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
 import {
+  MarkdownImportError,
+  basenameFromPath,
+  collectBrowserMarkdownDrafts,
+  folderSegmentsForDirEntry,
   isFileDrag,
-  listDroppedMarkdownFiles,
-  listDroppedMarkdownPaths,
-  readMarkdownFile,
+  isMarkdownFilename,
   readMarkdownPath,
   type MarkdownDraft,
 } from '@features/notes/lib/importMarkdownFiles';
+import { rewriteImportedImages } from '@features/notes/lib/rewriteImportedImages';
+import { mimeFromFilename } from '@features/notes/lib/noteAttachments';
+import { createNoteAttachment } from '@features/notes/api/attachmentsClient';
 import {
   NOTES_ZOOM_DEFAULT,
   loadNotesEditorZoom,
@@ -415,6 +421,21 @@ export function NotesPage({
     setFileDropActive(false);
   }, []);
 
+  const importErrorMessage = useCallback(
+    (err: unknown): string => {
+      if (err instanceof MarkdownImportError) {
+        return t(`nordly.notes.file_drop.${err.code}`);
+      }
+      if (err instanceof Error) {
+        if (err.message === 'too_many' || err.message === 'too_deep' || err.message === 'empty_folder') {
+          return t(`nordly.notes.file_drop.${err.message}`);
+        }
+      }
+      return errorMessage(err, t);
+    },
+    [t],
+  );
+
   const importMarkdownDrafts = useCallback(
     async (drafts: MarkdownDraft[]) => {
       if (drafts.length === 0) {
@@ -423,11 +444,56 @@ export function NotesPage({
       }
       if (!(await flushNow())) return;
 
-      const folderId = focusFolderIdRef.current;
+      const focusParent = focusFolderIdRef.current;
+      const pathCache = new Map<string, string | null>();
+      pathCache.set('', focusParent);
+
       let last: Note | null = null;
+      let missingImageCount = 0;
+      let imageWarningCount = 0;
+      const createdFolders: NoteFolder[] = [];
       try {
         for (const draft of drafts) {
-          const n = await createNote(draft.title, draft.bodyMd, folderId);
+          const key = draft.folderSegments.join('\0');
+          let folderId = pathCache.get(key);
+          if (folderId === undefined) {
+            const ensured = await ensureFolderPath(draft.folderSegments, focusParent);
+            folderId = ensured.folderId;
+            pathCache.set(key, folderId);
+            createdFolders.push(...ensured.created);
+          }
+
+          let n = await createNote(draft.title, draft.bodyMd, folderId);
+
+          if (draft.sourceDir && isTauriRuntime()) {
+            const sourceDir = draft.sourceDir;
+            const rewritten = await rewriteImportedImages(
+              n.id,
+              n.bodyMd,
+              async (rel) => {
+                try {
+                  const bytes = await invoke<number[]>('read_binary_file', {
+                    root: sourceDir,
+                    relativePath: rel,
+                  });
+                  const fileName = basenameFromPath(rel);
+                  const mime = mimeFromFilename(fileName) || 'application/octet-stream';
+                  return { bytes: new Uint8Array(bytes), fileName, mime };
+                } catch (err: unknown) {
+                  const msg = err instanceof Error ? err.message : String(err);
+                  if (/not_found|failed to resolve path/i.test(msg)) return null;
+                  throw err instanceof Error ? err : new Error(msg);
+                }
+              },
+              createNoteAttachment,
+            );
+            if (rewritten.bodyMd !== n.bodyMd) {
+              n = await updateNote(n.id, n.title, rewritten.bodyMd);
+            }
+            missingImageCount += rewritten.missing.length;
+            imageWarningCount += rewritten.warnings.length;
+          }
+
           setList((prev) => ({
             ...prev,
             notes: [
@@ -438,23 +504,68 @@ export function NotesPage({
                 sizeBytes: n.sizeBytes,
                 folderId: n.folderId ?? null,
               },
-              ...prev.notes,
+              ...prev.notes.filter((x) => x.id !== n.id),
             ],
           }));
           last = n;
+        }
+        if (createdFolders.length > 0) {
+          setFolders((prev) => {
+            const ids = new Set(prev.map((f) => f.id));
+            const merged = [...prev];
+            for (const f of createdFolders) {
+              if (!ids.has(f.id)) {
+                merged.push(f);
+                ids.add(f.id);
+              }
+            }
+            return merged;
+          });
         }
         if (last) {
           setSelectedId(last.id);
           setActive(last);
           setDraftTitle(last.title);
           setDraftBody(last.bodyMd);
-          setActiveError(null);
+          if (missingImageCount > 0 || imageWarningCount > 0) {
+            const parts: string[] = [];
+            if (missingImageCount > 0) {
+              parts.push(
+                t('nordly.notes.file_drop.images_missing', {
+                  count: String(missingImageCount),
+                }),
+              );
+            }
+            if (imageWarningCount > 0) {
+              parts.push(
+                t('nordly.notes.file_drop.images_warnings', {
+                  count: String(imageWarningCount),
+                }),
+              );
+            }
+            setActiveError(parts.join(' '));
+          } else {
+            setActiveError(null);
+          }
         }
       } catch (err: unknown) {
-        setActiveError(errorMessage(err, t));
+        if (createdFolders.length > 0) {
+          setFolders((prev) => {
+            const ids = new Set(prev.map((f) => f.id));
+            const merged = [...prev];
+            for (const f of createdFolders) {
+              if (!ids.has(f.id)) {
+                merged.push(f);
+                ids.add(f.id);
+              }
+            }
+            return merged;
+          });
+        }
+        setActiveError(importErrorMessage(err));
       }
     },
-    [flushNow, t],
+    [flushNow, importErrorMessage, t],
   );
 
   const onFileDragEnter = useCallback((e: ReactDragEvent) => {
@@ -492,23 +603,14 @@ export function NotesPage({
       e.stopPropagation();
       clearFileDrop();
 
-      const markdownFiles = listDroppedMarkdownFiles(e.dataTransfer.files);
-      if (markdownFiles.length === 0) {
-        setActiveError(t('nordly.notes.file_drop.only_md'));
-        return;
-      }
-
       try {
-        const drafts: MarkdownDraft[] = [];
-        for (const file of markdownFiles) {
-          drafts.push(await readMarkdownFile(file));
-        }
+        const drafts = await collectBrowserMarkdownDrafts(e.dataTransfer);
         await importMarkdownDrafts(drafts);
       } catch (err: unknown) {
-        setActiveError(errorMessage(err, t));
+        setActiveError(importErrorMessage(err));
       }
     },
-    [clearFileDrop, importMarkdownDrafts, t],
+    [clearFileDrop, importErrorMessage, importMarkdownDrafts],
   );
 
   // Tauri WebView does not deliver OS file drops via HTML5 File API — use native paths.
@@ -516,6 +618,65 @@ export function NotesPage({
     if (!isTauriRuntime()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
+
+    type ImportEntry = { path: string; relativeDir: string; name: string };
+
+    const readText = (p: string) => invoke<string>('read_text_file', { path: p });
+
+    const collectTauriDrafts = async (paths: string[]): Promise<MarkdownDraft[]> => {
+      const drafts: MarkdownDraft[] = [];
+      let sawDirectory = false;
+
+      for (const path of paths) {
+        const base = basenameFromPath(path);
+        if (isMarkdownFilename(base)) {
+          drafts.push(await readMarkdownPath(path, readText, []));
+          continue;
+        }
+
+        try {
+          const entries = await invoke<ImportEntry[]>('list_markdown_import_entries', {
+            root: path,
+          });
+          sawDirectory = true;
+          const rootName = base;
+          for (const entry of entries) {
+            drafts.push(
+              await readMarkdownPath(
+                entry.path,
+                readText,
+                folderSegmentsForDirEntry(rootName, entry.relativeDir),
+              ),
+            );
+          }
+        } catch (err: unknown) {
+          const msg =
+            typeof err === 'string'
+              ? err
+              : err instanceof Error
+                ? err.message
+                : String(err);
+          if (msg.includes('too_many')) {
+            throw new MarkdownImportError('too_many');
+          }
+          if (msg.includes('too_deep')) {
+            throw new MarkdownImportError('too_deep');
+          }
+          if (msg.includes('empty_folder')) {
+            sawDirectory = true;
+            continue;
+          }
+          // Not a directory (and not markdown) — skip.
+          if (msg.includes('not a directory')) continue;
+          throw err;
+        }
+      }
+
+      if (drafts.length === 0) {
+        throw new MarkdownImportError(sawDirectory ? 'empty_folder' : 'only_md');
+      }
+      return drafts;
+    };
 
     void getCurrentWindow()
       .onDragDropEvent((event) => {
@@ -531,7 +692,7 @@ export function NotesPage({
         if (payload.type !== 'drop') return;
         clearFileDrop();
 
-        const paths = listDroppedMarkdownPaths(payload.paths);
+        const paths = payload.paths ?? [];
         if (paths.length === 0) {
           setActiveError(t('nordly.notes.file_drop.only_md'));
           return;
@@ -539,15 +700,10 @@ export function NotesPage({
 
         void (async () => {
           try {
-            const drafts: MarkdownDraft[] = [];
-            for (const path of paths) {
-              drafts.push(
-                await readMarkdownPath(path, (p) => invoke<string>('read_text_file', { path: p })),
-              );
-            }
+            const drafts = await collectTauriDrafts(paths);
             if (!disposed) await importMarkdownDrafts(drafts);
           } catch (err: unknown) {
-            if (!disposed) setActiveError(errorMessage(err, t));
+            if (!disposed) setActiveError(importErrorMessage(err));
           }
         })();
       })
@@ -556,18 +712,28 @@ export function NotesPage({
         else unlisten = fn;
       })
       .catch((err: unknown) => {
-        if (!disposed) setActiveError(errorMessage(err, t));
+        if (!disposed) setActiveError(importErrorMessage(err));
       });
 
     return () => {
       disposed = true;
       unlisten?.();
     };
-  }, [clearFileDrop, importMarkdownDrafts, t]);
+  }, [clearFileDrop, importErrorMessage, importMarkdownDrafts, t]);
 
   const handleCreateFolder = useCallback(async (): Promise<NoteFolder> => {
     try {
-      const folder = await createFolder(t('nordly.notes.folder.default_name'));
+      const parentId = focusFolderIdRef.current;
+      const base = t('nordly.notes.folder.default_name');
+      const siblings = folders.filter((f) => (f.parentId ?? null) === parentId);
+      const taken = new Set(siblings.map((f) => f.name));
+      let name = base;
+      if (taken.has(name)) {
+        let n = 2;
+        while (taken.has(`${base} ${n}`)) n += 1;
+        name = `${base} ${n}`;
+      }
+      const folder = await createFolder(name, parentId);
       setFolders((prev) => [...prev, folder]);
       focusFolderIdRef.current = folder.id;
       return folder;
@@ -575,7 +741,7 @@ export function NotesPage({
       setActiveError(errorMessage(err, t));
       throw err;
     }
-  }, [t]);
+  }, [folders, t]);
 
   const handleRenameFolder = useCallback(
     (id: string, name: string) => {
@@ -593,15 +759,18 @@ export function NotesPage({
   const handleDeleteFolder = useCallback(
     async (id: string) => {
       try {
-        await deleteFolder(id);
-        setFolders((prev) => prev.filter((f) => f.id !== id));
+        const deletedIds = await deleteFolder(id);
+        const deleted = new Set(deletedIds);
+        setFolders((prev) => prev.filter((f) => !deleted.has(f.id)));
         setList((prev) => ({
           ...prev,
           notes: prev.notes.map((n) =>
-            n.folderId === id ? { ...n, folderId: null } : n,
+            n.folderId && deleted.has(n.folderId) ? { ...n, folderId: null } : n,
           ),
         }));
-        if (focusFolderIdRef.current === id) focusFolderIdRef.current = null;
+        if (focusFolderIdRef.current && deleted.has(focusFolderIdRef.current)) {
+          focusFolderIdRef.current = null;
+        }
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
         throw err;
@@ -860,6 +1029,7 @@ export function NotesPage({
           onWikiLinkClick={(linkText) => void handleWikiLinkClick(linkText)}
           onCreate={handleCreate}
           onRetryList={loadList}
+          onError={setActiveError}
         />
       </div>
 

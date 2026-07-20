@@ -37,6 +37,45 @@ type BacklinkEntry struct {
 	UpdatedAt time.Time
 }
 
+type NoteAttachment struct {
+	ID        string
+	UserID    string
+	NoteID    string
+	FileName  string
+	MIME      string
+	Data      []byte
+	Encrypted bool
+	SizeBytes int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// NoteAttachmentSummary is list metadata without blob bytes.
+type NoteAttachmentSummary struct {
+	ID        string
+	UserID    string
+	NoteID    string
+	FileName  string
+	MIME      string
+	Encrypted bool
+	SizeBytes int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// PublishedAttachment is an asset selected when publishing a note.
+type PublishedAttachment struct {
+	ID       string
+	FileName string
+	MIME     string
+	Data     []byte
+}
+
+type PublishedNoteAsset struct {
+	MIME string
+	Data []byte
+}
+
 type PublishStatus struct {
 	Published         bool
 	Slug              string

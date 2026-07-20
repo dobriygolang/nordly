@@ -11,6 +11,8 @@ export interface DraggableNoteRowProps {
   active: boolean;
   menuOpen: boolean;
   nested: boolean;
+  /** Folder nesting depth (0 = top-level folder). Used for indent. */
+  depth?: number;
   dragDisabled?: boolean;
   onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
@@ -23,6 +25,7 @@ export interface DraggableNoteRowProps {
 export const DraggableNoteRow = memo(function DraggableNoteRow({
   note,
   nested,
+  depth = 0,
   dragDisabled,
   menuOpen,
   ...rowProps
@@ -59,6 +62,12 @@ export const DraggableNoteRow = memo(function DraggableNoteRow({
       ref={setNodeRef}
       className={`nordly-note-row-slot${isDragging ? ' nordly-note-row-slot--dragging' : ''}`}
       data-nested={nested ? 'true' : 'false'}
+      data-depth={depth}
+      style={
+        nested
+          ? { ['--note-nest-pad' as string]: `${28 + depth * 16}px` }
+          : undefined
+      }
     >
       <NoteRow
         note={note}

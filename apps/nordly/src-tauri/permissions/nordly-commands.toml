@@ -14,6 +14,8 @@ commands.allow = [
   "window_traffic_lights_show",
   "deep_link_initial",
   "read_text_file",
+  "read_binary_file",
+  "list_markdown_import_entries",
   "show_notification",
   "apple_calendar_auth_status",
   "apple_calendar_runtime_info",

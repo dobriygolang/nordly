@@ -10,7 +10,7 @@ import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { flushSync, scheduleSync } from '@shared/sync/SyncEngine';
-import { isSyncEnabled } from '@shared/sync/syncConfig';
+import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
 
@@ -66,7 +66,7 @@ export async function createTask(input: { title: string; kind?: TaskKind }): Pro
     updatedAt: now,
   };
   await tasksStorePut(task);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     await enqueueOutbox('tasks', 'create', task.id, {
       title: task.title,
       kind: task.kind,
@@ -97,7 +97,7 @@ export async function moveTaskStatus(taskId: string, status: TaskStatus): Promis
     completedAt: status === 'done' ? now : prev.completedAt,
   };
   await tasksStorePut(task);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     await enqueueTaskOutbox(taskId, prev.id, 'status', { status });
     scheduleSync();
   }
@@ -138,7 +138,7 @@ export async function scheduleTask(
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     await enqueueTaskOutbox(taskId, prev.id, 'schedule', {
       startIso,
       durationMin: task.scheduledDurationMin,
@@ -153,7 +153,7 @@ export async function deleteTask(taskId: string): Promise<void> {
   if (!prev) throw new Error(`Task not found: ${taskId}`);
   const id = prev.id;
   await tasksStoreSoftDelete(id);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     if (taskId !== id) await cancelOutboxForEntity('tasks', taskId);
     await cancelOutboxForEntity('tasks', id);
     await enqueueOutbox('tasks', 'delete', id, {});
@@ -207,7 +207,7 @@ export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection
   };
   await tasksStorePut(task);
 
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     if (selection === null) {
       await enqueueTaskOutbox(taskId, prev.id, 'patch', { clearEpic: true });
     } else if (epicId) {
@@ -234,7 +234,7 @@ export async function patchTaskDetails(
     conferenceProvider: patch.clearConference ? undefined : prev.conferenceProvider,
   };
   await tasksStorePut(task);
-  if (isSyncEnabled() && patch.clearConference) {
+  if (isSyncQueueEnabled() && patch.clearConference) {
     await enqueueTaskOutbox(taskId, prev.id, 'patch', {
       clearConference: true,
     });
@@ -253,7 +253,7 @@ export async function createTaskConference(
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
   let serverId = await getServerId('tasks', taskId);
-  if (!serverId && isSyncEnabled()) {
+  if (!serverId && isSyncQueueEnabled()) {
     // Meet/Zoom need the tracker id — push local creates first.
     // Best-effort: unrelated outbox failures must not block conference creation.
     try {

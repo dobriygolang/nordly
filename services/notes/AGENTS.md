@@ -22,8 +22,9 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 |------|-------|
 | Vault | `POST /v1/notes/vault/init`, `GET /v1/notes/vault/salt`, `POST /v1/notes/vault/notes/{id}/encrypt` |
 | Notes | `GET/POST /v1/notes`, `GET/PUT/DELETE /v1/notes/{id}`, `GET /v1/notes/{id}/backlinks` |
+| Attachments | `PUT/GET/DELETE /v1/notes/{note_id}/attachments/{id}`, `GET /v1/notes/{note_id}/attachments` (metadata only) |
 | Publish | `POST /v1/notes/{id}/share-to-web`, `unpublish`, `make-private`, `GET publish-status` |
-| **Public** | `GET /v1/notes/public/{slug}` — metadata only when password-protected; `POST /v1/notes/public/{slug}/access` with `{ password }` unlocks body |
+| **Public** | `GET /v1/notes/public/{slug}` — metadata only when password-protected; `POST /v1/notes/public/{slug}/access` with `{ password }` unlocks body; `GET /v1/notes/public/{slug}/assets/{asset_id}` serves published image bytes |
 
 ## Env
 
@@ -53,6 +54,8 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 - `vault_salts` — per-user random 32-byte salt (base64 to client)
 - `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`, `publish_password_hash`, `publish_expires_at`
 - `note_links` — wiki-link graph metadata (`source_note_id`, optional `target_note_id`, `link_text`); **client-provided** on create/update (server does not parse encrypted `body_md`)
+- `note_attachments` — owner-only image data (PNG/JPEG/GIF/WebP, max 5 MiB, 50 per note); removed when the note is archived
+- `published_note_assets` — public-share image snapshots; public shares reference relative asset paths, while password-protected shares embed data URLs (capped at 15 MiB total raw bytes). Public asset GET requires an unprotected (non-password) published note.
 
 Soft-delete: `archived_at` is set transactionally and all source/target `note_links` are removed.
 `ListNotes` is intentionally capped at 200 newest notes; cursor pagination is deferred until the

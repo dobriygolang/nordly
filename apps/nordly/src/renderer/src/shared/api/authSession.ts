@@ -67,6 +67,12 @@ export function canUseLocalApp(): boolean {
   return status === 'signed_in' && Boolean(userId);
 }
 
+/** Definitive: no way to mint a new access token without interactive login. */
+function markReauthRequired(): void {
+  refreshRejected = true;
+  setSessionReauthRequired(true);
+}
+
 async function persistRefreshedTokens(
   tokens: {
     accessToken: string;
@@ -100,15 +106,13 @@ export async function refreshAccessToken(): Promise<boolean> {
     try {
       const { userId, refreshToken } = useSessionStore.getState();
       if (!refreshToken) {
-        refreshRejected = true;
-        if (isSessionExpired()) setSessionReauthRequired(true);
+        // Cannot recover without interactive login — even offline.
+        if (isSessionExpired()) markReauthRequired();
         return false;
       }
       if (!userId) throw new Error('Cannot refresh tokens without a signed-in user');
-      if (!canReachNetwork()) {
-        if (isSessionExpired()) setSessionReauthRequired(true);
-        return false;
-      }
+      // Offline + expired access: keep local session silently (no reauth banner).
+      if (!canReachNetwork()) return false;
 
       const resp = await rawAuthFetch(apiPath('/v1/auth/refresh'), {
         method: 'POST',
@@ -116,11 +120,9 @@ export async function refreshAccessToken(): Promise<boolean> {
         body: JSON.stringify({ refreshToken }),
       });
       if (!resp.ok) {
+        // Only 400/401 are definitive; network blips / 5xx must not lock the user out.
         if (resp.status === 400 || resp.status === 401) {
-          refreshRejected = true;
-          setSessionReauthRequired(true);
-        } else if (isSessionExpired()) {
-          setSessionReauthRequired(true);
+          markReauthRequired();
         }
         return false;
       }
@@ -138,7 +140,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       return true;
     } catch (err) {
       console.error('[nordly:auth] token refresh failed', err);
-      if (isSessionExpired()) setSessionReauthRequired(true);
+      // Transient network / parse errors: keep local session, retry later.
       return false;
     }
   })();
@@ -155,6 +157,7 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
   const { accessToken, refreshToken } = useSessionStore.getState();
   if (!accessToken && !refreshToken) return false;
   if (accessToken && !isSessionExpired() && !isAccessTokenExpiringSoon()) {
+    refreshRejected = false;
     setSessionReauthRequired(false);
     return true;
   }
@@ -163,7 +166,7 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
     return false;
   }
   if (!canReachNetwork()) {
-    if (isSessionExpired()) setSessionReauthRequired(true);
+    // Offline grace: do not demand reauth; sync simply cannot run.
     return !isSessionExpired();
   }
   const refreshed = await refreshAccessToken();
@@ -182,10 +185,8 @@ export async function handleUnauthorized(): Promise<void> {
     return;
   }
 
-  if (!canReachNetwork()) {
-    setSessionReauthRequired(true);
-    return;
-  }
+  // Offline 401s are not definitive — keep local session without a reauth banner.
+  if (!canReachNetwork()) return;
 
   const refreshed = await refreshAccessToken();
   if (refreshed) {
@@ -193,7 +194,9 @@ export async function handleUnauthorized(): Promise<void> {
     return;
   }
 
-  setSessionReauthRequired(true);
+  if (refreshRejected) {
+    setSessionReauthRequired(true);
+  }
 }
 
 export function startSessionRefreshLoop(): () => void {
@@ -202,7 +205,7 @@ export function startSessionRefreshLoop(): () => void {
     if (status !== 'signed_in') return;
 
     if (!canReachNetwork()) {
-      if (isSessionExpired()) setSessionReauthRequired(true);
+      // Stay silent offline — local app keeps working with an expired access JWT.
       return;
     }
 

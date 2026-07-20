@@ -10,9 +10,11 @@ import { EditorView, keymap } from '@codemirror/view';
 import { wikiLinkAtPosition, noteTitlesSet } from '@features/notes/lib/wikiLinks';
 import {
   codeBlockField,
+  imageHrefResolverFacet,
   livePreviewPlugin,
   notesEditorTheme,
   wikiLinkTitlesFacet,
+  type ImageHrefResolver,
 } from '@shared/lib/codemirror/livePreview';
 import {
   notesCodeSyntaxHighlighting,
@@ -28,6 +30,11 @@ interface LiveMarkdownEditorProps {
   placeholder?: string;
   noteTitles?: string[];
   onWikiLinkClick?: (linkText: string) => void;
+  /** Resolve nordly-asset: / https hrefs for live preview images. */
+  resolveImageHref?: ImageHrefResolver | null;
+  /** Paste/drop image → insert markdown snippet at cursor (return null to ignore). */
+  onInsertImageFile?: (file: File) => Promise<string | null>;
+  onAttachmentError?: (err: unknown) => void;
 }
 
 function findSlashTrigger(state: EditorState): { slashStart: number; query: string } | null {
@@ -61,18 +68,26 @@ export function LiveMarkdownEditor({
   placeholder,
   noteTitles = [],
   onWikiLinkClick,
+  resolveImageHref = null,
+  onInsertImageFile,
+  onAttachmentError,
 }: LiveMarkdownEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onWikiLinkClickRef = useRef(onWikiLinkClick);
+  const onInsertImageFileRef = useRef(onInsertImageFile);
+  const onAttachmentErrorRef = useRef(onAttachmentError);
   /** Last doc string we pushed via onChange — ignore stale React props lagging behind. */
   const lastEmittedRef = useRef(value);
   const awaitingEchoRef = useRef(false);
   const titlesCompartmentRef = useRef(new Compartment());
   const autocompleteCompartmentRef = useRef(new Compartment());
+  const imageResolverCompartmentRef = useRef(new Compartment());
   onChangeRef.current = onChange;
   onWikiLinkClickRef.current = onWikiLinkClick;
+  onInsertImageFileRef.current = onInsertImageFile;
+  onAttachmentErrorRef.current = onAttachmentError;
 
   const resolvedTitles = useMemo(() => noteTitlesSet(noteTitles.map((t) => ({ id: '', title: t }))), [noteTitles]);
 
@@ -122,9 +137,76 @@ export function LiveMarkdownEditor({
           notesEditorTheme,
           fenceAutoCloseInput,
           titlesCompartmentRef.current.of(wikiLinkTitlesFacet.of(resolvedTitles)),
+          imageResolverCompartmentRef.current.of(imageHrefResolverFacet.of(resolveImageHref)),
           autocompleteCompartmentRef.current.of(wikiLinkAutocomplete(noteTitles)),
           EditorView.lineWrapping,
           EditorView.domEventHandlers({
+            paste(event, view) {
+              const insert = onInsertImageFileRef.current;
+              if (!insert || !event.clipboardData) return false;
+              const files = Array.from(event.clipboardData.files).filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (files.length === 0) return false;
+              event.preventDefault();
+              void (async () => {
+                try {
+                  let pos = view.state.selection.main.from;
+                  for (const file of files) {
+                    const md = await insert(file);
+                    if (!md) continue;
+                    const insertText = (pos > 0 && view.state.doc.sliceString(pos - 1, pos) !== '\n' ? '\n' : '') + md + '\n';
+                    view.dispatch({
+                      changes: { from: pos, to: pos, insert: insertText },
+                      selection: { anchor: pos + insertText.length },
+                    });
+                    pos += insertText.length;
+                  }
+                } catch (err) {
+                  onAttachmentErrorRef.current?.(err);
+                }
+              })();
+              return true;
+            },
+            drop(event, view) {
+              const insert = onInsertImageFileRef.current;
+              if (!insert || !event.dataTransfer) return false;
+              const files = Array.from(event.dataTransfer.files).filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (files.length === 0) return false;
+              event.preventDefault();
+              const pos =
+                view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+                view.state.selection.main.from;
+              void (async () => {
+                try {
+                  let cursor = pos;
+                  for (const file of files) {
+                    const md = await insert(file);
+                    if (!md) continue;
+                    const insertText = '\n' + md + '\n';
+                    view.dispatch({
+                      changes: { from: cursor, to: cursor, insert: insertText },
+                      selection: { anchor: cursor + insertText.length },
+                    });
+                    cursor += insertText.length;
+                  }
+                } catch (err) {
+                  onAttachmentErrorRef.current?.(err);
+                }
+              })();
+              return true;
+            },
+            dragover(event) {
+              if (!onInsertImageFileRef.current) return false;
+              const types = event.dataTransfer?.types;
+              if (types && Array.from(types).includes('Files')) {
+                event.preventDefault();
+                return true;
+              }
+              return false;
+            },
             mousedown(event, view) {
               if (event.button !== 0) return false;
               const target = event.target as HTMLElement | null;
@@ -190,9 +272,12 @@ export function LiveMarkdownEditor({
       effects: [
         titlesCompartmentRef.current.reconfigure(wikiLinkTitlesFacet.of(resolvedTitles)),
         autocompleteCompartmentRef.current.reconfigure(wikiLinkAutocomplete(noteTitles)),
+        imageResolverCompartmentRef.current.reconfigure(
+          imageHrefResolverFacet.of(resolveImageHref),
+        ),
       ],
     });
-  }, [noteTitles, resolvedTitles]);
+  }, [noteTitles, resolvedTitles, resolveImageHref]);
 
   useEffect(() => {
     const view = viewRef.current;

@@ -212,6 +212,24 @@
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
 }
 
+.nordly-published-md .nordly-md-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.85em 0;
+  border-radius: 6px;
+}
+
+.nordly-published-md .nordly-md-image--unresolved,
+.nordly-published-md .nordly-md-image__placeholder {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed rgb(var(--ink-rgb) / 0.35);
+  border-radius: 6px;
+  color: var(--ink-60);
+  font-size: 0.875em;
+}
+
 .nordly-published-md pre.nordly-md-code-block {
   position: relative;
   margin: 0.85em 0;

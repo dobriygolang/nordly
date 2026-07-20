@@ -12,7 +12,7 @@
   transition: background-color var(--t-fast);
 }
 .nordly-note-row-slot[data-nested='true'] .nordly-note-row-wrap {
-  padding-left: 28px;
+  padding-left: var(--note-nest-pad, 28px);
 }
 .nordly-note-row-slot {
   touch-action: none;
@@ -90,7 +90,7 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   opacity: 0.55;
 }
 .nordly-note-insert-preview[data-nested='true'] .nordly-note-row-wrap {
-  padding-left: 28px;
+  padding-left: var(--note-nest-pad, 28px);
 }
 .nordly-note-insert-preview .nordly-note-row-wrap {
   background: rgb(var(--ink-rgb) / 0.1);
@@ -655,6 +655,39 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
+}
+
+.nordly-md-image {
+  display: block;
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+
+.nordly-md-image__img {
+  display: block;
+  max-width: min(100%, 36rem);
+  max-height: 24rem;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.nordly-md-image__placeholder {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink-50);
+  font-size: 0.8125rem;
+}
+
+.nordly-md-image--unresolved .nordly-md-image__placeholder {
+  border: 1px dashed rgb(var(--ink-rgb) / 0.25);
+}
+
+.nordly-md-image-syntax {
+  color: var(--ink-60);
 }
 
 .nordly-md-wiki-link {

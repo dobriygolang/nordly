@@ -68,6 +68,32 @@ service NotesService {
     };
   }
 
+  // Note attachments
+  rpc PutNoteAttachment(PutNoteAttachmentRequest) returns (PutNoteAttachmentResponse) {
+    option (google.api.http) = {
+      put: "/v1/notes/{note_id}/attachments/{id}"
+      body: "*"
+    };
+  }
+
+  rpc GetNoteAttachment(GetNoteAttachmentRequest) returns (GetNoteAttachmentResponse) {
+    option (google.api.http) = {
+      get: "/v1/notes/{note_id}/attachments/{id}"
+    };
+  }
+
+  rpc ListNoteAttachments(ListNoteAttachmentsRequest) returns (ListNoteAttachmentsResponse) {
+    option (google.api.http) = {
+      get: "/v1/notes/{note_id}/attachments"
+    };
+  }
+
+  rpc DeleteNoteAttachment(DeleteNoteAttachmentRequest) returns (DeleteNoteAttachmentResponse) {
+    option (google.api.http) = {
+      delete: "/v1/notes/{note_id}/attachments/{id}"
+    };
+  }
+
   // Publish
   rpc UnpublishNote(UnpublishNoteRequest) returns (UnpublishNoteResponse) {
     option (google.api.http) = {
@@ -107,6 +133,12 @@ service NotesService {
     option (google.api.http) = {
       post: "/v1/notes/public/{slug}/access"
       body: "*"
+    };
+  }
+
+  rpc GetPublishedNoteAsset(GetPublishedNoteAssetRequest) returns (GetPublishedNoteAssetResponse) {
+    option (google.api.http) = {
+      get: "/v1/notes/public/{slug}/assets/{asset_id}"
     };
   }
 }
@@ -209,6 +241,65 @@ message DeleteNoteRequest {
 
 message DeleteNoteResponse {}
 
+message NoteAttachment {
+  string id = 1;
+  string file_name = 2;
+  string mime = 3;
+  string data_b64 = 4;
+  bool encrypted = 5;
+  int32 size_bytes = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// Metadata only — List must not ship BYTEA bodies.
+message NoteAttachmentSummary {
+  string id = 1;
+  string file_name = 2;
+  string mime = 3;
+  bool encrypted = 4;
+  int32 size_bytes = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message PutNoteAttachmentRequest {
+  string note_id = 1;
+  string id = 2;
+  string file_name = 3;
+  string mime = 4;
+  string data_b64 = 5;
+  bool encrypted = 6;
+}
+
+message PutNoteAttachmentResponse {
+  NoteAttachment attachment = 1;
+}
+
+message GetNoteAttachmentRequest {
+  string note_id = 1;
+  string id = 2;
+}
+
+message GetNoteAttachmentResponse {
+  NoteAttachment attachment = 1;
+}
+
+message ListNoteAttachmentsRequest {
+  string note_id = 1;
+}
+
+message ListNoteAttachmentsResponse {
+  repeated NoteAttachmentSummary attachments = 1;
+}
+
+message DeleteNoteAttachmentRequest {
+  string note_id = 1;
+  string id = 2;
+}
+
+message DeleteNoteAttachmentResponse {}
+
 message UnpublishNoteRequest {
   string note_id = 1;
 }
@@ -234,6 +325,14 @@ message ShareNoteToWebRequest {
   bool password_protected = 3;
   string password = 4;
   int32 expires_in_days = 5;
+  repeated PublishedAttachmentInput attachments = 6;
+}
+
+message PublishedAttachmentInput {
+  string id = 1;
+  string file_name = 2;
+  string mime = 3;
+  string data_b64 = 4;
 }
 
 message ShareNoteToWebResponse {
@@ -270,4 +369,14 @@ message AccessPublishedNoteResponse {
   string title = 1;
   string body_md = 2;
   google.protobuf.Timestamp published_at = 3;
+}
+
+message GetPublishedNoteAssetRequest {
+  string slug = 1;
+  string asset_id = 2;
+}
+
+message GetPublishedNoteAssetResponse {
+  string mime = 1;
+  string data_b64 = 2;
 }

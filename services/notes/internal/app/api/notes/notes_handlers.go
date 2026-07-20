@@ -156,7 +156,7 @@ func (i *Implementation) ShareNoteToWeb(
 		PasswordProtected: req.GetPasswordProtected(),
 		Password:          req.GetPassword(),
 		ExpiresInDays:     req.GetExpiresInDays(),
-	})
+	}, fromProtoPublishedAttachments(req.GetAttachments()))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

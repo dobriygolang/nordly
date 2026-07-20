@@ -20,7 +20,7 @@ import { addDays, parseDayKey, parseScheduleInstant, toDayKey } from '@shared/li
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { scheduleSync } from '@shared/sync/SyncEngine';
-import { canReachNetwork, isSyncEnabled } from '@shared/sync/syncConfig';
+import { canReachNetwork, isSyncEnabled, isSyncQueueEnabled } from '@shared/sync/syncConfig';
 
 export type { FocusDay, FocusSession, NordlyStats, QueueStats, StoredFocusSession };
 export { padToSevenDays };
@@ -274,7 +274,7 @@ export async function startFocusSession(args: {
     synced: false,
   });
   await focusStorePut(row);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     await enqueueOutbox('focus', 'session_start', id, {
       planItemId: args.planItemId ?? '',
       pinnedTitle: args.pinnedTitle ?? '',
@@ -305,7 +305,7 @@ export async function endFocusSession(args: {
     synced: false,
   };
   await focusStorePut(row);
-  if (isSyncEnabled()) {
+  if (isSyncQueueEnabled()) {
     await enqueueOutbox('focus', 'session_end', args.sessionId, {
       pomodorosCompleted: args.pomodorosCompleted,
       secondsFocused: args.secondsFocused,

@@ -14,11 +14,22 @@ function escapeHtml(text: string): string {
 
 function safeHref(url: string): string | null {
   const trimmed = url.trim()
-  if (/^https?:\/\//i.test(trimmed) || /^mailto:/i.test(trimmed)) return trimmed
+  if (/^https:\/\//i.test(trimmed)) return trimmed
+  if (/^mailto:/i.test(trimmed)) return trimmed
+  // Published note assets (same-origin relative path).
+  if (/^\/v1\/notes\/public\/[^/]+\/assets\/[^/?#]+$/i.test(trimmed)) return trimmed
   return null
 }
 
-/** Inline markdown → HTML (bold, italic, code, links, highlight, wiki). */
+function safeImageSrc(url: string): string | null {
+  const trimmed = url.trim()
+  if (/^https:\/\//i.test(trimmed)) return trimmed
+  if (/^\/v1\/notes\/public\/[^/]+\/assets\/[^/?#]+$/i.test(trimmed)) return trimmed
+  if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(trimmed)) return trimmed
+  return null
+}
+
+/** Inline markdown → HTML (bold, italic, code, links, images, highlight, wiki). */
 export function renderInlineMarkdown(src: string): string {
   let out = ''
   let i = 0
@@ -54,6 +65,23 @@ export function renderInlineMarkdown(src: string): string {
         out += `<code class="nordly-md-inline-code">${escapeHtml(src.slice(i + 1, end))}</code>`
         i = end + 1
         continue
+      }
+    }
+
+    // Image ![alt](url) — before links
+    if (src[i] === '!' && src[i + 1] === '[') {
+      const labelEnd = src.indexOf(']', i + 2)
+      if (labelEnd !== -1 && src[labelEnd + 1] === '(') {
+        const urlEnd = src.indexOf(')', labelEnd + 2)
+        if (urlEnd !== -1) {
+          const alt = src.slice(i + 2, labelEnd)
+          const srcHref = safeImageSrc(src.slice(labelEnd + 2, urlEnd))
+          if (srcHref) {
+            out += `<img class="nordly-md-image" src="${escapeHtml(srcHref)}" alt="${escapeHtml(alt)}" loading="lazy" />`
+            i = urlEnd + 1
+            continue
+          }
+        }
       }
     }
 

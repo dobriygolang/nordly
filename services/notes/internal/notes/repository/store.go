@@ -20,15 +20,20 @@ type Store interface {
 	CountActiveNotes(ctx context.Context, userID string) (int, error)
 	CountPublishedNotes(ctx context.Context, userID string) (int, error)
 	SumActiveNoteBytes(ctx context.Context, userID string) (int64, error)
+	PutNoteAttachment(ctx context.Context, attachment notesmodel.NoteAttachment) (*notesmodel.NoteAttachment, error)
+	GetNoteAttachment(ctx context.Context, userID, noteID, id string) (*notesmodel.NoteAttachment, error)
+	ListNoteAttachments(ctx context.Context, userID, noteID string) ([]notesmodel.NoteAttachmentSummary, error)
+	DeleteNoteAttachment(ctx context.Context, userID, noteID, id string) error
 
 	EncryptNote(ctx context.Context, userID, noteID, ciphertext string) error
 
 	UnpublishNote(ctx context.Context, userID, noteID string) error
 	GetPublishStatus(ctx context.Context, userID, noteID, publicBaseURL string) (*notesmodel.PublishStatus, error)
-	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext, publicBaseURL string, meta notesmodel.PublishMeta) (*notesmodel.ShareToWebResult, error)
+	ShareNoteToWeb(ctx context.Context, userID, noteID, plaintext, publicBaseURL string, meta notesmodel.PublishMeta, assets []notesmodel.PublishedAttachment) (*notesmodel.ShareToWebResult, error)
 	MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error
 	GetPublishedNoteBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNote, error)
 	GetPublishedNoteRecordBySlug(ctx context.Context, slug string) (*notesmodel.PublishedNoteRecord, error)
+	GetPublishedNoteAsset(ctx context.Context, slug, assetID string) (*notesmodel.PublishedNoteAsset, error)
 }
 
 var _ Store = (*Repository)(nil)

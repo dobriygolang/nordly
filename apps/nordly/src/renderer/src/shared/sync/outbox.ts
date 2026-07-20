@@ -125,7 +125,12 @@ export async function cancelOutboxForEntity(
   const uid = userId ?? requireUserId();
   const rows = await listOutbox(uid);
   for (const row of rows) {
-    if (row.domain === domain && row.entityId === entityId && row.op !== 'delete') {
+    if (
+      row.domain === domain &&
+      row.entityId === entityId &&
+      row.op !== 'delete' &&
+      row.op !== 'attachment_delete'
+    ) {
       await removeOutbox(row.id, uid);
     }
   }

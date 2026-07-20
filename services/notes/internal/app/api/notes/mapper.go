@@ -1,6 +1,8 @@
 package notesapi
 
 import (
+	"encoding/base64"
+
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	notesservice "github.com/dobriygolang/project-nordly/services/notes/internal/notes/service"
 	notesv1 "github.com/dobriygolang/project-nordly/services/notes/pkg/api/notes/v1"
@@ -53,6 +55,47 @@ func toProtoNoteSummary(n notesmodel.NoteSummary) *notesv1.NoteSummary {
 		UpdatedAt: timestamppb.New(n.UpdatedAt),
 		SizeBytes: int32(n.SizeBytes),
 	}
+}
+
+func toProtoNoteAttachment(a *notesmodel.NoteAttachment) *notesv1.NoteAttachment {
+	return &notesv1.NoteAttachment{
+		Id:        a.ID,
+		FileName:  a.FileName,
+		Mime:      a.MIME,
+		DataB64:   base64.StdEncoding.EncodeToString(a.Data),
+		Encrypted: a.Encrypted,
+		SizeBytes: int32(a.SizeBytes),
+		CreatedAt: timestamppb.New(a.CreatedAt),
+		UpdatedAt: timestamppb.New(a.UpdatedAt),
+	}
+}
+
+func toProtoNoteAttachmentSummary(a *notesmodel.NoteAttachmentSummary) *notesv1.NoteAttachmentSummary {
+	return &notesv1.NoteAttachmentSummary{
+		Id:        a.ID,
+		FileName:  a.FileName,
+		Mime:      a.MIME,
+		Encrypted: a.Encrypted,
+		SizeBytes: int32(a.SizeBytes),
+		CreatedAt: timestamppb.New(a.CreatedAt),
+		UpdatedAt: timestamppb.New(a.UpdatedAt),
+	}
+}
+
+func fromProtoAttachmentInput(a *notesv1.PublishedAttachmentInput) notesservice.AttachmentInput {
+	return notesservice.AttachmentInput{
+		ID: a.GetId(), FileName: a.GetFileName(), MIME: a.GetMime(), DataB64: a.GetDataB64(),
+	}
+}
+
+func fromProtoPublishedAttachments(inputs []*notesv1.PublishedAttachmentInput) []notesservice.AttachmentInput {
+	out := make([]notesservice.AttachmentInput, 0, len(inputs))
+	for _, input := range inputs {
+		if input != nil {
+			out = append(out, fromProtoAttachmentInput(input))
+		}
+	}
+	return out
 }
 
 func mapServiceError(err error) error {

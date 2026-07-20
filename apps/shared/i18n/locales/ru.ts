@@ -45,8 +45,22 @@ export const ru = {
   'nordly.notes.vault_locked_cta': 'Открыть настройки',
   'nordly.notes.editor.body_placeholder': 'Начните писать…',
   'nordly.notes.editor.title_placeholder': 'Без названия',
-  'nordly.notes.file_drop.hint': 'Перетащите markdown, чтобы добавить заметку',
+  'nordly.notes.file_drop.hint': 'Перетащите markdown-файлы или папку',
   'nordly.notes.file_drop.only_md': 'Можно импортировать только файлы .md или .markdown.',
+  'nordly.notes.file_drop.empty_folder': 'В папке нет файлов .md или .markdown.',
+  'nordly.notes.file_drop.too_many': 'Слишком много markdown-файлов для импорта (макс. 500).',
+  'nordly.notes.file_drop.too_deep': 'Слишком глубокое дерево папок для импорта (макс. 20 уровней).',
+  'nordly.notes.file_drop.images_missing':
+    '{{count}} связанных изображений не найдены рядом с markdown-файлом.',
+  'nordly.notes.file_drop.images_warnings':
+    '{{count}} изображений не удалось импортировать (тип, размер или лимит).',
+  'nordly.notes.attachment.too_large': 'Изображение больше лимита 5 МиБ.',
+  'nordly.notes.attachment.bad_type': 'Поддерживаются только PNG, JPEG, GIF и WebP.',
+  'nordly.notes.attachment.too_many': 'В этой заметке уже максимум 50 изображений.',
+  'nordly.notes.attachment.missing': 'Вложение-изображение не найдено.',
+  'nordly.notes.attachment.vault_locked': 'Разблокируй vault, чтобы работать с зашифрованными изображениями.',
+  'nordly.notes.attachment.publish_unresolved':
+    'Нельзя опубликовать: связанное изображение отсутствует в этой заметке.',
   'nordly.notes.menu.more': 'Действия с заметкой',
   'nordly.notes.menu.publishing': 'Публикация',
   'nordly.notes.menu.publish': 'Опубликовать',

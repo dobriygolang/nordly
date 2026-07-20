@@ -115,6 +115,16 @@ export default function App() {
 
   const [operationError, setOperationError] = useState<Error | null>(null);
   const captureOperationError = useCallback((error: unknown) => {
+    // Auth/network blips must not tear down the signed-in shell (feels like logout).
+    const msg = error instanceof Error ? error.message : String(error);
+    const recoverable =
+      /session expired|missing access token|failed to fetch|load failed|network|offline|no internet|server unreachable/i.test(
+        msg,
+      );
+    if (recoverable) {
+      console.error('[nordly:app] recoverable background error', error);
+      return;
+    }
     setOperationError(error instanceof Error ? error : new Error(String(error)));
   }, []);
   const {

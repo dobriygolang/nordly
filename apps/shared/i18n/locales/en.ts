@@ -45,8 +45,22 @@ export const en = {
   'nordly.notes.vault_locked_cta': 'Open Settings',
   'nordly.notes.editor.body_placeholder': 'Start writing…',
   'nordly.notes.editor.title_placeholder': 'Untitled',
-  'nordly.notes.file_drop.hint': 'Drop markdown to add a note',
+  'nordly.notes.file_drop.hint': 'Drop markdown files or folders',
   'nordly.notes.file_drop.only_md': 'Only .md or .markdown files can be imported.',
+  'nordly.notes.file_drop.empty_folder': 'No .md or .markdown files found in that folder.',
+  'nordly.notes.file_drop.too_many': 'Too many markdown files to import (max 500).',
+  'nordly.notes.file_drop.too_deep': 'Folder tree is too deep to import (max 20 levels).',
+  'nordly.notes.file_drop.images_missing':
+    '{{count}} linked image(s) were not found next to the markdown file.',
+  'nordly.notes.file_drop.images_warnings':
+    '{{count}} image(s) could not be imported (type, size, or limit).',
+  'nordly.notes.attachment.too_large': 'Image exceeds the 5 MiB limit.',
+  'nordly.notes.attachment.bad_type': 'Only PNG, JPEG, GIF, and WebP images are supported.',
+  'nordly.notes.attachment.too_many': 'This note already has the maximum of 50 images.',
+  'nordly.notes.attachment.missing': 'Image attachment is missing.',
+  'nordly.notes.attachment.vault_locked': 'Unlock the vault to use encrypted images.',
+  'nordly.notes.attachment.publish_unresolved':
+    'Cannot publish: a linked image is missing from this note.',
   'nordly.notes.menu.more': 'Note actions',
   'nordly.notes.menu.publishing': 'Publishing',
   'nordly.notes.menu.publish': 'Publish to web',

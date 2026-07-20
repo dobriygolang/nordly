@@ -123,21 +123,35 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	tag, err := tx.Exec(ctx, `
+	var publishSlug *string
+	err = tx.QueryRow(ctx, `
 		UPDATE notes SET archived_at = now(), updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, id, userID)
+		RETURNING publish_slug
+	`, id, userID).Scan(&publishSlug)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return notesmodel.ErrNotFound
+		}
 		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return notesmodel.ErrNotFound
 	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM note_links
 		WHERE user_id = $1 AND (source_note_id = $2 OR target_note_id = $2)
 	`, userID, id); err != nil {
 		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM note_attachments WHERE user_id = $1 AND note_id = $2
+	`, userID, id); err != nil {
+		return err
+	}
+	if publishSlug != nil {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM published_note_assets WHERE publish_slug = $1
+		`, *publishSlug); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
@@ -169,20 +183,38 @@ func (r *Repository) SumActiveNoteBytes(ctx context.Context, userID string) (int
 
 func (r *Repository) EncryptNote(ctx context.Context, userID, noteID, ciphertext string) error {
 	size := len(ciphertext)
-	tag, err := r.pg.Exec(ctx, `
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var publishSlug *string
+	err = tx.QueryRow(ctx, `
+		SELECT publish_slug FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		FOR UPDATE
+	`, noteID, userID).Scan(&publishSlug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return notesmodel.ErrNotFound
+		}
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = true, published = false, publish_slug = NULL,
 		    published_at = NULL, publish_password_hash = NULL,
 		    publish_expires_at = NULL, size_bytes = $4, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID, ciphertext, size)
-	if err != nil {
+	`, noteID, userID, ciphertext, size); err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return notesmodel.ErrNotFound
+	if publishSlug != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, *publishSlug); err != nil {
+			return err
+		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func scanNote(row pgx.Row) (*notesmodel.Note, error) {

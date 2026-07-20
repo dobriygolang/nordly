@@ -5,6 +5,7 @@ import { useSyncStore } from '@shared/model/sync';
 
 import {
   ensureAccessTokenForSync,
+  handleUnauthorized,
   refreshAccessToken,
   resetAuthRefreshState,
 } from '../authSession';
@@ -28,6 +29,7 @@ describe('auth refresh gating', () => {
       expiresAt: Date.now() - 1,
     });
     expect(await refreshAccessToken()).toBe(false);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(true);
 
     useSessionStore.setState({
       accessToken: 'fresh',
@@ -36,6 +38,23 @@ describe('auth refresh gating', () => {
     });
 
     expect(await ensureAccessTokenForSync()).toBe(true);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
+  });
+
+  it('does not demand reauth when offline with an expired access token', async () => {
+    useSessionStore.setState({
+      status: 'signed_in',
+      userId: '66666666-6666-4666-8666-666666666666',
+      accessToken: 'expired',
+      refreshToken: 'refresh-1',
+      expiresAt: Date.now() - 1,
+    });
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+
+    expect(await refreshAccessToken()).toBe(false);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
+
+    await handleUnauthorized();
     expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
   });
 
@@ -49,6 +68,7 @@ describe('auth refresh gating', () => {
     });
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     expect(await refreshAccessToken()).toBe(false);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
 
     const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 600 }));
     vi.stubGlobal(
@@ -67,5 +87,44 @@ describe('auth refresh gating', () => {
 
     expect(await refreshAccessToken()).toBe(true);
     expect(useSessionStore.getState().refreshToken).toBe('refresh-2');
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
+  });
+
+  it('does not demand reauth on transient online refresh failure', async () => {
+    useSessionStore.setState({
+      status: 'signed_in',
+      userId: '77777777-7777-4777-8777-777777777777',
+      accessToken: 'expired',
+      refreshToken: 'refresh-1',
+      expiresAt: Date.now() - 1,
+    });
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+
+    expect(await refreshAccessToken()).toBe(false);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
+  });
+
+  it('demands reauth only after definitive online refresh rejection', async () => {
+    useSessionStore.setState({
+      status: 'signed_in',
+      userId: '88888888-8888-4888-8888-888888888888',
+      accessToken: 'expired',
+      refreshToken: 'refresh-1',
+      expiresAt: Date.now() - 1,
+    });
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 401, headers: { 'content-type': 'application/json' } })),
+    );
+
+    expect(await refreshAccessToken()).toBe(false);
+    expect(useSyncStore.getState().sessionReauthRequired).toBe(true);
   });
 });

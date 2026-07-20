@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
@@ -10,19 +11,38 @@ import (
 )
 
 func (r *Repository) UnpublishNote(ctx context.Context, userID, noteID string) error {
-	tag, err := r.pg.Exec(ctx, `
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var slug *string
+	err = tx.QueryRow(ctx, `
+		SELECT publish_slug FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		FOR UPDATE
+	`, noteID, userID).Scan(&slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return notesmodel.ErrNotFound
+		}
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
 		UPDATE notes
 		SET published = false, publish_slug = NULL, published_at = NULL,
 		    publish_password_hash = NULL, publish_expires_at = NULL, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID)
-	if err != nil {
+	`, noteID, userID); err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return notesmodel.ErrNotFound
+	if slug != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, *slug); err != nil {
+			return err
+		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) GetPublishStatus(
@@ -50,6 +70,7 @@ func (r *Repository) ShareNoteToWeb(
 	ctx context.Context,
 	userID, noteID, plaintext, publicBaseURL string,
 	meta notesmodel.PublishMeta,
+	assets []notesmodel.PublishedAttachment,
 ) (*notesmodel.ShareToWebResult, error) {
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
@@ -71,7 +92,7 @@ func (r *Repository) ShareNoteToWeb(
 		if err := tx.Commit(ctx); err != nil {
 			return nil, err
 		}
-		return r.updatePublishedShare(ctx, userID, noteID, plaintext, publicBaseURL, meta)
+		return r.updatePublishedShare(ctx, userID, noteID, plaintext, publicBaseURL, meta, assets)
 	}
 	if meta.QuotaLimit != nil {
 		var count int
@@ -88,6 +109,7 @@ func (r *Repository) ShareNoteToWeb(
 
 	privateLink := meta.PasswordHash != nil && *meta.PasswordHash != ""
 	slug := newPublishSlug(note.Title, privateLink)
+	plaintext = rewritePublishedAssetRefs(plaintext, slug, assets)
 	now := time.Now().UTC()
 	size := len(plaintext)
 	var expiresAt *time.Time
@@ -111,6 +133,9 @@ func (r *Repository) ShareNoteToWeb(
 		}
 		return nil, err
 	}
+	if err := replacePublishedAssetsTx(ctx, tx, outSlug, assets); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -129,14 +154,30 @@ func (r *Repository) updatePublishedShare(
 	ctx context.Context,
 	userID, noteID, plaintext, publicBaseURL string,
 	meta notesmodel.PublishMeta,
+	assets []notesmodel.PublishedAttachment,
 ) (*notesmodel.ShareToWebResult, error) {
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
 	var expiresAt *time.Time
 	if meta.ExpiresInDays > 0 {
 		t := time.Now().UTC().AddDate(0, 0, int(meta.ExpiresInDays))
 		expiresAt = &t
 	}
+	var existingSlug string
+	if err := tx.QueryRow(ctx, `
+		SELECT publish_slug FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND published = true
+		FOR UPDATE
+	`, noteID, userID).Scan(&existingSlug); err != nil {
+		return nil, err
+	}
+	plaintext = rewritePublishedAssetRefs(plaintext, existingSlug, assets)
 	size := len(plaintext)
-	row := r.pg.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = false,
 		    publish_password_hash = $4, publish_expires_at = $5,
@@ -152,6 +193,12 @@ func (r *Repository) updatePublishedShare(
 		}
 		return nil, err
 	}
+	if err := replacePublishedAssetsTx(ctx, tx, outSlug, assets); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	return &notesmodel.ShareToWebResult{
 		Slug:             outSlug,
 		URL:              publishURL(publicBaseURL, outSlug),
@@ -160,20 +207,69 @@ func (r *Repository) updatePublishedShare(
 	}, nil
 }
 
+func replacePublishedAssetsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	slug string,
+	assets []notesmodel.PublishedAttachment,
+) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, slug); err != nil {
+		return err
+	}
+	for _, asset := range assets {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO published_note_assets (publish_slug, asset_id, mime, data, size_bytes)
+			VALUES ($1, $2, $3, $4, $5)
+		`, slug, asset.ID, asset.MIME, asset.Data, len(asset.Data)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rewritePublishedAssetRefs(plaintext, slug string, assets []notesmodel.PublishedAttachment) string {
+	for _, asset := range assets {
+		plaintext = strings.ReplaceAll(
+			plaintext,
+			"nordly-asset:"+asset.ID,
+			"/v1/notes/public/"+slug+"/assets/"+asset.ID,
+		)
+	}
+	return plaintext
+}
+
 func (r *Repository) MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error {
 	size := len(ciphertext)
-	tag, err := r.pg.Exec(ctx, `
+	tx, err := r.pg.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var slug *string
+	err = tx.QueryRow(ctx, `
+		SELECT publish_slug FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		FOR UPDATE
+	`, noteID, userID).Scan(&slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return notesmodel.ErrNotFound
+		}
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
 		UPDATE notes
 		SET body_md = $3, encrypted = true, published = false, publish_slug = NULL,
 		    published_at = NULL, publish_password_hash = NULL,
 		    publish_expires_at = NULL, size_bytes = $4, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID, ciphertext, size)
-	if err != nil {
+	`, noteID, userID, ciphertext, size); err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return notesmodel.ErrNotFound
+	if slug != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, *slug); err != nil {
+			return err
+		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }

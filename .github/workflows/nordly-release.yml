@@ -223,13 +223,14 @@ jobs:
           node --version
           npm --version
           npm ci --no-audit --no-fund --progress=false --registry https://registry.npmjs.org
-          # macOS runners occasionally leave a non-executable esbuild binary
-          # after npm ci (spawnSync Unknown system error -88). Rebuild once.
-          if ! node ./node_modules/esbuild/bin/esbuild --version >/dev/null 2>&1; then
+          # bin/esbuild is a native Mach-O/ELF binary after install — run it directly,
+          # never via `node` (that yields SyntaxError on the binary bytes).
+          # macOS runners occasionally leave a broken binary (spawnSync errno -88).
+          if ! ./node_modules/esbuild/bin/esbuild --version >/dev/null 2>&1; then
             echo "::warning::esbuild binary failed validation; reinstalling platform package"
             rm -rf node_modules/esbuild node_modules/@esbuild
             npm install esbuild --no-save --no-audit --no-fund --registry https://registry.npmjs.org
-            node ./node_modules/esbuild/bin/esbuild --version
+            ./node_modules/esbuild/bin/esbuild --version
           fi
       - name: Sync app version from release tag
         if: github.ref_type == 'tag'

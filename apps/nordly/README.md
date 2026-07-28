@@ -60,7 +60,7 @@ CI: [`.github/workflows/nordly-release.yml`](../../.github/workflows/nordly-rele
 
 If CI fails on `npm ci` with `Exit handler never called`, ensure `package-lock.json` has no `artifactory` URLs (`grep artifactory apps/nordly/package-lock.json` → empty) and re-run the workflow from the latest `main` (workflow pins Node `22.14.0`).
 
-If macOS publish fails on `esbuild` with `spawnSync … Unknown system error -88`, the release workflow already rebuilds esbuild after `npm ci` and skips the shared npm cache on macOS. Re-tag / re-run from a commit that includes that workflow fix.
+If macOS publish fails on `esbuild` with `spawnSync … Unknown system error -88`, the release workflow validates the native `bin/esbuild` binary (not via `node`) and rebuilds it when needed; macOS npm cache is disabled. Re-tag from a commit that includes that workflow fix.
 
 ## Layout
 

@@ -70,7 +70,10 @@ Keep trivial CRUD reads inline — don't over-engineer.
 cd services/<name>
 GOPROXY=https://proxy.golang.org,direct GOWORK=off go build ./...
 GOPROXY=https://proxy.golang.org,direct GOWORK=off go test ./...
+GOWORK=off govulncheck ./...   # CI gate — bump Fixed-in versions across CI_SERVICES
 ```
+
+Govulncheck failures: see [.cursor/rules/go-backend.mdc](go-backend.mdc) (bump `grpc` / `x/text` / … in every affected service, re-scan).
 
 ## Documentation
 

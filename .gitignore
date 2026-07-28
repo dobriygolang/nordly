@@ -3,6 +3,7 @@ go.work.sum
 .cache/
 .vite/
 .vite/
+.bin/
 
 # prod secrets
 deploy/.env

@@ -59,3 +59,20 @@ for _, item := range items {
 ```
 
 Only copy when you genuinely need a stable pointer to the loop variable (rare; e.g. `&item` escaping into a goroutine).
+
+## govulncheck (CI gate)
+
+CI runs `govulncheck ./...` for every service in `CI_SERVICES` (`.github/workflows/ci.yml`).
+
+When fixing CI / Go deps / reviewing a failing govulncheck job:
+
+1. Read the report: module, **Found in**, **Fixed in**.
+2. Bump the vulnerable module in **all** affected `services/*/go.mod` (same versions across CI services; include `template` when it shares the dep).
+3. From each service root: `GOPROXY=https://proxy.golang.org,direct GOWORK=off go get <module>@<fixed> && go mod tidy`.
+4. Re-run: `cd services/<name> && GOWORK=off govulncheck ./...` (rebuild `govulncheck` with current Go if version mismatch).
+5. Do not silence findings with excludes unless product explicitly accepts residual risk — prefer upgrading.
+
+Common current floors (raise when CI reports newer Fixed-in):
+
+- `google.golang.org/grpc` ≥ `v1.82.1` (GO-2026-6061)
+- `golang.org/x/text` ≥ `v0.39.0` (GO-2026-5970)

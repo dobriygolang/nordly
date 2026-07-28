@@ -50,6 +50,7 @@ export const ru = {
   'nordly.notes.file_drop.empty_folder': 'В папке нет файлов .md или .markdown.',
   'nordly.notes.file_drop.too_many': 'Слишком много markdown-файлов для импорта (макс. 500).',
   'nordly.notes.file_drop.too_deep': 'Слишком глубокое дерево папок для импорта (макс. 20 уровней).',
+  'nordly.notes.file_drop.empty_title': 'У markdown-файла пустое имя после снятия расширения.',
   'nordly.notes.file_drop.images_missing':
     '{{count}} связанных изображений не найдены рядом с markdown-файлом.',
   'nordly.notes.file_drop.images_warnings':
@@ -103,12 +104,18 @@ export const ru = {
     'Сессия истекла — работаем офлайн. Синхронизация возобновится, когда вы снова войдёте в аккаунт.',
   'nordly.sync.banner_reauth_online':
     'Сессия истекла — облачная синхронизация приостановлена. Локальные данные на устройстве сохранены.',
+  'nordly.sync.banner_sign_in_offline':
+    'Работаем офлайн — войдите, когда появится сеть, чтобы синхронизировать данные между устройствами.',
+  'nordly.sync.banner_sign_in_online':
+    'Войдите, чтобы синхронизировать заметки и задачи между устройствами. Локальные правки сохраняются в любом случае.',
   'nordly.sync.banner_cloud_sync_disabled':
     'Облачная синхронизация отключена — заметки и задачи остаются на этом устройстве.',
   'nordly.sync.banner_device_limit':
     'Достигнут лимит устройств — удалите устройство, чтобы синхронизировать здесь.',
   'nordly.sync.reauth_sign_in': 'Войти снова',
+  'nordly.sync.sign_in': 'Войти',
   'nordly.sync.reauth_dialog_aria': 'Повторный вход',
+  'nordly.sync.sign_in_dialog_aria': 'Вход',
   'nordly.sync.reauth_close': 'Закрыть',
   'nordly.sync.retry': 'Повторить',
   'nordly.sync.banner_dismiss': 'Скрыть',
@@ -439,6 +446,9 @@ export const ru = {
   'nordly.settings.sign_out.busy': 'Выход…',
   'nordly.settings.signed_in': 'Вход: {{id}}',
   'nordly.settings.signed_out': 'Вы не авторизованы.',
+  'nordly.settings.local_profile': 'Локальный профиль {{id}}',
+  'nordly.settings.local_profile_hint':
+    'Работаете на этом устройстве без аккаунта. Войдите, чтобы синхронизировать данные между устройствами.',
   'nordly.settings.session_reauth_hint':
     'Сессия истекла — вы по-прежнему видите локальные данные, но облачная синхронизация приостановлена.',
   'nordly.settings.text_scale.hint': 'Увеличивает текст и элементы управления во всём приложении.',

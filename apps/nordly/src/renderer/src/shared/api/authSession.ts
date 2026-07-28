@@ -3,6 +3,8 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { API_BASE_URL } from '@shared/api/config';
 import { requireJsonString } from '@shared/api/json';
 import { isNativeHttpInTauri } from '@platform/runtime';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { isCloudEnabled } from '@shared/model/features';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 
@@ -15,6 +17,11 @@ const REFRESH_SKEW_MS = 60_000;
 let refreshInFlight: Promise<boolean> | null = null;
 /** After a definitive refresh failure (400/401), stop hammering /v1/auth/refresh. */
 let refreshRejected = false;
+
+type CloudAuthWaiter = {
+  resolve: (ok: boolean) => void;
+};
+let cloudAuthWaiters: CloudAuthWaiter[] = [];
 
 function apiPath(path: string): string {
   const base = API_BASE_URL.replace(/\/$/, '');
@@ -67,10 +74,69 @@ export function canUseLocalApp(): boolean {
   return status === 'signed_in' && Boolean(userId);
 }
 
+export function isLocalAuthProfile(): boolean {
+  const { status, authKind } = useSessionStore.getState();
+  return status === 'signed_in' && authKind === 'local';
+}
+
+/** True when cloud JWT/session can call authenticated APIs (or refresh soon). */
+export function hasCloudAuthSession(): boolean {
+  const { status, authKind, accessToken, refreshToken } = useSessionStore.getState();
+  if (status !== 'signed_in' || authKind !== 'cloud') return false;
+  return Boolean(accessToken || refreshToken);
+}
+
 /** Definitive: no way to mint a new access token without interactive login. */
 function markReauthRequired(): void {
+  // Local profiles never had tokens — soft banner / ensureCloudAuth, not reauth lock.
+  if (isLocalAuthProfile()) return;
   refreshRejected = true;
   setSessionReauthRequired(true);
+}
+
+function settleCloudAuthWaiters(ok: boolean): void {
+  const waiters = cloudAuthWaiters;
+  cloudAuthWaiters = [];
+  for (const w of waiters) w.resolve(ok);
+}
+
+/** Resolve pending ensureCloudAuth() waiters after login success. */
+export function resolvePendingCloudAuth(): void {
+  settleCloudAuthWaiters(true);
+}
+
+/** Cancel pending ensureCloudAuth() waiters (overlay close / sign-out). */
+export function rejectPendingCloudAuth(): void {
+  settleCloudAuthWaiters(false);
+}
+
+/**
+ * Gate intentional cloud actions (publish, share, OAuth connect).
+ * Never call from silent outbox / background sync.
+ * Opens the auth overlay when the user is on a local profile or needs reauth.
+ */
+export async function ensureCloudAuth(): Promise<boolean> {
+  if (!isCloudEnabled()) return false;
+
+  const { status, authKind, accessToken, refreshToken } = useSessionStore.getState();
+  if (status !== 'signed_in') return false;
+
+  if (authKind === 'cloud') {
+    if (accessToken && !isSessionExpired()) return true;
+    if (refreshToken && canReachNetwork()) {
+      if (await refreshAccessToken()) return true;
+    }
+    if (accessToken && !isSessionExpired()) return true;
+    // Offline with a refresh token: do not open a modal; caller surfaces network.
+    if (refreshToken && !canReachNetwork() && !refreshRejected) {
+      return false;
+    }
+  }
+
+  return new Promise<boolean>((resolve) => {
+    cloudAuthWaiters.push({ resolve });
+    window.dispatchEvent(new Event(NORDLY_EVENTS.openReauthLogin));
+  });
 }
 
 async function persistRefreshedTokens(
@@ -104,7 +170,8 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   const refreshPromise = (async () => {
     try {
-      const { userId, refreshToken } = useSessionStore.getState();
+      const { userId, refreshToken, authKind } = useSessionStore.getState();
+      if (authKind === 'local') return false;
       if (!refreshToken) {
         // Cannot recover without interactive login — even offline.
         if (isSessionExpired()) markReauthRequired();
@@ -154,7 +221,9 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 /** Proactive refresh before sync/API when access token is stale. */
 export async function ensureAccessTokenForSync(): Promise<boolean> {
-  const { accessToken, refreshToken } = useSessionStore.getState();
+  const { accessToken, refreshToken, authKind } = useSessionStore.getState();
+  // Local profiles may enqueue outbox; push waits until cloud auth exists.
+  if (authKind === 'local') return false;
   if (!accessToken && !refreshToken) return false;
   if (accessToken && !isSessionExpired() && !isAccessTokenExpiringSoon()) {
     refreshRejected = false;
@@ -201,8 +270,10 @@ export async function handleUnauthorized(): Promise<void> {
 
 export function startSessionRefreshLoop(): () => void {
   const tick = (): void => {
-    const { status } = useSessionStore.getState();
+    const { status, authKind } = useSessionStore.getState();
     if (status !== 'signed_in') return;
+    // Tokenless local profile — never hammer refresh or raise reauth from the loop.
+    if (authKind === 'local') return;
 
     if (!canReachNetwork()) {
       // Stay silent offline — local app keeps working with an expired access JWT.

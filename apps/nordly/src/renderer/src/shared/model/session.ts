@@ -1,21 +1,20 @@
-// session.ts — auth store с keychain-bootstrap'ом.
+// session.ts — auth store с keychain-bootstrap'ом + offline local profile.
 //
-// Поведение на mount: hydrate() читает session из main-process через
-// IPC bridge (window.nordly.auth.session), main-process в свою очередь
-// расшифровывает файл safeStorage'ом. На login deep-link — main-process
-// шлёт authChanged event, мы persist'им в keychain и ставим в store.
-//
-// Pre-mount → state = { status: 'unknown' } чтобы UI не флипал между
-// «not signed in» и «signed in» во время restore.
+// Boot: keychain cloud session if present, otherwise ensureLocalProfile() so the
+// shell opens without Telegram / identity. Pre-mount status='unknown' avoids flicker.
 import { create } from 'zustand';
 
 import { setDbUserId } from '@shared/db/nordlyDb';
+import { rebindDbUserId } from '@shared/db/rebindUserId';
 import { lockVault } from '@shared/crypto/vault';
 import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 import { useFeatureUsageStore } from '@shared/model/featureUsage';
 import { useSyncStore } from '@shared/model/sync';
 
-type AuthStatus = 'unknown' | 'guest' | 'signed_in';
+export type AuthStatus = 'unknown' | 'guest' | 'signed_in';
+/** local = offline profile (no tokens); cloud = identity session (keychain tokens). */
+export type AuthKind = 'local' | 'cloud';
 
 // Browser-dev session persistence only. Native sessions live exclusively in the
 // OS keychain; a missing bridge in a production build must never persist tokens.
@@ -43,6 +42,60 @@ interface PersistedSession {
   accessToken: string;
   refreshToken: string | null;
   expiresAt: number;
+}
+
+function readStoredLocalProfileId(): string | null {
+  try {
+    const id = window.localStorage.getItem(STORAGE_KEYS.localProfileUserId);
+    if (id && isPersistedUserId(id)) return id;
+  } catch (err) {
+    console.warn('[nordly:session] local profile read failed', err);
+  }
+  return null;
+}
+
+function writeStoredLocalProfileId(userId: string): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.localProfileUserId, userId);
+  } catch (err) {
+    console.warn('[nordly:session] local profile write failed', err);
+  }
+}
+
+function clearLocalAuthBannerDismissed(): void {
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.localAuthBannerDismissed);
+  } catch (err) {
+    console.warn('[nordly:session] local auth banner clear failed', err);
+  }
+}
+
+async function migrateVaultPassphrase(fromUserId: string, toUserId: string): Promise<void> {
+  if (fromUserId === toUserId) return;
+  const bridge = window.nordly?.vault;
+  if (!bridge) {
+    try {
+      const fromKey = `nordly:vault-pass:${fromUserId}`;
+      const toKey = `nordly:vault-pass:${toUserId}`;
+      const pass = window.sessionStorage.getItem(fromKey);
+      if (pass) {
+        window.sessionStorage.setItem(toKey, pass);
+        window.sessionStorage.removeItem(fromKey);
+      }
+    } catch (err) {
+      console.warn('[nordly:session] vault passphrase migrate failed', err);
+    }
+    return;
+  }
+  try {
+    const pass = await bridge.passLoad(fromUserId);
+    if (pass) {
+      await bridge.passSave(toUserId, pass);
+      await bridge.passClear(fromUserId);
+    }
+  } catch (err) {
+    console.warn('[nordly:session] vault passphrase migrate failed', err);
+  }
 }
 
 function readBrowserPersist(): PersistedSession | null {
@@ -76,8 +129,8 @@ async function persistSessionToNative(session: PersistedSession, epoch: number):
   if (epoch !== sessionPersistEpoch) {
     try {
       await bridge.auth.logout();
-    } catch {
-      /* best-effort: undo stale keychain write after sign-out */
+    } catch (err) {
+      console.warn('[nordly:session] undo stale keychain write failed', err);
     }
   }
 }
@@ -106,22 +159,35 @@ function writeBrowserPersist(s: PersistedSession): void {
     clearBrowserPersist();
     return;
   }
-  window.localStorage.setItem(BROWSER_PERSIST_KEY, JSON.stringify(s));
+  try {
+    window.localStorage.setItem(BROWSER_PERSIST_KEY, JSON.stringify(s));
+  } catch (err) {
+    console.warn('[nordly:session] browser persist failed', err);
+  }
 }
 
 function clearBrowserPersist(): void {
-  window.localStorage.removeItem(BROWSER_PERSIST_KEY);
+  try {
+    window.localStorage.removeItem(BROWSER_PERSIST_KEY);
+  } catch (err) {
+    console.warn('[nordly:session] browser clear failed', err);
+  }
 }
 
 interface SessionState {
   status: AuthStatus;
+  /** null while status is unknown; always set when signed_in. */
+  authKind: AuthKind | null;
   userId: string | null;
   accessToken: string | null;
   refreshToken: string | null;
   expiresAt: number;
 
-  /** Bootstrap on app mount — reads from keychain via preload. */
+  /** Bootstrap on app mount — keychain cloud session or local profile. */
   bootstrap: () => Promise<void>;
+
+  /** Enter (or restore) a tokenless local profile so the shell works offline. */
+  ensureLocalProfile: () => void;
 
   /** Called by deep-link handler / login modal after token arrives. */
   hydrate: (s: {
@@ -131,7 +197,7 @@ interface SessionState {
     expiresAt: number;
   }) => Promise<void>;
 
-  /** Clears in-memory + keychain. Used by logout. */
+  /** Clears cloud tokens and returns to a local profile (same IDB scope when possible). */
   clear: (opts?: { skipNativeLogout?: boolean }) => Promise<void>;
 
   /** Updates tokens after refresh — persists to browser + keychain. */
@@ -158,30 +224,50 @@ const BOOTSTRAP_IPC_TIMEOUT_MS = 30_000;
 export const useSessionStore = create<SessionState>((set, get) => ({
 
   status: 'unknown',
+  authKind: null,
   userId: null,
   accessToken: null,
   refreshToken: null,
   expiresAt: 0,
 
+  ensureLocalProfile: () => {
+    let userId = readStoredLocalProfileId();
+    if (!userId) {
+      userId = crypto.randomUUID();
+      writeStoredLocalProfileId(userId);
+    }
+    const prev = get().userId;
+    if (prev !== null && prev !== userId) {
+      lockVault();
+      clearVaultPrefsCache();
+    }
+    setDbUserId(userId);
+    set({
+      status: 'signed_in',
+      authKind: 'local',
+      userId,
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: 0,
+    });
+  },
+
   bootstrap: async () => {
-    const applySession = (s: PersistedSession): boolean => {
+    const applyCloudSession = (s: PersistedSession): boolean => {
       if (!isPersistedUserId(s.userId)) {
-        if (get().userId !== null) {
-          lockVault();
-          clearVaultPrefsCache();
-        }
         clearBrowserPersist();
-        setDbUserId(null);
-        set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
+        get().ensureLocalProfile();
         return false;
       }
       if (get().userId !== s.userId) {
         lockVault();
         clearVaultPrefsCache();
       }
+      writeStoredLocalProfileId(s.userId);
       setDbUserId(s.userId);
       set({
         status: 'signed_in',
+        authKind: 'cloud',
         userId: s.userId,
         accessToken: s.accessToken,
         refreshToken: s.refreshToken,
@@ -203,13 +289,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error('Native auth bridge unavailable outside browser development');
       }
       const persisted = readBrowserPersist();
-      if (persisted && applySession(persisted)) return;
-      if (get().userId !== null) {
-        lockVault();
-        clearVaultPrefsCache();
-      }
-      setDbUserId(null);
-      set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
+      if (persisted && applyCloudSession(persisted)) return;
+      get().ensureLocalProfile();
       return;
     }
 
@@ -232,7 +313,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     if (native?.userId && (native.accessToken || normalizeRefreshToken(native.refreshToken))) {
       if (typeof native.expiresAt !== 'number') throw new Error('Invalid native session: missing expiresAt');
-      applySession({
+      applyCloudSession({
         userId: native.userId,
         accessToken: native.accessToken,
         refreshToken: normalizeRefreshToken(native.refreshToken),
@@ -241,17 +322,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    if (get().userId !== null) {
-      lockVault();
-      clearVaultPrefsCache();
-    }
-    setDbUserId(null);
-    set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
+    get().ensureLocalProfile();
   },
 
   hydrate: async ({ userId, accessToken, refreshToken, expiresAt }) => {
     if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
       throw new Error('Invalid session hydrate: missing expiresAt');
+    }
+    if (!isPersistedUserId(userId)) {
+      throw new Error('Invalid session hydrate: userId');
     }
     const session: PersistedSession = {
       userId,
@@ -259,13 +338,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       refreshToken: normalizeRefreshToken(refreshToken),
       expiresAt,
     };
-    if (get().userId !== userId) {
+
+    const current = get();
+    if (current.authKind === 'local' && current.userId && current.userId !== userId) {
+      await rebindDbUserId(current.userId, userId);
+      await migrateVaultPassphrase(current.userId, userId);
+      clearVaultPrefsCache();
+    } else if (current.userId !== userId) {
       lockVault();
       clearVaultPrefsCache();
     }
+
+    writeStoredLocalProfileId(userId);
+    clearLocalAuthBannerDismissed();
     setDbUserId(userId);
     set({
       status: 'signed_in',
+      authKind: 'cloud',
       userId,
       accessToken,
       refreshToken: session.refreshToken,
@@ -276,8 +365,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   applyTokens: async ({ userId, accessToken, refreshToken, expiresAt }) => {
-    const currentUserId = get().userId;
-    if (currentUserId !== userId) {
+    const current = get();
+    if (current.authKind !== 'cloud' || current.userId !== userId) {
       lockVault();
       clearVaultPrefsCache();
       throw new Error('Cannot apply tokens for a different session user');
@@ -289,7 +378,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       refreshToken: normalizeRefreshToken(refreshToken),
       expiresAt,
     };
-    set({ accessToken, refreshToken: session.refreshToken, expiresAt });
+    set({ accessToken, refreshToken: session.refreshToken, expiresAt, authKind: 'cloud' });
     writeBrowserPersist(session);
     await queueNativePersist(session);
   },
@@ -297,16 +386,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   clear: async (opts) => {
     sessionPersistEpoch += 1;
     clearBrowserPersist();
-    setDbUserId(null);
     lockVault();
     clearVaultPrefsCache();
     useSyncStore.getState().setSessionReauthRequired(false);
     useSyncStore.getState().setCloudSyncBlocked(false);
     useFeatureUsageStore.getState().setDeviceRegistration(null);
-    set({ status: 'guest', userId: null, accessToken: null, refreshToken: null, expiresAt: 0 });
+    clearLocalAuthBannerDismissed();
     try {
-      const { resetAuthRefreshState } = await import('@shared/api/authSession');
+      const { resetAuthRefreshState, rejectPendingCloudAuth } = await import('@shared/api/authSession');
       resetAuthRefreshState();
+      rejectPendingCloudAuth();
     } catch {
       /* authSession may be unavailable in tests */
     }
@@ -321,5 +410,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
       resetDeviceRegisterCache();
     });
+    // Keep the same IDB scope (localProfileUserId was updated on cloud login).
+    get().ensureLocalProfile();
   },
 }));

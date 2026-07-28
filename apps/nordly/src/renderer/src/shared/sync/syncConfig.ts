@@ -30,7 +30,8 @@ export function isSyncEnabled(): boolean {
   return isSyncQueueEnabled();
 }
 
-/** Queue local mutations even when the access token must be refreshed first. */
+/** Queue local mutations even when the access token must be refreshed first.
+ *  Local (tokenless) profiles enqueue too; push stays gated by isSyncEnabled(). */
 export function isSyncQueueEnabled(): boolean {
   if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;

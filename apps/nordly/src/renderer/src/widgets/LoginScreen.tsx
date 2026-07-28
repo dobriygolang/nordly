@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { authTelegram, getAuthConfig } from '@features/auth/api/auth';
-import { resetAuthRefreshState } from '@shared/api/authSession';
+import { resetAuthRefreshState, resolvePendingCloudAuth } from '@shared/api/authSession';
+import { isCloudEnabled } from '@shared/model/features';
 import { useSessionStore } from '@shared/model/session';
 
 function TelegramIcon(): JSX.Element {
@@ -25,6 +26,7 @@ async function persistSession(session: {
 }): Promise<void> {
   await useSessionStore.getState().hydrate(session);
   resetAuthRefreshState();
+  resolvePendingCloudAuth();
 }
 
 function formatLoginError(err: unknown, t: (key: string) => string): string {
@@ -56,6 +58,10 @@ export function LoginScreen({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isCloudEnabled()) {
+      setConfigLoading(false);
+      return;
+    }
     getAuthConfig()
       .then((cfg) => {
         const username = cfg.telegramBotUsername.trim();

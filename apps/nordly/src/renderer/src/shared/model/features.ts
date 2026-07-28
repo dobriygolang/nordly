@@ -8,7 +8,8 @@ function readBoolEnv(raw: string | undefined): boolean | undefined {
 
 /**
  * Local-only data mode — notes/tasks/focus persist on device, no cloud sync.
- * Auth (login) is unchanged. Set VITE_NORDLY_LOCAL_ONLY=false for cloud APIs.
+ * Boot uses a tokenless local profile (no Telegram / identity). Set
+ * VITE_NORDLY_LOCAL_ONLY=false for cloud APIs / deferred sign-in prompts.
  */
 export const LOCAL_ONLY =
   readBoolEnv(import.meta.env.VITE_NORDLY_LOCAL_ONLY) ??

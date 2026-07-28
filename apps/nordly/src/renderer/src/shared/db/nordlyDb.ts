@@ -157,4 +157,24 @@ export function entityKey(id: string, userId?: string): string {
   return scopedKey(userId ?? requireUserId(), id);
 }
 
+/** Test helper — close cached IDB so deleteDatabase / reopen works cleanly. */
+export async function resetNordlyDbForTests(): Promise<void> {
+  if (dbPromise) {
+    try {
+      const db = await dbPromise;
+      db.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  dbPromise = null;
+  currentUserId = null;
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error ?? new Error('deleteDatabase failed'));
+    req.onblocked = () => resolve();
+  });
+}
+
 export { scopedKey, requireUserId, openDb };

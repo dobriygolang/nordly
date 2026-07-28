@@ -10,7 +10,6 @@ import { Wordmark, AppVersionBadge } from '@widgets/Chrome';
 import { TitlebarDrag } from '@widgets/TitlebarDrag';
 import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
-import { LoginScreen } from '@widgets/LoginScreen';
 import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { PomodoroController } from '@widgets/PomodoroController';
 import { type PageId, type PaletteAction } from '@shared/model/navigation';
@@ -31,7 +30,7 @@ import { isTauriRuntime } from '@platform/runtime';
 import { subscribeVaultEnabled } from '@shared/crypto/vaultPrefs';
 import { listenEffect } from '@shared/lib/tauriListen';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
-import { resetAuthRefreshState } from '@shared/api/authSession';
+import { rejectPendingCloudAuth, resetAuthRefreshState } from '@shared/api/authSession';
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
@@ -173,7 +172,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!sessionReauthRequired) setReauthOpen(false);
+    // Definitive cloud reauth cleared → close sticky reauth overlay.
+    // Local-profile auth overlay is closed only via success / explicit dismiss.
+    if (!sessionReauthRequired && useSessionStore.getState().authKind === 'cloud') {
+      setReauthOpen(false);
+    }
   }, [sessionReauthRequired]);
 
   useEffect(() => {
@@ -183,8 +186,8 @@ export default function App() {
 
     const offAuth = bridge.on('authChanged', (session) => {
       if (session) {
-        // Ignore stale auth_persist emissions after explicit sign-out.
-        if (useSessionStore.getState().status === 'guest') return;
+        // Ignore stale auth_persist emissions after explicit sign-out to local.
+        if (useSessionStore.getState().authKind === 'local' && !session.accessToken) return;
         void hydrate({
           userId: session.userId,
           accessToken: session.accessToken,
@@ -401,22 +404,15 @@ export default function App() {
       );
     }
 
-    if (screenId === 'guest') {
-      return (
-        <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: 'var(--bg)' }}>
-          <TitlebarDrag />
-          <CanvasBg mode="full" theme={theme} />
-          <div style={{ position: 'relative', zIndex: 2, height: '100%' }}>
-            <LoginScreen />
-          </div>
-        </div>
-      );
-    }
-
     // ScreenFade keeps the signed-in layer mounted briefly during logout crossfade.
     if (status !== 'signed_in' || !userId) {
       return <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)' }} aria-hidden />;
     }
+
+    const closeAuthOverlay = (): void => {
+      setReauthOpen(false);
+      rejectPendingCloudAuth();
+    };
 
     const signedInShell = (
       <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
@@ -436,9 +432,7 @@ export default function App() {
 
         <SyncStatusBanner />
 
-        {reauthOpen && sessionReauthRequired ? (
-          <ReauthLoginOverlay onClose={() => setReauthOpen(false)} />
-        ) : null}
+        {reauthOpen ? <ReauthLoginOverlay onClose={closeAuthOverlay} /> : null}
 
         <TrafficLightsHover />
         <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>
@@ -481,7 +475,7 @@ export default function App() {
   };
 
   const sessionReady = status === 'signed_in' && userId != null;
-  const screen = status === 'unknown' ? 'loading' : sessionReady ? 'app' : 'guest';
+  const screen = status === 'unknown' ? 'loading' : sessionReady ? 'app' : 'loading';
 
   return <ScreenFade screen={screen}>{renderScreen}</ScreenFade>;
 }

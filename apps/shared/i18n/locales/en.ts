@@ -50,6 +50,7 @@ export const en = {
   'nordly.notes.file_drop.empty_folder': 'No .md or .markdown files found in that folder.',
   'nordly.notes.file_drop.too_many': 'Too many markdown files to import (max 500).',
   'nordly.notes.file_drop.too_deep': 'Folder tree is too deep to import (max 20 levels).',
+  'nordly.notes.file_drop.empty_title': 'A markdown file has an empty name after removing the extension.',
   'nordly.notes.file_drop.images_missing':
     '{{count}} linked image(s) were not found next to the markdown file.',
   'nordly.notes.file_drop.images_warnings':
@@ -103,12 +104,18 @@ export const en = {
     'Session expired — working offline. Sign in again to resume cloud sync.',
   'nordly.sync.banner_reauth_online':
     'Session expired — cloud sync is paused. Your local data stays on this device.',
+  'nordly.sync.banner_sign_in_offline':
+    'Working offline — sign in when you are back online to sync across devices.',
+  'nordly.sync.banner_sign_in_online':
+    'Sign in to sync notes and tasks across devices. Local edits stay on this device either way.',
   'nordly.sync.banner_cloud_sync_disabled':
     'Cloud sync is disabled — your notes and tasks stay on this device.',
   'nordly.sync.banner_device_limit':
     'Device limit reached — remove a device to sync here.',
   'nordly.sync.reauth_sign_in': 'Sign in again',
+  'nordly.sync.sign_in': 'Sign in',
   'nordly.sync.reauth_dialog_aria': 'Sign in again',
+  'nordly.sync.sign_in_dialog_aria': 'Sign in',
   'nordly.sync.reauth_close': 'Close',
   'nordly.sync.retry': 'Retry',
   'nordly.sync.banner_dismiss': 'Dismiss',
@@ -439,6 +446,9 @@ export const en = {
   'nordly.settings.sign_out.busy': 'Signing out…',
   'nordly.settings.signed_in': 'Signed in as {{id}}',
   'nordly.settings.signed_out': 'You are signed out.',
+  'nordly.settings.local_profile': 'Local profile {{id}}',
+  'nordly.settings.local_profile_hint':
+    'Working on this device without an account. Sign in to sync across devices.',
   'nordly.settings.session_reauth_hint':
     'Session expired — you still see local data, but cloud sync is paused.',
   'nordly.settings.text_scale.hint': 'Makes text and controls larger across the app.',

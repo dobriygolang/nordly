@@ -6,6 +6,7 @@ vi.mock('@shared/model/features', () => ({
 
 import { initVault, isVaultUnlocked, lockVault, unlockVault } from '@shared/crypto/vault';
 import { setDbUserId } from '@shared/db/nordlyDb';
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 
 import { useSessionStore } from '../session';
 
@@ -14,12 +15,12 @@ const USER_B = '44444444-4444-4444-8444-444444444444';
 const STORAGE_KEY = 'nordly:dev-session:v1';
 const originalBridge = window.nordly;
 
-function installNativeBridge(): void {
+function installNativeBridge(session: unknown = null): void {
   Object.defineProperty(window, 'nordly', {
     configurable: true,
     value: {
       auth: {
-        session: vi.fn(async () => null),
+        session: vi.fn(async () => session),
         persist: vi.fn(async () => undefined),
         logout: vi.fn(async () => undefined),
         onChanged: vi.fn(() => () => undefined),
@@ -35,6 +36,7 @@ describe('session security boundaries', () => {
     lockVault();
     useSessionStore.setState({
       status: 'guest',
+      authKind: null,
       userId: null,
       accessToken: null,
       refreshToken: null,
@@ -50,9 +52,9 @@ describe('session security boundaries', () => {
     });
   });
 
-  it('never mirrors a native session into localStorage', () => {
+  it('never mirrors a native session into localStorage', async () => {
     window.localStorage.setItem(STORAGE_KEY, 'legacy-token-data');
-    useSessionStore.getState().hydrate({
+    await useSessionStore.getState().hydrate({
       userId: USER_A,
       accessToken: 'native-access',
       refreshToken: 'native-refresh',
@@ -65,6 +67,7 @@ describe('session security boundaries', () => {
   it('locks the previous users vault before switching users', async () => {
     useSessionStore.setState({
       status: 'signed_in',
+      authKind: 'cloud',
       userId: USER_A,
       accessToken: 'a',
       refreshToken: null,
@@ -75,12 +78,48 @@ describe('session security boundaries', () => {
     await unlockVault('correct horse battery staple');
     expect(isVaultUnlocked()).toBe(true);
 
-    useSessionStore.getState().hydrate({
+    await useSessionStore.getState().hydrate({
       userId: USER_B,
       accessToken: 'b',
       expiresAt: Date.now() + 60_000,
     });
 
     expect(isVaultUnlocked()).toBe(false);
+  });
+
+  it('bootstraps a local profile when keychain is empty', async () => {
+    await useSessionStore.getState().bootstrap();
+    const state = useSessionStore.getState();
+    expect(state.status).toBe('signed_in');
+    expect(state.authKind).toBe('local');
+    expect(state.userId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(state.accessToken).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEYS.localProfileUserId)).toBe(state.userId);
+  });
+
+  it('reuses the stored local profile id across bootstrap', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.localProfileUserId, USER_A);
+    await useSessionStore.getState().bootstrap();
+    expect(useSessionStore.getState().userId).toBe(USER_A);
+    expect(useSessionStore.getState().authKind).toBe('local');
+  });
+
+  it('sign-out returns to a local profile instead of guest', async () => {
+    await useSessionStore.getState().hydrate({
+      userId: USER_A,
+      accessToken: 'tok',
+      refreshToken: 'ref',
+      expiresAt: Date.now() + 60_000,
+    });
+    expect(useSessionStore.getState().authKind).toBe('cloud');
+
+    await useSessionStore.getState().clear();
+    const state = useSessionStore.getState();
+    expect(state.status).toBe('signed_in');
+    expect(state.authKind).toBe('local');
+    expect(state.userId).toBe(USER_A);
+    expect(state.accessToken).toBeNull();
   });
 });

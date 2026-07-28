@@ -7,8 +7,8 @@ const manifestPath = resolve(dist, '.vite/manifest.json');
 
 const budgets = {
   main: { source: 'index.html', bytes: 410 * 1024 },
-  // Shared App/CSS graph grew with Esc-layer + vault-disable shell work (DRU-88).
-  Notes: { source: 'src/pages/Notes.tsx', bytes: 1285 * 1024 },
+  // Notes cold graph: Esc/vault shell (DRU-88) + attachments (DRU-89) + multi-select sidebar (DRU-90).
+  Notes: { source: 'src/pages/Notes.tsx', bytes: 1315 * 1024 },
   Whiteboard: { entry: 'whiteboard', bytes: 1845 * 1024 },
 };
 

@@ -25,14 +25,17 @@ import type {
   PublishStatus,
   PublishToWebOptions,
 } from '@features/notes/api/notesClient';
+import { collectSubtreeIds } from '@features/notes/api/notesClient';
+import { DraggableFolderRow } from './DraggableFolderRow';
 import { DraggableNoteRow } from './DraggableNoteRow';
-import { FolderRow } from './FolderRow';
+import { FolderDragOverlay } from './FolderDragOverlay';
 import { NoteDragOverlay } from './NoteDragOverlay';
 import { NoteInsertPreview } from './NoteInsertPreview';
 import {
   UNFILED_DROPPABLE_ID,
   folderDroppableId,
   notesCollisionDetection,
+  parseFolderDraggableId,
   resolveDropFolderId,
   type NoteDropData,
 } from './noteDnd';
@@ -62,9 +65,13 @@ function readOpenFolderIds(): Set<string> {
     const raw = window.localStorage.getItem(FOLDERS_OPEN_KEY);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
+    if (!Array.isArray(parsed)) {
+      console.warn('[nordly:notes] open folders storage is not an array');
+      return new Set();
+    }
     return new Set(parsed.filter((id): id is string => typeof id === 'string'));
-  } catch {
+  } catch (err) {
+    console.warn('[nordly:notes] open folders load failed', err);
     return new Set();
   }
 }
@@ -109,6 +116,7 @@ function FolderDropZone({
   onHoverOpen,
   header,
   children,
+  dragging = false,
 }: {
   folderId: string;
   disabled: boolean;
@@ -118,6 +126,7 @@ function FolderDropZone({
   onHoverOpen: (folderId: string) => void;
   header: React.ReactNode;
   children: React.ReactNode;
+  dragging?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: folderDroppableId(folderId),
@@ -132,7 +141,7 @@ function FolderDropZone({
   return (
     <div
       ref={setNodeRef}
-      className="nordly-folder-group nordly-folder-drop"
+      className={`nordly-folder-group nordly-folder-drop${dragging ? ' nordly-folder-group--dragging' : ''}`}
       data-drop-active={isOver || previewActive ? 'true' : 'false'}
     >
       {header}
@@ -145,12 +154,15 @@ export interface SidebarProps {
   list: ListState;
   folders: NoteFolder[];
   selectedId: string | null;
+  /** Folder that receives new notes/folders; null = unfiled (global). */
+  createTargetFolderId: string | null;
   onSelect: (id: string) => void;
   onCreateNote: () => void;
   onCreateFolder: () => Promise<NoteFolder>;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => Promise<void>;
   onMoveNote: (noteId: string, folderId: string | null) => Promise<void>;
+  onMoveFolder: (folderId: string, parentId: string | null) => Promise<void>;
   onFocusFolder: (folderId: string | null) => void;
   onPublish: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
   onUpdatePublishOptions: (id: string, options: PublishToWebOptions) => Promise<PublishStatus | void>;
@@ -164,12 +176,14 @@ export const Sidebar = memo(function Sidebar({
   list,
   folders,
   selectedId,
+  createTargetFolderId,
   onSelect,
   onCreateNote,
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
   onMoveNote,
+  onMoveFolder,
   onFocusFolder,
   onPublish,
   onUpdatePublishOptions,
@@ -185,6 +199,7 @@ export const Sidebar = memo(function Sidebar({
   const [openFolderIds, setOpenFolderIds] = useState<Set<string>>(readOpenFolderIds);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [activeNote, setActiveNote] = useState<NoteSummary | null>(null);
+  const [activeFolder, setActiveFolder] = useState<NoteFolder | null>(null);
   const [previewFolderId, setPreviewFolderId] = useState<string | null | undefined>(undefined);
   const [selectionIds, setSelectionIds] = useState<Set<string>>(() =>
     selectedId ? new Set([noteSelKey(selectedId)]) : new Set(),
@@ -285,13 +300,14 @@ export const Sidebar = memo(function Sidebar({
   }, [list.notes, folders]);
 
   useEffect(() => {
-    if (!activeNote) {
+    if (!activeNote && !activeFolder) {
       document.body.classList.remove('nordly-note-dragging');
       return;
     }
     document.body.classList.add('nordly-note-dragging');
     const clearDrag = () => {
       setActiveNote(null);
+      setActiveFolder(null);
       setPreviewFolderId(undefined);
     };
     // Pointer cancel / window blur can skip dnd-kit dragEnd and leave a stacked preview.
@@ -305,20 +321,20 @@ export const Sidebar = memo(function Sidebar({
       window.removeEventListener('blur', clearDrag);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [activeNote]);
+  }, [activeNote, activeFolder]);
 
-  const toggleFolder = useCallback(
-    (id: string) => {
-      setOpenFolderIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-      onFocusFolder(id);
-    },
-    [onFocusFolder],
-  );
+  const toggleFolder = useCallback((id: string) => {
+    setOpenFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearCreateTarget = useCallback(() => {
+    onFocusFolder(null);
+  }, [onFocusFolder]);
 
   const folderIds = useMemo(() => new Set(folders.map((f) => f.id)), [folders]);
 
@@ -444,9 +460,11 @@ export const Sidebar = memo(function Sidebar({
       }
       setSelection(new Set([key]));
       anchorIdRef.current = key;
+      // Selecting a note leaves the create target — only an explicit folder pick keeps it.
+      onFocusFolder(null);
       onSelect(id);
     },
-    [focusList, applyRangeSelection, toggleSelectionKey, onSelect, setSelection],
+    [focusList, applyRangeSelection, toggleSelectionKey, onSelect, onFocusFolder, setSelection],
   );
 
   const handleFolderSelect = useCallback(
@@ -465,8 +483,9 @@ export const Sidebar = memo(function Sidebar({
       }
       setSelection(new Set([key]));
       anchorIdRef.current = key;
+      onFocusFolder(id);
     },
-    [focusList, applyRangeSelection, toggleSelectionKey, setSelection],
+    [focusList, applyRangeSelection, toggleSelectionKey, onFocusFolder, setSelection],
   );
 
   const partitionSelection = useCallback((keys: string[]) => {
@@ -585,7 +604,7 @@ export const Sidebar = memo(function Sidebar({
       }
       if (isNotesListHotkeyBlocked(e)) return;
       if (renamingFolderId || createMenuOpen || openMenuId) return;
-      if (activeNote) return;
+      if (activeNote || activeFolder) return;
 
       const mod = e.metaKey || e.ctrlKey;
       const isBackspace =
@@ -651,6 +670,7 @@ export const Sidebar = memo(function Sidebar({
     createMenuOpen,
     openMenuId,
     activeNote,
+    activeFolder,
     allSelKeys,
     visibleSelKeys,
     selectedId,
@@ -663,16 +683,26 @@ export const Sidebar = memo(function Sidebar({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       setOpenMenuId(null);
+      const draggedFolderId = parseFolderDraggableId(String(event.active.id));
+      if (draggedFolderId) {
+        const folder = folders.find((f) => f.id === draggedFolderId) ?? null;
+        setActiveFolder(folder);
+        setActiveNote(null);
+        setPreviewFolderId(folder ? (folder.parentId ?? null) : undefined);
+        return;
+      }
       const note = list.notes.find((n) => n.id === event.active.id);
       setActiveNote(note ?? null);
+      setActiveFolder(null);
       const folderId = note?.folderId && folderIds.has(note.folderId) ? note.folderId : null;
       setPreviewFolderId(note ? folderId : undefined);
     },
-    [folderIds, list.notes],
+    [folderIds, folders, list.notes],
   );
 
   const handleDragCancel = useCallback(() => {
     setActiveNote(null);
+    setActiveFolder(null);
     setPreviewFolderId(undefined);
   }, []);
 
@@ -685,29 +715,52 @@ export const Sidebar = memo(function Sidebar({
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveNote(null);
-      setPreviewFolderId(undefined);
-      const noteId = String(event.active.id);
       const overId = event.over ? String(event.over.id) : null;
-      const folderId = resolveDropFolderId(overId);
-      if (folderId === undefined) return;
+      const next = resolveDropFolderId(overId);
+      const draggedFolderId = parseFolderDraggableId(String(event.active.id));
 
+      if (draggedFolderId) {
+        const folder = activeFolder ?? folders.find((f) => f.id === draggedFolderId) ?? null;
+        setActiveFolder(null);
+        setActiveNote(null);
+        setPreviewFolderId(undefined);
+        if (next === undefined || !folder) return;
+
+        if (next !== null) {
+          const subtree = new Set(collectSubtreeIds(folders, draggedFolderId));
+          if (subtree.has(next)) return;
+        }
+
+        const current = folder.parentId ?? null;
+        if (current === next) return;
+
+        if (next) {
+          setOpenFolderIds((prev) => new Set(prev).add(next));
+        }
+        void onMoveFolder(draggedFolderId, next).catch((err: unknown) => {
+          console.warn('[nordly:notes] move folder rejected (NotesPage surfaces UI)', err);
+        });
+        return;
+      }
+
+      setActiveNote(null);
+      setActiveFolder(null);
+      setPreviewFolderId(undefined);
+      if (next === undefined) return;
+
+      const noteId = String(event.active.id);
       const note = list.notes.find((n) => n.id === noteId);
       const current = note?.folderId && folderIds.has(note.folderId) ? note.folderId : null;
-      const next = folderId;
       if (current === next) return;
 
       if (next) {
         setOpenFolderIds((prev) => new Set(prev).add(next));
-        onFocusFolder(next);
-      } else {
-        onFocusFolder(null);
       }
-      void onMoveNote(noteId, next).catch(() => {
-        /* error surfaced by NotesPage */
+      void onMoveNote(noteId, next).catch((err: unknown) => {
+        console.warn('[nordly:notes] move note rejected (NotesPage surfaces UI)', err);
       });
     },
-    [folderIds, list.notes, onFocusFolder, onMoveNote],
+    [activeFolder, folderIds, folders, list.notes, onMoveFolder, onMoveNote],
   );
 
   const openFolderOnHover = useCallback((folderId: string) => {
@@ -719,6 +772,11 @@ export const Sidebar = memo(function Sidebar({
 
   const activeNoteFolderId =
     activeNote?.folderId && folderIds.has(activeNote.folderId) ? activeNote.folderId : null;
+
+  const folderDropBlockedIds = useMemo(() => {
+    if (!activeFolder) return null;
+    return new Set(collectSubtreeIds(folders, activeFolder.id));
+  }, [activeFolder, folders]);
 
   const renderNote = (n: NoteSummary, nested: boolean, depth: number) => (
     <DraggableNoteRow
@@ -797,23 +855,34 @@ export const Sidebar = memo(function Sidebar({
       const open = openFolderIds.has(folder.id) || renamingFolderId === folder.id;
       const childNotes = notesByFolder.get(folder.id) ?? [];
       const childFolders = childrenByParent.get(folder.id) ?? [];
+      const folderDragging = activeFolder?.id === folder.id;
+      const dropDisabled =
+        renamingFolderId === folder.id ||
+        Boolean(folderDropBlockedIds?.has(folder.id));
       return (
         <FolderDropZone
           key={folder.id}
           folderId={folder.id}
-          disabled={renamingFolderId === folder.id}
+          disabled={dropDisabled}
+          dragging={folderDragging}
           previewChildren={renderDropPreview(childNotes, true, folder.id, depth)}
-          previewActive={activeNote != null && previewFolderId === folder.id}
+          previewActive={
+            (activeNote != null || activeFolder != null) && previewFolderId === folder.id
+          }
           open={open}
           onHoverOpen={openFolderOnHover}
           header={
-            <FolderRow
+            <DraggableFolderRow
               folder={folder}
               open={open}
-              selected={selectionIds.has(folderSelKey(folder.id))}
+              selected={
+                selectionIds.has(folderSelKey(folder.id)) ||
+                createTargetFolderId === folder.id
+              }
               depth={depth}
               menuOpen={openMenuId === `folder:${folder.id}`}
               renaming={renamingFolderId === folder.id}
+              forceDragging={folderDragging}
               onMenuOpenChange={(menuOpen) =>
                 setOpenMenuId(menuOpen ? `folder:${folder.id}` : null)
               }
@@ -822,7 +891,6 @@ export const Sidebar = memo(function Sidebar({
               onStartRename={(id) => {
                 setRenamingFolderId(id);
                 setOpenFolderIds((prev) => new Set(prev).add(id));
-                onFocusFolder(id);
               }}
               onCommitRename={(id, name) => {
                 setRenamingFolderId(null);
@@ -908,10 +976,11 @@ export const Sidebar = memo(function Sidebar({
                   .then((folder) => {
                     setRenamingFolderId(folder.id);
                     setOpenFolderIds((prev) => new Set(prev).add(folder.id));
-                    onFocusFolder(folder.id);
+                    // Keep create target on the parent (or unfiled) so the next
+                    // folder is a sibling — not nested under the one we just made.
                   })
-                  .catch(() => {
-                    /* error surfaced by NotesPage */
+                  .catch((err: unknown) => {
+                    console.warn('[nordly:notes] create folder rejected (NotesPage surfaces UI)', err);
                   });
               }}
             >
@@ -937,17 +1006,36 @@ export const Sidebar = memo(function Sidebar({
           className="nordly-vault-sidebar__list"
           tabIndex={-1}
           onMouseDown={(e) => {
-            // Click empty list chrome — take focus so ⌫ / arrows work (not the editor).
-            if (e.target === e.currentTarget) focusList();
+            // Click empty list chrome — unfiled create target + keyboard focus.
+            if (e.target === e.currentTarget) {
+              focusList();
+              clearCreateTarget();
+              setSelection(new Set());
+              anchorIdRef.current = null;
+            }
           }}
         >
           <UnfiledDropZone
             enabled={hasFolders}
             previewChildren={renderDropPreview(unfiledNotes, false, null, 0)}
-            previewActive={activeNote != null && previewFolderId === null}
+            previewActive={
+              (activeNote != null || activeFolder != null) && previewFolderId === null
+            }
           >
             {hasFolders ? (
-              <div className="nordly-notes-section-label">{t('nordly.notes.unfiled')}</div>
+              <div
+                className="nordly-notes-section-label"
+                data-create-target={createTargetFolderId == null ? 'true' : 'false'}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  focusList();
+                  clearCreateTarget();
+                  setSelection(new Set());
+                  anchorIdRef.current = null;
+                }}
+              >
+                {t('nordly.notes.unfiled')}
+              </div>
             ) : null}
             {renderIdleRows(unfiledNotes, false, null, 0)}
           </UnfiledDropZone>
@@ -957,7 +1045,11 @@ export const Sidebar = memo(function Sidebar({
 
         {createPortal(
           <DragOverlay dropAnimation={dropAnimation} zIndex={9999}>
-            <NoteDragOverlay note={activeNote} />
+            {activeFolder ? (
+              <FolderDragOverlay folder={activeFolder} />
+            ) : (
+              <NoteDragOverlay note={activeNote} />
+            )}
           </DragOverlay>,
           document.body,
         )}

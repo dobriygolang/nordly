@@ -76,6 +76,15 @@ function siblingNameTaken(
   );
 }
 
+/** First free sibling name: `base`, then `base (1)`, `base (2)`, … */
+export function nextUniqueFolderName(base: string, takenNames: Iterable<string>): string {
+  const taken = takenNames instanceof Set ? takenNames : new Set(takenNames);
+  if (!taken.has(base)) return base;
+  let n = 1;
+  while (taken.has(`${base} (${n})`)) n += 1;
+  return `${base} (${n})`;
+}
+
 export async function foldersStoreList(userId?: string): Promise<NoteFolder[]> {
   const uid = userId ?? requireUserId();
   const row = await dbGet<FoldersMetaRow>('meta', metaKey(uid));
@@ -206,4 +215,49 @@ export async function foldersStoreDelete(
     return list.filter((f) => !remove.has(f.id));
   });
   return deletedIds;
+}
+
+/**
+ * Reparent a folder. Notes and nested folders stay attached via their ids —
+ * only this folder's `parentId` changes.
+ */
+export async function foldersStoreMove(
+  id: string,
+  parentId: string | null,
+  userId?: string,
+): Promise<NoteFolder> {
+  const uid = userId ?? requireUserId();
+  let updated: NoteFolder | null = null;
+  await updateFolders(uid, (folders) => {
+    const idx = folders.findIndex((f) => f.id === id);
+    if (idx < 0) throw new Error(`Folder not found: ${id}`);
+    const current = folders[idx];
+    const nextParent = parentId;
+    if (nextParent === (current.parentId ?? null)) {
+      updated = current;
+      return folders;
+    }
+    if (nextParent !== null) {
+      if (!folders.some((f) => f.id === nextParent)) {
+        throw new Error(`Folder not found: ${nextParent}`);
+      }
+      const subtree = collectSubtreeIds(folders, id);
+      if (subtree.includes(nextParent)) {
+        throw new Error('Cannot move folder into itself or a descendant');
+      }
+    }
+    if (siblingNameTaken(folders, nextParent, current.name, id)) {
+      throw new Error(`Folder already exists: ${current.name}`);
+    }
+    updated = {
+      ...current,
+      parentId: nextParent,
+      updatedAt: new Date().toISOString(),
+    };
+    const copy = [...folders];
+    copy[idx] = updated;
+    return copy;
+  });
+  if (!updated) throw new Error(`Folder not found: ${id}`);
+  return updated;
 }

@@ -1,5 +1,4 @@
-import { requireAccessToken } from '@shared/api/authToken';
-import { isCloudEnabled } from '@shared/model/features';
+import { isCloudApiAvailable, isCloudEnabled } from '@shared/sync/syncConfig';
 import * as remote from '../remote/calendarClient';
 import type {
   GoogleCalendarEvent,
@@ -22,7 +21,9 @@ function requireCalendarCloudAccess(): void {
   if (!isCloudEnabled()) {
     throw new Error('Calendar cloud integration is disabled');
   }
-  requireAccessToken();
+  if (!isCloudApiAvailable()) {
+    throw new Error('Calendar cloud integration requires a signed-in cloud session');
+  }
 }
 
 export function listGoogleCalendarEvents(

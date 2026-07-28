@@ -165,6 +165,8 @@ function ActiveEditor({
     [onError, t],
   );
 
+  const titleEmpty = !title.trim();
+
   return (
     <div className="nordly-notes-editor-shell">
       <input
@@ -172,7 +174,7 @@ function ActiveEditor({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         placeholder={t('nordly.notes.editor.title_placeholder')}
-        autoFocus={!title}
+        autoFocus={titleEmpty}
       />
       <LiveMarkdownEditor
         value={body}
@@ -183,6 +185,7 @@ function ActiveEditor({
         resolveImageHref={resolveImageHref}
         onInsertImageFile={onInsertImageFile}
         onAttachmentError={onAttachmentError}
+        autoFocus={!titleEmpty}
       />
     </div>
   );

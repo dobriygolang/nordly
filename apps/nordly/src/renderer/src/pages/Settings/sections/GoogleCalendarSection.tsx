@@ -12,7 +12,9 @@ import {
   type GoogleCalendarListEntry,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
+import { ensureCloudAuth } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { invalidateGoogleCalendarCache } from '@features/calendar/api/calendar';
 import {
@@ -59,6 +61,13 @@ export function GoogleCalendarSection({
 
   const load = useCallback(async () => {
     if (!isCloudEnabled()) return;
+    if (!isCloudApiAvailable()) {
+      setSettings(null);
+      setCalendars([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -158,6 +167,7 @@ export function GoogleCalendarSection({
     setBusy(true);
     setError(null);
     try {
+      if (!(await ensureCloudAuth())) return;
       const url = await getGoogleCalendarAuthURL();
       openExternalUrl(url);
       setOauthPending(true);

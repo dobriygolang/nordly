@@ -21,8 +21,17 @@
   pointer-events: none;
 }
 /* Keep layout box while dragging — display:none makes dnd-kit remasure top→0 and overlay jumps up. */
-body.nordly-note-dragging .nordly-note-row-slot--dragging {
+body.nordly-note-dragging .nordly-note-row-slot--dragging,
+body.nordly-note-dragging .nordly-folder-row-slot--dragging,
+body.nordly-note-dragging .nordly-folder-group--dragging {
   visibility: hidden;
+}
+.nordly-folder-row-slot {
+  touch-action: none;
+  min-width: 0;
+}
+.nordly-folder-group--dragging {
+  pointer-events: none;
 }
 .nordly-note-drag-origin {
   display: grid;
@@ -57,6 +66,13 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  border-radius: 8px;
+  user-select: none;
+}
+.nordly-notes-section-label[data-create-target='true'] {
+  color: rgb(var(--ink-rgb) / 0.7);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .nordly-folder-group {
   display: flex;

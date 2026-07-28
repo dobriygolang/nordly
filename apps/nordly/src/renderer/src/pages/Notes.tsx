@@ -23,6 +23,7 @@ import {
   ensureFolderPath,
   renameFolder,
   deleteFolder,
+  moveFolder,
   moveNoteToFolder,
   updateNote,
   publishNoteToWeb,
@@ -35,12 +36,14 @@ import {
   type PublishStatus,
   type PublishToWebOptions,
   isNoteVaultLocked,
+  nextUniqueFolderName,
 } from '@features/notes/api/notesClient';
 import { getServerId } from '@shared/sync/idMap';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { subscribeVault } from '@shared/crypto/vault';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
+import { ensureCloudAuth } from '@shared/api/authSession';
+import { isCloudApiAvailable, isCloudEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
   INITIAL_LIST,
@@ -55,19 +58,7 @@ import { FileDropOverlay } from './Notes/FileDropOverlay';
 import { VAULT_SIDEBAR_W } from './vaultSidebar';
 import { isTauriRuntime } from '@platform/runtime';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
-import {
-  MarkdownImportError,
-  basenameFromPath,
-  collectBrowserMarkdownDrafts,
-  folderSegmentsForDirEntry,
-  isFileDrag,
-  isMarkdownFilename,
-  readMarkdownPath,
-  type MarkdownDraft,
-} from '@features/notes/lib/importMarkdownFiles';
-import { rewriteImportedImages } from '@features/notes/lib/rewriteImportedImages';
-import { mimeFromFilename } from '@features/notes/lib/noteAttachments';
-import { createNoteAttachment } from '@features/notes/api/attachmentsClient';
+import type { MarkdownDraft } from '@features/notes/lib/importMarkdownFiles';
 import {
   NOTES_ZOOM_DEFAULT,
   loadNotesEditorZoom,
@@ -78,6 +69,31 @@ import {
 const SAVE_STATUS_FADE_MS = 1200;
 const AUTOSAVE_DEBOUNCE_MS = 250;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
+
+/** Drop-path helpers — keep out of Notes cold-open static graph (bundle budgets). */
+async function loadMarkdownImport() {
+  return import('@features/notes/lib/importMarkdownFiles');
+}
+
+async function loadImportedImageRewrite() {
+  const [{ rewriteImportedImages }, { mimeFromFilename }, { createNoteAttachment }] =
+    await Promise.all([
+      import('@features/notes/lib/rewriteImportedImages'),
+      import('@features/notes/lib/noteAttachments'),
+      import('@features/notes/api/attachmentsClient'),
+    ]);
+  return { rewriteImportedImages, mimeFromFilename, createNoteAttachment };
+}
+
+/** True when the drag payload is OS files (not note-row @dnd-kit). */
+function isFileDrag(dt: DataTransfer | null | undefined): boolean {
+  if (!dt) return false;
+  return Array.from(dt.types).includes('Files');
+}
+
+function isMarkdownImportError(err: unknown): err is Error & { code: string } {
+  return err instanceof Error && err.name === 'MarkdownImportError' && 'code' in err;
+}
 
 export interface NotesPageProps {
   openRequest?: EntityNavigationRequest | null;
@@ -96,6 +112,9 @@ export function NotesPage({
   listRef.current = list;
   const [folders, setFolders] = useState<NoteFolder[]>([]);
   const focusFolderIdRef = useRef<string | null>(null);
+  /** Where ⌘N / new folder land — only an explicitly selected folder, else unfiled. */
+  const [createTargetFolderId, setCreateTargetFolderId] = useState<string | null>(null);
+  focusFolderIdRef.current = createTargetFolderId;
   const activeRef = useRef<Note | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(openRequest?.id ?? null);
@@ -114,14 +133,19 @@ export function NotesPage({
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    try {
+      return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    } catch (err) {
+      console.warn('[nordly:notes] sidebar collapse load failed', err);
+      return false;
+    }
   });
   const sidebarMountedRef = useRef(false);
   useEffect(() => {
     try {
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0');
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn('[nordly:notes] sidebar collapse persist failed', err);
     }
     if (!sidebarMountedRef.current) {
       sidebarMountedRef.current = true;
@@ -409,7 +433,7 @@ export function NotesPage({
     if (!(await flushNow())) return;
     try {
       const folderId = focusFolderIdRef.current;
-      const n = await createNote('Untitled', '', folderId);
+      const n = await createNote(t('nordly.notes.untitled'), '', folderId);
       prependAndSelectNote(n);
     } catch (err: unknown) {
       setActiveError(errorMessage(err, t));
@@ -423,7 +447,7 @@ export function NotesPage({
 
   const importErrorMessage = useCallback(
     (err: unknown): string => {
-      if (err instanceof MarkdownImportError) {
+      if (isMarkdownImportError(err)) {
         return t(`nordly.notes.file_drop.${err.code}`);
       }
       if (err instanceof Error) {
@@ -467,6 +491,11 @@ export function NotesPage({
 
           if (draft.sourceDir && isTauriRuntime()) {
             const sourceDir = draft.sourceDir;
+            const [{ basenameFromPath }, rewrite] = await Promise.all([
+              loadMarkdownImport(),
+              loadImportedImageRewrite(),
+            ]);
+            const { rewriteImportedImages, mimeFromFilename, createNoteAttachment } = rewrite;
             const rewritten = await rewriteImportedImages(
               n.id,
               n.bodyMd,
@@ -604,6 +633,7 @@ export function NotesPage({
       clearFileDrop();
 
       try {
+        const { collectBrowserMarkdownDrafts } = await loadMarkdownImport();
         const drafts = await collectBrowserMarkdownDrafts(e.dataTransfer);
         await importMarkdownDrafts(drafts);
       } catch (err: unknown) {
@@ -624,6 +654,13 @@ export function NotesPage({
     const readText = (p: string) => invoke<string>('read_text_file', { path: p });
 
     const collectTauriDrafts = async (paths: string[]): Promise<MarkdownDraft[]> => {
+      const {
+        basenameFromPath,
+        folderSegmentsForDirEntry,
+        isMarkdownFilename,
+        readMarkdownPath,
+        MarkdownImportError,
+      } = await loadMarkdownImport();
       const drafts: MarkdownDraft[] = [];
       let sawDirectory = false;
 
@@ -723,25 +760,19 @@ export function NotesPage({
 
   const handleCreateFolder = useCallback(async (): Promise<NoteFolder> => {
     try {
-      const parentId = focusFolderIdRef.current;
+      const parentId = createTargetFolderId;
       const base = t('nordly.notes.folder.default_name');
       const siblings = folders.filter((f) => (f.parentId ?? null) === parentId);
-      const taken = new Set(siblings.map((f) => f.name));
-      let name = base;
-      if (taken.has(name)) {
-        let n = 2;
-        while (taken.has(`${base} ${n}`)) n += 1;
-        name = `${base} ${n}`;
-      }
+      const name = nextUniqueFolderName(base, siblings.map((f) => f.name));
       const folder = await createFolder(name, parentId);
       setFolders((prev) => [...prev, folder]);
-      focusFolderIdRef.current = folder.id;
+      // Stay at the same create level so the next folder is a sibling, not a child.
       return folder;
     } catch (err: unknown) {
       setActiveError(errorMessage(err, t));
       throw err;
     }
-  }, [folders, t]);
+  }, [createTargetFolderId, folders, t]);
 
   const handleRenameFolder = useCallback(
     (id: string, name: string) => {
@@ -775,15 +806,15 @@ export function NotesPage({
           }
           return { ...prev, notes };
         });
-        if (focusFolderIdRef.current && deletedFolders.has(focusFolderIdRef.current)) {
-          focusFolderIdRef.current = null;
+        if (createTargetFolderId && deletedFolders.has(createTargetFolderId)) {
+          setCreateTargetFolderId(null);
         }
       } catch (err: unknown) {
         setActiveError(errorMessage(err, t));
         throw err;
       }
     },
-    [t],
+    [createTargetFolderId, t],
   );
 
   const handleMoveNote = useCallback(
@@ -794,7 +825,6 @@ export function NotesPage({
         ...prev,
         notes: prev.notes.map((n) => (n.id === noteId ? { ...n, folderId } : n)),
       }));
-      if (folderId) focusFolderIdRef.current = folderId;
       try {
         await moveNoteToFolder(noteId, folderId);
       } catch (err: unknown) {
@@ -811,8 +841,31 @@ export function NotesPage({
     [list.notes, t],
   );
 
+  const handleMoveFolder = useCallback(
+    async (folderId: string, parentId: string | null) => {
+      const previous = folders.find((f) => f.id === folderId)?.parentId ?? null;
+      setFolders((prev) =>
+        prev.map((f) =>
+          f.id === folderId
+            ? { ...f, parentId, updatedAt: new Date().toISOString() }
+            : f,
+        ),
+      );
+      try {
+        await moveFolder(folderId, parentId);
+      } catch (err: unknown) {
+        setFolders((prev) =>
+          prev.map((f) => (f.id === folderId ? { ...f, parentId: previous } : f)),
+        );
+        setActiveError(errorMessage(err, t));
+        throw err;
+      }
+    },
+    [folders, t],
+  );
+
   const handleFocusFolder = useCallback((folderId: string | null) => {
-    focusFolderIdRef.current = folderId;
+    setCreateTargetFolderId(folderId);
   }, []);
 
   useEffect(() => {
@@ -857,6 +910,11 @@ export function NotesPage({
 
   const handlePublish = useCallback(
     async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
+      if (!isCloudEnabled()) {
+        setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
+        return;
+      }
+      if (!(await ensureCloudAuth())) return;
       if (!isCloudApiAvailable()) {
         setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
         return;
@@ -881,6 +939,8 @@ export function NotesPage({
 
   const handleUpdatePublishOptions = useCallback(
     async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
+      if (!isCloudEnabled()) return;
+      if (!(await ensureCloudAuth())) return;
       if (!isCloudApiAvailable()) return;
       if (!isVaultReadyForPublish()) return;
       try {
@@ -895,6 +955,11 @@ export function NotesPage({
 
   const handleUnpublish = useCallback(
     async (id: string) => {
+      if (!isCloudEnabled()) {
+        setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
+        return;
+      }
+      if (!(await ensureCloudAuth())) return;
       if (!isCloudApiAvailable()) {
         setActiveError(t('nordly.notes.menu.publish_requires_cloud'));
         return;
@@ -1014,12 +1079,14 @@ export function NotesPage({
             list={list}
             folders={folders}
             selectedId={selectedId}
+            createTargetFolderId={createTargetFolderId}
             onSelect={onSelectNote}
             onCreateNote={handleCreate}
             onCreateFolder={handleCreateFolder}
             onRenameFolder={handleRenameFolder}
             onDeleteFolder={handleDeleteFolder}
             onMoveNote={handleMoveNote}
+            onMoveFolder={handleMoveFolder}
             onFocusFolder={handleFocusFolder}
             onPublish={handlePublish}
             onUpdatePublishOptions={handleUpdatePublishOptions}

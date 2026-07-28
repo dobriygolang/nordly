@@ -119,10 +119,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          # Pin macos-14 (Apple Silicon). macos-latest has flaked npm/esbuild
+          # installs when two targets share a runner label + npm cache.
+          - platform: macos-14
             args: '--target aarch64-apple-darwin'
             os: macos
-          - platform: macos-latest
+          - platform: macos-14
             args: '--target x86_64-apple-darwin'
             os: macos
           - platform: windows-latest
@@ -135,10 +137,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
+        if: matrix.os == 'windows'
         with:
           node-version: '22.14.0'
           cache: npm
           cache-dependency-path: apps/nordly/package-lock.json
+
+      - uses: actions/setup-node@v4
+        if: matrix.os != 'windows'
+        with:
+          # No npm cache on macOS — parallel matrix targets have flaked with a
+          # corrupt esbuild binary (spawnSync errno -88).
+          node-version: '22.14.0'
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -207,11 +217,20 @@ jobs:
           NPM_CONFIG_PROGRESS: 'false'
           NPM_CONFIG_AUDIT: 'false'
           NPM_CONFIG_FUND: 'false'
+        shell: bash
         run: |
+          set -euo pipefail
           node --version
           npm --version
           npm ci --no-audit --no-fund --progress=false --registry https://registry.npmjs.org
-
+          # macOS runners occasionally leave a non-executable esbuild binary
+          # after npm ci (spawnSync Unknown system error -88). Rebuild once.
+          if ! node ./node_modules/esbuild/bin/esbuild --version >/dev/null 2>&1; then
+            echo "::warning::esbuild binary failed validation; reinstalling platform package"
+            rm -rf node_modules/esbuild node_modules/@esbuild
+            npm install esbuild --no-save --no-audit --no-fund --registry https://registry.npmjs.org
+            node ./node_modules/esbuild/bin/esbuild --version
+          fi
       - name: Sync app version from release tag
         if: github.ref_type == 'tag'
         run: node deploy/scripts/sync-nordly-app-version.mjs --tag "${{ github.ref_name }}"

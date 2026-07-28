@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useSyncStore } from '@shared/model/sync';
+import { isCloudApiAvailable, isCloudEnabled } from '@shared/sync/syncConfig';
 
 let settingsCache: {
   connected: boolean;
@@ -15,7 +15,15 @@ const SETTINGS_TTL_MS = 30_000;
 
 function isAuthError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return /\b401\b|unauthorized/i.test(message);
+  return /\b401\b|unauthorized|missing access token/i.test(message);
+}
+
+function markDisconnected(): void {
+  settingsCache = {
+    connected: false,
+    reauthRequired: false,
+    fetchedAt: Date.now(),
+  };
 }
 
 export function useGoogleCalendarConnection(): {
@@ -36,10 +44,13 @@ export function useGoogleCalendarConnection(): {
   const [error, setError] = useState<Error | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!isCloudEnabled()) {
+    // Local / tokenless profiles keep Google Calendar idle — never call tracker APIs.
+    if (!isCloudEnabled() || !isCloudApiAvailable()) {
+      markDisconnected();
       setConnected(false);
       setReauthRequired(false);
       setReady(true);
+      setError(null);
       return;
     }
     let s: Awaited<ReturnType<typeof getTrackerSettings>>;
@@ -48,11 +59,7 @@ export function useGoogleCalendarConnection(): {
     } catch (err) {
       if (isAuthError(err)) {
         useSyncStore.getState().setSessionReauthRequired(true);
-        settingsCache = {
-          connected: false,
-          reauthRequired: false,
-          fetchedAt: Date.now(),
-        };
+        markDisconnected();
         setConnected(false);
         setReauthRequired(false);
         setReady(true);

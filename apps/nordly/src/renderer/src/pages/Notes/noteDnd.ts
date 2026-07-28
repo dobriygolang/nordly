@@ -1,7 +1,7 @@
 import type { CollisionDetection } from '@dnd-kit/core';
 import { pointerWithin, rectIntersection } from '@dnd-kit/core';
 
-import type { NoteSummary } from '@features/notes/api/notesClient';
+import type { NoteFolder, NoteSummary } from '@features/notes/api/notesClient';
 
 export const UNFILED_DROPPABLE_ID = 'unfiled';
 
@@ -12,6 +12,16 @@ export function folderDroppableId(folderId: string): string {
 export function parseFolderDroppableId(id: string): string | null {
   if (!id.startsWith('folder:')) return null;
   const folderId = id.slice('folder:'.length);
+  return folderId || null;
+}
+
+export function folderDraggableId(folderId: string): string {
+  return `folder-drag:${folderId}`;
+}
+
+export function parseFolderDraggableId(id: string): string | null {
+  if (!id.startsWith('folder-drag:')) return null;
+  const folderId = id.slice('folder-drag:'.length);
   return folderId || null;
 }
 
@@ -45,6 +55,11 @@ export const notesCollisionDetection: CollisionDetection = (args) => {
 export type NoteDragData = {
   type: 'note';
   note: NoteSummary;
+};
+
+export type FolderDragData = {
+  type: 'folder';
+  folder: NoteFolder;
 };
 
 export type NoteDropData =

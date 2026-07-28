@@ -9,7 +9,9 @@ import {
   openExternalUrl,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
+import { ensureCloudAuth } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { SettingRow } from '../primitives/SettingRow';
 
@@ -30,6 +32,12 @@ export function ZoomSection(): JSX.Element | null {
 
   const load = useCallback(async () => {
     if (!isCloudEnabled()) return;
+    if (!isCloudApiAvailable()) {
+      setSettings(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -112,6 +120,7 @@ export function ZoomSection(): JSX.Element | null {
     setBusy(true);
     setError(null);
     try {
+      if (!(await ensureCloudAuth())) return;
       const url = await getZoomAuthURL();
       setOauthPending(true);
       openExternalUrl(url);

@@ -35,6 +35,8 @@ interface LiveMarkdownEditorProps {
   /** Paste/drop image → insert markdown snippet at cursor (return null to ignore). */
   onInsertImageFile?: (file: File) => Promise<string | null>;
   onAttachmentError?: (err: unknown) => void;
+  /** Focus editor on mount (e.g. Notes opened via hotkey N). */
+  autoFocus?: boolean;
 }
 
 function findSlashTrigger(state: EditorState): { slashStart: number; query: string } | null {
@@ -71,6 +73,7 @@ export function LiveMarkdownEditor({
   resolveImageHref = null,
   onInsertImageFile,
   onAttachmentError,
+  autoFocus = false,
 }: LiveMarkdownEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -256,6 +259,19 @@ export function LiveMarkdownEditor({
     });
     viewRef.current = view;
     updateSlash(view);
+
+    if (autoFocus) {
+      // Defer past page-layer paint so focus sticks after hotkey N → Notes.
+      requestAnimationFrame(() => {
+        if (viewRef.current !== view) return;
+        const end = view.state.doc.length;
+        view.dispatch({
+          selection: { anchor: end },
+          scrollIntoView: true,
+        });
+        view.focus();
+      });
+    }
 
     return () => {
       view.destroy();

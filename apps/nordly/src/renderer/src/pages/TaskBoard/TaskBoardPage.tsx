@@ -17,8 +17,8 @@ import {
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
-import { isCloudEnabled } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { isRecoverableTaskActionError } from '@features/tasks/lib/taskActionErrors';
@@ -117,7 +117,7 @@ export function TaskBoardPage({
   );
 
   const loadSettings = useCallback(async () => {
-    if (!isCloudEnabled()) return;
+    if (!isCloudApiAvailable()) return;
     setTrackerSettings(await getTrackerSettings());
   }, []);
 

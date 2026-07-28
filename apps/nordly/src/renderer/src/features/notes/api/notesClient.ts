@@ -6,6 +6,7 @@ import {
   foldersStoreCreate,
   foldersStoreDelete,
   foldersStoreList,
+  foldersStoreMove,
   foldersStoreRename,
   type NoteFolder,
 } from '@features/notes/repository/foldersStore';
@@ -61,6 +62,7 @@ import type { PublishedAttachmentInput } from '@features/notes/remote/publishRem
 export type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 export type { PublishStatus };
 export type { NoteFolder };
+export { collectSubtreeIds, nextUniqueFolderName } from '@features/notes/repository/foldersStore';
 
 export interface Note {
   id: string;
@@ -146,6 +148,14 @@ export async function createFolder(
 
 export async function renameFolder(id: string, name: string): Promise<NoteFolder> {
   return foldersStoreRename(id, name);
+}
+
+/**
+ * Move a folder under a new parent (`null` = top-level).
+ * Notes and nested folders travel with it (they keep pointing at the same ids).
+ */
+export async function moveFolder(id: string, parentId: string | null): Promise<NoteFolder> {
+  return foldersStoreMove(id, parentId);
 }
 
 /**

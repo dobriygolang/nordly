@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
@@ -17,6 +17,8 @@ export interface FolderRowProps {
   menuOpen: boolean;
   renaming: boolean;
   depth?: number;
+  dragging?: boolean;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
   onMenuOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
   onSelect: (id: string, mods: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }) => void;
@@ -33,6 +35,8 @@ export const FolderRow = memo(function FolderRow({
   menuOpen,
   renaming,
   depth = 0,
+  dragging = false,
+  dragHandleProps,
   onMenuOpenChange,
   onToggle,
   onSelect,
@@ -102,6 +106,7 @@ export const FolderRow = memo(function FolderRow({
         data-selected={selected ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-renaming={renaming ? 'true' : 'false'}
+        data-dragging={dragging ? 'true' : 'false'}
         data-depth={depth}
         style={depth > 0 ? { paddingLeft: 10 + depth * 16 } : undefined}
         onMouseEnter={() => setHover(true)}
@@ -117,6 +122,7 @@ export const FolderRow = memo(function FolderRow({
           if (mods.metaKey || mods.ctrlKey || mods.shiftKey) return;
           onToggle(folder.id);
         }}
+        {...(renaming ? undefined : dragHandleProps)}
       >
         <span className="nordly-note-row__icon nordly-folder-row__chevron" aria-hidden>
           <Icon name="chevron-right" size={14} strokeWidth={1.6} />

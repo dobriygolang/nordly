@@ -167,12 +167,12 @@ npm run build
 2. **Windows job** — imports `.pfx` into runner cert store.
 3. **`write-signing-config.mjs`** — merges thumbprint / signing identity into `signing.ci.json`.
 4. **`tauri-action`** — builds signed + notarized artifacts.
-5. **`sync-cdn`** — downloads release assets, rewrites updater URLs to `trynordly.app/desktop`, SCP to VPS (`deploy/data/cdn/desktop/`).
+5. **`sync-cdn`** (opt-in: repo var `NORDLY_SYNC_CDN=true`) — downloads release assets, rewrites updater URLs to `trynordly.app/desktop`, SCP to VPS. Skipped while the VPS is offline; clients update from GitHub Releases.
 6. **`sync-main-version`** — writes tag version into `tauri.conf.json` / `Cargo.toml` / `package.json` on `main` (no manual bump needed).
 
 Release trigger: push `main`, then `git tag nordly-vX.Y.Z && git push origin nordly-vX.Y.Z`. Version in manifests is taken from the tag; CI syncs it back to `main` after a successful build.
 
-Requires GitHub secrets `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY` (same as backend deploy).
+CDN secrets (`DEPLOY_SSH_*`) are required only when `NORDLY_SYNC_CDN=true`.
 
 ---
 

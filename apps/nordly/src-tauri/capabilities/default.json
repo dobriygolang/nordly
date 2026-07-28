@@ -21,6 +21,10 @@
         { "url": "https://trynordly.app/**" },
         { "url": "https://api.trynordly.app/**" },
         { "url": "https://cdn.trynordly.app/**" },
+        { "url": "https://github.com/**" },
+        { "url": "https://api.github.com/**" },
+        { "url": "https://objects.githubusercontent.com/**" },
+        { "url": "https://release-assets.githubusercontent.com/**" },
         { "url": "http://localhost:8080/**" },
         { "url": "http://127.0.0.1:8080/**" }
       ]

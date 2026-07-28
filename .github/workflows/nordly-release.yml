@@ -54,12 +54,18 @@ jobs:
             echo "::error::Release tag must match nordly-vMAJOR.MINOR.PATCH."
             exit 1
           fi
-          # Soft gate: updater + CDN always required. Apple/Windows Developer ID
-          # only when repository variable NORDLY_CODE_SIGNING=true (else ad-hoc macOS).
+          # Soft gate: updater signing always required. CDN SSH only when
+          # repository variable NORDLY_SYNC_CDN=true (VPS mirror). Clients use
+          # GitHub Releases for updates. Apple/Windows Developer ID only when
+          # NORDLY_CODE_SIGNING=true (else ad-hoc macOS).
           required=(
             TAURI_SIGNING_PRIVATE_KEY
-            DEPLOY_SSH_HOST DEPLOY_SSH_USER DEPLOY_SSH_KEY
           )
+          if [[ "${{ vars.NORDLY_SYNC_CDN }}" == "true" ]]; then
+            required+=(DEPLOY_SSH_HOST DEPLOY_SSH_USER DEPLOY_SSH_KEY)
+          else
+            echo "NORDLY_SYNC_CDN unset — CDN sync job skipped (GitHub Releases updater)."
+          fi
           if [[ "$NORDLY_CODE_SIGNING" == "true" ]]; then
             required+=(
               APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD
@@ -260,7 +266,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_NORDLY_LOCAL_ONLY: 'false'
+          VITE_NORDLY_LOCAL_ONLY: 'true'
           VITE_NORDLY_WEB_BASE: 'https://trynordly.app'
           APPLE_SIGNING_IDENTITY: ${{ matrix.os == 'macos' && (vars.NORDLY_CODE_SIGNING == 'true' && secrets.APPLE_SIGNING_IDENTITY || '-') || '' }}
           APPLE_TEAM_ID: ${{ matrix.os == 'macos' && vars.NORDLY_CODE_SIGNING == 'true' && secrets.APPLE_TEAM_ID || '' }}
@@ -271,19 +277,26 @@ jobs:
           tagName: ${{ steps.release.outputs.tag }}
           releaseName: Nordly ${{ steps.release.outputs.tag }}
           releaseBody: |
-            Signed desktop builds for macOS (Apple Silicon + Intel) and Windows.
+            Offline-only desktop builds (no cloud sync) for macOS (Apple Silicon + Intel) and Windows.
 
-            Installers are attached below. Installed apps can update from **Settings → Software → Check for Updates**.
+            **First install while the server is down:** download an installer below once.
+            After that, updates come from GitHub Releases via **Settings → Software → Check for Updates**.
+
+            Cloud features (sync, Telegram login, publish, Google Calendar, rooms) return when the backend is back.
           releaseDraft: false
           prerelease: false
           updaterJsonPreferNsis: true
           args: ${{ steps.tauri_args.outputs.args }}
 
+  # CDN mirror optional while VPS is offline — clients use GitHub Releases updater.
   sync-cdn:
     name: sync desktop CDN
     needs: publish
     runs-on: ubuntu-latest
-    if: success() && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
+    if: >-
+      success()
+      && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
+      && vars.NORDLY_SYNC_CDN == 'true'
     steps:
       - uses: actions/checkout@v4
 

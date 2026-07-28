@@ -48,7 +48,7 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on,
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | **required for share** | Public web URL for live whiteboard links (`requireNordlyWebBaseUrl()`) |
 
-Prod builds should set `VITE_NORDLY_LOCAL_ONLY=false` for cloud features.
+Prod builds currently ship with `VITE_NORDLY_LOCAL_ONLY=true` (offline month while the backend is down). Set `false` again when cloud APIs return.
 
 ## Backend dependencies
 
@@ -293,13 +293,13 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 | Piece | Location |
 |-------|----------|
 | CI workflow | `.github/workflows/nordly-release.yml` — trigger: tag `nordly-v*` |
-| Updater endpoint | `https://trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
-| CDN sync | same workflow, job `sync-cdn` — rewrites manifests + SCP to VPS `deploy/data/cdn/desktop/` |
+| Updater endpoint | `https://github.com/dobriygolang/nordly/releases/latest/download/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
+| CDN sync | same workflow, job `sync-cdn` — **opt-in** via repo var `NORDLY_SYNC_CDN=true`; rewrites manifests + SCP to VPS. Skipped while VPS is offline (clients use GitHub Releases). |
 | Main version sync | job `sync-main-version` — commits `tauri.conf.json` / `Cargo.toml` / `package.json` after release |
 | Settings UI | `pages/Settings/sections/SoftwareSection.tsx` |
 | Updater helper | `shared/lib/updater.ts` — `@tauri-apps/plugin-updater` + `plugin-process` relaunch |
 
-Release flow: push `main` → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts, syncs version back to `main`, publishes CDN (works with a **private** GitHub repo). Manual version bump in the repo is optional — CI reads the version from the tag.
+Release flow: push `main` → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts (`LOCAL_ONLY=true`), publishes GitHub Release (+ `latest.json`). Existing installs that still point at the dead CDN need a **one-time manual install** from the Release; subsequent updates poll GitHub.
 
 Default macOS bundle uses ad-hoc signing (`signingIdentity: "-"` in `tauri.conf.json`) so CI works without Apple certs. Set repo variable `NORDLY_CODE_SIGNING=true` + Apple secrets for Developer ID + notarization (see `SIGNING.md`).
 

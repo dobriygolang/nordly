@@ -2,17 +2,7 @@ package repository
 
 import (
 	"context"
-	"time"
 )
-
-type Device struct {
-	UserID      string
-	DeviceID    string
-	Name        string
-	AppVersion  string
-	FirstSeenAt time.Time
-	LastSeenAt  time.Time
-}
 
 // Store is the device registration persistence port.
 //

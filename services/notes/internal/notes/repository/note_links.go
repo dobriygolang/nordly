@@ -81,6 +81,18 @@ func (r *Repository) ListBacklinks(
 	ctx context.Context,
 	userID, targetNoteID string,
 ) ([]notesmodel.BacklinkEntry, error) {
+	var exists bool
+	if err := r.pg.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM notes
+			WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		)
+	`, targetNoteID, userID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, notesmodel.ErrNotFound
+	}
 	rows, err := r.pg.Query(ctx, `
 		SELECT n.id, n.title, n.updated_at
 		FROM note_links nl

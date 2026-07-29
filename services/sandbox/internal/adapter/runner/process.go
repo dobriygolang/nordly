@@ -49,7 +49,7 @@ func (r *ProcessRunner) runOnce(ctx context.Context, req RunRequest, stdin, test
 
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
 	if timeout <= 0 {
-		timeout = 2 * time.Second
+		return nil, fmt.Errorf("process run: TimeoutMS must be > 0")
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

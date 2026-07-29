@@ -157,9 +157,6 @@ func updatePublishedShareTx(
 	meta notesmodel.PublishMeta,
 	assets []notesmodel.PublishedAttachment,
 ) (*notesmodel.ShareToWebResult, error) {
-	if note.PublishSlug == nil {
-		return nil, notesmodel.ErrInvalidArgument
-	}
 	existingSlug := *note.PublishSlug
 	var expiresAt *time.Time
 	if meta.ExpiresInDays > 0 {

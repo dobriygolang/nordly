@@ -3,18 +3,14 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
-	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/metrics"
 	focusmodel "github.com/dobriygolang/project-nordly/services/focus/internal/focus/model"
 	focusrepo "github.com/dobriygolang/project-nordly/services/focus/internal/focus/repository"
-	"github.com/google/uuid"
-)
-
-const (
-	maxFocusSessionSeconds = 24 * 60 * 60
-	staleSessionAge        = 24 * time.Hour
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/usecase/command/cleanup_abandoned_sessions"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/usecase/command/end_focus_session"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/usecase/command/start_focus_session"
+	"github.com/dobriygolang/project-nordly/services/focus/internal/focus/usecase/query/get_stats"
 )
 
 // ErrNotFound is returned when an entity does not exist.
@@ -42,7 +38,10 @@ type Service interface {
 }
 
 type focusService struct {
-	repo focusrepo.Store
+	startSession *start_focus_session.Handler
+	endSession   *end_focus_session.Handler
+	cleanup      *cleanup_abandoned_sessions.Handler
+	getStats     *get_stats.Handler
 }
 
 // Deps holds service dependencies.
@@ -52,7 +51,15 @@ type Deps struct {
 
 // New constructs the domain service.
 func New(deps Deps) Service {
-	return &focusService{repo: deps.Repo}
+	if deps.Repo == nil {
+		panic("focus service: Repo is required")
+	}
+	return &focusService{
+		startSession: start_focus_session.New(deps.Repo),
+		endSession:   end_focus_session.New(deps.Repo),
+		cleanup:      cleanup_abandoned_sessions.New(deps.Repo),
+		getStats:     get_stats.New(deps.Repo),
+	}
 }
 
 func (s *focusService) StartFocusSession(
@@ -60,40 +67,14 @@ func (s *focusService) StartFocusSession(
 	userID, mode, pinnedTitle, taskID, clientSessionID string,
 	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
-	if strings.TrimSpace(userID) == "" {
-		return nil, ErrInvalidArgument
-	}
-	mode = strings.TrimSpace(mode)
-	if mode != "pomodoro" && mode != "stopwatch" {
-		return nil, ErrInvalidArgument
-	}
-	if startedAt == nil {
-		return nil, ErrInvalidArgument
-	}
-	var taskPtr *string
-	if tid := strings.TrimSpace(taskID); tid != "" {
-		taskPtr = &tid
-	}
-	var clientSessionPtr *string
-	if clientID := strings.TrimSpace(clientSessionID); clientID != "" {
-		if _, err := uuid.Parse(clientID); err != nil {
-			return nil, ErrInvalidArgument
-		}
-		clientSessionPtr = &clientID
-	}
-	sess, err := s.repo.CreateSession(
-		ctx,
-		userID,
-		mode,
-		strings.TrimSpace(pinnedTitle),
-		taskPtr,
-		clientSessionPtr,
-		startedAt,
-	)
-	if err == nil {
-		metrics.IncFocusSession("started")
-	}
-	return sess, err
+	return s.startSession.Handle(ctx, start_focus_session.Command{
+		UserID:          userID,
+		Mode:            mode,
+		PinnedTitle:     pinnedTitle,
+		TaskID:          taskID,
+		ClientSessionID: clientSessionID,
+		StartedAt:       startedAt,
+	})
 }
 
 func (s *focusService) EndFocusSession(
@@ -102,60 +83,21 @@ func (s *focusService) EndFocusSession(
 	secondsFocused, pomodorosCompleted int,
 	endedAt *time.Time,
 ) (*focusmodel.Session, error) {
-	if strings.TrimSpace(userID) == "" || strings.TrimSpace(sessionID) == "" {
-		return nil, ErrInvalidArgument
-	}
-	if secondsFocused < 0 || secondsFocused > maxFocusSessionSeconds || pomodorosCompleted < 0 {
-		return nil, ErrInvalidArgument
-	}
-	if endedAt == nil {
-		return nil, ErrInvalidArgument
-	}
-	sess, err := s.repo.EndSession(
-		ctx,
-		userID,
-		sessionID,
-		secondsFocused,
-		pomodorosCompleted,
-		endedAt,
-	)
-	if errors.Is(err, focusmodel.ErrNotFound) {
-		return nil, ErrNotFound
-	}
-	if err == nil {
-		if secondsFocused > 0 || pomodorosCompleted > 0 {
-			metrics.IncFocusSession("completed")
-		} else {
-			metrics.IncFocusSession("abandoned")
-		}
-	}
-	return sess, err
+	return s.endSession.Handle(ctx, end_focus_session.Command{
+		UserID:             userID,
+		SessionID:          sessionID,
+		SecondsFocused:     secondsFocused,
+		PomodorosCompleted: pomodorosCompleted,
+		EndedAt:            endedAt,
+	})
 }
 
 func (s *focusService) CleanupAbandonedSessions(ctx context.Context, now time.Time) (int64, error) {
-	count, err := s.repo.AbandonSessionsStartedBefore(ctx, now.UTC().Add(-staleSessionAge))
-	if err != nil {
-		return 0, err
-	}
-	for range count {
-		metrics.IncFocusSession("abandoned")
-	}
-	return count, nil
+	return s.cleanup.Handle(ctx, cleanup_abandoned_sessions.Command{Now: now})
 }
 
 func (s *focusService) GetStats(ctx context.Context, userID, upToDate string) (*focusmodel.Stats, error) {
-	if strings.TrimSpace(userID) == "" {
-		return nil, ErrInvalidArgument
-	}
-	upTo := time.Now().UTC().Truncate(24 * time.Hour)
-	if d := strings.TrimSpace(upToDate); d != "" {
-		parsed, err := time.Parse("2006-01-02", d)
-		if err != nil {
-			return nil, ErrInvalidArgument
-		}
-		upTo = parsed.UTC()
-	}
-	return s.repo.GetStats(ctx, userID, upTo)
+	return s.getStats.Handle(ctx, get_stats.Query{UserID: userID, UpToDate: upToDate})
 }
 
 // IsNotFound reports whether err is a not-found error.

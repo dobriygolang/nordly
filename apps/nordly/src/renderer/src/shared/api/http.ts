@@ -30,17 +30,6 @@ async function coreFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
   return isNativeHttpInTauri() ? tauriFetch(input, init) : fetch(input, init);
 }
 
-/**
- * HTTP for device-owned vendor APIs (Google / Zoom). Uses Tauri HTTP in packaged
- * builds; does not run Nordly JWT 401 refresh.
- */
-export async function vendorFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  return coreFetch(input, init);
-}
-
 export async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,

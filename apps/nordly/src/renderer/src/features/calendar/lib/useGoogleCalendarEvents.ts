@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { canReachNetwork } from '@shared/sync/syncConfig';
 
@@ -29,7 +29,7 @@ export function useGoogleCalendarEvents(
   refresh: () => Promise<void>;
 } {
   const rangeKey = googleRangeKey(timeMin, timeMax);
-  const googleAvailable = isGoogleIntegrationAvailable();
+  const googleAvailable = isCloudEnabled();
 
   const peek = useCallback((): GoogleCalendarEvent[] | null => {
     if (!enabled || !googleAvailable) return [];

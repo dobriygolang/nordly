@@ -3,7 +3,7 @@
 # Flow: browser → xray:443 (REALITY) → nginx:8123 (TLS by SNI) → Caddy:18080
 #
 # 1. Caddy in Docker: 127.0.0.1:18080 only (see docker-compose.prod.yml)
-# 2. certbot for trynordly.app (include app/api/grafana subdomains; cdn.* optional — desktop uses /desktop on main host)
+# 2. certbot for trynordly.app (include app/api/code/grafana subdomains; cdn.* optional — desktop uses /desktop on main host)
 # 3. Enable this site + set xray realitySettings.target = 127.0.0.1:8123
 # 4. Do NOT bind Docker Caddy to host :80/:443
 
@@ -35,7 +35,7 @@ server {
 # Nordly → Caddy
 server {
 	listen 127.0.0.1:8123 ssl proxy_protocol;
-	server_name trynordly.app app.trynordly.app api.trynordly.app grafana.trynordly.app cdn.trynordly.app;
+	server_name trynordly.app app.trynordly.app api.trynordly.app code.trynordly.app grafana.trynordly.app cdn.trynordly.app;
 
 	ssl_certificate     /etc/letsencrypt/live/trynordly.app/fullchain.pem;
 	ssl_certificate_key /etc/letsencrypt/live/trynordly.app/privkey.pem;
@@ -67,7 +67,7 @@ server {
 server {
 	listen 80;
 	listen [::]:80;
-	server_name trynordly.app app.trynordly.app api.trynordly.app grafana.trynordly.app cdn.trynordly.app;
+	server_name trynordly.app app.trynordly.app api.trynordly.app code.trynordly.app grafana.trynordly.app cdn.trynordly.app;
 
 	location /.well-known/acme-challenge/ {
 		root /var/www/html;

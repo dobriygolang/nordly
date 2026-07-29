@@ -45,9 +45,9 @@ type Room struct {
 	OwnerID        uuid.UUID
 	Type           RoomType
 	Language       Language
-	Visibility Visibility
-	ExpiresAt     time.Time
-	CreatedAt     time.Time
+	Visibility     Visibility
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
 	IsGuestCreated bool
 }
 
@@ -58,5 +58,3 @@ type Participant struct {
 	JoinedAt time.Time
 }
 
-const DefaultRoomTTL = 6 * time.Hour
-const DefaultGuestRoomTTL = 3 * time.Hour

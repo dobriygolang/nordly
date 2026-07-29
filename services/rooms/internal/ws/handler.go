@@ -115,13 +115,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Invited guests collaborate in the shared editor (not read-only).
 		role = model.RoleParticipant
 	} else {
-		if room.Visibility == model.VisibilityPrivate && uid != room.OwnerID {
-			if _, gerr := h.Store.GetRole(r.Context(), roomID, uid); errors.Is(gerr, repository.ErrNotFound) {
-				http.Error(w, "private room: not authorized", http.StatusForbidden)
-				return
-			}
-		}
-
 		var pErr error
 		role, pErr = h.Store.GetRole(r.Context(), roomID, uid)
 		if pErr != nil {

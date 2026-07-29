@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -105,10 +104,3 @@ func NewBoardSlug(title string) string {
 	return slug + "-" + suffix
 }
 
-func (r *Repository) ArchivePublishedBoardsOlderThan(ctx context.Context, before time.Time) (int64, error) {
-	tag, err := r.pg.Exec(ctx, `UPDATE published_boards SET archived_at = now() WHERE archived_at IS NULL AND published_at < $1`, before)
-	if err != nil {
-		return 0, err
-	}
-	return tag.RowsAffected(), nil
-}

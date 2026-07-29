@@ -21,7 +21,7 @@ func TestEndFocusSessionRejectsUnboundedSeconds(t *testing.T) {
 		context.Background(),
 		"user",
 		"session",
-		maxFocusSessionSeconds+1,
+		24*60*60+1,
 		1,
 		&endedAt,
 	)

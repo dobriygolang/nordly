@@ -12,6 +12,21 @@ Isolated code execution for **live coding rooms** (run, fetch result, format).
 
 HTTP `8086` | gRPC `9096` | PG `5439` / `nordly_sandbox`
 
+## Layout
+
+```
+internal/app/api/sandbox/          transport (1 RPC = 1 file)
+internal/sandbox/
+  model/                           CodeRun + errors.go
+  repository/                      Store port + Postgres
+  service/                         thin orchestrator
+  usecase/command/run_code|format_code|process_queued_runs/
+  usecase/query/get_code_run/
+  usecase/support/                 shared run helpers
+internal/adapter/billing|runner/   external clients
+internal/runworker/                async queue poller
+```
+
 ## API
 
 | RPC | HTTP |
@@ -46,11 +61,7 @@ cd services/sandbox
 make gen-proto | start | test | lint
 ```
 
-Env: JWT public key, `BILLING_GRPC_ADDR`, `SANDBOX_*` limits.
-
-## Metrics
-
-`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+Env: JWT public key, `BILLING_GRPC_ADDR`, `SANDBOX_*` limits. Worker interval/batch, run `TimeoutMS`/`MemoryMB`/`CPUs`, and billing consume `amount` must be > 0 — no mid-path invent defaults. `service.New` panics if Repo/Billing/Runner/limits missing. Persistence port: `repository.Store` (mockery).
 
 ## Metrics
 

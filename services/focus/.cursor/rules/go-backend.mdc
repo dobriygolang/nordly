@@ -6,6 +6,8 @@ alwaysApply: false
 
 # Go backend — focus
 
-Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc),
+[architecture-standard.mdc](../../../../.cursor/rules/architecture-standard.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
 
 - Transport mappers: no nil → empty proto on success paths.
+- `repository.Store` mockery only; thin `pgx.Row` stubs OK for SQL scan tests — no domain-port fakes.

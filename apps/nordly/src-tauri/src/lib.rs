@@ -4,8 +4,6 @@ mod aux_windows;
 mod eventkit;
 mod notes_vault;
 mod notification;
-mod oauth_loopback;
-mod oauth_store;
 mod store;
 mod tray;
 mod vault;
@@ -13,7 +11,6 @@ mod window_macos;
 
 use auth::AuthSession;
 use notes_vault::{NotesVaultConfig, VaultFolderMeta, VaultNoteContent, VaultNoteMeta};
-use oauth_store::{OAuthPendingBlob, OAuthTokenBlob};
 use store::PomodoroSnapshot;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
@@ -68,15 +65,6 @@ pub fn run() {
             vault_pass_load,
             vault_pass_save,
             vault_pass_clear,
-            oauth_tokens_load,
-            oauth_tokens_save,
-            oauth_tokens_clear,
-            oauth_pending_load,
-            oauth_pending_save,
-            oauth_pending_clear,
-            oauth_loopback_start,
-            oauth_loopback_wait,
-            oauth_loopback_cancel,
             pomodoro_load,
             pomodoro_save,
             shell_open_external,
@@ -438,95 +426,6 @@ fn notes_vault_start_watch(window: WebviewWindow, app: AppHandle) -> Result<(), 
 fn notes_vault_stop_watch(window: WebviewWindow) -> Result<(), String> {
     require_main_window(&window)?;
     notes_vault::stop_watch_cmd()
-}
-
-#[tauri::command]
-fn oauth_tokens_load(
-    window: WebviewWindow,
-    app: AppHandle,
-    provider: String,
-    user_id: String,
-) -> Result<Option<OAuthTokenBlob>, String> {
-    require_main_window(&window)?;
-    oauth_store::load_tokens(&app, &provider, &user_id)
-}
-
-#[tauri::command]
-fn oauth_tokens_save(
-    window: WebviewWindow,
-    app: AppHandle,
-    user_id: String,
-    tokens: OAuthTokenBlob,
-) -> Result<(), String> {
-    require_main_window(&window)?;
-    oauth_store::save_tokens(&app, &user_id, &tokens)
-}
-
-#[tauri::command]
-fn oauth_tokens_clear(
-    window: WebviewWindow,
-    app: AppHandle,
-    provider: String,
-    user_id: String,
-) -> Result<(), String> {
-    require_main_window(&window)?;
-    oauth_store::clear_tokens(&app, &provider, &user_id)
-}
-
-#[tauri::command]
-fn oauth_pending_load(
-    window: WebviewWindow,
-    app: AppHandle,
-    provider: String,
-    user_id: String,
-) -> Result<Option<OAuthPendingBlob>, String> {
-    require_main_window(&window)?;
-    oauth_store::load_pending(&app, &provider, &user_id)
-}
-
-#[tauri::command]
-fn oauth_pending_save(
-    window: WebviewWindow,
-    app: AppHandle,
-    user_id: String,
-    pending: OAuthPendingBlob,
-) -> Result<(), String> {
-    require_main_window(&window)?;
-    oauth_store::save_pending(&app, &user_id, &pending)
-}
-
-#[tauri::command]
-fn oauth_pending_clear(
-    window: WebviewWindow,
-    app: AppHandle,
-    provider: String,
-    user_id: String,
-) -> Result<(), String> {
-    require_main_window(&window)?;
-    oauth_store::clear_pending(&app, &provider, &user_id)
-}
-
-#[tauri::command]
-fn oauth_loopback_start(window: WebviewWindow, app: AppHandle) -> Result<String, String> {
-    require_main_window(&window)?;
-    oauth_loopback::start(&app)
-}
-
-#[tauri::command]
-fn oauth_loopback_wait(
-    window: WebviewWindow,
-    app: AppHandle,
-    expected_state: String,
-    timeout_ms: u64,
-) -> Result<String, String> {
-    require_main_window(&window)?;
-    oauth_loopback::wait_for_code(&app, expected_state, timeout_ms)
-}
-
-#[tauri::command]
-fn oauth_loopback_cancel(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
-    require_main_window(&window)?;
-    oauth_loopback::cancel(&app)
 }
 
 #[tauri::command]

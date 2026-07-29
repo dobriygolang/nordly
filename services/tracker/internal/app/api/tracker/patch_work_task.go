@@ -20,6 +20,22 @@ func (i *Implementation) PatchWorkTask(ctx context.Context, req *trackerv1.Patch
 		v := req.GetEpicId()
 		params.EpicID = &v
 	}
+	if req.ConferenceUrl != nil {
+		v := req.GetConferenceUrl()
+		params.ConferenceURL = &v
+	}
+	if req.ConferenceProvider != nil {
+		v := req.GetConferenceProvider()
+		params.ConferenceProvider = &v
+	}
+	if req.GoogleEventId != nil {
+		v := req.GetGoogleEventId()
+		params.GoogleEventID = &v
+	}
+	if req.ZoomMeetingId != nil {
+		v := req.GetZoomMeetingId()
+		params.ZoomMeetingID = &v
+	}
 	task, err := i.svc.PatchWorkTask(ctx, userID, req.GetId(), params)
 	if err != nil {
 		return nil, mapServiceError(err)

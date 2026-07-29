@@ -3,15 +3,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import {
-  connectGoogleCalendar,
   disconnectGoogleCalendar,
+  getGoogleCalendarAuthURL,
   getTrackerSettings,
   listGoogleCalendars,
+  openExternalUrl,
   updateTrackerSettings,
   type GoogleCalendarListEntry,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { ensureCloudAuth } from '@shared/api/authSession';
+import { isCloudEnabled } from '@shared/model/features';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { invalidateGoogleCalendarCache } from '@features/calendar/api/calendar';
 import {
@@ -57,7 +60,14 @@ export function GoogleCalendarSection({
   }, [t]);
 
   const load = useCallback(async () => {
-    if (!isGoogleIntegrationAvailable()) return;
+    if (!isCloudEnabled()) return;
+    if (!isCloudApiAvailable()) {
+      setSettings(null);
+      setCalendars([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -133,7 +143,7 @@ export function GoogleCalendarSection({
     };
   }, [oauthPending, loadCalendars]);
 
-  if (!isGoogleIntegrationAvailable()) return null;
+  if (!isCloudEnabled()) return null;
 
   const connected = settings?.googleCalendarConnected === true;
   const reauthNeeded = settings?.googleReauthRequired === true;
@@ -157,18 +167,12 @@ export function GoogleCalendarSection({
     setBusy(true);
     setError(null);
     try {
+      if (!(await ensureCloudAuth())) return;
+      const url = await getGoogleCalendarAuthURL();
+      openExternalUrl(url);
       setOauthPending(true);
-      setSettings(await connectGoogleCalendar());
-      setOauthPending(false);
-      void loadCalendars(await getTrackerSettings());
-      window.dispatchEvent(
-        new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
-          detail: { status: 'connected', detail: null },
-        }),
-      );
     } catch (err) {
       console.error('[googleCalendar] connect failed', err);
-      setOauthPending(false);
       setError(t('nordly.settings.google.error_connect'));
     } finally {
       setBusy(false);
@@ -228,7 +232,7 @@ export function GoogleCalendarSection({
             {loading ? <InlineSpinner /> : null}
             {statusLabel}
           </span>
-          {connected && !reauthNeeded ? (
+          {connected ? (
             <button
               type="button"
               className="nordly-settings-vault-btn"
@@ -256,8 +260,6 @@ export function GoogleCalendarSection({
                   <InlineSpinner />
                   {t('nordly.settings.google.connecting')}
                 </>
-              ) : reauthNeeded ? (
-                t('nordly.settings.google.reconnect')
               ) : (
                 t('nordly.settings.google.connect')
               )}

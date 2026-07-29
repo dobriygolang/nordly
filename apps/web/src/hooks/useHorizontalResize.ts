@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { tryReleasePointerCapture, trySetPointerCapture } from '@/lib/pointerCapture'
 
 const MOVE_THRESHOLD_PX = 3
 
@@ -30,11 +31,7 @@ export function useHorizontalResize(setWidth: (width: number) => void): {
       e.preventDefault()
       e.stopPropagation()
       const el = e.currentTarget as HTMLElement
-      try {
-        el.setPointerCapture(e.pointerId)
-      } catch {
-        /* ignore */
-      }
+      trySetPointerCapture(el, e.pointerId)
       sessionRef.current = {
         ...cfg,
         baseWidth: cfg.baseWidth,
@@ -64,11 +61,7 @@ export function useHorizontalResize(setWidth: (width: number) => void): {
       const s = sessionRef.current
       if (!s || e.pointerId !== s.pointerId) return
       const next = clampWidth(s, e.clientX - s.startX)
-      try {
-        s.el.releasePointerCapture(s.pointerId)
-      } catch {
-        /* ignore */
-      }
+      tryReleasePointerCapture(s.el, s.pointerId)
       sessionRef.current = null
       setIsResizing(false)
       setWidth(next)

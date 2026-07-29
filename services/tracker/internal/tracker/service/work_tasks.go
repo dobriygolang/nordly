@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/metrics"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/create_work_task"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/delete_work_task"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/schedule_work_task"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/unschedule_work_task"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/update_work_task_status"
 )
 
 type WorkTask struct {
@@ -45,95 +46,60 @@ func (s *trackerService) ListWorkTasks(ctx context.Context, userID string) ([]Wo
 }
 
 func (s *trackerService) CreateWorkTask(ctx context.Context, userID string, in CreateWorkTaskParams) (*WorkTask, error) {
-	title := strings.TrimSpace(in.Title)
-	if title == "" {
-		return nil, fmt.Errorf("%w: title required", model.ErrInvalidArgument)
-	}
-	kind := strings.TrimSpace(in.Kind)
-	if !validWorkKind(kind) {
-		return nil, fmt.Errorf("%w: invalid kind", model.ErrInvalidArgument)
-	}
-	task, err := s.repo.CreateWorkTask(ctx, userID, kind, title, "todo")
+	task, err := s.createWorkTask.Handle(ctx, create_work_task.Command{
+		UserID: userID,
+		Kind:   in.Kind,
+		Title:  in.Title,
+	})
 	if err != nil {
 		return nil, err
 	}
-	metrics.IncWorkTask("create")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
 
 func (s *trackerService) UpdateWorkTaskStatus(ctx context.Context, userID, taskID, status string) (*WorkTask, error) {
-	status = strings.TrimSpace(status)
-	if !validWorkStatus(status) {
-		return nil, fmt.Errorf("%w: invalid status", model.ErrInvalidArgument)
-	}
-	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
-	if err != nil {
-		return nil, err
-	}
-	done := status == "done"
-	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{
-		Status: &status,
-		Done:   &done,
+	task, err := s.updateWorkTaskStatus.Handle(ctx, update_work_task_status.Command{
+		UserID: userID,
+		TaskID: taskID,
+		Status: status,
 	})
 	if err != nil {
 		return nil, err
-	}
-	if status == "done" {
-		metrics.IncWorkTask("complete")
-	} else {
-		metrics.IncWorkTask("status_change")
 	}
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
 
 func (s *trackerService) DeleteWorkTask(ctx context.Context, userID, taskID string) error {
-	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
-	if err != nil {
-		return err
-	}
-	_, err = s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{Archived: true})
-	if err == nil {
-		metrics.IncWorkTask("delete")
-	}
-	return err
+	return s.deleteWorkTask.Handle(ctx, delete_work_task.Command{
+		UserID: userID,
+		TaskID: taskID,
+	})
 }
 
 func (s *trackerService) ScheduleWorkTask(ctx context.Context, userID, taskID, startISO string, durationMin int) (*WorkTask, error) {
-	if durationMin < 15 || durationMin > 480 {
-		return nil, fmt.Errorf("%w: duration_min must be 15..480", model.ErrInvalidArgument)
-	}
-	start, err := time.Parse(time.RFC3339, startISO)
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid scheduled_start", model.ErrInvalidArgument)
-	}
-	_, err = s.repo.GetWorkTask(ctx, taskID, userID)
-	if err != nil {
-		return nil, err
-	}
-	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{
-		ScheduledStart:       &start,
-		ScheduledDurationMin: &durationMin,
+	task, err := s.scheduleWorkTask.Handle(ctx, schedule_work_task.Command{
+		UserID:      userID,
+		TaskID:      taskID,
+		StartISO:    startISO,
+		DurationMin: durationMin,
 	})
 	if err != nil {
 		return nil, err
 	}
-	metrics.IncWorkTask("schedule")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
 
 func (s *trackerService) UnscheduleWorkTask(ctx context.Context, userID, taskID string) (*WorkTask, error) {
-	_, err := s.repo.GetWorkTask(ctx, taskID, userID)
+	task, err := s.unscheduleWorkTask.Handle(ctx, unschedule_work_task.Command{
+		UserID: userID,
+		TaskID: taskID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, repository.WorkTaskPatch{ClearSchedule: true})
-	if err != nil {
-		return nil, err
-	}
-	metrics.IncWorkTask("unschedule")
 	wt := workTaskFromModel(task)
 	return &wt, nil
 }
@@ -169,23 +135,5 @@ func workTaskFromModel(t *model.WorkTask) WorkTask {
 		EpicID:               epicID,
 		ConferenceURL:        conferenceURL,
 		ConferenceProvider:   conferenceProvider,
-	}
-}
-
-func validWorkStatus(s string) bool {
-	switch s {
-	case "todo", "in_progress", "in_review", "done", "dismissed":
-		return true
-	default:
-		return false
-	}
-}
-
-func validWorkKind(s string) bool {
-	switch s {
-	case "algo", "sysdesign", "quiz", "reflection", "reading", "ml", "custom":
-		return true
-	default:
-		return false
 	}
 }

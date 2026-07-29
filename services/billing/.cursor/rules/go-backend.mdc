@@ -6,7 +6,8 @@ alwaysApply: false
 
 # Go backend — billing
 
-Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc),
+[architecture-standard.mdc](../../../../.cursor/rules/architecture-standard.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
 
 - Identity gRPC always wired; plans cache `Reload` errors if source missing.
 - No cache→DB silent fallbacks for entitlements.

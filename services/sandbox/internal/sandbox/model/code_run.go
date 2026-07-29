@@ -32,23 +32,23 @@ type CodeRun struct {
 	UserID        string
 	RoomID        string
 	Language      string
-	Code           string
-	Stdin          string
-	Status         string
-	RunType        string
-	Stdout         *string
-	Stderr         *string
-	CompileOutput  *string
-	Error          *string
-	ExitCode       *int
-	TimeMS         *int
-	MemoryKB       *int
-	TestsTotal     int
-	TestsPassed    int
-	TestResults    []TestResult
-	Runner         *string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	Code          string
+	Stdin         string
+	Status        string
+	RunType       string
+	Stdout        *string
+	Stderr        *string
+	CompileOutput *string
+	Error         *string
+	ExitCode      *int
+	TimeMS        *int
+	MemoryKB      *int
+	TestsTotal    int
+	TestsPassed   int
+	TestResults   []TestResult
+	Runner        *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // TestResult is one test case outcome.

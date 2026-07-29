@@ -12,6 +12,9 @@ import (
 )
 
 func toProtoNote(n *notesmodel.Note) *notesv1.Note {
+	if n == nil {
+		panic("toProtoNote: note is nil")
+	}
 	return &notesv1.Note{
 		Id:        n.ID,
 		Title:     n.Title,
@@ -58,6 +61,9 @@ func toProtoNoteSummary(n notesmodel.NoteSummary) *notesv1.NoteSummary {
 }
 
 func toProtoNoteAttachment(a *notesmodel.NoteAttachment) *notesv1.NoteAttachment {
+	if a == nil {
+		panic("toProtoNoteAttachment: attachment is nil")
+	}
 	return &notesv1.NoteAttachment{
 		Id:        a.ID,
 		FileName:  a.FileName,
@@ -71,6 +77,9 @@ func toProtoNoteAttachment(a *notesmodel.NoteAttachment) *notesv1.NoteAttachment
 }
 
 func toProtoNoteAttachmentSummary(a *notesmodel.NoteAttachmentSummary) *notesv1.NoteAttachmentSummary {
+	if a == nil {
+		panic("toProtoNoteAttachmentSummary: attachment is nil")
+	}
 	return &notesv1.NoteAttachmentSummary{
 		Id:        a.ID,
 		FileName:  a.FileName,

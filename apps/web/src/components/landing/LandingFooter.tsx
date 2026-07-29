@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { publicLiveNewUrl } from '@/lib/live/liveRoomUrl'
 import { useI18n } from '@/lib/i18n'
 
 export function LandingFooter() {
@@ -14,9 +15,9 @@ export function LandingFooter() {
             <Link to="/download" className="no-underline transition-colors hover:text-site-text">
               {t('welcome.navDownload')}
             </Link>
-            <Link to="/live/new" className="no-underline transition-colors hover:text-site-text">
+            <a href={publicLiveNewUrl()} className="no-underline transition-colors hover:text-site-text">
               {t('public.liveCoding')}
-            </Link>
+            </a>
             <Link to="/legal/privacy" className="no-underline transition-colors hover:text-site-text">
               {t('public.privacy')}
             </Link>

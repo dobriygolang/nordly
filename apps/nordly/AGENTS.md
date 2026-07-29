@@ -43,27 +43,14 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on,
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no Nordly cloud sync / publish / Telegram login |
-| `VITE_GOOGLE_CLIENT_ID` | unset | Public Google OAuth client — device-owned Calendar (PKCE + Keychain). Settings section shown when set. |
-| `VITE_ZOOM_CLIENT_ID` | unset | Public Zoom OAuth client — device-owned meetings (PKCE + Keychain). Settings section shown when set. |
+| `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no cloud sync, no publish, no Google/Zoom integrations |
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | optional | Unused by renderer today (share/publish URLs come from rooms/notes API) |
 
-Prod builds ship with `VITE_NORDLY_LOCAL_ONLY=true` while the backend is down. Bake `VITE_GOOGLE_CLIENT_ID` / `VITE_ZOOM_CLIENT_ID` as GitHub Actions repository variables for release builds.
+Prod builds ship with `VITE_NORDLY_LOCAL_ONLY=true` while the backend is down. Set `false` when cloud APIs (identity + tracker) are up — Google Calendar and Zoom then appear under Settings → Integrations.
 
-### Device-owned Google / Zoom (offline-capable)
-
-Tokens live only in the OS keychain (`oauth_store` / `shared/integrations/oauthTokens.ts`), scoped per Nordly `userId` (`oauth-tokens-{provider}:{userId}`) — never IndexedDB, never uploaded to tracker. Sign-out and user switches clear that user’s Google/Zoom tokens + pending PKCE.
-
-| Provider | OAuth | Redirect | API |
-|----------|-------|----------|-----|
-| Google | PKCE Desktop | loopback `http://127.0.0.1:<port>/` | Calendar REST → IDB `calendar_events` snapshot |
-| Zoom | PKCE | `nordly://settings` (`code` + `state`) | Create meeting on task |
-
-When Nordly cloud returns: identity sync for notes/tasks/focus is unchanged; Google/Zoom stay client-side. Conference links created offline enqueue outbox `patch` fields (`conferenceUrl`, …) when sync is enabled. Do not auto-import server-stored tracker OAuth tokens — each Mac reconnects Google/Zoom once.
-
-`isGoogleIntegrationAvailable()` / `isZoomIntegrationAvailable()` gate Settings + the calendar worker; they do **not** depend on `LOCAL_ONLY` or Nordly login.
+Google/Zoom OAuth runs through **tracker** (server-stored tokens). Connect opens the browser via `GET /v1/tracker/integrations/{google,zoom}/url`; callbacks land on the web companion and deep-link back as `nordly://settings?google_calendar=…` / `?zoom=…`. Meet/Zoom on tasks use `POST /v1/tracker/work/tasks/{id}/conference`. These features require `LOCAL_ONLY=false`, a signed-in session, and a reachable API.
 
 ## Backend dependencies
 
@@ -73,7 +60,7 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 |---------|------------|----------|
 | identity | 8080 | Auth, healthz |
 | billing | 8085 | Feature usage (`GET /v1/billing/me`) for Settings → Features |
-| tracker | 8089 | Work tasks sync (Google/Zoom OAuth endpoints unused by desktop) |
+| tracker | 8089 | Work tasks, Google Calendar, Zoom |
 | notes | 8090 | Notes CRUD, vault, publish |
 | focus | 8091 | Sessions, stats |
 | rooms | 8087 | Whiteboard live share + publish |
@@ -98,12 +85,11 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | POST | `/v1/devices/register` | `shared/api/registerSyncDevice.ts` — sync device quota registration |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
-**Packaged builds:** all renderer HTTP goes through `apiFetch` / `vendorFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+**Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
 
-**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (Nordly session) + `oauth_store.rs` / `oauth_loopback.rs` (Google/Zoom):
+**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (Nordly session keychain):
 
-**tracker** — task transport in `features/tasks/remote/tasksRemote.ts`. Calendar is **local**:
-`features/calendar/api/calendarClient.ts` → `features/calendar/local/*` (Google REST + Zoom REST). Tracker Google/Zoom HTTP is unused by desktop.
+**tracker** — task transport in `features/tasks/remote/tasksRemote.ts`; Google/Zoom in `features/calendar/remote/calendarClient.ts`.
 
 | Method | Path |
 |--------|------|
@@ -113,8 +99,15 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | POST | `/v1/tracker/work/tasks/{id}/schedule` |
 | POST | `/v1/tracker/work/tasks/{id}/unschedule` |
 | GET | `/v1/tracker/work/epics` |
-| PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference, conferenceUrl, …) |
-| POST | `/v1/tracker/work/tasks/{id}/conference` (server-side Meet/Zoom — unused by desktop) |
+| PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference, …) |
+| POST | `/v1/tracker/work/tasks/{id}/conference` |
+| GET | `/v1/tracker/integrations/google/url` |
+| POST | `/v1/tracker/integrations/google/disconnect` |
+| GET | `/v1/tracker/integrations/google/events` |
+| POST/PATCH/DELETE | `/v1/tracker/integrations/google/events` (+ `{id}` for patch/delete) |
+| GET | `/v1/tracker/integrations/google/calendars` |
+| GET/POST | `/v1/tracker/integrations/zoom/url`, `/disconnect` |
+| GET/PATCH | `/v1/tracker/settings` |
 
 **notes** — `features/notes/remote/{notesRemote,publishRemote,vaultRemote}.ts`, `shared/crypto/vault.ts`
 
@@ -172,7 +165,7 @@ Scoped by `setDbUserId()` on sign-in.
 
 **Outbox queue** (`isSyncQueueEnabled()`): same as sync but ignores access expiry — local mutations still enqueue while offline/expired/local-profile; push waits for a fresh token.
 
-**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone, local profiles, or transient network errors. Soft dismissible “sign in to sync” banner for local profiles when cloud is enabled. `ensureCloudAuth()` opens the login overlay only for intentional Nordly cloud CTAs (note publish, whiteboard share/publish) — never for Google/Zoom connect (device-owned) or silent outbox/sync. Offline + expired cloud session → silent local-only grace (no sync, no logout). Network errors surface inline on intentional online actions.
+**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone, local profiles, or transient network errors. Soft dismissible “sign in to sync” banner for local profiles when cloud is enabled. `ensureCloudAuth()` opens the login overlay for intentional Nordly cloud CTAs (note publish, whiteboard share/publish, Google/Zoom connect). Offline + expired cloud session → silent local-only grace (no sync, no logout). Network errors surface inline on intentional online actions.
 
 Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Calls `ensureAccessTokenForSync()` before each run.
 
@@ -287,7 +280,7 @@ Registered in `src-tauri/src/lib.rs`:
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?code=&state=` (Zoom / optional Google PKCE callback), `settings?google_calendar=…` / `settings?zoom=…` (legacy status bridge). Google Desktop OAuth primarily uses loopback, not deep link.
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
 
 ## Commands
 
@@ -329,8 +322,8 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 |-----|--------|
 | Note folders sync | FS vault: folders = dirs (path sync via vault domain later). IDB mode: nested local folders; `folderId` device-only |
 | Vault file sync RPCs | Client outbox `vault`/`file_put`/`file_delete` stubs; server List/Put/Get/DeleteVaultFile when VPS returns |
-| Google OAuth callback | Desktop: loopback `http://127.0.0.1:<port>/` + Keychain; optional `nordly://settings?code&state` |
-| Zoom OAuth callback | Desktop: `nordly://settings?code=&state=` → PKCE exchange + Keychain |
+| Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
+| Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
 
 ## Layout
 

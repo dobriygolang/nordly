@@ -31,11 +31,9 @@ func (i *Implementation) CreateGuestRoom(ctx context.Context, req *roomsv1.Creat
 		AccessToken: result.AccessToken,
 		Room:        toProtoRoom(result.Room),
 		ExpiresIn:   result.ExpiresIn,
-	}
-	if result.Invite != nil {
-		resp.Invite = &roomsv1.InviteLink{
+		Invite: &roomsv1.InviteLink{
 			Url: result.Invite.URL,
-		}
+		},
 	}
 	return resp, nil
 }

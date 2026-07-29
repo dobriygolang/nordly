@@ -6,14 +6,12 @@ import (
 	"math/big"
 )
 
-const defaultLength = 8
-
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 // Generate returns a human-friendly one-time login code.
 func Generate(length int) (string, error) {
 	if length <= 0 {
-		length = defaultLength
+		return "", fmt.Errorf("login code length must be > 0")
 	}
 
 	result := make([]byte, length)

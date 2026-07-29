@@ -8,7 +8,8 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 |------|-------|
 | Ubuntu 22.04+ / Debian 12+ | Docker Compose v2 |
 | Ports 80, 443, 22 | nginx TLS on host; Caddy on `127.0.0.1:18080` |
-| DNS A-records | `trynordly.app`, `api.trynordly.app`, `app.trynordly.app`, `grafana.trynordly.app` |
+| DNS A-records | `trynordly.app`, `api.trynordly.app`, `app.trynordly.app`, `code.trynordly.app`, `grafana.trynordly.app` |
+| TLS cert SAN | include `code.trynordly.app` (certbot `--expand` if cert already exists) |
 
 ## 2. `deploy/.env`
 
@@ -19,7 +20,8 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `REDIS_PASSWORD` | `openssl rand -hex 32` (required by identity, identity-bot, and billing) |
 | `INTERNAL_API_TOKEN` | `openssl rand -hex 32` |
-| `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms live/board links) |
+| `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms published boards) |
+| `LIVE_PUBLIC_BASE_URL` | `https://code.trynordly.app` (rooms guest invite / live-share links) |
 | `NORDLY_CALLBACK_URL` | `https://trynordly.app/oauth/google-calendar` (prod — web OAuth bridge → `nordly://settings`; dev desktop-only: `nordly://settings`) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud OAuth app (Calendar integration; optional). Prod callback: `https://trynordly.app/v1/tracker/integrations/google/callback` |
 | `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_REDIRECT_URI` | Zoom meetings (optional). Prod callback: `https://trynordly.app/v1/tracker/integrations/zoom/callback` |
@@ -60,7 +62,8 @@ Updates: merge to `main` → CI deploys automatically.
 
 - [ ] `https://api.trynordly.app/healthz`
 - [ ] `https://trynordly.app/desktop/releases.json` (after first `nordly-v*` tag release)
-- [ ] Live room guest create + WS
+- [ ] `https://code.trynordly.app/` — live create + guest join + WS
+- [ ] Live room guest create + WS (legacy `/live/*` on `trynordly.app` still works)
 - [ ] Published note `/notes/{slug}` and board `/board/{slug}`
 - [ ] Nordly login (Telegram)
 - [ ] `https://grafana.trynordly.app` — Platform + Product dashboards load

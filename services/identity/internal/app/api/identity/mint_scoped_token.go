@@ -17,6 +17,9 @@ func (i *Implementation) MintScopedAccessToken(
 	if req.GetRole() == "" {
 		return nil, invalidArgument("role is required")
 	}
+	if req.GetTtlSeconds() <= 0 {
+		return nil, invalidArgument("ttl_seconds must be > 0")
+	}
 	token, userID, expiresIn, err := i.service.MintScopedAccessToken(
 		ctx,
 		req.GetRole(),

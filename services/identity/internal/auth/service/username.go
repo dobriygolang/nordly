@@ -126,23 +126,3 @@ func randomSuffix(length int) (string, error) {
 	}
 	return string(result), nil
 }
-
-func telegramUsernameCandidates(firstName, lastName, username string) []string {
-	if username != "" {
-		return []string{username}
-	}
-	if firstName != "" && lastName != "" {
-		return []string{firstName + lastName, firstName + "_" + lastName, firstName}
-	}
-	if firstName != "" {
-		return []string{firstName}
-	}
-	return nil
-}
-
-func pickAvatar(current, telegram string) string {
-	if telegram != "" {
-		return telegram
-	}
-	return current
-}

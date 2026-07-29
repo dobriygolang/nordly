@@ -8,6 +8,15 @@ Module: `github.com/dobriygolang/project-nordly/services/identity`
 
 Auth and user profiles: **Telegram bot code**, **RS256 JWT** + Redis refresh.
 
+## Layout
+
+```
+internal/app/api/identity/     transport
+internal/user/                model + repository.Store
+internal/auth/                model + repository ports + service + usecase/command/*
+internal/device/              Store port + service (already)
+```
+
 ## Ports
 
 HTTP `8080` | gRPC `9090` | Postgres `5432` / `nordly` | Redis `6379`
@@ -37,7 +46,7 @@ Other services verify JWT via `pkg/jwt` or `GET /v1/jwt/public.pem`.
 | GET | `/v1/auth/config` | no — Telegram bot username for login widget |
 | POST | `/v1/devices/register` | JWT — cloud sync device registration (billing gates) |
 
-Internal gRPC (s2s token): `GetUser`, `GetUserByTelegramID`, `ValidateToken`, `MintScopedAccessToken` (rooms guests; `role` + `scope` required — no silent `guest` invent).
+Internal gRPC (s2s token): `GetUser`, `GetUserByTelegramID`, `ValidateToken`, `MintScopedAccessToken` (rooms guests; `role`, `scope`, and `ttl_seconds > 0` required — no silent invents).
 
 Custom HTTP contracts (not in proto):
 

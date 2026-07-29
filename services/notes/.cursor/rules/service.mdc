@@ -12,7 +12,7 @@ Module: `github.com/dobriygolang/project-nordly/services/notes`. See [AGENTS.md]
 ```
 cmd/notes/app/run.go          → DI
 internal/app/api/notes/       → gRPC/HTTP (one RPC per file)
-internal/notes/model|repository|service/
+internal/notes/model|repository|service|usecase/
 ```
 
 HTTP `:8090`, gRPC `:9100`. **Prod service** — Nordly notes + vault + publish.

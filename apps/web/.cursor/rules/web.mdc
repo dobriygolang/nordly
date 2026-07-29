@@ -34,6 +34,7 @@ Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fai
 - Early collab `Y.Text('scene')` blobs — removed; rooms use element map only.
 - Hand-written fake/stub classes for ports — use Vitest `vi.fn` / `vi.mock` only.
 - Redundant “just in case” conditionals that invent defaults after failed API reads.
+- Empty `catch` on storage/clipboard — log (`console.warn`) so failures stay visible.
 
 ## Cross-reference
 

@@ -197,33 +197,6 @@ func (rh *roomHub) pushEntry(e bufferedEntry) {
 	}
 }
 
-// FlushRoom serialises the rolling replay buffer as JSONL.
-func (h *Hub) FlushRoom(roomID uuid.UUID) []byte {
-	h.mu.RLock()
-	rh := h.rooms[roomID]
-	h.mu.RUnlock()
-	if rh == nil {
-		return nil
-	}
-	rh.mu.RLock()
-	defer rh.mu.RUnlock()
-	if rh.bufLen == 0 {
-		return nil
-	}
-	start := (rh.bufHead - rh.bufLen + replayBufferCap) % replayBufferCap
-	var out []byte
-	for i := 0; i < rh.bufLen; i++ {
-		idx := (start + i) % replayBufferCap
-		line, err := json.Marshal(rh.buffer[idx])
-		if err != nil {
-			panic(fmt.Sprintf("FlushRoom marshal: %v", err))
-		}
-		out = append(out, line...)
-		out = append(out, '\n')
-	}
-	return out
-}
-
 func (h *Hub) SnapshotOf(roomID uuid.UUID) []byte {
 	h.mu.RLock()
 	rh := h.rooms[roomID]
@@ -313,7 +286,8 @@ func newWSConn(ws *websocket.Conn, roomID, userID uuid.UUID, role model.Role, lo
 func (c *wsConn) currentRole() model.Role {
 	v := c.role.Load()
 	if v == nil {
-		return model.RoleViewer
+		// Role is always set in newWSConn — inventing viewer would silently drop edits.
+		panic(fmt.Sprintf("wsConn role unset user=%s room=%s", c.userID, c.roomID))
 	}
 	return v.(model.Role)
 }

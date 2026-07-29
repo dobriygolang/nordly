@@ -53,11 +53,11 @@ func New(ctx context.Context) (*App, error) {
 	repo := roomrepo.New(pg)
 	hub := ws.NewHub(log)
 	svc := roomservice.New(roomservice.Deps{
-		Repo:          repo,
-		Identity:      identityConn,
-		PublicBaseURL: cfg.PublicBaseURL,
-		RoomTTL:       cfg.RoomTTL,
-		GuestRoomTTL:  cfg.GuestRoomTTL,
+		Repo:              repo,
+		Identity:          identityConn,
+		PublicBaseURL:     cfg.PublicBaseURL,
+		LivePublicBaseURL: cfg.LivePublicBaseURL,
+		GuestRoomTTL:      cfg.GuestRoomTTL,
 	})
 
 	return &App{

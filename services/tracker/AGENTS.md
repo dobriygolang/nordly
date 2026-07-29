@@ -8,6 +8,15 @@ Module: `github.com/dobriygolang/project-nordly/services/tracker`
 
 Nordly work task board: kanban columns + day schedule. Optional **Google Calendar** integration for inbound events, Meet links, and calendar notifications.
 
+## Layout
+
+```
+internal/app/api/tracker/      transport
+internal/tracker/model|repository|service/
+```
+
+Persistence port: `repository.Store` (mockery). Heavy Google/Zoom ops still in service — extract usecases later.
+
 ## Ports
 
 HTTP `8089` | gRPC `9099` | PG `5441` `nordly_tracker`
@@ -45,6 +54,21 @@ Custom HTTP (not grpc-gateway):
 | `GET /v1/tracker/integrations/zoom/callback` | Zoom OAuth callback → redirect to web `/oauth/zoom?zoom=…` (derived from `NORDLY_CALLBACK_URL` host) or `nordly://settings?zoom=…` |
 
 Transport: one RPC per file under `internal/app/api/tracker/`.
+
+## Layout
+
+```
+internal/tracker/
+├── model/
+├── repository/          # Store port + Postgres
+├── service/             # Service interface; maps model.WorkTask → service.WorkTask
+├── usecase/
+│   ├── command/         # work task writes: create, status, delete, schedule, unschedule, patch
+│   └── support/         # shared validation (work task kind/status)
+└── metrics/
+```
+
+Conference creation (`CreateWorkTaskConference`) and Google/Zoom integration remain in `service/`.
 
 ## Outbox events
 
@@ -93,7 +117,7 @@ User OAuth scopes (`internal/adapter/zoom/oauth.go`): `meeting:write:meeting`, `
 
 `CreateWorkTaskConference` with `provider=zoom` creates a meeting via Zoom REST API and stores `conference_url` + `zoom_meeting_id` on the task. Topic is the task title (required, no invented default); duration is taken from the task schedule when set, otherwise omitted for Zoom’s own default. With `provider=meet`, adds a Google Meet link via Calendar API (`ConferenceData`); requires Google connected (not necessarily sync enabled).
 
-`PatchWorkTask` JSON body: `epicId`, `clearEpic`, `clearConference` (grpc-gateway camelCase).
+`PatchWorkTask` JSON body: `epicId`, `clearEpic`, `clearConference`, `conferenceUrl`, `conferenceProvider`, `googleEventId`, `zoomMeetingId` (grpc-gateway camelCase). Desktop may push device-created Meet/Zoom links via outbox when sync is on.
 
 Errors: `zoom_not_connected` / `zoom_reauth_required` (gRPC `FailedPrecondition`).
 

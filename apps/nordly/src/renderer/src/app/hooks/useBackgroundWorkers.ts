@@ -16,7 +16,7 @@ import {
 } from '@features/tasks/lib/taskReminderWorker';
 import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { isCloudEnabled, isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
 import {
   startUpdateCheckWorker,
@@ -31,30 +31,22 @@ import {
 
 type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
-const workerDependencies: CloudWorkerDependencies = {
+const cloudWorkerDependencies: CloudWorkerDependencies = {
   loadVaultPrefs,
   isCloudEnabled,
-  isGoogleIntegrationAvailable,
   isVaultEnabled: isVaultEnabledSync,
   hydrateCalendarCache: hydrateGoogleCalendarCache,
   startWorkers: () => {
-    /* sync-only — calendar workers start separately */
+    startCalendarReminderWorker();
     startSyncEngine();
+    startGoogleCalendarSyncWorker();
   },
   stopWorkers: () => {
     stopSyncEngine();
+    stopGoogleCalendarSyncWorker();
+    stopCalendarReminderWorker();
   },
 };
-
-function startDeviceCalendarWorkers(): void {
-  startCalendarReminderWorker();
-  startGoogleCalendarSyncWorker();
-}
-
-function stopDeviceCalendarWorkers(): void {
-  stopGoogleCalendarSyncWorker();
-  stopCalendarReminderWorker();
-}
 
 interface UseBackgroundWorkersOptions {
   status: AuthStatus;
@@ -93,12 +85,11 @@ export function useBackgroundWorkers({
     return () => stopTaskReminderWorker();
   }, [status, userId]);
 
-  // Vault + device Google Calendar hydrate once per signed-in user (incl. LOCAL_ONLY).
+  // Vault + calendar hydrate once per signed-in user — do not remount on reauth flips.
   useEffect(() => {
     if (status !== 'signed_in' || !userId) {
       setVaultGateActive(false);
-      stopDeviceCalendarWorkers();
-      workerDependencies.stopWorkers();
+      cloudWorkerDependencies.stopWorkers();
       return;
     }
 
@@ -107,30 +98,24 @@ export function useBackgroundWorkers({
       userId,
       isCancelled: () => cancelled,
       setVaultGateActive,
-      dependencies: workerDependencies,
-    })
-      .then(() => {
-        if (cancelled) return;
-        startDeviceCalendarWorkers();
-      })
-      .catch(onError);
+      dependencies: cloudWorkerDependencies,
+    }).catch(onError);
 
     return () => {
       cancelled = true;
-      stopDeviceCalendarWorkers();
-      workerDependencies.stopWorkers();
+      cloudWorkerDependencies.stopWorkers();
     };
   }, [status, userId, setVaultGateActive, onError]);
 
-  // Nordly cloud sync only — independent of device Google/Zoom.
+  // Pause cloud workers while interactive reauth is required; local app stays up.
   useEffect(() => {
     if (status !== 'signed_in' || !userId || !isCloudEnabled()) return;
     if (sessionReauthRequired) {
-      workerDependencies.stopWorkers();
+      cloudWorkerDependencies.stopWorkers();
       return;
     }
-    workerDependencies.startWorkers();
-    return () => workerDependencies.stopWorkers();
+    cloudWorkerDependencies.startWorkers();
+    return () => cloudWorkerDependencies.stopWorkers();
   }, [status, userId, sessionReauthRequired]);
 
   useEffect(() => {

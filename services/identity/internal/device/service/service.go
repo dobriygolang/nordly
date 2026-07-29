@@ -32,6 +32,12 @@ type Deps struct {
 }
 
 func New(deps Deps) Service {
+	if deps.Repo == nil {
+		panic("device service: Repo is required")
+	}
+	if deps.Billing == nil {
+		panic("device service: Billing is required")
+	}
 	return &deviceService{repo: deps.Repo, billing: deps.Billing}
 }
 

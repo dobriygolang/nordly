@@ -2,6 +2,7 @@ package runworker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/logger"
@@ -15,10 +16,10 @@ type Processor interface {
 // Run polls queued code runs until ctx is cancelled.
 func Run(ctx context.Context, log logger.Logger, interval time.Duration, batchSize int, svc Processor) error {
 	if interval <= 0 {
-		interval = 500 * time.Millisecond
+		return fmt.Errorf("run worker interval must be > 0")
 	}
 	if batchSize <= 0 {
-		batchSize = 10
+		return fmt.Errorf("run worker batch size must be > 0")
 	}
 
 	log.Info("run worker started", "interval", interval.String(), "batch", batchSize)

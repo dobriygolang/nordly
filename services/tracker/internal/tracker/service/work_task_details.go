@@ -11,31 +11,31 @@ import (
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/metrics"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/repository"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/command/patch_work_task"
 )
 
 type PatchWorkTaskParams struct {
-	EpicID          *string
-	ClearEpic       bool
-	ClearConference bool
+	EpicID             *string
+	ClearEpic          bool
+	ClearConference    bool
+	ConferenceURL      *string
+	ConferenceProvider *string
+	GoogleEventID      *string
+	ZoomMeetingID      *string
 }
 
 func (s *trackerService) PatchWorkTask(ctx context.Context, userID, taskID string, in PatchWorkTaskParams) (*WorkTask, error) {
-	patch := repository.WorkTaskPatch{
-		ClearEpic:       in.ClearEpic,
-		ClearConference: in.ClearConference,
-	}
-	if !in.ClearEpic && in.EpicID != nil {
-		epicID := strings.TrimSpace(*in.EpicID)
-		if epicID == "" {
-			return nil, fmt.Errorf("%w: epic_id required", model.ErrInvalidArgument)
-		}
-		if _, err := s.repo.GetEpic(ctx, epicID, userID); err != nil {
-			return nil, err
-		}
-		patch.EpicID = &epicID
-	}
-
-	task, err := s.repo.PatchWorkTask(ctx, taskID, userID, patch)
+	task, err := s.patchWorkTask.Handle(ctx, patch_work_task.Command{
+		UserID:             userID,
+		TaskID:             taskID,
+		EpicID:             in.EpicID,
+		ClearEpic:          in.ClearEpic,
+		ClearConference:    in.ClearConference,
+		ConferenceURL:      in.ConferenceURL,
+		ConferenceProvider: in.ConferenceProvider,
+		GoogleEventID:      in.GoogleEventID,
+		ZoomMeetingID:      in.ZoomMeetingID,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -10,34 +10,26 @@ import (
 
 	"github.com/google/uuid"
 
-	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	identityadapter "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/dto"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/usecase/command/create_guest_room"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/usecase/command/guest_join"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/usecase/command/publish_whiteboard"
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/usecase/command/share_whiteboard"
 )
 
 var (
 	ErrNotFound = repository.ErrNotFound
 )
 
-type RoomView struct {
-	Room         model.Room
-	Participants []model.Participant
-	WSURL        string
-}
-
-type GuestJoinResult struct {
-	AccessToken string
-	ExpiresIn   int32
-	Room        *RoomView
-}
-
-type GuestCreateResult struct {
-	AccessToken string
-	ExpiresIn   int32
-	Room        *RoomView
-	Invite      *model.InviteLink
-}
+type (
+	RoomView           = dto.RoomView
+	GuestJoinResult    = dto.GuestJoinResult
+	GuestCreateResult  = dto.GuestCreateResult
+	PublishBoardResult = dto.PublishBoardResult
+)
 
 type Service interface {
 	CreateGuestRoom(ctx context.Context, displayName string, roomType model.RoomType, language model.Language) (*GuestCreateResult, error)
@@ -51,30 +43,64 @@ type Service interface {
 }
 
 type roomService struct {
-	repo          *repository.Repository
-	identity      identityadapter.TokenMinter
-	publicBaseURL string
-	roomTTL       time.Duration
-	guestRoomTTL  time.Duration
-	now           func() time.Time
+	repo              repository.Store
+	createGuestRoom   *create_guest_room.Handler
+	guestJoin         *guest_join.Handler
+	shareWhiteboard   *share_whiteboard.Handler
+	publishWhiteboard *publish_whiteboard.Handler
 }
 
 type Deps struct {
-	Repo          *repository.Repository
-	Identity      identityadapter.TokenMinter
-	PublicBaseURL string
-	RoomTTL       time.Duration
-	GuestRoomTTL  time.Duration
+	Repo              repository.Store
+	Identity          identityadapter.TokenMinter
+	PublicBaseURL     string
+	LivePublicBaseURL string
+	GuestRoomTTL      time.Duration
 }
 
 func New(deps Deps) Service {
+	if deps.Repo == nil {
+		panic("rooms service: Repo is required")
+	}
+	if deps.Identity == nil {
+		panic("rooms service: Identity is required")
+	}
+	if strings.TrimSpace(deps.PublicBaseURL) == "" {
+		panic("rooms service: PublicBaseURL is required")
+	}
+	if strings.TrimSpace(deps.LivePublicBaseURL) == "" {
+		panic("rooms service: LivePublicBaseURL is required")
+	}
+	if deps.GuestRoomTTL < time.Second {
+		panic("rooms service: GuestRoomTTL must be >= 1s")
+	}
+	now := time.Now
+	handlerCfg := create_guest_room.Config{
+		Store:             deps.Repo,
+		Identity:          deps.Identity,
+		LivePublicBaseURL: deps.LivePublicBaseURL,
+		GuestRoomTTL:      deps.GuestRoomTTL,
+		Now:               now,
+	}
 	return &roomService{
-		repo:          deps.Repo,
-		identity:      deps.Identity,
-		publicBaseURL: deps.PublicBaseURL,
-		roomTTL:       deps.RoomTTL,
-		guestRoomTTL:  deps.GuestRoomTTL,
-		now:           time.Now,
+		repo:            deps.Repo,
+		createGuestRoom: create_guest_room.New(handlerCfg),
+		guestJoin: guest_join.New(guest_join.Config{
+			Store:    deps.Repo,
+			Identity: deps.Identity,
+			Now:      now,
+		}),
+		shareWhiteboard: share_whiteboard.New(share_whiteboard.Config{
+			Store:             deps.Repo,
+			Identity:          deps.Identity,
+			LivePublicBaseURL: deps.LivePublicBaseURL,
+			GuestRoomTTL:      deps.GuestRoomTTL,
+			Now:               now,
+		}),
+		publishWhiteboard: publish_whiteboard.New(publish_whiteboard.Config{
+			Store:         deps.Repo,
+			PublicBaseURL: deps.PublicBaseURL,
+		}),
 	}
 }
 
@@ -84,83 +110,34 @@ func (s *roomService) CreateGuestRoom(
 	roomType model.RoomType,
 	language model.Language,
 ) (*GuestCreateResult, error) {
-	if roomType != model.RoomTypePractice && roomType != model.RoomTypeSystemDesign {
-		return nil, fmt.Errorf("guest rooms support only %q and %q: %w",
-			model.RoomTypePractice, model.RoomTypeSystemDesign, repository.ErrInvalidState)
-	}
-	if err := model.ValidateCreate(roomType, language); err != nil {
-		return nil, err
-	}
-
-	name := strings.TrimSpace(displayName)
-	if name == "" {
-		return nil, fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
-	}
-
-	roomID := uuid.New()
-	guestTTL := s.guestRoomTTL
-	scope := fmt.Sprintf("editor:%s", roomID)
-	ttlSec := int32(guestTTL.Seconds())
-	if ttlSec <= 0 {
-		return nil, fmt.Errorf("guest room TTL misconfigured: %w", repository.ErrInvalidState)
-	}
-
-	token, ownerID, err := s.identity.MintScopedAccessToken(ctx, string(model.RoleOwner), scope, name, ttlSec)
-	if err != nil {
-		return nil, fmt.Errorf("CreateGuestRoom mint token: %w", err)
-	}
-	ownerUUID, err := uuid.Parse(ownerID)
-	if err != nil {
-		return nil, fmt.Errorf("CreateGuestRoom owner id: %w", err)
-	}
-
-	now := s.now().UTC()
-	created, err := s.repo.CreateRoomWithID(ctx, roomID, model.Room{
-		OwnerID:        ownerUUID,
-		Type:           roomType,
-		Language:       language,
-		Visibility:     model.VisibilityShared,
-		ExpiresAt:      now.Add(guestTTL),
-		IsGuestCreated: true,
+	return s.createGuestRoom.Handle(ctx, create_guest_room.Command{
+		DisplayName: displayName,
+		RoomType:    roomType,
+		Language:    language,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("CreateGuestRoom: %w", err)
-	}
-
-	ownerRow, err := s.repo.AddParticipant(ctx, model.Participant{
-		RoomID:   created.ID,
-		UserID:   ownerUUID,
-		Role:     model.RoleOwner,
-		JoinedAt: now,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("CreateGuestRoom seed owner: %w", err)
-	}
-
-	link := model.NewInviteLink(s.publicBaseURL, created.ID, created.ExpiresAt)
-	invite := &link
-
-	return &GuestCreateResult{
-		AccessToken: token,
-		ExpiresIn:   ttlSec,
-		Room:        s.view(created, []model.Participant{ownerRow}),
-		Invite:      invite,
-	}, nil
 }
 
 func (s *roomService) GetRoom(ctx context.Context, userID, roomID string) (*RoomView, error) {
-	uid, rid, room, participants, err := s.loadRoom(ctx, userID, roomID)
+	uid, _, room, participants, err := s.loadRoom(ctx, userID, roomID)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureAccess(ctx, uid, rid, room, participants); err != nil {
+	if err := s.ensureAccess(uid, room, participants); err != nil {
 		return nil, err
 	}
-	return s.view(room, participants), nil
+	return dto.NewRoomView(room, participants), nil
 }
 
 func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) error {
-	uid, rid, room, _, err := s.loadRoom(ctx, userID, roomID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user id: %w", err)
+	}
+	rid, err := uuid.Parse(roomID)
+	if err != nil {
+		return fmt.Errorf("invalid room id: %w", err)
+	}
+	room, err := s.repo.GetRoom(ctx, rid)
 	if err != nil {
 		return err
 	}
@@ -171,66 +148,18 @@ func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) erro
 }
 
 func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string) (*GuestJoinResult, error) {
-	name := strings.TrimSpace(displayName)
-	if name == "" {
-		return nil, fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
-	}
+	return s.guestJoin.Handle(ctx, guest_join.Command{
+		RoomID:      roomID,
+		DisplayName: displayName,
+	})
+}
 
-	rid, err := uuid.Parse(roomID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid room id: %w", err)
-	}
-
-	room, err := s.repo.GetRoom(ctx, rid)
-	if err != nil {
-		return nil, err
-	}
-	if repository.IsExpired(room, s.now().UTC()) {
-		return nil, repository.ErrInvalidState
-	}
-	if room.Visibility == model.VisibilityPrivate {
-		return nil, repository.ErrForbidden
-	}
-	if room.Type != model.RoomTypePractice && room.Type != model.RoomTypeSystemDesign {
-		return nil, repository.ErrForbidden
-	}
-
-	participants, err := s.repo.ListParticipants(ctx, rid)
-	if err != nil {
-		return nil, err
-	}
-
-	ttl := room.ExpiresAt.Sub(s.now().UTC())
-	ttlSec := int32(ttl.Seconds())
-	if ttlSec <= 0 {
-		return nil, repository.ErrInvalidState
-	}
-
-	scope := fmt.Sprintf("editor:%s", rid)
-	token, guestUserID, err := s.identity.MintScopedAccessToken(ctx, identityjwt.RoleGuest, scope, name, ttlSec)
-	if err != nil {
-		return nil, fmt.Errorf("GuestJoin mint token: %w", err)
-	}
-	guestUUID, err := uuid.Parse(guestUserID)
-	if err != nil {
-		return nil, fmt.Errorf("GuestJoin guest id: %w", err)
-	}
-	if row, err := s.repo.AddParticipant(ctx, model.Participant{
-		RoomID:   rid,
-		UserID:   guestUUID,
-		Role:     model.RoleForInvitee(room, participants),
-		JoinedAt: s.now().UTC(),
-	}); err != nil {
-		return nil, fmt.Errorf("GuestJoin participant: %w", err)
-	} else {
-		participants = append(participants, row)
-	}
-
-	return &GuestJoinResult{
-		AccessToken: token,
-		ExpiresIn:   ttlSec,
-		Room:        s.view(room, participants),
-	}, nil
+func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, title string) (*GuestCreateResult, error) {
+	_ = userID // JWT auth enforced at transport; share mints a scoped owner identity
+	return s.shareWhiteboard.Handle(ctx, share_whiteboard.Command{
+		SceneJSON: sceneJSON,
+		Title:     title,
+	})
 }
 
 func (s *roomService) loadRoom(ctx context.Context, userID, roomID string) (uuid.UUID, uuid.UUID, model.Room, []model.Participant, error) {
@@ -253,7 +182,7 @@ func (s *roomService) loadRoom(ctx context.Context, userID, roomID string) (uuid
 	return uid, rid, room, participants, nil
 }
 
-func (s *roomService) ensureAccess(ctx context.Context, uid, rid uuid.UUID, room model.Room, participants []model.Participant) error {
+func (s *roomService) ensureAccess(uid uuid.UUID, room model.Room, participants []model.Participant) error {
 	if uid == room.OwnerID {
 		return nil
 	}
@@ -265,18 +194,7 @@ func (s *roomService) ensureAccess(ctx context.Context, uid, rid uuid.UUID, room
 	if room.Visibility == model.VisibilityShared {
 		return nil
 	}
-	if _, err := s.repo.GetRole(ctx, rid, uid); errors.Is(err, repository.ErrNotFound) {
-		return repository.ErrForbidden
-	}
-	return nil
-}
-
-func (s *roomService) view(room model.Room, participants []model.Participant) *RoomView {
-	return &RoomView{
-		Room:         room,
-		Participants: participants,
-		WSURL:        fmt.Sprintf("/ws/editor/%s", room.ID),
-	}
+	return repository.ErrForbidden
 }
 
 func IsNotFound(err error) bool {
@@ -285,8 +203,4 @@ func IsNotFound(err error) bool {
 
 func IsForbidden(err error) bool {
 	return errors.Is(err, repository.ErrForbidden)
-}
-
-func IsQuotaExceeded(err error) bool {
-	return errors.Is(err, repository.ErrQuotaExceeded)
 }

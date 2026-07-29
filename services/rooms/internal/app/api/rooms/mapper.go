@@ -32,8 +32,5 @@ func mapServiceError(err error) error {
 	if roomservice.IsForbidden(err) {
 		return permissionDenied("forbidden")
 	}
-	if roomservice.IsQuotaExceeded(err) {
-		return failedPrecondition("room quota exceeded")
-	}
 	return status.Errorf(codes.Internal, "internal error")
 }

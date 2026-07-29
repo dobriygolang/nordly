@@ -9,6 +9,7 @@ import (
 	"github.com/dobriygolang/project-nordly/services/identity/internal/adapter/telegram"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
+	authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/humanerror"
 	identityv1 "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1"
 	"google.golang.org/grpc/codes"
@@ -45,7 +46,7 @@ func publicAvatarURL(user *model.User) string {
 	return user.AvatarURL
 }
 
-func toAuthResponse(result *authservice.AuthResult) *identityv1.AuthResponse {
+func toAuthResponse(result *authmodel.AuthResult) *identityv1.AuthResponse {
 	return &identityv1.AuthResponse{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
@@ -60,7 +61,8 @@ func mapServiceError(err error) error {
 	case errors.Is(err, authservice.ErrUnauthorized):
 		return unauthorized()
 	case errors.Is(err, authservice.ErrInvalidLoginCode),
-		errors.Is(err, authservice.ErrInvalidRefreshToken):
+		errors.Is(err, authservice.ErrInvalidRefreshToken),
+		errors.Is(err, authservice.ErrInvalidArgument):
 		return status.Error(codes.InvalidArgument, err.Error())
 	default:
 		return status.Error(codes.Internal, "internal error")

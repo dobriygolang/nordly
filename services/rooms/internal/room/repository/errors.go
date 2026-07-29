@@ -1,10 +1,9 @@
 package repository
 
-import "errors"
+import "github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 
 var (
-	ErrNotFound       = errors.New("room: not found")
-	ErrForbidden      = errors.New("room: forbidden")
-	ErrInvalidState   = errors.New("room: invalid state")
-	ErrQuotaExceeded  = errors.New("room: quota exceeded")
+	ErrNotFound     = model.ErrNotFound
+	ErrForbidden    = model.ErrForbidden
+	ErrInvalidState = model.ErrInvalidState
 )

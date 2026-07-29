@@ -12,7 +12,7 @@ Module: `github.com/dobriygolang/project-nordly/services/focus`. See [AGENTS.md]
 ```
 cmd/focus/app/run.go          → DI
 internal/app/api/focus/       → gRPC/HTTP (one RPC per file)
-internal/focus/model|repository|service/
+internal/focus/model|repository|service|usecase/
 ```
 
 HTTP `:8091`, gRPC `:9101`. **Prod service** — Nordly pomodoro + stats.

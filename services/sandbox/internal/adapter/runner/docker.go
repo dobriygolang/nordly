@@ -63,7 +63,13 @@ func (r *DockerRunner) runOnce(ctx context.Context, req RunRequest, stdin, _ str
 
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
 	if timeout <= 0 {
-		timeout = 2 * time.Second
+		return nil, fmt.Errorf("docker run: TimeoutMS must be > 0")
+	}
+	if req.MemoryMB <= 0 {
+		return nil, fmt.Errorf("docker run: MemoryMB must be > 0")
+	}
+	if strings.TrimSpace(r.CPUs) == "" {
+		return nil, fmt.Errorf("docker run: CPUs must be set")
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -127,10 +133,10 @@ func goCacheDirForRun(r *DockerRunner, language string) string {
 
 func dockerRunArgs(name, image, workDir, goCacheDir string, memoryMB int, cpus string, cmd ...string) []string {
 	if memoryMB <= 0 {
-		memoryMB = 128
+		panic("dockerRunArgs: memoryMB must be > 0")
 	}
-	if cpus == "" {
-		cpus = "1.0"
+	if strings.TrimSpace(cpus) == "" {
+		panic("dockerRunArgs: cpus must be set")
 	}
 	mem := fmt.Sprintf("%dm", memoryMB)
 	gocacheEnv := "/work/.gocache"

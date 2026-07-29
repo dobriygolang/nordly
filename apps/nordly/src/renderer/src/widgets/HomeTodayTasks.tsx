@@ -22,7 +22,7 @@ import { inspectCalendarEntry } from '@features/calendar/lib/calendarInspect';
 import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
 import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
 import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { readSettings } from '@shared/model/settings';
 import { defaultDurationMin, parseDayKey, startOfLocalDay, toDayKey } from '@shared/lib/dates';
 import { formatLocaleTime } from '@shared/lib/localeFormat';
@@ -92,7 +92,7 @@ export function HomeTodayTasks(): JSX.Element | null {
   }, [todayDate]);
 
   const { connected, ready: connectionReady } = useGoogleCalendarConnection();
-  const googleEnabled = isGoogleIntegrationAvailable() && connected && connectionReady;
+  const googleEnabled = isCloudEnabled() && connected && connectionReady;
   const appleCalendarEnabled = readSettings().appleCalendarEnabled;
   const { events: googleEvents } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
   const { events: appleEvents } = useAppleCalendarEvents(dayStart, dayEnd, appleCalendarEnabled);

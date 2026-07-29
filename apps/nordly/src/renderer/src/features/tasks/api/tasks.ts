@@ -1,13 +1,21 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
 import { translate } from '@nordly-i18n';
-import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete } from '@features/tasks/repository/tasksStore';
+import {
+  tasksStoreApplyRemote,
+  tasksStoreGet,
+  tasksStoreList,
+  tasksStorePut,
+  tasksStoreSoftDelete,
+} from '@features/tasks/repository/tasksStore';
 import { isTaskEpicColor, findEpicByColor, normalizeHex } from '@features/tasks/lib/epicColor';
 import { epicsStoreList } from '@features/tasks/repository/epicsStore';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
+import { remoteCreateTaskConference } from '@features/tasks/remote/tasksRemote';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
-import { scheduleSync } from '@shared/sync/SyncEngine';
+import { flushSync, scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
 
@@ -260,66 +268,27 @@ export async function createTaskConference(
   taskId: string,
   provider: ConferenceProvider,
 ): Promise<TaskCard> {
+  if (!isCloudEnabled()) {
+    throw new Error('integrations require cloud account');
+  }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-
-  const title = prev.title.trim();
-  if (!title) throw new Error('Task title is required');
-
-  let conferenceUrl: string;
-  let conferenceProvider: ConferenceProvider = provider;
-  let googleEventId = prev.googleEventId;
-  let zoomMeetingId: string | undefined;
-
-  if (provider === 'meet') {
-    const { createGoogleMeetForTask } = await import('@features/calendar/api/calendarClient');
-    const start = prev.scheduledStart
-      ? new Date(prev.scheduledStart)
-      : new Date();
-    const durationMin =
-      prev.scheduledDurationMin && prev.scheduledDurationMin > 0
-        ? prev.scheduledDurationMin
-        : 30;
-    const end = new Date(start.getTime() + durationMin * 60_000);
-    const meet = await createGoogleMeetForTask({
-      title,
-      start,
-      end,
-      existingEventId: prev.googleEventId,
-    });
-    conferenceUrl = meet.meetUrl;
-    googleEventId = meet.googleEventId;
-  } else {
-    const { createZoomMeeting } = await import('@features/calendar/api/calendarClient');
-    const meeting = await createZoomMeeting({
-      topic: title,
-      start: prev.scheduledStart ? new Date(prev.scheduledStart) : undefined,
-      durationMin: prev.scheduledDurationMin,
-    });
-    conferenceUrl = meeting.joinUrl;
-    zoomMeetingId = meeting.id;
+  let serverId = await getServerId('tasks', taskId);
+  if (!serverId && isSyncQueueEnabled()) {
+    // Meet/Zoom need the tracker id — push local creates first.
+    // Best-effort: unrelated outbox failures must not block conference creation.
+    try {
+      await flushSync();
+    } catch (err) {
+      console.error('[nordly:tasks] flush before conference failed', err);
+    }
+    serverId = await getServerId('tasks', taskId);
   }
-
-  const now = new Date().toISOString();
-  const task: TaskCard = {
-    ...prev,
-    updatedAt: now,
-    conferenceUrl,
-    conferenceProvider,
-    googleEventId,
-    zoomMeetingId,
-  };
-  await tasksStorePut(task);
-  if (isSyncQueueEnabled()) {
-    await enqueueTaskOutbox(taskId, prev.id, 'patch', {
-      conferenceUrl,
-      conferenceProvider,
-      googleEventId: googleEventId ?? null,
-      zoomMeetingId: zoomMeetingId ?? null,
-    });
-    scheduleSync();
-  }
+  if (!serverId) throw new Error('task_not_synced');
+  const updated = await remoteCreateTaskConference(serverId, provider);
+  const task = await tasksStoreApplyRemote(updated);
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  // Meet writes a Google event; dynamic import keeps the calendar barrel out of App → Notes.
   if (provider === 'meet') {
     void import('@features/calendar/api/calendar').then(
       ({ invalidateGoogleCalendarCache, refreshGoogleCalendarCache }) => {

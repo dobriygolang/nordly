@@ -9,8 +9,8 @@ const REFRESH_TOKEN_KEY = 'nordly_refresh_token'
 function safeDelete(key: string): void {
   try {
     if (typeof window !== 'undefined') window.localStorage.removeItem(key)
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[apiClient] localStorage remove failed', key, err)
   }
 }
 
@@ -43,7 +43,12 @@ async function doFetch(path: string, init: RequestInit, bearer: string | null): 
 
 export async function parseResponse<T>(path: string, res: Response): Promise<T> {
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    let body = ''
+    try {
+      body = await res.text()
+    } catch (err) {
+      console.warn('[apiClient] failed to read error body', res.status, err)
+    }
     throw new ApiError(res.status, body)
   }
   if (res.status === 204) return undefined as T

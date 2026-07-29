@@ -6,14 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 )
 
-var ErrNotFound = errors.New("code run not found")
+// ErrNotFound is kept as an alias for callers that still import the repository sentinel.
+var ErrNotFound = model.ErrNotFound
 
 // Repository persists sandbox code runs.
 type Repository struct {
@@ -40,6 +40,10 @@ func (r *Repository) Create(ctx context.Context, run *model.CodeRun) error {
 	if err != nil {
 		return fmt.Errorf("marshal test_results: %w", err)
 	}
+	roomID, err := nullableUUID(run.RoomID)
+	if err != nil {
+		return err
+	}
 
 	_, err = r.pg.Exec(ctx, `
 		INSERT INTO code_runs (
@@ -51,7 +55,7 @@ func (r *Repository) Create(ctx context.Context, run *model.CodeRun) error {
 			$9, $10, $11, $12, $13, $14, $15,
 			$16, $17, $18, $19, $20, $21
 		)
-	`, runID, userID, nullableUUID(run.RoomID), run.Language, run.Code, run.Stdin, run.Status, run.RunType,
+	`, runID, userID, roomID, run.Language, run.Code, run.Stdin, run.Status, run.RunType,
 		run.Stdout, run.Stderr, run.CompileOutput, run.Error, run.ExitCode, run.TimeMS, run.MemoryKB,
 		run.TestsTotal, run.TestsPassed, testResults, run.Runner, run.CreatedAt, run.UpdatedAt)
 	return err
@@ -103,10 +107,10 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*model.CodeRun, er
 // ClaimQueuedRuns atomically claims queued runs for background execution.
 func (r *Repository) ClaimQueuedRuns(ctx context.Context, limit int) ([]model.CodeRun, error) {
 	if limit <= 0 {
-		limit = 10
+		return nil, fmt.Errorf("claim queued runs: limit must be > 0")
 	}
 	if limit > 50 {
-		limit = 50
+		return nil, fmt.Errorf("claim queued runs: limit %d exceeds max 50", limit)
 	}
 
 	rows, err := r.pg.Query(ctx, `
@@ -178,18 +182,13 @@ func scanRun(row rowScanner) (*model.CodeRun, error) {
 	return &run, nil
 }
 
-// TouchUpdatedAt returns current UTC time for updates.
-func TouchUpdatedAt() time.Time {
-	return time.Now().UTC()
-}
-
-func nullableUUID(id string) any {
+func nullableUUID(id string) (any, error) {
 	if strings.TrimSpace(id) == "" {
-		return nil
+		return nil, nil
 	}
 	parsed, err := uuid.Parse(id)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("invalid room_id: %w", err)
 	}
-	return parsed
+	return parsed, nil
 }

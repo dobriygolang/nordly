@@ -1,5 +1,5 @@
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 import { canReachNetwork } from '@shared/sync/syncConfig';
@@ -36,7 +36,7 @@ function dispatchChanged(): void {
 
 async function runCycle(force = false): Promise<void> {
   if (running) return;
-  if (!isGoogleIntegrationAvailable()) return;
+  if (!isCloudEnabled()) return;
   if (!force && isGoogleCalendarSnapshotFresh()) return;
   if (!canReachNetwork()) return;
 
@@ -72,7 +72,7 @@ export function notifyGoogleCalendarConnected(): void {
 }
 
 export function startGoogleCalendarSyncWorker(): void {
-  if (started || !isGoogleIntegrationAvailable()) return;
+  if (started || !isCloudEnabled()) return;
   started = true;
 
   scheduleInterval();

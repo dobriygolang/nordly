@@ -63,12 +63,20 @@ type NoteAttachmentSummary struct {
 	UpdatedAt time.Time
 }
 
+// AttachmentInput is raw attachment bytes from the client (base64 on the wire).
+type AttachmentInput struct {
+	ID        string
+	FileName  string
+	MIME      string
+	DataB64   string
+	Encrypted bool
+}
+
 // PublishedAttachment is an asset selected when publishing a note.
 type PublishedAttachment struct {
-	ID       string
-	FileName string
-	MIME     string
-	Data     []byte
+	ID   string
+	MIME string
+	Data []byte
 }
 
 type PublishedNoteAsset struct {

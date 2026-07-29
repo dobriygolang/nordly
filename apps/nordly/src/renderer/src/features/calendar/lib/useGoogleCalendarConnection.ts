@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
 let settingsCache: {
@@ -38,7 +38,7 @@ export function useGoogleCalendarConnection(): {
   const [error, setError] = useState<Error | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!isGoogleIntegrationAvailable()) {
+    if (!isCloudEnabled()) {
       markDisconnected();
       setConnected(false);
       setReauthRequired(false);

@@ -6,6 +6,8 @@ alwaysApply: false
 
 # Go backend — template
 
-Follow [AGENTS.md](../../AGENTS.md#service-template-canonical), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
+Follow [AGENTS.md](../../AGENTS.md#service-template-canonical), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc),
+[architecture-standard.mdc](../../../../.cursor/rules/architecture-standard.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
 
-Transport thin; logic in `internal/<domain>/service/`.
+Transport thin; logic in `internal/<domain>/service/` → extract `usecase/{command,query}` as complexity grows.
+Mockery-only tests; panic in `New` on missing required deps.

@@ -19,6 +19,15 @@ Pomodoro timer and focus statistics for Nordly (Tauri desktop):
   open for more than 24 hours as abandoned (zero focused seconds) while preserving `task_id`.
 - Transport: one RPC per file under `internal/app/api/focus/` (`start_focus_session.go`, …).
 
+## Layout
+
+```
+internal/app/api/focus/          transport (1 RPC = 1 file)
+internal/focus/model|repository|service/
+internal/focus/usecase/command/  start|end|cleanup_abandoned_sessions
+internal/focus/usecase/query/    get_stats
+```
+
 ## Ports
 
 HTTP `8091` | gRPC `9101` | PG `5443` / `nordly_focus`

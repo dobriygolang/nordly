@@ -49,10 +49,15 @@ start: start-deps migrate-up ## Deps + migrations + run API
 	@echo "  WS    ws://localhost:$(HTTP_PORT)/ws/editor/{roomId}?token=JWT"
 	@echo "  gRPC  localhost:$(GRPC_PORT)"
 	@echo ""
-	@JWT_PUBLIC_KEY_FILE=$(JWT_DIR)/public.pem $(MAKE) run
+	@JWT_PUBLIC_KEY_FILE=$(JWT_DIR)/public.pem \
+		PUBLIC_BASE_URL=$${PUBLIC_BASE_URL:-http://localhost:5173} \
+		LIVE_PUBLIC_BASE_URL=$${LIVE_PUBLIC_BASE_URL:-http://localhost:5173} \
+		$(MAKE) run
 
 .PHONY: run
 run: ## Run API locally
+	PUBLIC_BASE_URL=$${PUBLIC_BASE_URL:-http://localhost:5173} \
+	LIVE_PUBLIC_BASE_URL=$${LIVE_PUBLIC_BASE_URL:-http://localhost:5173} \
 	GOWORK=off go run ./cmd/$(SERVICE)
 
 .PHONY: stop

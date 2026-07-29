@@ -4,6 +4,8 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { PublicSiteLayout } from '@/components/brand/PublicSiteLayout'
 import { RouteDocumentMeta } from '@/lib/site/documentMeta'
 import { RouteLoader } from '@/components/RouteLoader'
+import { isLiveCodeHost } from '@/lib/site/brand'
+import { isLiveRoomId } from '@/lib/live/liveRoomUrl'
 
 const WelcomePage = lazy(() => import('@/pages/WelcomePage'))
 const PublishedNotePage = lazy(() => import('@/pages/PublishedNotePage'))
@@ -27,6 +29,22 @@ function LegacyNoteSlugRedirect() {
   return <Navigate to={`/notes/${slug ?? ''}`} replace />
 }
 
+function HomeRoute() {
+  if (isLiveCodeHost()) {
+    return <LiveNewPage />
+  }
+  return <WelcomePage />
+}
+
+/** Short share path on code.trynordly.app — `/{uuid}` (also accepted on any host). */
+function ShortLiveRoomRoute() {
+  const { roomId } = useParams<{ roomId: string }>()
+  if (!isLiveRoomId(roomId)) {
+    return <Navigate to="/" replace />
+  }
+  return <CollabRoomPage />
+}
+
 export function AnimatedRoutes() {
   return (
     <>
@@ -36,7 +54,7 @@ export function AnimatedRoutes() {
           <Route path="/welcome" element={<Navigate to="/" replace />} />
 
           <Route element={<PublicSiteLayout />}>
-            <Route path="/" element={<WelcomePage />} />
+            <Route path="/" element={<HomeRoute />} />
             <Route path="/live/new" element={<LiveNewPage />} />
             <Route path="/legal/terms" element={<LegalTermsPage />} />
             <Route path="/legal/privacy" element={<LegalPrivacyPage />} />
@@ -67,6 +85,7 @@ export function AnimatedRoutes() {
           <Route path="/tasks" element={<RetiredRedirect />} />
           <Route path="/admin/*" element={<RetiredRedirect />} />
 
+          <Route path="/:roomId" element={<ShortLiveRoomRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

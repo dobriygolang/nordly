@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom'
 import { LandingHeroMedia } from '@/components/landing/LandingHeroMedia'
 import { LandingDownloadButton } from '@/components/landing/LandingDownloadButton'
 import { cn } from '@/lib/cn'
+import { publicLiveNewUrl } from '@/lib/live/liveRoomUrl'
 import { useI18n } from '@/lib/i18n'
 import { useSiteTheme } from '@/lib/site/useSiteTheme'
 
@@ -50,12 +50,12 @@ export function LandingHero() {
 
           <div className="flex animate-[fadeInUp_0.8s_ease-out_0.3s_forwards] flex-col gap-4 opacity-0 sm:flex-row sm:items-center">
             <LandingDownloadButton />
-            <Link
-              to="/live/new"
+            <a
+              href={publicLiveNewUrl()}
               className="inline-flex items-center justify-center rounded-md border border-site-border px-6 py-3 text-sm font-medium text-site-text no-underline transition-colors hover:bg-site-card"
             >
               {t('welcome.heroLiveCta')}
-            </Link>
+            </a>
           </div>
         </div>
       </div>

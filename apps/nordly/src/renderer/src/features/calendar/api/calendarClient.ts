@@ -1,7 +1,4 @@
-import {
-  isGoogleIntegrationAvailable,
-  isZoomIntegrationAvailable,
-} from '@shared/model/features';
+import { isCloudApiAvailable, isCloudEnabled } from '@shared/sync/syncConfig';
 import * as remote from '../remote/calendarClient';
 import type {
   GoogleCalendarEvent,
@@ -20,15 +17,12 @@ export type {
 export const GoogleNotConnectedError = remote.GoogleNotConnectedError;
 export const GoogleReauthError = remote.GoogleReauthError;
 
-function requireGoogleIntegration(): void {
-  if (!isGoogleIntegrationAvailable()) {
-    throw new Error('Google Calendar is not configured');
+function requireCalendarCloudAccess(): void {
+  if (!isCloudEnabled()) {
+    throw new Error('Calendar cloud integration is disabled');
   }
-}
-
-function requireZoomIntegration(): void {
-  if (!isZoomIntegrationAvailable()) {
-    throw new Error('Zoom is not configured');
+  if (!isCloudApiAvailable()) {
+    throw new Error('Calendar cloud integration requires a signed-in cloud session');
   }
 }
 
@@ -36,14 +30,14 @@ export function listGoogleCalendarEvents(
   timeMin: Date,
   timeMax: Date,
 ): Promise<GoogleCalendarEvent[]> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.listGoogleCalendarEvents(timeMin, timeMax);
 }
 
 export function createGoogleCalendarEvent(
   input: GoogleEventInput,
 ): Promise<GoogleCalendarEvent> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.createGoogleCalendarEvent(input);
 }
 
@@ -51,76 +45,50 @@ export function updateGoogleCalendarEvent(
   eventId: string,
   input: GoogleEventInput,
 ): Promise<GoogleCalendarEvent> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.updateGoogleCalendarEvent(eventId, input);
 }
 
 export function deleteGoogleCalendarEvent(eventId: string, calendarId?: string): Promise<void> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.deleteGoogleCalendarEvent(eventId, calendarId);
 }
 
 export function listGoogleCalendars(): Promise<GoogleCalendarListEntry[]> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.listGoogleCalendars();
 }
 
 export function getTrackerSettings(): Promise<TrackerSettings> {
+  requireCalendarCloudAccess();
   return remote.getTrackerSettings();
 }
 
 export function updateTrackerSettings(
   patch: Partial<Pick<TrackerSettings, 'googleCalendarId'>>,
 ): Promise<TrackerSettings> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.updateTrackerSettings(patch);
 }
 
-export async function getGoogleCalendarAuthURL(): Promise<string> {
-  requireGoogleIntegration();
+export function getGoogleCalendarAuthURL(): Promise<string> {
+  requireCalendarCloudAccess();
   return remote.getGoogleCalendarAuthURL();
 }
 
-export async function connectGoogleCalendar(): Promise<TrackerSettings> {
-  requireGoogleIntegration();
-  return remote.connectGoogleCalendar();
-}
-
 export function disconnectGoogleCalendar(): Promise<TrackerSettings> {
-  requireGoogleIntegration();
+  requireCalendarCloudAccess();
   return remote.disconnectGoogleCalendar();
 }
 
-export async function getZoomAuthURL(): Promise<string> {
-  requireZoomIntegration();
+export function getZoomAuthURL(): Promise<string> {
+  requireCalendarCloudAccess();
   return remote.getZoomAuthURL();
 }
 
-export async function connectZoom(): Promise<TrackerSettings> {
-  requireZoomIntegration();
-  return remote.connectZoom();
-}
-
 export function disconnectZoom(): Promise<TrackerSettings> {
-  requireZoomIntegration();
+  requireCalendarCloudAccess();
   return remote.disconnectZoom();
-}
-
-export function createGoogleMeetForTask(input: {
-  title: string;
-  start: Date;
-  end: Date;
-  existingEventId?: string;
-}): ReturnType<typeof remote.createGoogleMeetForTask> {
-  requireGoogleIntegration();
-  return remote.createGoogleMeetForTask(input);
-}
-
-export function createZoomMeeting(
-  input: Parameters<typeof remote.createZoomMeeting>[0],
-): ReturnType<typeof remote.createZoomMeeting> {
-  requireZoomIntegration();
-  return remote.createZoomMeeting(input);
 }
 
 export function openExternalUrl(url: string): void {

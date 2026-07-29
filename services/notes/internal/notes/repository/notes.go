@@ -238,7 +238,7 @@ func (r *Repository) GetPublishedNoteRecordBySlug(ctx context.Context, slug stri
 		return nil, notesmodel.ErrInvalidArgument
 	}
 	row := r.pg.QueryRow(ctx, `
-		SELECT title, body_md, published_at, publish_password_hash, publish_expires_at
+		SELECT title, body_md, published_at, publish_password_hash
 		FROM notes
 		WHERE publish_slug = $1
 		  AND published = true
@@ -248,8 +248,7 @@ func (r *Repository) GetPublishedNoteRecordBySlug(ctx context.Context, slug stri
 	`, slug)
 	var out notesmodel.PublishedNoteRecord
 	var passwordHash *string
-	var expiresAt *time.Time
-	err := row.Scan(&out.Title, &out.BodyMD, &out.PublishedAt, &passwordHash, &expiresAt)
+	err := row.Scan(&out.Title, &out.BodyMD, &out.PublishedAt, &passwordHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, notesmodel.ErrNotFound
 	}

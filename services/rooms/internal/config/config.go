@@ -17,7 +17,7 @@ type Config struct {
 	PostgresDSN         string
 	JWTPublicKeyPEM     []byte
 	PublicBaseURL       string
-	RoomTTL             time.Duration
+	LivePublicBaseURL   string
 	GuestRoomTTL        time.Duration
 	RoomArchiveInterval time.Duration
 	IdentityGRPCAddr    string
@@ -37,11 +37,6 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid GRPC_PORT: %w", err)
 	}
 
-	roomTTL, err := time.ParseDuration(getEnv("ROOM_TTL", "6h"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid ROOM_TTL: %w", err)
-	}
-
 	guestRoomTTL, err := time.ParseDuration(getEnv("GUEST_ROOM_TTL", "3h"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid GUEST_ROOM_TTL: %w", err)
@@ -53,9 +48,6 @@ func Load() (*Config, error) {
 	archiveInterval, err := time.ParseDuration(getEnv("ROOM_ARCHIVE_INTERVAL", "1m"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid ROOM_ARCHIVE_INTERVAL: %w", err)
-	}
-	if roomTTL <= 0 {
-		return nil, fmt.Errorf("ROOM_TTL must be > 0")
 	}
 
 	publicKey, err := loadPEM("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")
@@ -70,6 +62,10 @@ func Load() (*Config, error) {
 	publicBaseURL := os.Getenv("PUBLIC_BASE_URL")
 	if publicBaseURL == "" {
 		return nil, fmt.Errorf("PUBLIC_BASE_URL is required")
+	}
+	livePublicBaseURL := os.Getenv("LIVE_PUBLIC_BASE_URL")
+	if livePublicBaseURL == "" {
+		return nil, fmt.Errorf("LIVE_PUBLIC_BASE_URL is required")
 	}
 	webAllowedOrigins, err := parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
 	if err != nil {
@@ -87,7 +83,7 @@ func Load() (*Config, error) {
 		PostgresDSN:         getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5440/nordly_rooms?sslmode=disable"),
 		JWTPublicKeyPEM:     publicKey,
 		PublicBaseURL:       strings.TrimRight(publicBaseURL, "/"),
-		RoomTTL:             roomTTL,
+		LivePublicBaseURL:   strings.TrimRight(livePublicBaseURL, "/"),
 		GuestRoomTTL:        guestRoomTTL,
 		RoomArchiveInterval: archiveInterval,
 		IdentityGRPCAddr:    getEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:9090"),

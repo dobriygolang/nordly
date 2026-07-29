@@ -2,28 +2,26 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"slices"
-	"strings"
-	"time"
 
-	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/repository"
-	"github.com/google/uuid"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/command/format_code"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/command/process_queued_runs"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/command/run_code"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/query/get_code_run"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/support"
 )
 
 var (
-	ErrInvalidInput  = errors.New("invalid input")
-	ErrForbidden     = errors.New("forbidden")
-	ErrNotFound      = repository.ErrNotFound
-	ErrQuotaExceeded = errors.New("quota exceeded")
+	ErrInvalidInput  = model.ErrInvalidInput
+	ErrForbidden     = model.ErrForbidden
+	ErrNotFound      = model.ErrNotFound
+	ErrQuotaExceeded = model.ErrQuotaExceeded
 )
 
-// RunCodeInput is input for RunCode use case.
+// RunCodeInput is input for RunCode.
 type RunCodeInput struct {
 	UserID   string
 	RoomID   string
@@ -32,7 +30,7 @@ type RunCodeInput struct {
 	Stdin    string
 }
 
-// FormatCodeInput is input for the formatting use case.
+// FormatCodeInput is input for FormatCode.
 type FormatCodeInput struct {
 	UserID   string
 	RoomID   string
@@ -56,27 +54,18 @@ type Service interface {
 }
 
 type sandboxService struct {
-	repo      *repository.Repository
-	billing   billingadapter.Client
-	runner    runner.CodeRunner
-	defaults  runDefaults
-	limits    runLimits
-	asyncRuns bool
-}
-
-type runDefaults struct {
-	timeoutMS int
-	memoryMB  int
-}
-
-type runLimits struct {
 	maxCodeBytes  int
 	maxStdinBytes int
+
+	runCode           *run_code.Handler
+	formatCode        *format_code.Handler
+	processQueuedRuns *process_queued_runs.Handler
+	getCodeRun        *get_code_run.Handler
 }
 
 // Deps holds service dependencies.
 type Deps struct {
-	Repo          *repository.Repository
+	Repo          repository.Store
 	Billing       billingadapter.Client
 	Runner        runner.CodeRunner
 	TimeoutMS     int
@@ -88,240 +77,76 @@ type Deps struct {
 
 // New constructs sandbox service.
 func New(deps Deps) Service {
+	if deps.Repo == nil {
+		panic("sandbox service: Repo is required")
+	}
+	if deps.Billing == nil {
+		panic("sandbox service: Billing is required")
+	}
+	if deps.Runner == nil {
+		panic("sandbox service: Runner is required")
+	}
+	if deps.TimeoutMS <= 0 || deps.MemoryMB <= 0 {
+		panic("sandbox service: TimeoutMS and MemoryMB must be > 0")
+	}
+	if deps.MaxCodeBytes <= 0 || deps.MaxStdinBytes <= 0 {
+		panic("sandbox service: MaxCodeBytes and MaxStdinBytes must be > 0")
+	}
+
+	defaults := support.Defaults{TimeoutMS: deps.TimeoutMS, MemoryMB: deps.MemoryMB}
 	return &sandboxService{
-		repo:    deps.Repo,
-		billing: deps.Billing,
-		runner:  deps.Runner,
-		defaults: runDefaults{
-			timeoutMS: deps.TimeoutMS,
-			memoryMB:  deps.MemoryMB,
-		},
-		limits: runLimits{
-			maxCodeBytes:  deps.MaxCodeBytes,
-			maxStdinBytes: deps.MaxStdinBytes,
-		},
-		asyncRuns: deps.AsyncRuns,
+		maxCodeBytes:  deps.MaxCodeBytes,
+		maxStdinBytes: deps.MaxStdinBytes,
+		runCode: run_code.New(run_code.Config{
+			Store:     deps.Repo,
+			Billing:   deps.Billing,
+			Runner:    deps.Runner,
+			Defaults:  defaults,
+			AsyncRuns: deps.AsyncRuns,
+		}),
+		formatCode: format_code.New(format_code.Config{
+			Billing: deps.Billing,
+			Runner:  deps.Runner,
+		}),
+		processQueuedRuns: process_queued_runs.New(process_queued_runs.Config{
+			Store:    deps.Repo,
+			Runner:   deps.Runner,
+			Defaults: defaults,
+		}),
+		getCodeRun: get_code_run.New(deps.Repo),
 	}
 }
 
 func (s *sandboxService) RunCode(ctx context.Context, input RunCodeInput) (*model.CodeRun, error) {
-	if input.UserID == "" || input.Code == "" {
-		return nil, fmt.Errorf("user_id and code required: %w", ErrInvalidInput)
-	}
-	if len(input.Code) > s.limits.maxCodeBytes {
-		return nil, fmt.Errorf("code exceeds %d bytes: %w", s.limits.maxCodeBytes, ErrInvalidInput)
-	}
-	if len(input.Stdin) > s.limits.maxStdinBytes {
-		return nil, fmt.Errorf("stdin exceeds %d bytes: %w", s.limits.maxStdinBytes, ErrInvalidInput)
-	}
-	lang, err := normalizeLanguage(input.Language)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.gateCodeRun(ctx, quotaSubject(input.UserID, input.RoomID)); err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-	status := model.StatusRunning
-	if s.asyncRuns {
-		status = model.StatusQueued
-	}
-	run := &model.CodeRun{
-		ID:          uuid.NewString(),
-		UserID:      input.UserID,
-		RoomID:      input.RoomID,
-		Language:    lang,
-		Code:        input.Code,
-		Stdin:       input.Stdin,
-		Status:      status,
-		RunType:     model.RunTypeCustom,
-		TestResults: []model.TestResult{},
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	if err := s.repo.Create(ctx, run); err != nil {
-		return nil, err
-	}
-
-	if s.asyncRuns {
-		return sanitizeRunResponse(run), nil
-	}
-
-	return s.executeRun(ctx, run, input.Stdin)
-}
-
-func (s *sandboxService) ProcessQueuedRuns(ctx context.Context, limit int) (int, error) {
-	runs, err := s.repo.ClaimQueuedRuns(ctx, limit)
-	if err != nil {
-		return 0, err
-	}
-	for i := range runs {
-		run := &runs[i]
-		if _, err := s.executeRun(ctx, run, run.Stdin); err != nil {
-			return i, err
-		}
-	}
-	return len(runs), nil
-}
-
-func (s *sandboxService) executeRun(ctx context.Context, run *model.CodeRun, stdin string) (*model.CodeRun, error) {
-	result, runErr := s.runner.Run(ctx, runner.RunRequest{
-		Language:  run.Language,
-		Code:      run.Code,
-		Stdin:     stdin,
-		TimeoutMS: s.defaults.timeoutMS,
-		MemoryMB:  s.defaults.memoryMB,
-		RunType:   model.RunTypeCustom,
+	return s.runCode.Handle(ctx, run_code.Command{
+		UserID:        input.UserID,
+		RoomID:        input.RoomID,
+		Language:      input.Language,
+		Code:          input.Code,
+		Stdin:         input.Stdin,
+		MaxCodeBytes:  s.maxCodeBytes,
+		MaxStdinBytes: s.maxStdinBytes,
 	})
-
-	run.UpdatedAt = repository.TouchUpdatedAt()
-	if runErr != nil {
-		msg := runErr.Error()
-		run.Status = model.StatusInternalError
-		run.Error = &msg
-		run.Runner = strPtr(s.runner.Name())
-		_ = s.repo.Update(ctx, run)
-		return sanitizeRunResponse(run), nil
-	}
-
-	applyRunResult(run, result)
-	if err := s.repo.Update(ctx, run); err != nil {
-		return nil, err
-	}
-	return sanitizeRunResponse(run), nil
 }
 
 func (s *sandboxService) GetCodeRun(ctx context.Context, input GetCodeRunInput) (*model.CodeRun, error) {
-	run, err := s.repo.GetByID(ctx, input.RunID)
-	if err != nil {
-		return nil, err
-	}
-	if !canReadCodeRun(run, input.UserID, input.Scope) {
-		return nil, ErrForbidden
-	}
-	return sanitizeRunResponse(run), nil
+	return s.getCodeRun.Handle(ctx, get_code_run.Query{
+		UserID: input.UserID,
+		Scope:  input.Scope,
+		RunID:  input.RunID,
+	})
 }
 
-func canReadCodeRun(run *model.CodeRun, userID, scope string) bool {
-	if run.UserID == userID {
-		return true
-	}
-	if run.RoomID == "" {
-		return false
-	}
-	roomID, ok := identityjwt.EditorRoomID(scope)
-	return ok && roomID == run.RoomID
-}
-
-func normalizeLanguage(lang string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(lang)) {
-	case model.LangGo, "golang":
-		return model.LangGo, nil
-	case model.LangPython, "py":
-		return model.LangPython, nil
-	case model.LangJavaScript, "js", "node":
-		return model.LangJavaScript, nil
-	default:
-		return "", fmt.Errorf("unsupported language %q: %w", lang, ErrInvalidInput)
-	}
-}
-
-func applyRunResult(run *model.CodeRun, result *runner.RunResult) {
-	run.Status = result.Status
-	if result.Stdout != "" {
-		run.Stdout = &result.Stdout
-	}
-	if result.Stderr != "" {
-		run.Stderr = &result.Stderr
-	}
-	if result.CompileOutput != "" {
-		run.CompileOutput = &result.CompileOutput
-	}
-	if result.Error != "" {
-		run.Error = &result.Error
-	}
-	run.ExitCode = result.ExitCode
-	if result.TimeMS > 0 {
-		run.TimeMS = &result.TimeMS
-	}
-	if result.MemoryKB > 0 {
-		run.MemoryKB = &result.MemoryKB
-	}
-	run.Runner = strPtr(result.RunnerName)
-	run.TestResults = sanitizeTestResults(result.TestResults)
-	run.TestsTotal = len(run.TestResults)
-	run.TestsPassed = countPassed(run.TestResults)
-}
-
-func sanitizeTestResults(results []model.TestResult) []model.TestResult {
-	if results == nil {
-		return []model.TestResult{}
-	}
-	out := slices.Clone(results)
-	for i := range out {
-		if out[i].Status == model.TestStatusFailed && out[i].IsHidden() {
-			out[i].ExpectedOutput = nil
-			out[i].ActualOutput = nil
-			out[i].Stdout = nil
-		}
-	}
-	return out
-}
-
-func sanitizeRunResponse(run *model.CodeRun) *model.CodeRun {
-	if run == nil {
-		return nil
-	}
-	out := *run
-	out.TestResults = sanitizeTestResults(run.TestResults)
-	return &out
-}
-
-func countPassed(results []model.TestResult) int {
-	n := 0
-	for _, tr := range results {
-		if tr.Status == model.TestStatusPassed {
-			n++
-		}
-	}
-	return n
-}
-
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
+func (s *sandboxService) ProcessQueuedRuns(ctx context.Context, limit int) (int, error) {
+	return s.processQueuedRuns.Handle(ctx, process_queued_runs.Command{Limit: limit})
 }
 
 func (s *sandboxService) FormatCode(ctx context.Context, input FormatCodeInput) (string, error) {
-	if input.UserID == "" || strings.TrimSpace(input.Code) == "" {
-		return "", fmt.Errorf("user_id and code required: %w", ErrInvalidInput)
-	}
-	if len(input.Code) > s.limits.maxCodeBytes {
-		return "", fmt.Errorf("code exceeds %d bytes: %w", s.limits.maxCodeBytes, ErrInvalidInput)
-	}
-	lang, err := normalizeLanguage(input.Language)
-	if err != nil {
-		return "", err
-	}
-	if lang != model.LangGo {
-		return "", fmt.Errorf("format supported only for go: %w", ErrInvalidInput)
-	}
-	if err := s.gateCodeRun(ctx, quotaSubject(input.UserID, input.RoomID)); err != nil {
-		return "", err
-	}
-	formatted, err := s.runner.Format(ctx, lang, input.Code)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", err.Error(), ErrInvalidInput)
-	}
-	return formatted, nil
-}
-
-func quotaSubject(userID, roomID string) string {
-	if roomID != "" {
-		return roomID
-	}
-	return userID
+	return s.formatCode.Handle(ctx, format_code.Command{
+		UserID:       input.UserID,
+		RoomID:       input.RoomID,
+		Language:     input.Language,
+		Code:         input.Code,
+		MaxCodeBytes: s.maxCodeBytes,
+	})
 }

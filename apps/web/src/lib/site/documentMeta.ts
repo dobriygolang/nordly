@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { formatPageTitle, siteOrigin } from '@/lib/site/brand'
+import { formatPageTitle, isLiveCodeHost, siteOrigin } from '@/lib/site/brand'
+import { isLiveRoomId } from '@/lib/live/liveRoomUrl'
 import { useI18n } from '@/lib/i18n'
 
 export type DocumentMetaInput = {
@@ -73,12 +74,18 @@ type RouteMetaKey =
   | 'download'
 
 function routeMetaKey(pathname: string): RouteMetaKey | null {
-  if (pathname === '/') return 'welcome'
   if (pathname === '/legal/terms') return 'legalTerms'
   if (pathname === '/legal/privacy') return 'legalPrivacy'
   if (pathname === '/live/new') return 'liveNew'
   if (pathname.startsWith('/live/')) return 'liveRoom'
   if (pathname === '/download') return 'download'
+  // code.trynordly.app root is the create page; main site root is welcome.
+  if (pathname === '/') {
+    if (isLiveCodeHost()) return 'liveNew'
+    return 'welcome'
+  }
+  // Short share path /{uuid}
+  if (pathname.startsWith('/') && isLiveRoomId(pathname.slice(1))) return 'liveRoom'
   return null
 }
 

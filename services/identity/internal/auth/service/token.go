@@ -87,7 +87,7 @@ func (m *TokenManager) IssueScopedAccessToken(userID, role, scope, displayName s
 	}
 	now := time.Now().UTC()
 	if ttl <= 0 {
-		ttl = m.accessTTL
+		return "", errors.New("scoped access token ttl must be > 0")
 	}
 	claims := jwt.MapClaims{
 		"sub": userID,

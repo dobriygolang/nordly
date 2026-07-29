@@ -103,8 +103,17 @@ func (r *Repository) ListNoteAttachments(
 	ctx context.Context,
 	userID, noteID string,
 ) ([]notesmodel.NoteAttachmentSummary, error) {
-	if _, err := r.GetNote(ctx, userID, noteID); err != nil {
+	var exists bool
+	if err := r.pg.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM notes
+			WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		)
+	`, noteID, userID).Scan(&exists); err != nil {
 		return nil, err
+	}
+	if !exists {
+		return nil, notesmodel.ErrNotFound
 	}
 	rows, err := r.pg.Query(ctx, `
 		SELECT`+attachmentSummarySelectCols+`

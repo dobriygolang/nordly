@@ -22,11 +22,9 @@ func (i *Implementation) ShareWhiteboard(
 		AccessToken: result.AccessToken,
 		RoomId:      result.Room.Room.ID.String(),
 		ExpiresIn:   result.ExpiresIn,
-	}
-	if result.Invite != nil {
-		resp.Invite = &roomsv1.InviteLink{
+		Invite: &roomsv1.InviteLink{
 			Url: result.Invite.URL,
-		}
+		},
 	}
 	return resp, nil
 }

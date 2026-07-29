@@ -2,15 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
-	"fmt"
-	"regexp"
 	"strings"
 
 	billingadapter "github.com/dobriygolang/project-nordly/services/notes/internal/adapter/billing"
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	notesrepo "github.com/dobriygolang/project-nordly/services/notes/internal/notes/repository"
+	"github.com/dobriygolang/project-nordly/services/notes/internal/notes/usecase/command/share_note_to_web"
+	"github.com/dobriygolang/project-nordly/services/notes/internal/notes/usecase/support"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -29,13 +28,7 @@ type PublishOptions struct {
 	ExpiresInDays     int32
 }
 
-type AttachmentInput struct {
-	ID        string
-	FileName  string
-	MIME      string
-	DataB64   string
-	Encrypted bool
-}
+type AttachmentInput = notesmodel.AttachmentInput
 
 type Service interface {
 	InitVault(ctx context.Context, userID string) (saltB64 string, initialized bool, err error)
@@ -67,6 +60,7 @@ type notesService struct {
 	repo          notesrepo.Store
 	publicBaseURL string
 	billing       billingadapter.Client
+	shareToWeb    *share_note_to_web.Handler
 }
 
 type Deps struct {
@@ -76,10 +70,24 @@ type Deps struct {
 }
 
 func New(deps Deps) Service {
+	if deps.Repo == nil {
+		panic("notes service: Repo is required")
+	}
+	if deps.Billing == nil {
+		panic("notes service: Billing is required")
+	}
+	if strings.TrimSpace(deps.PublicBaseURL) == "" {
+		panic("notes service: PublicBaseURL is required")
+	}
 	return &notesService{
 		repo:          deps.Repo,
 		publicBaseURL: deps.PublicBaseURL,
 		billing:       deps.Billing,
+		shareToWeb: share_note_to_web.New(share_note_to_web.Config{
+			Store:         deps.Repo,
+			Billing:       deps.Billing,
+			PublicBaseURL: deps.PublicBaseURL,
+		}),
 	}
 }
 
@@ -179,9 +187,6 @@ func (s *notesService) GetBacklinks(
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(noteID) == "" {
 		return nil, ErrInvalidArgument
 	}
-	if _, err := s.repo.GetNote(ctx, userID, noteID); err != nil {
-		return nil, err
-	}
 	return s.repo.ListBacklinks(ctx, userID, noteID)
 }
 
@@ -200,7 +205,7 @@ func (s *notesService) PutNoteAttachment(
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(noteID) == "" {
 		return nil, ErrInvalidArgument
 	}
-	attachment, err := normalizeAttachmentInput(input)
+	attachment, err := support.NormalizeAttachmentInput(input)
 	if err != nil {
 		return nil, err
 	}
@@ -236,40 +241,6 @@ func (s *notesService) DeleteNoteAttachment(ctx context.Context, userID, noteID,
 	return s.repo.DeleteNoteAttachment(ctx, userID, noteID, id)
 }
 
-const maxAttachmentBytes = 5 << 20
-// Password-protected publishes inline images as data URLs in body_md — hard cap total raw bytes.
-const maxPrivateEmbedBytes = 15 << 20
-
-var allowedAttachmentMIMEs = map[string]struct{}{
-	"image/png":  {},
-	"image/jpeg": {},
-	"image/gif":  {},
-	"image/webp": {},
-}
-
-func normalizeAttachmentInput(input AttachmentInput) (notesmodel.NoteAttachment, error) {
-	id := strings.TrimSpace(input.ID)
-	mime := strings.ToLower(strings.TrimSpace(input.MIME))
-	if !isUUID(id) || strings.TrimSpace(input.FileName) == "" {
-		return notesmodel.NoteAttachment{}, ErrInvalidArgument
-	}
-	if _, ok := allowedAttachmentMIMEs[mime]; !ok {
-		return notesmodel.NoteAttachment{}, ErrInvalidArgument
-	}
-	data, err := base64.StdEncoding.DecodeString(input.DataB64)
-	if err != nil || len(data) == 0 || len(data) > maxAttachmentBytes {
-		return notesmodel.NoteAttachment{}, ErrInvalidArgument
-	}
-	return notesmodel.NoteAttachment{
-		ID:        id,
-		FileName:  strings.TrimSpace(input.FileName),
-		MIME:      mime,
-		Data:      data,
-		Encrypted: input.Encrypted,
-		SizeBytes: len(data),
-	}, nil
-}
-
 func isUUID(value string) bool {
 	_, err := uuid.Parse(strings.TrimSpace(value))
 	return err == nil
@@ -302,162 +273,17 @@ func (s *notesService) ShareNoteToWeb(
 	opts PublishOptions,
 	attachments []AttachmentInput,
 ) (*notesmodel.ShareToWebResult, error) {
-	if strings.TrimSpace(userID) == "" || strings.TrimSpace(noteID) == "" {
-		return nil, ErrInvalidArgument
-	}
-
-	note, err := s.repo.GetNote(ctx, userID, noteID)
-	if err != nil {
-		return nil, err
-	}
-
-	isUpdate := note.Published && note.PublishedAt != nil && note.PublishSlug != nil && *note.PublishSlug != ""
-
-	meta, err := s.buildPublishMeta(ctx, userID, note, opts, isUpdate)
-	if err != nil {
-		return nil, err
-	}
-
-	publishedAttachments, err := normalizePublishedAttachments(attachments)
-	if err != nil {
-		return nil, err
-	}
-	if opts.PasswordProtected {
-		plaintext, err = rewritePrivateAssetRefs(plaintext, publishedAttachments)
-		if err != nil {
-			return nil, err
-		}
-		publishedAttachments = nil
-	} else if err := validateAssetRefs(plaintext, publishedAttachments); err != nil {
-		return nil, err
-	}
-
-	if isUpdate {
-		return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL, meta, publishedAttachments)
-	}
-
-	quotaLimit, err := s.publishedNotesQuotaLimit(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	meta.QuotaLimit = quotaLimit
-	return s.repo.ShareNoteToWeb(ctx, userID, noteID, plaintext, s.publicBaseURL, meta, publishedAttachments)
-}
-
-func normalizePublishedAttachments(inputs []AttachmentInput) ([]notesmodel.PublishedAttachment, error) {
-	out := make([]notesmodel.PublishedAttachment, 0, len(inputs))
-	seen := make(map[string]struct{}, len(inputs))
-	for _, input := range inputs {
-		attachment, err := normalizeAttachmentInput(input)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := seen[attachment.ID]; exists {
-			return nil, ErrInvalidArgument
-		}
-		seen[attachment.ID] = struct{}{}
-		out = append(out, notesmodel.PublishedAttachment{
-			ID: attachment.ID, FileName: attachment.FileName, MIME: attachment.MIME, Data: attachment.Data,
-		})
-	}
-	return out, nil
-}
-
-var assetRefPattern = regexp.MustCompile(`nordly-asset:([0-9a-fA-F-]{36})`)
-
-func validateAssetRefs(plaintext string, attachments []notesmodel.PublishedAttachment) error {
-	available := make(map[string]struct{}, len(attachments))
-	for _, attachment := range attachments {
-		available[attachment.ID] = struct{}{}
-	}
-	for _, matches := range assetRefPattern.FindAllStringSubmatch(plaintext, -1) {
-		if _, ok := available[matches[1]]; !ok {
-			return ErrInvalidArgument
-		}
-	}
-	// Reject malformed leftovers (e.g. nordly-asset:not-a-uuid) without failing valid refs.
-	stripped := assetRefPattern.ReplaceAllString(plaintext, "")
-	if strings.Contains(stripped, "nordly-asset:") {
-		return ErrInvalidArgument
-	}
-	return nil
-}
-
-func rewritePrivateAssetRefs(plaintext string, attachments []notesmodel.PublishedAttachment) (string, error) {
-	if err := validateAssetRefs(plaintext, attachments); err != nil {
-		return "", err
-	}
-	total := 0
-	for _, attachment := range attachments {
-		total += len(attachment.Data)
-		if total > maxPrivateEmbedBytes {
-			return "", ErrInvalidArgument
-		}
-	}
-	for _, attachment := range attachments {
-		plaintext = strings.ReplaceAll(
-			plaintext,
-			"nordly-asset:"+attachment.ID,
-			"data:"+attachment.MIME+";base64,"+base64.StdEncoding.EncodeToString(attachment.Data),
-		)
-	}
-	return plaintext, nil
-}
-
-func (s *notesService) buildPublishMeta(
-	ctx context.Context,
-	userID string,
-	note *notesmodel.Note,
-	opts PublishOptions,
-	isUpdate bool,
-) (notesmodel.PublishMeta, error) {
-	if opts.PasswordProtected {
-		if err := s.requirePublishPasswordEntitlement(ctx, userID); err != nil {
-			return notesmodel.PublishMeta{}, err
-		}
-		if opts.ExpiresInDays > 365 {
-			return notesmodel.PublishMeta{}, ErrInvalidArgument
-		}
-		password := strings.TrimSpace(opts.Password)
-		if password != "" {
-			if len(password) < 4 {
-				return notesmodel.PublishMeta{}, ErrInvalidArgument
-			}
-			hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-			if err != nil {
-				return notesmodel.PublishMeta{}, err
-			}
-			hashStr := string(hash)
-			return notesmodel.PublishMeta{
-				PasswordHash:  &hashStr,
-				ExpiresInDays: opts.ExpiresInDays,
-			}, nil
-		}
-		if isUpdate && note.PublishPasswordHash != nil && *note.PublishPasswordHash != "" {
-			return notesmodel.PublishMeta{
-				PasswordHash:  note.PublishPasswordHash,
-				ExpiresInDays: opts.ExpiresInDays,
-			}, nil
-		}
-		return notesmodel.PublishMeta{}, ErrInvalidArgument
-	}
-
-	if opts.ExpiresInDays > 0 {
-		return notesmodel.PublishMeta{}, ErrInvalidArgument
-	}
-
-	return notesmodel.PublishMeta{}, nil
-}
-
-func (s *notesService) requirePublishPasswordEntitlement(ctx context.Context, userID string) error {
-	enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementPublishPassword)
-	if err != nil {
-		return err
-	}
-	if !enabled {
-		return ErrFeatureDisabled
-	}
-	return nil
+	return s.shareToWeb.Handle(ctx, share_note_to_web.Command{
+		UserID:      userID,
+		NoteID:      noteID,
+		Plaintext:   plaintext,
+		Attachments: attachments,
+		Options: share_note_to_web.PublishOptions{
+			PasswordProtected: opts.PasswordProtected,
+			Password:          opts.Password,
+			ExpiresInDays:     opts.ExpiresInDays,
+		},
+	})
 }
 
 func (s *notesService) MakeNotePrivate(ctx context.Context, userID, noteID, ciphertext string) error {
@@ -525,18 +351,4 @@ func IsQuotaExceeded(err error) bool {
 
 func IsFeatureDisabled(err error) bool {
 	return errors.Is(err, ErrFeatureDisabled)
-}
-
-func (s *notesService) publishedNotesQuotaLimit(ctx context.Context, userID string) (*int, error) {
-	limit, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementPublishedNotesActive)
-	if err != nil {
-		return nil, err
-	}
-	if limit.Unlimited {
-		return nil, nil
-	}
-	if limit.Limit == nil {
-		return nil, fmt.Errorf("billing: published_notes_active limit missing for user %s", userID)
-	}
-	return limit.Limit, nil
 }

@@ -3,9 +3,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useT, useLocale } from '@nordly-i18n';
 
 import {
-  connectGoogleCalendar,
+  getGoogleCalendarAuthURL,
   inspectCalendarEntry,
   GoogleReauthError,
+  openExternalUrl,
   buildWeekDays,
   calendarHourLabels,
   calendarColumnStyle,
@@ -34,7 +35,7 @@ import { useCalendarRangeSelect } from '@features/calendar/api/calendar';
 import { refreshGoogleCalendarCache } from '@features/calendar/api/calendar';
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMonthView } from './CalendarMonthView';
 import { CalendarYearView } from './CalendarYearView';
@@ -169,12 +170,8 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   const reconnect = useCallback(async () => {
     try {
-      await connectGoogleCalendar();
-      window.dispatchEvent(
-        new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
-          detail: { status: 'connected', detail: null },
-        }),
-      );
+      const url = await getGoogleCalendarAuthURL();
+      openExternalUrl(url);
     } catch (err) {
       setOperationError(err instanceof Error ? err : new Error(String(err)));
     }
@@ -501,7 +498,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           {` · ${t('nordly.calendar.create_task_hint')}`}
           {` · ${t('nordly.calendar.create_dblclick_hint')}`}
         </p>
-        {googleError && isGoogleIntegrationAvailable() && !googleReauthNeeded && (
+        {googleError && isCloudEnabled() && !googleReauthNeeded && (
           <p className="nordly-calendar-footnote mono">{googleError}</p>
         )}
       </div>

@@ -321,6 +321,11 @@ message PatchWorkTaskRequest {
   optional string epic_id = 2;
   optional bool clear_epic = 3;
   optional bool clear_conference = 4;
+  // Device-owned Meet/Zoom links pushed from desktop outbox (when sync is on).
+  optional string conference_url = 5;
+  optional string conference_provider = 6;
+  optional string google_event_id = 7;
+  optional string zoom_meeting_id = 8;
 }
 
 message PatchWorkTaskResponse {

@@ -22,24 +22,51 @@ Follow service-local `AGENTS.md`, [.cursor/rules/architecture-standard.mdc](arch
 - Do not add defensive `if` / early returns that cannot fail given validated input or wired deps.
 - Prefer one clear path over nested “just in case” branches, dual defaults, or invent-after-check.
 - Collapse `if x { return A }; return B` only when both arms stay readable — never invent values in the “else”.
+- Soft `if cfg.Now == nil { cfg.Now = time.Now }` is invent-default — either require `Now` in `New` or always wire it from DI; do not nil-check mid-construction as optional.
 
-## Prefer `slices` (stdlib)
+## No unused fields / redundant SQL
 
-Use `slices` instead of hand-rolled loops where it fits:
+- Drop model/DTO/struct fields that nothing reads or maps to proto/DB.
+- Do not `SELECT` columns only to discard the scan; do not re-query data already loaded in the same flow (e.g. `GetRole` after `ListParticipants` already proves membership).
+- Remove dead Store methods and regenerate mockery mocks in the same change set.
+
+## Prefer `slices` / `sort` (stdlib)
+
+Use stdlib instead of hand-rolled loops where it fits:
 
 - `slices.Clone` instead of `append([]T(nil), x...)` / `make`+`copy`
 - `slices.Contains` / `ContainsFunc` instead of scan loops
 - `slices.Index` / `IndexFunc` instead of find-by-key loops
 - `slices.DeleteFunc` / `Compact` when filtering in place
+- `slices.Sort` / `slices.SortFunc` / `slices.SortStableFunc` instead of `sort.Slice` with index gymnastics (Go 1.21+)
+- `maps.Clone` / `maps.Copy` when copying maps
 
-Keep a `map` for non-consecutive uniqueness.
+Keep a `map` for non-consecutive uniqueness / set membership.
+
+## Construction fail-fast
+
+```go
+func New(deps Deps) Service {
+	if deps.Repo == nil || deps.Billing == nil {
+		panic("notes service: Repo and Billing are required")
+	}
+	if strings.TrimSpace(deps.PublicBaseURL) == "" {
+		panic("notes service: PublicBaseURL is required")
+	}
+	return &notesService{repo: deps.Repo, billing: deps.Billing, publicBaseURL: deps.PublicBaseURL}
+}
+```
+
+Do **not** add later `if s.billing == nil { return invent }` — wiring bugs must surface at process start.
 
 ## Tests: generated mocks only
 
 - **Do not** hand-write `fakeX` / `stubX` structs that implement domain ports in `*_test.go`.
-- Use **mockery** on the port (`//go:generate … mockery …`) + `mocks/` package; assert with expecters.
+- Use **mockery** on the port (`//go:generate … mockery … --with-expecter`) + `mocks/` package; assert with expecters (`EXPECT().Method(...).Return(...)`).
+- Rewrite legacy handmade fakes when touching a package — do not leave dual test styles.
 - Exception: thin driver adapters (e.g. `pgx.Row`) when no port exists — keep minimal; do not grow them into domain fakes.
 - After changing a port: `go generate` in that package, then update tests.
+- Prefer `testify/require` + table tests; one behavior per test name.
 
 ## Range loops (Go 1.22+)
 

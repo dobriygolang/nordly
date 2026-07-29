@@ -13,7 +13,7 @@ Thin public web surface for Nordly: landing + download, guest live collab (code 
 | Area | Routes |
 |------|--------|
 | Landing | `/`, `/download` |
-| Live collab | `/live/new`, `/live/:roomId` |
+| Live collab | `code.trynordly.app/` (create), `code.trynordly.app/{roomId}` (join); legacy `/live/new`, `/live/:roomId` on main site |
 | Public notes | `/notes/:slug`, `/n/:slug` → redirect |
 | Public boards | `/board/:slug` |
 | Legal | `/legal/terms`, `/legal/privacy` |
@@ -26,7 +26,7 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 
 | Route | Page | Auth |
 |-------|------|------|
-| `/` | `WelcomePage` | — |
+| `/` | `WelcomePage` on `trynordly.app`; `LiveNewPage` on `code.trynordly.app` | — |
 | `/welcome` | → `/` | legacy redirect |
 | `/download` | `NordlyDownloadPage` | redirects to latest OS installer |
 | `/oauth/google-calendar` | `GoogleCalendarOAuthPage` | OAuth bridge → `nordly://settings?google_calendar=…` |
@@ -34,8 +34,9 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 | `/notes/:slug` | `PublishedNotePage` — Nordly-flavored markdown via `lib/markdown/renderNordlyMarkdown.ts` + `styles/published-note.css` | — |
 | `/n/:slug` | → `/notes/:slug` | — |
 | `/board/:slug` | `PublishedBoardPage` | — |
-| `/live/new` | `LiveNewPage` | — |
-| `/live/:roomId` | `CollabRoomPage` | guest JWT |
+| `/live/new` | `LiveNewPage` | legacy path (still works) |
+| `/live/:roomId` | `CollabRoomPage` | guest JWT (legacy path) |
+| `/:roomId` | `CollabRoomPage` when UUID | short share link (canonical on `code.trynordly.app`) |
 | `/pricing`, `/checkout`, `/checkout/:planSlug`, `/billing/welcome` | → `/` | retired |
 | `/legal/terms` | `LegalTermsPage` | — |
 | `/legal/privacy` | `LegalPrivacyPage` | — |
@@ -92,10 +93,10 @@ WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_clo
 
 ## Guest JWT flow
 
-1. `/live/new` → `POST /v1/rooms/guest-create` → scoped JWT + room
+1. `code.trynordly.app/` (or `/live/new`) → `POST /v1/rooms/guest-create` → scoped JWT + room
 2. Token stored: `sessionStorage['nordly_guest_token_{roomId}']`
 3. Room REST + WS use guest token via `readGuestToken(roomId)`
-4. Joining is open: `/live/:roomId` shows a name prompt → `POST guest-join` → guest token. Share URLs use `/live/{roomId}` only (`lib/live/liveRoomUrl.ts`).
+4. Joining is open: `/{roomId}` (or `/live/:roomId`) shows a name prompt → `POST guest-join` → guest token. Canonical share URLs: `{LIVE_PUBLIC_BASE_URL}/{roomId}` (`lib/live/liveRoomUrl.ts`).
 
 Share URLs: `publicLiveRoomUrl(roomId)` — client-side short link; Invite button copies without `POST /invite`.
 
@@ -117,7 +118,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | Feature | Nordly action | Web result |
 |---------|-------------|------------|
 | Note share | `POST /v1/notes/{id}/share-to-web` | `/notes/{slug}` |
-| Whiteboard live share | `POST /v1/rooms/share-whiteboard` | `/live/{roomId}` |
+| Whiteboard live share | `POST /v1/rooms/share-whiteboard` | `code.trynordly.app/{roomId}` |
 | Whiteboard publish | `POST /v1/rooms/publish-whiteboard` | `/board/{slug}` |
 
 ## Env
@@ -130,6 +131,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_NORDLY_HERO_VIDEO` | — | Landing hero video |
 | `VITE_NORDLY_HERO_POSTER` | — | Landing hero poster |
 | `VITE_SITE_ORIGIN` | current origin | Canonical SEO origin |
+| `VITE_LIVE_ORIGIN` | `https://code.trynordly.app` (prod); current origin in Vite dev | Live share / create links |
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
 | `VITE_IDENTITY_URL`, `VITE_BILLING_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 

@@ -10,6 +10,17 @@ Live collab rooms: REST lifecycle + WebSocket Yjs sync for **code** (`Y.Text cod
 
 Room types in prod UI: `practice` (code), `system_design` (Excalidraw). Legacy DB values `interview`, `pair_mock` may still exist.
 
+## Layout
+
+```
+internal/app/api/rooms/          transport
+internal/room/model/             entities + errors.go
+internal/room/repository/        Store port + Postgres
+internal/room/service/           domain orchestration
+```
+
+Persistence port: `repository.Store` (mockery).
+
 ## Ports
 
 HTTP `8087` | gRPC `9097` | PG `5440` / `nordly_rooms`
@@ -33,12 +44,12 @@ WebSocket: `GET /ws/editor/{room_id}?token=JWT` requires `editor:{room_id}` and 
 
 **Public `Room` JSON:** `id`, `owner_id`, `room_type`, `language`, `expires_at`, `created_at` only (no ws_url, visibility, participants).
 
-Frontend: `/live/new` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. `/live/:roomId` → `CollabRoomPage.tsx` (CodeMirror or Excalidraw by `room_type`).
+Frontend: `code.trynordly.app/` — public create via `CreateGuestRoom`; guest flow mints scoped JWT via identity s2s. Short room URL `code.trynordly.app/{roomId}` (legacy `trynordly.app/live/{roomId}` still served by the same SPA).
 
-**Guest join is open:** shared rooms join via `/live/{roomId}` (UUID in path is the capability). Private rooms remain forbidden for guests.
+**Guest join is open:** shared rooms join via `/{roomId}` on the live host (UUID in path is the capability). Private rooms remain forbidden for guests.
 Guest create/join accepts only `practice` and `system_design` rooms. Both unauthenticated endpoints are limited to 30 requests per client IP per minute.
 
-**Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{PUBLIC_BASE_URL}/live/{room_id}`. Frontend copies the same short URL client-side.
+**Share URLs:** `CreateGuestRoom` and `ShareWhiteboard` return `InviteLink.url` = `{LIVE_PUBLIC_BASE_URL}/{room_id}`. Frontend copies the same short URL client-side. Published boards use `{PUBLIC_BASE_URL}/board/{slug}`.
 
 Roles: `owner`, `participant`, `viewer`. Legacy DB value `interviewer` may still exist on old rooms.
 
@@ -54,9 +65,26 @@ make start   # JWT_PUBLIC_KEY_FILE=../identity/scripts/dev/jwt/public.pem
 make gen-proto | build
 ```
 
-Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL`, `CORS_ALLOWED_ORIGINS` (required in production), `ROOM_TTL` (6h), `GUEST_ROOM_TTL` (3h).
+Env: JWT, `INTERNAL_API_TOKEN`, `IDENTITY_GRPC_ADDR`, `PUBLIC_BASE_URL` (published boards), `LIVE_PUBLIC_BASE_URL` (guest invite / live-share links), `CORS_ALLOWED_ORIGINS` (required in production; include `https://code.trynordly.app`), `GUEST_ROOM_TTL` (3h).
 
-**Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet.
+**Billing:** not wired — `live_rooms_*` entitlements exist in billing but rooms service does not consume them yet (no quota error path).
+
+## Layout
+
+```
+internal/room/
+├── model/           # entities, policy, invite/publish helpers
+├── dto/             # RoomView, guest/share/publish result DTOs
+├── repository/      # Store port + Postgres
+├── service/         # Service interface; thin delegate to usecases + trivial reads
+└── usecase/command/
+    ├── create_guest_room/
+    ├── guest_join/
+    ├── share_whiteboard/
+    └── publish_whiteboard/
+internal/app/api/rooms/   # transport — one RPC per file
+internal/ws/              # Yjs hub
+```
 
 ## Metrics
 

@@ -3,11 +3,7 @@ import { useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { isMacOsDesktop } from '@platform/macos';
-import {
-  isCloudEnabled,
-  isGoogleIntegrationAvailable,
-  isZoomIntegrationAvailable,
-} from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { patchSettings, readSettings, type GoogleCalendarPollMinutes } from '@shared/model/settings';
 
 import { SettingsBlock } from '../primitives/SettingRow';
@@ -21,11 +17,9 @@ export function IntegrationsSection() {
     () => readSettings().googleCalendarPollMinutes,
   );
   const showApple = isMacOsDesktop();
-  const showGoogle = isGoogleIntegrationAvailable();
-  const showZoom = isZoomIntegrationAvailable();
-  const showDeviceIntegrations = showGoogle || showZoom;
+  const showCloud = isCloudEnabled();
 
-  if (!showApple && !showDeviceIntegrations && !isCloudEnabled()) {
+  if (!showApple && !showCloud) {
     return <p className="nordly-settings-empty">{t('nordly.settings.integrations_local_only')}</p>;
   }
 
@@ -36,23 +30,19 @@ export function IntegrationsSection() {
           <AppleCalendarSection />
         </SettingsBlock>
       )}
-      {showDeviceIntegrations ? (
+      {showCloud ? (
         <SettingsBlock title={t('nordly.settings.section.integrations')}>
-          {showGoogle && (
-            <GoogleCalendarSection
-              pollMinutes={pollMinutes}
-              onPollMinutesChange={(m) => {
-                patchSettings({ googleCalendarPollMinutes: m });
-                setPollMinutes(m);
-              }}
-            />
-          )}
-          {showZoom && <ZoomSection />}
+          <GoogleCalendarSection
+            pollMinutes={pollMinutes}
+            onPollMinutesChange={(m) => {
+              patchSettings({ googleCalendarPollMinutes: m });
+              setPollMinutes(m);
+            }}
+          />
+          <ZoomSection />
         </SettingsBlock>
       ) : (
-        !showApple && (
-          <p className="nordly-settings-empty">{t('nordly.settings.integrations_cloud_only')}</p>
-        )
+        <p className="nordly-settings-empty">{t('nordly.settings.integrations_cloud_only')}</p>
       )}
     </>
   );

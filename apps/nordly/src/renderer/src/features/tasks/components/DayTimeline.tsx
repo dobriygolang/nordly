@@ -24,7 +24,7 @@ import {
 import type { TaskCard } from '@features/tasks/api/tasks';
 import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import { isGoogleIntegrationAvailable } from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { readSettings } from '@shared/model/settings';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
 import { useVerticalResize } from '@shared/lib/useVerticalResize';
@@ -112,7 +112,7 @@ export const DayTimeline = memo(function DayTimeline({
   }, [date]);
 
   const { connected, ready: connectionReady } = useGoogleCalendarConnection();
-  const googleEnabled = isGoogleIntegrationAvailable() && connected && connectionReady;
+  const googleEnabled = isCloudEnabled() && connected && connectionReady;
   const appleCalendarEnabled = readSettings().appleCalendarEnabled;
   const { events: googleEvents } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
   const { events: appleEvents } = useAppleCalendarEvents(

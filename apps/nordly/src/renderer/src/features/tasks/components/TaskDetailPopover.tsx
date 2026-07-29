@@ -5,10 +5,7 @@ import { useT } from '@nordly-i18n';
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
-import {
-  isGoogleIntegrationAvailable,
-  isZoomIntegrationAvailable,
-} from '@shared/model/features';
+import { isCloudEnabled } from '@shared/model/features';
 import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isEpicActive, tagDisplayName, taskHasEpic } from '@features/tasks/lib/epicColor';
 import { conferenceProvider } from '@features/tasks/lib/taskUi';
@@ -55,11 +52,10 @@ export function TaskDetailPopover({
   const provider = conferenceProvider(task.conferenceUrl, task.conferenceProvider);
 
   const googleReady =
-    isGoogleIntegrationAvailable() &&
+    isCloudEnabled() &&
     Boolean(settings?.googleCalendarConnected && !settings.googleReauthRequired);
   const zoomReady =
-    isZoomIntegrationAvailable() &&
-    Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
+    isCloudEnabled() && Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
 
   useEscapeLayer(onClose, !closing);
 
@@ -78,12 +74,8 @@ export function TaskDetailPopover({
   }, [onClose, anchorRef, closing]);
 
   const handleCreate = async (p: ConferenceProvider): Promise<void> => {
-    if (p === 'meet' && !isGoogleIntegrationAvailable()) {
-      setError(t('nordly.taskboard.detail_connect_google'));
-      return;
-    }
-    if (p === 'zoom' && !isZoomIntegrationAvailable()) {
-      setError(t('nordly.taskboard.detail_connect_zoom'));
+    if (!isCloudEnabled()) {
+      setError(t('nordly.taskboard.detail_cloud_required'));
       return;
     }
     if (p === 'meet' && !googleReady) {

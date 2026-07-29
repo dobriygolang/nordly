@@ -51,7 +51,7 @@ func (c *Client) authCtx(ctx context.Context) context.Context {
 
 func (c *Client) CheckAndConsumeUsage(ctx context.Context, userID, key string, amount int) error {
 	if amount <= 0 {
-		amount = 1
+		return fmt.Errorf("CheckAndConsumeUsage: amount must be > 0")
 	}
 	resp, err := c.client.CheckAndConsumeUsage(c.authCtx(ctx), &billingv1.CheckAndConsumeUsageRequest{
 		UserId: userID,

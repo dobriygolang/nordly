@@ -41,7 +41,7 @@ import {
 } from '@/lib/live/roomTheme'
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
 import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
-import { publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
+import { liveNewPath, publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
 import {
   clampRunPanelWidth,
   persistRunPanelWidth,
@@ -139,8 +139,8 @@ export default function CollabRoomPage() {
       await navigator.clipboard.writeText(publicLiveRoomUrl(roomId))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      /* clipboard blocked */
+    } catch (err) {
+      console.warn('[collabRoom] clipboard write failed', err)
     }
   }, [roomId])
 
@@ -195,7 +195,7 @@ export default function CollabRoomPage() {
       <EditorShell
         message={t('live.roomNotFound')}
         action={
-          <Link to="/live/new">
+          <Link to={liveNewPath()}>
             <Button variant="secondary" size="sm">
               {t('live.createNew')}
             </Button>
@@ -229,7 +229,7 @@ export default function CollabRoomPage() {
         message={t('live.roomNotFound')}
         sub={roomQ.error instanceof Error ? roomQ.error.message : undefined}
         action={
-          <Link to="/live/new">
+          <Link to={liveNewPath()}>
             <Button variant="secondary" size="sm">
               {t('live.createNew')}
             </Button>
@@ -245,7 +245,7 @@ export default function CollabRoomPage() {
         message={t('live.roomNotFound')}
         sub="Invalid session token"
         action={
-          <Link to="/live/new">
+          <Link to={liveNewPath()}>
             <Button variant="secondary" size="sm">
               {t('live.createNew')}
             </Button>
@@ -265,7 +265,7 @@ export default function CollabRoomPage() {
         message={t('live.roomNotFound')}
         sub="Invalid session token"
         action={
-          <Link to="/live/new">
+          <Link to={liveNewPath()}>
             <Button variant="secondary" size="sm">
               {t('live.createNew')}
             </Button>
@@ -532,7 +532,7 @@ function GuestGate({
             </>
           ) : (
             <div className="mt-5">
-              <Link to="/live/new">
+              <Link to={liveNewPath()}>
                 <Button className="w-full">{t('live.createOwnRoom')}</Button>
               </Link>
             </div>

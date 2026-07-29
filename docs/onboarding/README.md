@@ -57,7 +57,7 @@ Nordly `share-to-web` → notes service stores slug → web `/notes/{slug}` (pub
 
 ### Whiteboard share
 
-- **Live:** nordly `share-whiteboard` → rooms service → web `/live/{roomId}`
+- **Live:** nordly `share-whiteboard` → rooms service → `code.trynordly.app/{roomId}`
 - **Publish:** nordly `publish-whiteboard` → rooms DB → web `/board/{slug}` read-only
 
 ### Live collab (web)
@@ -100,4 +100,4 @@ Prod ops: [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md). Monitoring: [deploy/graf
 - [ ] Read [apps/nordly/AGENTS.md](../../apps/nordly/AGENTS.md) or [apps/web/AGENTS.md](../../apps/web/AGENTS.md) for your area
 - [ ] Skim [backend-client-matrix.md](../backend-client-matrix.md)
 - [ ] Run nordly locally; try notes, task board, whiteboard
-- [ ] Run web `/live/new` with local rooms + sandbox
+- [ ] Run web `code.trynordly.app/` (or local `/live/new`) with local rooms + sandbox

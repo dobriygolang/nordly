@@ -4,6 +4,17 @@ Work from `services/notes/` only. Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/notes`
 
+## Layout
+
+```
+internal/notes/model/              — entities + AttachmentInput
+internal/notes/repository/           — Store port + Postgres
+internal/notes/service/              — Service facade (thin orchestrator)
+internal/notes/usecase/support/      — shared attachment normalization + publish asset refs
+internal/notes/usecase/command/share_note_to_web/ — ShareNoteToWeb CQRS command
+internal/app/api/notes/              — gRPC/HTTP transport (one RPC per file)
+```
+
 ## Purpose
 
 Obsidian-like notes for Nordly (Tauri desktop app):
@@ -66,9 +77,10 @@ desktop sync protocol can consume pages without introducing a second list path.
 ```bash
 cd services/notes
 make start | gen-proto | test | lint | build
+go generate ./internal/notes/repository/ ./internal/adapter/billing/
 ```
 
-Build: `GOWORK=off`
+Build: `GOWORK=off`. Domain ports use mockery (`repository/mocks`, `adapter/billing/mocks`); `service.New` panics if Repo/Billing/PublicBaseURL missing.
 
 ## Metrics
 

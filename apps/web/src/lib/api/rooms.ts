@@ -145,7 +145,12 @@ export async function createGuestRoom(input: {
     }),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    let text = ''
+    try {
+      text = await res.text()
+    } catch (err) {
+      console.warn('[rooms] guest create error body unreadable', err)
+    }
     throw new Error(text || `guest create ${res.status}`)
   }
   const raw = (await res.json()) as Record<string, unknown>
@@ -192,7 +197,12 @@ export async function guestJoin(
     throw new Error('guest join misrouted — check room URL')
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    let text = ''
+    try {
+      text = await res.text()
+    } catch (err) {
+      console.warn('[rooms] guest join error body unreadable', err)
+    }
     throw new Error(text || `guest join ${res.status}`)
   }
   const raw = (await res.json()) as Record<string, unknown>

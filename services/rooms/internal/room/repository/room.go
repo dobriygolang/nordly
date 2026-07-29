@@ -148,52 +148,9 @@ func (r *Repository) GetRole(ctx context.Context, roomID, userID uuid.UUID) (mod
 	return model.Role(role), nil
 }
 
-func (r *Repository) CountActiveByOwner(ctx context.Context, ownerID uuid.UUID) (int, error) {
-	const q = `
-SELECT COUNT(*)
-FROM code_rooms
-WHERE owner_id = $1 AND archived_at IS NULL AND expires_at > now()`
-	var n int
-	if err := r.pg.QueryRow(ctx, q, ownerID).Scan(&n); err != nil {
-		return 0, fmt.Errorf("CountActiveByOwner: %w", err)
-	}
-	return n, nil
-}
-
 // IsExpired reports whether the room TTL has passed.
 func IsExpired(room model.Room, now time.Time) bool {
 	return !room.ExpiresAt.IsZero() && now.After(room.ExpiresAt)
-}
-
-func (r *Repository) ListActiveByOwner(ctx context.Context, ownerID uuid.UUID) ([]model.Room, error) {
-	const q = `
-SELECT id, owner_id, room_type, language, visibility, expires_at, created_at, is_guest_created
-FROM code_rooms
-WHERE owner_id = $1 AND archived_at IS NULL AND expires_at > now()
-ORDER BY created_at DESC`
-
-	rows, err := r.pg.Query(ctx, q, ownerID)
-	if err != nil {
-		return nil, fmt.Errorf("ListActiveByOwner: %w", err)
-	}
-	defer rows.Close()
-
-	var out []model.Room
-	for rows.Next() {
-		var room model.Room
-		var roomType, lang, vis string
-		if err := rows.Scan(
-			&room.ID, &room.OwnerID, &roomType, &lang,
-			&vis, &room.ExpiresAt, &room.CreatedAt, &room.IsGuestCreated,
-		); err != nil {
-			return nil, fmt.Errorf("ListActiveByOwner scan: %w", err)
-		}
-		room.Type = model.RoomType(roomType)
-		room.Language = model.Language(lang)
-		room.Visibility = model.Visibility(vis)
-		out = append(out, room)
-	}
-	return out, rows.Err()
 }
 
 func (r *Repository) DeleteExpired(ctx context.Context) ([]uuid.UUID, error) {

@@ -89,7 +89,7 @@ message GetRoomResponse {
 }
 
 message InviteLink {
-  // Public guest URL: {PUBLIC_BASE_URL}/live/{room_id}
+  // Public guest URL: {LIVE_PUBLIC_BASE_URL}/{room_id}
   string url = 1;
   reserved 2;
   reserved "expires_at";

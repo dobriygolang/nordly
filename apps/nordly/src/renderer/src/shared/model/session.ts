@@ -69,17 +69,6 @@ function clearLocalAuthBannerDismissed(): void {
   }
 }
 
-async function clearDeviceOAuthBestEffort(userId: string | null): Promise<void> {
-  if (!userId) return;
-  if (!window.nordly?.oauth) return;
-  try {
-    const { clearAllDeviceOAuth } = await import('@shared/integrations/oauthTokens');
-    await clearAllDeviceOAuth(userId);
-  } catch (err) {
-    console.warn('[nordly:session] device OAuth clear failed', err);
-  }
-}
-
 function readBrowserPersist(): PersistedSession | null {
   if (window.nordly || !import.meta.env.DEV) return null;
   const raw = window.localStorage.getItem(BROWSER_PERSIST_KEY);
@@ -325,7 +314,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Never silently merge another profile's IndexedDB into this cloud account.
     // Shared-OS logins must not inherit prior local/cloud rows via rebind.
     if (current.userId && current.userId !== userId) {
-      await clearDeviceOAuthBestEffort(current.userId);
       lockVault();
       clearVaultPrefsCache();
     }
@@ -366,7 +354,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   clear: async (opts) => {
     sessionPersistEpoch += 1;
-    const previousUserId = get().userId;
     clearBrowserPersist();
     lockVault();
     clearVaultPrefsCache();
@@ -374,7 +361,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useSyncStore.getState().setCloudSyncBlocked(false);
     useFeatureUsageStore.getState().setDeviceRegistration(null);
     clearLocalAuthBannerDismissed();
-    await clearDeviceOAuthBestEffort(previousUserId);
     try {
       const { resetAuthRefreshState, rejectPendingCloudAuth } = await import('@shared/api/authSession');
       resetAuthRefreshState();

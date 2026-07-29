@@ -30,40 +30,10 @@ export interface NordlyAPI {
     passSave: (userId: string, passphrase: string) => Promise<void>;
     passClear: (userId: string) => Promise<void>;
   };
-  oauth?: {
-    tokensLoad: (provider: OAuthProvider, userId: string) => Promise<OAuthTokenBlob | null>;
-    tokensSave: (tokens: OAuthTokenBlob, userId: string) => Promise<void>;
-    tokensClear: (provider: OAuthProvider, userId: string) => Promise<void>;
-    pendingLoad: (provider: OAuthProvider, userId: string) => Promise<OAuthPendingBlob | null>;
-    pendingSave: (pending: OAuthPendingBlob, userId: string) => Promise<void>;
-    pendingClear: (provider: OAuthProvider, userId: string) => Promise<void>;
-    loopbackStart: () => Promise<string>;
-    loopbackWait: (expectedState: string, timeoutMs: number) => Promise<string>;
-    loopbackCancel: () => Promise<void>;
-  };
   on: <K extends keyof typeof eventChannels>(
     channel: K,
     listener: (payload: EventPayload[K]) => void,
   ) => () => void;
-}
-
-export type OAuthProvider = 'google' | 'zoom';
-
-export interface OAuthTokenBlob {
-  provider: OAuthProvider;
-  refreshToken: string;
-  accessToken: string;
-  expiresAt: number;
-  reauthRequired: boolean;
-  accountEmail?: string;
-}
-
-export interface OAuthPendingBlob {
-  provider: OAuthProvider;
-  state: string;
-  codeVerifier: string;
-  redirectUri: string;
-  expiresAt: number;
 }
 
 export interface AuthSession {

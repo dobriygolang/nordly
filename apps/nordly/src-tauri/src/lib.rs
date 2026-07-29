@@ -38,7 +38,9 @@ pub fn run() {
                         match validate_deep_link(&url) {
                             Ok(url) => {
                                 if let Some(main) = h.get_webview_window("main") {
-                                    if let Err(e) = main.emit("app:deep-link", DeepLinkPayload { url }) {
+                                    if let Err(e) =
+                                        main.emit("app:deep-link", DeepLinkPayload { url })
+                                    {
                                         eprintln!("[nordly] emit deep-link failed: {e}");
                                     }
                                 }
@@ -268,7 +270,10 @@ fn notes_vault_pick_folder(window: WebviewWindow) -> Result<Option<String>, Stri
 }
 
 #[tauri::command]
-fn notes_vault_list_notes(window: WebviewWindow, app: AppHandle) -> Result<Vec<VaultNoteMeta>, String> {
+fn notes_vault_list_notes(
+    window: WebviewWindow,
+    app: AppHandle,
+) -> Result<Vec<VaultNoteMeta>, String> {
     require_main_window(&window)?;
     notes_vault::list_notes(&app)
 }

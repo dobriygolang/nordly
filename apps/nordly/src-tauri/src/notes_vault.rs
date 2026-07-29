@@ -121,7 +121,8 @@ fn root_canon(root: &Path) -> Result<PathBuf, String> {
 fn rel_from_abs(root: &Path, abs: &Path) -> Result<String, String> {
     let root_c = root_canon(root)?;
     let abs_c = if abs.exists() {
-        abs.canonicalize().map_err(|e| format!("path resolve: {e}"))?
+        abs.canonicalize()
+            .map_err(|e| format!("path resolve: {e}"))?
     } else {
         abs.to_path_buf()
     };
@@ -344,13 +345,11 @@ pub fn set_config(app: &AppHandle, cfg: NotesVaultConfig) -> Result<NotesVaultCo
         return Err("vault root must be an absolute path".into());
     }
     fs::create_dir_all(&root).map_err(|e| format!("create vault root: {e}"))?;
-    let attachment = normalize_rel(
-        if cfg.attachment_folder.trim().is_empty() {
-            DEFAULT_ATTACHMENT_FOLDER
-        } else {
-            cfg.attachment_folder.trim()
-        },
-    )?;
+    let attachment = normalize_rel(if cfg.attachment_folder.trim().is_empty() {
+        DEFAULT_ATTACHMENT_FOLDER
+    } else {
+        cfg.attachment_folder.trim()
+    })?;
     if attachment.is_empty() {
         return Err("attachment folder required".into());
     }
@@ -585,7 +584,11 @@ pub fn create_folder(
     })
 }
 
-pub fn rename_folder(app: &AppHandle, rel: String, new_name: String) -> Result<VaultFolderMeta, String> {
+pub fn rename_folder(
+    app: &AppHandle,
+    rel: String,
+    new_name: String,
+) -> Result<VaultFolderMeta, String> {
     let cfg = require_cfg(app)?;
     let root = PathBuf::from(&cfg.root);
     let from = resolve_under_root(&root, &rel)?;
@@ -672,11 +675,7 @@ pub fn trash_folder(app: &AppHandle, rel: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn write_bytes(
-    app: &AppHandle,
-    rel: String,
-    bytes: Vec<u8>,
-) -> Result<String, String> {
+pub fn write_bytes(app: &AppHandle, rel: String, bytes: Vec<u8>) -> Result<String, String> {
     assert_attachment_size(bytes.len())?;
     let cfg = require_cfg(app)?;
     let root = PathBuf::from(&cfg.root);

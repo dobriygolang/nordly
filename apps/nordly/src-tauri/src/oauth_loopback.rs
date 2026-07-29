@@ -41,7 +41,9 @@ pub fn wait_for_code(
 ) -> Result<String, String> {
     let pending = {
         let mut guard = PENDING.lock().map_err(|e| e.to_string())?;
-        guard.take().ok_or_else(|| "oauth loopback not started".to_string())?
+        guard
+            .take()
+            .ok_or_else(|| "oauth loopback not started".to_string())?
     };
     let timeout = Duration::from_millis(timeout_ms.max(1_000));
     pending

@@ -153,7 +153,11 @@ pub fn load_pending(
     Ok(None)
 }
 
-pub fn save_pending(_app: &AppHandle, user_id: &str, blob: &OAuthPendingBlob) -> Result<(), String> {
+pub fn save_pending(
+    _app: &AppHandle,
+    user_id: &str,
+    blob: &OAuthPendingBlob,
+) -> Result<(), String> {
     let scoped = pending_key(&blob.provider, user_id)?;
     write_blob(&scoped, blob)?;
     let _ = delete_entry(&legacy_pending_key(&blob.provider)?);

@@ -129,7 +129,8 @@ export function setNotesVaultBoundCache(bound: boolean): void {
   vaultBoundCache = bound;
 }
 
-async function useFsVault(): Promise<boolean> {
+/** Cached FS-vault gate — not a React hook (name must not start with `use`). */
+async function fsVaultActive(): Promise<boolean> {
   if (vaultBoundCache === null) {
     vaultBoundCache = await isNotesVaultBound();
   }
@@ -137,7 +138,7 @@ async function useFsVault(): Promise<boolean> {
 }
 
 async function wikiLinksForSave(bodyMd: string): Promise<StoredWikiLink[]> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     const { notes } = await vaultIoListNotes();
     return buildWikiLinksWire(bodyMd, notes);
   }
@@ -146,13 +147,13 @@ async function wikiLinksForSave(bodyMd: string): Promise<StoredWikiLink[]> {
 }
 
 export async function listNotes(): Promise<{ notes: NoteSummary[] }> {
-  if (await useFsVault()) return vaultIoListNotes();
+  if (await fsVaultActive()) return vaultIoListNotes();
   const notes = await notesStoreList();
   return { notes };
 }
 
 async function resolveNote(id: string): Promise<Note | null> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     try {
       return await vaultIoGetNote(id);
     } catch {
@@ -177,7 +178,7 @@ export async function createNote(
   bodyMd: string,
   folderId?: string | null,
 ): Promise<Note> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     return vaultIoCreateNote(title, bodyMd, folderId);
   }
   const id = crypto.randomUUID();
@@ -191,7 +192,7 @@ export async function createNote(
 }
 
 export async function listFolders(): Promise<NoteFolder[]> {
-  if (await useFsVault()) return vaultIoListFolders();
+  if (await fsVaultActive()) return vaultIoListFolders();
   return foldersStoreList();
 }
 
@@ -199,12 +200,12 @@ export async function createFolder(
   name: string,
   parentId?: string | null,
 ): Promise<NoteFolder> {
-  if (await useFsVault()) return vaultIoCreateFolder(name, parentId);
+  if (await fsVaultActive()) return vaultIoCreateFolder(name, parentId);
   return foldersStoreCreate(name, parentId ?? null);
 }
 
 export async function renameFolder(id: string, name: string): Promise<NoteFolder> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     const { folder } = await vaultIoRenameFolder(id, name);
     return folder;
   }
@@ -219,7 +220,7 @@ export async function renameFolderWithRemap(
   id: string,
   name: string,
 ): Promise<{ folder: NoteFolder; fromPath: string; toPath: string }> {
-  if (await useFsVault()) return vaultIoRenameFolder(id, name);
+  if (await fsVaultActive()) return vaultIoRenameFolder(id, name);
   const folder = await foldersStoreRename(id, name);
   return { folder, fromPath: id, toPath: id };
 }
@@ -229,7 +230,7 @@ export async function renameFolderWithRemap(
  * Notes and nested folders travel with it (they keep pointing at the same ids).
  */
 export async function moveFolder(id: string, parentId: string | null): Promise<NoteFolder> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     const { folder } = await vaultIoMoveFolder(id, parentId);
     return folder;
   }
@@ -240,7 +241,7 @@ export async function moveFolderWithRemap(
   id: string,
   parentId: string | null,
 ): Promise<{ folder: NoteFolder; fromPath: string; toPath: string }> {
-  if (await useFsVault()) return vaultIoMoveFolder(id, parentId);
+  if (await fsVaultActive()) return vaultIoMoveFolder(id, parentId);
   const folder = await foldersStoreMove(id, parentId);
   return { folder, fromPath: id, toPath: id };
 }
@@ -253,7 +254,7 @@ export async function ensureFolderPath(
   segments: string[],
   rootParentId: string | null = null,
 ): Promise<{ folderId: string | null; created: NoteFolder[] }> {
-  if (await useFsVault()) return vaultIoEnsureFolderPath(segments, rootParentId);
+  if (await fsVaultActive()) return vaultIoEnsureFolderPath(segments, rootParentId);
   let parentId = rootParentId;
   const created: NoteFolder[] = [];
   for (const segment of segments) {
@@ -282,7 +283,7 @@ export async function ensureFolderPath(
 export async function deleteFolder(
   id: string,
 ): Promise<{ deletedFolderIds: string[]; deletedNoteIds: string[] }> {
-  if (await useFsVault()) return vaultIoDeleteFolder(id);
+  if (await fsVaultActive()) return vaultIoDeleteFolder(id);
   const folders = await foldersStoreList();
   if (!folders.some((f) => f.id === id)) {
     throw new Error(`Folder not found: ${id}`);
@@ -300,7 +301,7 @@ export async function moveNoteToFolder(
   noteId: string,
   folderId: string | null,
 ): Promise<{ noteId: string; folderId: string | null }> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     const note = await vaultIoMoveNoteToFolder(noteId, folderId);
     return { noteId: note.id, folderId: note.folderId ?? null };
   }
@@ -311,7 +312,7 @@ export async function moveNoteToFolder(
 }
 
 export async function updateNote(id: string, title: string, bodyMd: string): Promise<Note> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     return vaultIoUpdateNote(id, title, bodyMd);
   }
   const prev = await resolveNote(id);
@@ -330,7 +331,7 @@ export async function updateNote(id: string, title: string, bodyMd: string): Pro
 
 /** Soft-delete local attachments no longer referenced by `nordly-asset:` in body. */
 async function sweepOrphanAttachments(noteId: string, bodyMd: string): Promise<void> {
-  if (await useFsVault()) return;
+  if (await fsVaultActive()) return;
   const referenced = new Set(extractNordlyAssetIds(bodyMd));
   const list = await attachmentsStoreListByNote(noteId);
   for (const attachment of list) {
@@ -342,7 +343,7 @@ async function sweepOrphanAttachments(noteId: string, bodyMd: string): Promise<v
 export async function openWikiLink(
   linkText: string,
 ): Promise<{ noteId: string; created: boolean }> {
-  if (await useFsVault()) return vaultIoOpenWikiLink(linkText);
+  if (await fsVaultActive()) return vaultIoOpenWikiLink(linkText);
   const trimmed = linkText.trim();
   if (!trimmed) throw new Error('Wiki link title is empty');
 
@@ -430,7 +431,7 @@ async function collectPublishAttachments(
     });
   }
 
-  if (notePath && (await useFsVault())) {
+  if (notePath && (await fsVaultActive())) {
     const { vaultReadBytes, joinNoteRelative } = await import('@features/notes/vault');
     const {
       MD_IMAGE_RE,
@@ -538,7 +539,7 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  if (await useFsVault()) {
+  if (await fsVaultActive()) {
     await vaultIoDeleteNote(id);
     return;
   }

@@ -58,6 +58,7 @@ import {
 
 const CREATE_MENU_W = 168;
 const FOLDERS_OPEN_KEY = 'nordly:notes:folders-open';
+const EMPTY_FOLDER_LIST: NoteFolder[] = [];
 
 const dropAnimation = {
   duration: 200,
@@ -401,7 +402,10 @@ export const Sidebar = memo(function Sidebar({
     return map;
   }, [folders]);
 
-  const rootFolders = childrenByParent.get(null) ?? [];
+  const rootFolders = useMemo(
+    () => childrenByParent.get(null) ?? EMPTY_FOLDER_LIST,
+    [childrenByParent],
+  );
   const hasFolders = folders.length > 0;
 
   const visibleSelKeys = useMemo(() => {

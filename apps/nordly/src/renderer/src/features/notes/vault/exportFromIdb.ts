@@ -17,11 +17,15 @@ import type { NotesVaultConfig } from './types';
 
 function sanitizeStem(title: string): string {
   const t = title.trim() || 'Untitled';
-  return t
-    .replace(/[/\\:*?"<>|]/g, '-')
-    .replace(/[\u0000-\u001f]/g, '-')
+  const cleaned = Array.from(t, (ch) => {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || '/\\:*?"<>|'.includes(ch)) return '-';
+    return ch;
+  })
+    .join('')
     .replace(/^\.+|\.+$/g, '')
-    .trim() || 'Untitled';
+    .trim();
+  return cleaned || 'Untitled';
 }
 
 function folderPathForId(

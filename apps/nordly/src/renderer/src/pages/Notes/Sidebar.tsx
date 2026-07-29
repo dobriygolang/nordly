@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
@@ -29,6 +36,7 @@ import { collectSubtreeIds } from '@features/notes/api/notesClient';
 import { DraggableFolderRow } from './DraggableFolderRow';
 import { DraggableNoteRow } from './DraggableNoteRow';
 import { FolderDragOverlay } from './FolderDragOverlay';
+import { FolderInsertPreview } from './FolderInsertPreview';
 import { NoteDragOverlay } from './NoteDragOverlay';
 import { NoteInsertPreview } from './NoteInsertPreview';
 import {
@@ -76,16 +84,15 @@ function readOpenFolderIds(): Set<string> {
   }
 }
 
-function UnfiledDropZone({
+/** Vault-root drop target — highlight the whole list (Obsidian empty-space → root). */
+function RootDropZone({
   children,
   enabled,
-  previewChildren,
-  previewActive,
+  dropActive,
 }: {
   children: React.ReactNode;
   enabled: boolean;
-  previewChildren: React.ReactNode;
-  previewActive: boolean;
+  dropActive: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: UNFILED_DROPPABLE_ID,
@@ -98,10 +105,10 @@ function UnfiledDropZone({
   return (
     <div
       ref={setNodeRef}
-      className="nordly-notes-unfiled-drop"
-      data-drop-active={isOver || previewActive ? 'true' : 'false'}
+      className="nordly-notes-root-drop"
+      data-drop-active={isOver || dropActive ? 'true' : 'false'}
     >
-      {previewActive ? previewChildren : children}
+      {children}
     </div>
   );
 }
@@ -117,6 +124,7 @@ function FolderDropZone({
   header,
   children,
   dragging = false,
+  previewing = false,
 }: {
   folderId: string;
   disabled: boolean;
@@ -127,6 +135,7 @@ function FolderDropZone({
   header: React.ReactNode;
   children: React.ReactNode;
   dragging?: boolean;
+  previewing?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: folderDroppableId(folderId),
@@ -135,13 +144,13 @@ function FolderDropZone({
   });
 
   useEffect(() => {
-    if (previewActive && previewChildren) onHoverOpen(folderId);
-  }, [previewActive, previewChildren, folderId, onHoverOpen]);
+    if (previewActive) onHoverOpen(folderId);
+  }, [previewActive, folderId, onHoverOpen]);
 
   return (
     <div
       ref={setNodeRef}
-      className={`nordly-folder-group nordly-folder-drop${dragging ? ' nordly-folder-group--dragging' : ''}`}
+      className={`nordly-folder-group nordly-folder-drop${dragging ? ' nordly-folder-group--dragging' : ''}${previewing ? ' nordly-folder-group--previewing' : ''}`}
       data-drop-active={isOver || previewActive ? 'true' : 'false'}
     >
       {header}
@@ -154,7 +163,7 @@ export interface SidebarProps {
   list: ListState;
   folders: NoteFolder[];
   selectedId: string | null;
-  /** Folder that receives new notes/folders; null = unfiled (global). */
+  /** Folder that receives new notes/folders; null = vault root. */
   createTargetFolderId: string | null;
   onSelect: (id: string) => void;
   onCreateNote: () => void;
@@ -373,9 +382,15 @@ export const Sidebar = memo(function Sidebar({
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, NoteFolder[]>();
     const idSet = new Set(folders.map((f) => f.id));
+    const seen = new Set<string>();
     for (const f of folders) {
+      // Duplicate ids (idempotent create + stale list) must not nest as self-children.
+      if (seen.has(f.id)) continue;
+      seen.add(f.id);
       const rawParent = f.parentId ?? null;
-      const parent = rawParent && idSet.has(rawParent) ? rawParent : null;
+      // Self-parent / missing parent → vault root (cycle would blow the tree walk).
+      const parent =
+        rawParent && rawParent !== f.id && idSet.has(rawParent) ? rawParent : null;
       const listForParent = map.get(parent);
       if (listForParent) listForParent.push(f);
       else map.set(parent, [f]);
@@ -523,7 +538,10 @@ export const Sidebar = memo(function Sidebar({
       // Only delete topmost selected folders (children cascade with the parent).
       const roots = folderIds.filter((id) => {
         let parent = folders.find((f) => f.id === id)?.parentId ?? null;
+        const seen = new Set<string>();
         while (parent) {
+          if (seen.has(parent)) break;
+          seen.add(parent);
           if (selectedFolders.has(parent)) return false;
           parent = folders.find((f) => f.id === parent)?.parentId ?? null;
         }
@@ -799,39 +817,83 @@ export const Sidebar = memo(function Sidebar({
     />
   );
 
+  const activeFolderParentId = activeFolder
+    ? activeFolder.parentId && folderIds.has(activeFolder.parentId)
+      ? activeFolder.parentId
+      : null
+    : undefined;
+
+  const renderFolderInsertPreview = (
+    folder: NoteFolder,
+    depth: number,
+  ): React.ReactNode => {
+    const open = openFolderIds.has(folder.id);
+    const childNotes = notesByFolder.get(folder.id) ?? [];
+    const childFolders = childrenByParent.get(folder.id) ?? [];
+
+    return (
+      <FolderInsertPreview
+        key={`preview:folder:${folder.id}`}
+        folder={folder}
+        depth={depth}
+        open={open}
+      >
+        {childNotes.map((note) => (
+          <NoteInsertPreview
+            key={`preview:note:${note.id}`}
+            note={note}
+            nested
+            depth={depth}
+          />
+        ))}
+        {childFolders.map((child) => renderFolderInsertPreview(child, depth + 1))}
+      </FolderInsertPreview>
+    );
+  };
+
   const renderDropPreview = (
     notes: NoteSummary[],
     nested: boolean,
     targetFolderId: string | null,
     depth: number,
   ): React.ReactNode => {
-    if (!activeNote) return notes.map((note) => renderNote(note, nested, depth));
-
     const rows = notes.map((note) => renderNote(note, nested, depth));
-    if (activeNoteFolderId !== targetFolderId) {
+
+    if (activeNote) {
+      if (activeNoteFolderId !== targetFolderId) {
+        return [
+          <NoteInsertPreview
+            key={`preview:${targetFolderId ?? 'unfiled'}`}
+            note={activeNote}
+            nested={nested}
+            depth={depth}
+          />,
+          ...rows,
+        ];
+      }
+
+      // Same-folder drag: keep draggable mounted (forceDragging hides it) and show
+      // insert preview in its place — never stack both in one grid cell.
+      return notes.map((note) =>
+        note.id === activeNote.id ? (
+          <div className="nordly-note-drag-origin" key={`preview:${note.id}`}>
+            {renderNote(note, nested, depth)}
+            <NoteInsertPreview note={activeNote} nested={nested} depth={depth} />
+          </div>
+        ) : (
+          renderNote(note, nested, depth)
+        ),
+      );
+    }
+
+    if (activeFolder && activeFolderParentId !== targetFolderId) {
       return [
-        <NoteInsertPreview
-          key={`preview:${targetFolderId ?? 'unfiled'}`}
-          note={activeNote}
-          nested={nested}
-          depth={depth}
-        />,
+        renderFolderInsertPreview(activeFolder, nested ? depth + 1 : 0),
         ...rows,
       ];
     }
 
-    // Same-folder drag: keep draggable mounted (forceDragging hides it) and show
-    // insert preview in its place — never stack both in one grid cell.
-    return notes.map((note) =>
-      note.id === activeNote.id ? (
-        <div className="nordly-note-drag-origin" key={`preview:${note.id}`}>
-          {renderNote(note, nested, depth)}
-          <NoteInsertPreview note={activeNote} nested={nested} depth={depth} />
-        </div>
-      ) : (
-        renderNote(note, nested, depth)
-      ),
-    );
+    return rows;
   };
 
   const renderIdleRows = (
@@ -859,13 +921,24 @@ export const Sidebar = memo(function Sidebar({
       const dropDisabled =
         renamingFolderId === folder.id ||
         Boolean(folderDropBlockedIds?.has(folder.id));
-      return (
+      const parentId =
+        folder.parentId && folderIds.has(folder.parentId) ? folder.parentId : null;
+      const sameParentOrigin =
+        folderDragging && activeFolder != null && previewFolderId === parentId;
+
+      const zone = (
         <FolderDropZone
           key={folder.id}
           folderId={folder.id}
           disabled={dropDisabled}
           dragging={folderDragging}
-          previewChildren={renderDropPreview(childNotes, true, folder.id, depth)}
+          previewing={sameParentOrigin}
+          previewChildren={
+            <>
+              {renderDropPreview(childNotes, true, folder.id, depth)}
+              {renderFolderTree(childFolders, depth + 1)}
+            </>
+          }
           previewActive={
             (activeNote != null || activeFolder != null) && previewFolderId === folder.id
           }
@@ -909,6 +982,8 @@ export const Sidebar = memo(function Sidebar({
           ) : null}
         </FolderDropZone>
       );
+
+      return zone;
     });
 
   return (
@@ -976,7 +1051,7 @@ export const Sidebar = memo(function Sidebar({
                   .then((folder) => {
                     setRenamingFolderId(folder.id);
                     setOpenFolderIds((prev) => new Set(prev).add(folder.id));
-                    // Keep create target on the parent (or unfiled) so the next
+                    // Keep create target on the parent (or root) so the next
                     // folder is a sibling — not nested under the one we just made.
                   })
                   .catch((err: unknown) => {
@@ -1006,8 +1081,12 @@ export const Sidebar = memo(function Sidebar({
           className="nordly-vault-sidebar__list"
           tabIndex={-1}
           onMouseDown={(e) => {
-            // Click empty list chrome — unfiled create target + keyboard focus.
-            if (e.target === e.currentTarget) {
+            // Click empty list / root chrome — root create target + keyboard focus.
+            const target = e.target as HTMLElement;
+            if (
+              target === e.currentTarget ||
+              target.classList.contains('nordly-notes-root-drop')
+            ) {
               focusList();
               clearCreateTarget();
               setSelection(new Set());
@@ -1015,32 +1094,17 @@ export const Sidebar = memo(function Sidebar({
             }
           }}
         >
-          <UnfiledDropZone
+          <RootDropZone
             enabled={hasFolders}
-            previewChildren={renderDropPreview(unfiledNotes, false, null, 0)}
-            previewActive={
+            dropActive={
               (activeNote != null || activeFolder != null) && previewFolderId === null
             }
           >
-            {hasFolders ? (
-              <div
-                className="nordly-notes-section-label"
-                data-create-target={createTargetFolderId == null ? 'true' : 'false'}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  focusList();
-                  clearCreateTarget();
-                  setSelection(new Set());
-                  anchorIdRef.current = null;
-                }}
-              >
-                {t('nordly.notes.unfiled')}
-              </div>
-            ) : null}
-            {renderIdleRows(unfiledNotes, false, null, 0)}
-          </UnfiledDropZone>
-
-          {renderFolderTree(rootFolders, 0)}
+            {previewFolderId === null && (activeNote != null || activeFolder != null)
+              ? renderDropPreview(unfiledNotes, false, null, 0)
+              : renderIdleRows(unfiledNotes, false, null, 0)}
+            {renderFolderTree(rootFolders, 0)}
+          </RootDropZone>
         </div>
 
         {createPortal(

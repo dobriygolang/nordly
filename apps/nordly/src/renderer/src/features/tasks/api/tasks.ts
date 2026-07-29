@@ -1,15 +1,12 @@
 // Local-first task board — IndexedDB source of truth; background sync when enabled.
-import { isCloudEnabled } from '@shared/model/features';
-import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete, tasksStoreApplyRemote } from '@features/tasks/repository/tasksStore';
-import {
-  remoteCreateTaskConference,
-} from '@features/tasks/remote/tasksRemote';
+import { translate } from '@nordly-i18n';
+import { tasksStoreGet, tasksStoreList, tasksStorePut, tasksStoreSoftDelete } from '@features/tasks/repository/tasksStore';
 import { isTaskEpicColor, findEpicByColor, normalizeHex } from '@features/tasks/lib/epicColor';
 import { epicsStoreList } from '@features/tasks/repository/epicsStore';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
-import { flushSync, scheduleSync } from '@shared/sync/SyncEngine';
+import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
@@ -19,11 +16,11 @@ export type TaskKind = 'algo' | 'sysdesign' | 'quiz' | 'reflection' | 'reading' 
 export type ConferenceProvider = 'meet' | 'zoom';
 
 /** UI label when a task somehow has an empty title — logs so corruption stays visible. */
-export function displayTaskTitle(title: string, taskId?: string, fallback = 'Untitled'): string {
+export function displayTaskTitle(title: string, taskId?: string, fallback?: string): string {
   const trimmed = title.trim();
   if (trimmed) return trimmed;
   console.error('[nordly:tasks] missing title', taskId ?? '');
-  return fallback;
+  return fallback ?? translate('nordly.taskboard.untitled');
 }
 
 export type TaskEpicSelection = { epicId: string } | { color: string } | null;
@@ -45,6 +42,8 @@ export interface TaskCard {
   epicColor?: string;
   conferenceUrl?: string;
   conferenceProvider?: ConferenceProvider;
+  /** Zoom meeting id when conferenceProvider is zoom (device-created). */
+  zoomMeetingId?: string;
   /** Manual order within a day column. Undefined → derived from schedule/createdAt. */
   order?: number;
 }
@@ -183,35 +182,36 @@ export async function reorderTasks(updated: TaskCard[]): Promise<void> {
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
 }
 
-/** Assign or clear task epic. New assignments require a synced `epicId`. */
+/** Assign or clear task epic — syncs epicId when online; epicColor is offline/pending fallback. */
 export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection): Promise<TaskCard> {
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
 
   const epics = await epicsStoreList();
   let epicId: string | undefined;
+  let epicColor: string | undefined;
 
   if (selection === null) {
     epicId = undefined;
+    epicColor = undefined;
   } else if ('epicId' in selection) {
     if (isOfflineEpicId(selection.epicId)) {
-      throw new Error('Cannot assign offline epic stub');
+      throw new Error('Cannot assign offline epic stub by id — use color');
     }
     epicId = selection.epicId;
+    epicColor = epics.find((e) => e.id === epicId)?.color;
   } else {
     const color = normalizeHex(selection.color);
     if (!isTaskEpicColor(color)) throw new Error(`Invalid epic color: ${color}`);
+    epicColor = color;
     const match = findEpicByColor(epics, color);
-    if (!match || isOfflineEpicId(match.id)) {
-      throw new Error(`No synced epic for color: ${color}`);
-    }
-    epicId = match.id;
+    epicId = match && !isOfflineEpicId(match.id) ? match.id : undefined;
   }
 
   const task: TaskCard = {
     ...prev,
     epicId,
-    epicColor: undefined,
+    epicColor: epicId ? undefined : epicColor,
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);
@@ -221,6 +221,8 @@ export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection
       await enqueueTaskOutbox(taskId, prev.id, 'patch', { clearEpic: true });
     } else if (epicId) {
       await enqueueTaskOutbox(taskId, prev.id, 'patch', { epicId });
+    } else if (epicColor) {
+      await enqueueTaskOutbox(taskId, prev.id, 'patch', { epicColor });
     }
     scheduleSync();
   }
@@ -241,6 +243,8 @@ export async function patchTaskDetails(
     updatedAt: now,
     conferenceUrl: patch.clearConference ? undefined : prev.conferenceUrl,
     conferenceProvider: patch.clearConference ? undefined : prev.conferenceProvider,
+    googleEventId: patch.clearConference ? undefined : prev.googleEventId,
+    zoomMeetingId: patch.clearConference ? undefined : prev.zoomMeetingId,
   };
   await tasksStorePut(task);
   if (isSyncQueueEnabled() && patch.clearConference) {
@@ -256,27 +260,68 @@ export async function createTaskConference(
   taskId: string,
   provider: ConferenceProvider,
 ): Promise<TaskCard> {
-  if (!isCloudEnabled()) {
-    throw new Error('integrations require cloud account');
-  }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  let serverId = await getServerId('tasks', taskId);
-  if (!serverId && isSyncQueueEnabled()) {
-    // Meet/Zoom need the tracker id — push local creates first.
-    // Best-effort: unrelated outbox failures must not block conference creation.
-    try {
-      await flushSync();
-    } catch (err) {
-      console.error('[nordly:tasks] flush before conference failed', err);
-    }
-    serverId = await getServerId('tasks', taskId);
+
+  const title = prev.title.trim();
+  if (!title) throw new Error('Task title is required');
+
+  let conferenceUrl: string;
+  let conferenceProvider: ConferenceProvider = provider;
+  let googleEventId = prev.googleEventId;
+  let zoomMeetingId: string | undefined;
+
+  if (provider === 'meet') {
+    const { createGoogleMeetForTask } = await import(
+      '@features/calendar/local/googleCalendarApi'
+    );
+    const start = prev.scheduledStart
+      ? new Date(prev.scheduledStart)
+      : new Date();
+    const durationMin =
+      prev.scheduledDurationMin && prev.scheduledDurationMin > 0
+        ? prev.scheduledDurationMin
+        : 30;
+    const end = new Date(start.getTime() + durationMin * 60_000);
+    const meet = await createGoogleMeetForTask({
+      title,
+      start,
+      end,
+      existingEventId: prev.googleEventId,
+    });
+    conferenceUrl = meet.meetUrl;
+    googleEventId = meet.googleEventId;
+  } else {
+    const { createZoomMeeting } = await import('@features/calendar/local/zoomApi');
+    const meeting = await createZoomMeeting({
+      topic: title,
+      start: prev.scheduledStart ? new Date(prev.scheduledStart) : undefined,
+      durationMin: prev.scheduledDurationMin,
+    });
+    conferenceUrl = meeting.joinUrl;
+    zoomMeetingId = meeting.id;
   }
-  if (!serverId) throw new Error('task_not_synced');
-  const updated = await remoteCreateTaskConference(serverId, provider);
-  const task = await tasksStoreApplyRemote(updated);
+
+  const now = new Date().toISOString();
+  const task: TaskCard = {
+    ...prev,
+    updatedAt: now,
+    conferenceUrl,
+    conferenceProvider,
+    googleEventId,
+    zoomMeetingId,
+  };
+  await tasksStorePut(task);
+  if (isSyncQueueEnabled()) {
+    await enqueueTaskOutbox(taskId, prev.id, 'patch', {
+      conferenceUrl,
+      conferenceProvider,
+      googleEventId: googleEventId ?? null,
+      zoomMeetingId: zoomMeetingId ?? null,
+    });
+    scheduleSync();
+  }
   window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  // Meet writes a Google event; dynamic import keeps the calendar barrel out of App → Notes.
   if (provider === 'meet') {
     void import('@features/calendar/api/calendar').then(
       ({ invalidateGoogleCalendarCache, refreshGoogleCalendarCache }) => {

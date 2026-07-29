@@ -16,7 +16,13 @@ interface PageStorage {
 
 export function readStoredPage(storage?: PageStorage): PageId {
   if (!storage) return 'home';
-  const value = storage.getItem(PAGE_STORAGE_KEY);
+  let value: string | null;
+  try {
+    value = storage.getItem(PAGE_STORAGE_KEY);
+  } catch (err) {
+    console.warn('[navigation] session page read failed', err);
+    return 'home';
+  }
   if (value === null) return 'home';
   if (isPageId(value)) return value;
   throw new Error(`Invalid stored page: ${value}`);
@@ -50,9 +56,15 @@ export interface AppNavigation {
 export function useAppNavigation(): AppNavigation {
   const storage = typeof window === 'undefined' ? undefined : window.sessionStorage;
   const [page, setPageRaw] = useState<PageId>(() => readStoredPage(storage));
-  const [statsOpen, setStatsOpen] = useState(
-    () => storage?.getItem(PAGE_STORAGE_KEY) === 'stats',
-  );
+  const [statsOpen, setStatsOpen] = useState(() => {
+    if (!storage) return false;
+    try {
+      return storage.getItem(PAGE_STORAGE_KEY) === 'stats';
+    } catch (err) {
+      console.warn('[navigation] session stats flag read failed', err);
+      return false;
+    }
+  });
   const [taskOpenRequest, setTaskOpenRequest] =
     useState<EntityNavigationRequest | null>(null);
   const [noteOpenRequest, setNoteOpenRequest] =
@@ -64,7 +76,11 @@ export function useAppNavigation(): AppNavigation {
 
   const setPage = useCallback((next: PageId) => {
     setPageRaw(next);
-    window.sessionStorage.setItem(PAGE_STORAGE_KEY, next);
+    try {
+      window.sessionStorage.setItem(PAGE_STORAGE_KEY, next);
+    } catch (err) {
+      console.warn('[navigation] session page persist failed', err);
+    }
   }, []);
 
   const navigateTo = useCallback(

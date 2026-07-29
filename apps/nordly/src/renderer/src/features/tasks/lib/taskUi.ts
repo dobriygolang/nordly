@@ -1,12 +1,14 @@
-/** Task board UI helpers — conference display. Epic colors: `@features/tasks/lib/epicColor`. */
+/** Task board UI helpers — conference display. Tag colors: `@features/tasks/lib/epicColor`. */
 
 export {
   TASK_EPIC_PALETTE,
+  TAG_COLOR_LABEL_KEYS,
   epicEntrySurface,
   epicTimelineSurfaceStyle,
   isEpicActive,
   isTaskEpicColor,
   resolveTaskEpicColor,
+  tagDisplayName,
   taskHasEpic,
   type TaskEpicColor,
 } from '@features/tasks/lib/epicColor';

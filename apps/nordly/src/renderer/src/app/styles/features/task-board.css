@@ -668,10 +668,13 @@ html.light .nordly-task-detail-pop {
 
 .nordly-timeline-task {
   box-sizing: border-box;
+  position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   border-radius: 8px;
   font-size: 11px;
+  line-height: 1.15;
   color: var(--ink-90);
   overflow: hidden;
   text-decoration: none;
@@ -681,12 +684,20 @@ html.light .nordly-task-detail-pop {
 .nordly-timeline-task__body {
   flex: 1;
   min-height: 0;
-  padding: 6px 8px;
+  padding: 1px 6px;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
 }
 .nordly-timeline-task__resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
   flex-shrink: 0;
-  height: 8px;
   cursor: ns-resize;
   touch-action: none;
 }

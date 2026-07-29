@@ -6,6 +6,17 @@ export type FocusTimerMode = 'pomodoro' | 'stopwatch';
 
 const FOCUS_TIMER_MODES: FocusTimerMode[] = ['pomodoro', 'stopwatch'];
 
+/** Missing mode migrates once to pomodoro; unknown values throw. */
+export function parseFocusTimerMode(mode: string | undefined | null): FocusTimerMode {
+  if (mode === undefined || mode === null || mode === '') {
+    console.warn('[pomodoro] snapshot missing mode; migrating to pomodoro');
+    return 'pomodoro';
+  }
+  if ((FOCUS_TIMER_MODES as readonly string[]).includes(mode)) {
+    return mode as FocusTimerMode;
+  }
+  throw new Error(`Invalid pomodoro snapshot mode: ${mode}`);
+}
 export interface PomodoroStartArgs {
   planItemId?: string;
   pinnedTitle?: string;

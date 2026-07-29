@@ -1,4 +1,4 @@
-/** Rewrite Obsidian / relative image refs in imported markdown to nordly-asset: links. */
+/** Rewrite Obsidian / relative image refs in imported markdown to attachment links. */
 
 import {
   AttachmentError,
@@ -6,7 +6,6 @@ import {
   OBSIDIAN_EMBED_RE,
   markdownImage,
   mimeFromFilename,
-  nordlyAssetHref,
 } from '@features/notes/lib/noteAttachments';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 
@@ -14,13 +13,13 @@ export type ImageBytesLoader = (
   relativePath: string,
 ) => Promise<{ bytes: Uint8Array; fileName: string; mime: string } | null>;
 
-/** Injected so lib/ does not import api/. */
+/** Injected so lib/ does not import api/. Returns markdown ready to insert (IDB or vault). */
 export type CreateAttachmentFn = (
   noteId: string,
   fileName: string,
   mime: string,
   bytes: Uint8Array,
-) => Promise<{ attachment: { id: string } }>;
+) => Promise<{ attachment: { id: string }; markdown: string }>;
 
 type Replacement = { start: number; end: number; text: string };
 
@@ -30,6 +29,11 @@ function normalizeRelPath(raw: string): string {
     .replace(/^\.\//, '')
     .replace(/\\/g, '/')
     .replace(/^\/+/, '');
+}
+
+function hrefFromMarkdownImage(md: string): string | null {
+  const m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(md.trim());
+  return m?.[2] ?? null;
 }
 
 function applyReplacements(body: string, replacements: Replacement[]): string {
@@ -48,7 +52,8 @@ function applyReplacements(body: string, replacements: Replacement[]): string {
 }
 
 /**
- * Replace ![[file]] and ![](relative) with nordly-asset after ingesting bytes via loader.
+ * Replace ![[file]] and ![](relative) after ingesting bytes via loader.
+ * Uses markdown from createAttachment (nordly-asset: or vault-relative ![](…)).
  * Leaves missing images as original syntax (unresolved). Returns warning paths.
  * HTTPS images are left unchanged; plain HTTP is left unresolved with a warning.
  */
@@ -60,7 +65,7 @@ export async function rewriteImportedImages(
 ): Promise<{ bodyMd: string; missing: string[]; warnings: string[] }> {
   const missing: string[] = [];
   const warnings: string[] = [];
-  const cache = new Map<string, string>(); // rel path → asset id
+  const cache = new Map<string, string>(); // rel path → markdown href
   const replacements: Replacement[] = [];
 
   const ingest = async (relRaw: string): Promise<string | null> => {
@@ -75,14 +80,19 @@ export async function rewriteImportedImages(
         return null;
       }
       const mime = loaded.mime || mimeFromFilename(loaded.fileName) || '';
-      const { attachment } = await createAttachment(
+      const { markdown } = await createAttachment(
         noteId,
         loaded.fileName,
         mime,
         loaded.bytes,
       );
-      cache.set(rel, attachment.id);
-      return attachment.id;
+      const href = hrefFromMarkdownImage(markdown);
+      if (!href) {
+        warnings.push(`${rel}: bad_attachment_markdown`);
+        return null;
+      }
+      cache.set(rel, href);
+      return href;
     } catch (err) {
       if (err instanceof AttachmentError) {
         warnings.push(`${rel}: ${err.code}`);
@@ -100,10 +110,10 @@ export async function rewriteImportedImages(
     const path = (em[1] ?? '').trim();
     const start = em.index;
     const end = start + full.length;
-    const id = await ingest(path);
-    if (id) {
+    const href = await ingest(path);
+    if (href) {
       const alt = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '') || 'image';
-      replacements.push({ start, end, text: markdownImage(alt, nordlyAssetHref(id)) });
+      replacements.push({ start, end, text: markdownImage(alt, href) });
     }
     em = OBSIDIAN_EMBED_RE.exec(bodyMd);
   }
@@ -124,12 +134,12 @@ export async function rewriteImportedImages(
       warnings.push(`${href}: http_not_allowed`);
       continue;
     }
-    const id = await ingest(href);
-    if (!id) continue;
+    const nextHref = await ingest(href);
+    if (!nextHref) continue;
     replacements.push({
       start,
       end,
-      text: markdownImage(alt || 'image', nordlyAssetHref(id)),
+      text: markdownImage(alt || 'image', nextHref),
     });
   }
 

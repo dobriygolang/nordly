@@ -30,19 +30,38 @@ function readCheckState(): UpdateCheckState {
   if (typeof window === 'undefined') {
     return { lastCheckAt: 0, lastNotifiedVersion: null };
   }
-  const raw = window.localStorage.getItem(STORAGE_KEYS.updateCheck);
-  if (!raw) return { lastCheckAt: 0, lastNotifiedVersion: null };
-  const parsed = JSON.parse(raw) as Partial<UpdateCheckState>;
-  return {
-    lastCheckAt: typeof parsed.lastCheckAt === 'number' ? parsed.lastCheckAt : 0,
-    lastNotifiedVersion:
-      typeof parsed.lastNotifiedVersion === 'string' ? parsed.lastNotifiedVersion : null,
-  };
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEYS.updateCheck);
+    if (!raw) return { lastCheckAt: 0, lastNotifiedVersion: null };
+    const parsed = JSON.parse(raw) as Partial<UpdateCheckState>;
+    if (parsed.lastCheckAt !== undefined && typeof parsed.lastCheckAt !== 'number') {
+      throw new Error('Invalid update check state: lastCheckAt');
+    }
+    if (
+      parsed.lastNotifiedVersion !== undefined &&
+      parsed.lastNotifiedVersion !== null &&
+      typeof parsed.lastNotifiedVersion !== 'string'
+    ) {
+      throw new Error('Invalid update check state: lastNotifiedVersion');
+    }
+    return {
+      lastCheckAt: typeof parsed.lastCheckAt === 'number' ? parsed.lastCheckAt : 0,
+      lastNotifiedVersion:
+        typeof parsed.lastNotifiedVersion === 'string' ? parsed.lastNotifiedVersion : null,
+    };
+  } catch (err) {
+    console.warn('[updateCheck] state read failed', err);
+    return { lastCheckAt: 0, lastNotifiedVersion: null };
+  }
 }
 
 function writeCheckState(state: UpdateCheckState): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEYS.updateCheck, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.updateCheck, JSON.stringify(state));
+  } catch (err) {
+    console.warn('[updateCheck] state write failed', err);
+  }
 }
 
 function dispatchUpdateAvailable(published: string, installed: string): void {

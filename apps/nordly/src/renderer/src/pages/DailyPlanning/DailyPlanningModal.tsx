@@ -5,7 +5,6 @@ import { useT } from '@nordly-i18n';
 import { listTasks, scheduleTask, type TaskCard } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { isRecoverableTaskActionError } from '@features/tasks/lib/taskActionErrors';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
 import {
@@ -79,7 +78,6 @@ export function DailyPlanningModal({
   }, [refresh, todayKey, handleLoadError]);
 
   useEffect(() => {
-    if (!isCloudApiAvailable()) return;
     void getTrackerSettings()
       .then(setTrackerSettings)
       .catch(handleLoadError);
@@ -221,7 +219,7 @@ export function DailyPlanningModal({
         </div>
 
         <aside className="nordly-planning-timeline">
-          {step === 'finalize' ? (
+          {step === 'pick' || step === 'finalize' ? (
             <DayTimeline
               date={today}
               tasks={todayTasks}

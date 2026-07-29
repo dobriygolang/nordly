@@ -3,9 +3,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useT, useLocale } from '@nordly-i18n';
 
 import {
-  getGoogleCalendarAuthURL,
+  connectGoogleCalendar,
   inspectCalendarEntry,
-  openExternalUrl,
   GoogleReauthError,
   buildWeekDays,
   calendarHourLabels,
@@ -22,6 +21,7 @@ import {
   CALENDAR_GRID_END_HOUR,
   CALENDAR_GRID_START_HOUR,
   CALENDAR_HOUR_HEIGHT_PX,
+  CALENDAR_TIME_SNAP_MIN,
   type CalendarEntry,
 } from '@features/calendar/api/calendar';
 import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
@@ -34,7 +34,7 @@ import { useCalendarRangeSelect } from '@features/calendar/api/calendar';
 import { refreshGoogleCalendarCache } from '@features/calendar/api/calendar';
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { isCloudEnabled } from '@shared/model/features';
+import { isGoogleIntegrationAvailable } from '@shared/model/features';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMonthView } from './CalendarMonthView';
 import { CalendarYearView } from './CalendarYearView';
@@ -169,8 +169,12 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   const reconnect = useCallback(async () => {
     try {
-      const url = await getGoogleCalendarAuthURL();
-      openExternalUrl(url);
+      await connectGoogleCalendar();
+      window.dispatchEvent(
+        new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
+          detail: { status: 'connected', detail: null },
+        }),
+      );
     } catch (err) {
       setOperationError(err instanceof Error ? err : new Error(String(err)));
     }
@@ -192,9 +196,9 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     (dayKey: string, offsetTop: number) => {
       const [y, m, d] = dayKey.split('-').map(Number);
       const startH = offsetTop / hourHeight + CALENDAR_GRID_START_HOUR;
-      const min = snapMinutes(startH * 60);
+      const min = snapMinutes(startH * 60, CALENDAR_TIME_SNAP_MIN);
       const start = new Date(y, m - 1, d, Math.floor(min / 60), min % 60, 0, 0);
-      const end = new Date(start.getTime() + 30 * 60_000);
+      const end = new Date(start.getTime() + CALENDAR_TIME_SNAP_MIN * 60_000);
       openCreateTaskRange(start, end);
     },
     [hourHeight, openCreateTaskRange],
@@ -497,7 +501,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
           {` · ${t('nordly.calendar.create_task_hint')}`}
           {` · ${t('nordly.calendar.create_dblclick_hint')}`}
         </p>
-        {googleError && isCloudEnabled() && !googleReauthNeeded && (
+        {googleError && isGoogleIntegrationAvailable() && !googleReauthNeeded && (
           <p className="nordly-calendar-footnote mono">{googleError}</p>
         )}
       </div>

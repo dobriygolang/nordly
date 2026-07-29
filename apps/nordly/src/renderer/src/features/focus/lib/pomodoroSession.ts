@@ -7,7 +7,7 @@ import {
 } from '@features/focus/api/focusClient';
 import { notify } from '@shared/api/notifications';
 import { readEndBell } from '@shared/model/settings';
-import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
+import { usePomodoroStore, type FocusTimerMode, parseFocusTimerMode } from '@shared/model/pomodoro';
 
 export interface PomodoroPersistSnap {
   remainSec: number;
@@ -26,7 +26,7 @@ interface FinishOverride {
 }
 
 export function snapMode(snap: PomodoroPersistSnap): FocusTimerMode {
-  return snap.mode === 'stopwatch' ? 'stopwatch' : 'pomodoro';
+  return parseFocusTimerMode(snap.mode);
 }
 
 async function resolveSessionId(sessionRef: SessionRef): Promise<string | null> {

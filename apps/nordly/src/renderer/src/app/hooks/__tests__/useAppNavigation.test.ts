@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   PAGE_STORAGE_KEY,
@@ -14,13 +14,27 @@ describe('readStoredPage', () => {
 
   it('returns a valid stored page and rejects corrupted state', () => {
     const storage = {
-      getItem: (key: string) => key === PAGE_STORAGE_KEY ? 'notes' : null,
+      getItem: (key: string) => (key === PAGE_STORAGE_KEY ? 'notes' : null),
       setItem: () => undefined,
     };
     expect(readStoredPage(storage)).toBe('notes');
     expect(() =>
       readStoredPage({ ...storage, getItem: () => 'stats' }),
     ).toThrow('Invalid stored page: stats');
+  });
+
+  it('returns home when storage getItem throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(
+      readStoredPage({
+        getItem: () => {
+          throw new Error('quota');
+        },
+        setItem: () => undefined,
+      }),
+    ).toBe('home');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

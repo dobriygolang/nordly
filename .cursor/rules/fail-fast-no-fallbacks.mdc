@@ -14,9 +14,10 @@ alwaysApply: true
 - Call a legacy endpoint or synthesize a response when the current API/schema is missing.
 - Accept dual wire formats (e.g. `camelCase ?? snake_case`, `pickStr('a', 'b')`) — one canonical JSON shape per endpoint; throw on mismatch.
 - Mask failed parsing, storage, sync, or network with defaults or stale UI.
-- Add `if deps.X == nil` / `if s.x == nil` in domain/service code for dependencies that must always be wired at startup — fail in `config.Load()` / `run.go` instead.
+- Add `if deps.X == nil` / `if s.x == nil` in domain/service/usecase **request handlers** for dependencies that must always be wired at startup — fail in `config.Load()` / `New(Deps)` / `run.go` instead.
 - Return empty proto / zero struct from mappers when input is `nil` on success paths — callers must guarantee non-nil or error before map.
 - Add redundant “just in case” conditionals that invent defaults after failed reads or re-check already-validated inputs.
+- Soft-fail required config with a zero value and hope later code notices (`cfg.DSN = ""` then “works” until first query).
 
 ## Do
 
@@ -26,6 +27,43 @@ alwaysApply: true
 - In catch blocks: rethrow, map to user-visible error, or document deliberate best-effort cleanup (Tauri dismiss, listener teardown, idempotent `Close()`).
 - Wire required adapters once in `run.go`; optional integrations (OAuth when env unset) use explicit `Configured()` — not nil checks scattered in handlers.
 - Delete unused RPCs and proto fields at the root (proto → gen → transport → service → repo), verified against clients.
+- **Fail at construction / config, not mid-request.** `config.Load()`, `cmd/*/app/run.go`, and `service.New(Deps)` / usecase `New`/`NewHandler` must reject missing required deps (panic or return error). Prefer a crash on bad wiring over a runtime invent-default branch that “keeps working”.
+- **Delete dead branches.** If a condition cannot be true given prior validation or invariants, remove it — do not keep “defensive” code that invents values or silently continues.
+- **Invariant violations → panic** (e.g. unset WS role after `newWSConn`, nil always-set atomic). Concurrent lifecycle nils that are documented exceptions stay documented.
+
+## Init-time vs mid-request (Go)
+
+| When | Action |
+|------|--------|
+| Missing required env / DSN / secret | `config.Load()` returns error → process exits |
+| Missing required repo/adapter in DI | `New(Deps)` / `run.go` panics or returns error before serve |
+| Optional OAuth / vendor unset | Explicit `Configured() bool` on the adapter; callers check that API once |
+| Handler receives already-validated Command | Do not re-validate the same fields; do not nil-check `h.store` |
+| Mapper gets nil entity on success path | Panic or error *before* map — never empty success proto |
+
+```go
+// DO — fail in New
+func New(deps Deps) Service {
+    if deps.Repo == nil {
+        panic("billing.Service: Repo is required")
+    }
+    if deps.Clock == nil {
+        panic("billing.Service: Clock is required")
+    }
+    return &service{repo: deps.Repo, clock: deps.Clock}
+}
+
+// DON'T — defensive mid-request
+func (s *service) Charge(ctx context.Context, id string) error {
+    if s.repo == nil {
+        return fmt.Errorf("repo not configured")
+    }
+    if id == "" { // already required by Command.Validate
+        return ErrInvalidArgument
+    }
+    ...
+}
+```
 
 ## Nordly desktop (`apps/nordly`)
 
@@ -46,10 +84,11 @@ alwaysApply: true
 
 - Work inside `services/<name>/` — follow that service's `AGENTS.md` and `.cursor/rules/go-backend.mdc`.
 - **Required config fails in `config.Load()` or `cmd/*/app/run.go`** — not deep in handlers.
+- **Required deps fail in `New(Deps)`** — not `if s.x == nil` inside `Handle`/`Get*`.
 - **No legacy wire paths** — one JSON/proto shape per RPC.
 - **No silent degradation** — no stale cache as truth, no synthesized entitlements.
 - `getEnv(key, fallback)` for dev defaults only — production-required vars error in `Load()` when empty.
-- Layering: [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc)
+- Layering + mockery + slices: [.cursor/rules/architecture-standard.mdc](architecture-standard.mdc)
 - API coverage: `docs/backend-client-matrix.md`
 
 ## Intentional exceptions (document in code or AGENTS.md)

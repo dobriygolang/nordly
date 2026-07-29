@@ -3,15 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import {
+  connectZoom,
   disconnectZoom,
   getTrackerSettings,
-  getZoomAuthURL,
-  openExternalUrl,
   type TrackerSettings,
 } from '@features/calendar/api/calendarClient';
-import { ensureCloudAuth } from '@shared/api/authSession';
-import { isCloudEnabled } from '@shared/model/features';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
+import { isZoomIntegrationAvailable } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { SettingRow } from '../primitives/SettingRow';
 
@@ -31,13 +28,7 @@ export function ZoomSection(): JSX.Element | null {
   const [oauthPending, setOauthPending] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isCloudEnabled()) return;
-    if (!isCloudApiAvailable()) {
-      setSettings(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!isZoomIntegrationAvailable()) return;
     setLoading(true);
     setError(null);
     try {
@@ -110,7 +101,7 @@ export function ZoomSection(): JSX.Element | null {
     };
   }, [oauthPending]);
 
-  if (!isCloudEnabled()) return null;
+  if (!isZoomIntegrationAvailable()) return null;
 
   const connected = settings?.zoomConnected === true;
   const reauthNeeded = settings?.zoomReauthRequired === true;
@@ -120,12 +111,11 @@ export function ZoomSection(): JSX.Element | null {
     setBusy(true);
     setError(null);
     try {
-      if (!(await ensureCloudAuth())) return;
-      const url = await getZoomAuthURL();
       setOauthPending(true);
-      openExternalUrl(url);
+      await connectZoom();
     } catch (err) {
       console.error('[nordly.settings.zoom] connect failed', err);
+      setOauthPending(false);
       setError(t('nordly.settings.zoom.error_connect'));
     } finally {
       setBusy(false);
@@ -186,7 +176,7 @@ export function ZoomSection(): JSX.Element | null {
               disabled={controlsDisabled}
               onClick={() => void connect()}
             >
-              {busy || oauthPending ? (
+              {busy ? (
                 <>
                   <InlineSpinner />
                   {t('nordly.settings.zoom.connecting')}

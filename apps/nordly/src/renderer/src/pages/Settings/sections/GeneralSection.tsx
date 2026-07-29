@@ -2,14 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useT, useLocale, type Locale } from '@nordly-i18n';
 
-import { type ThemeId, THEME_IDS } from '@shared/model/theme';
+import { type ThemeId, THEME_IDS, persistTheme } from '@shared/model/theme';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
+import { getUserTimeZone } from '@shared/lib/localeFormat';
 import { applyTextScale } from '@shared/model/accessibility';
 import {
   patchSettings,
   readSettings,
   TEXT_SCALES,
-  THEME_KEY,
   themeLabelKey,
   type NordlySettings,
   type TextScale,
@@ -33,11 +33,8 @@ interface GeneralSectionProps {
 }
 
 function localTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  } catch {
-    return '';
-  }
+  // Fail loudly — do not invent UTC/empty when Intl is unavailable.
+  return getUserTimeZone();
 }
 
 export function GeneralSection({
@@ -94,11 +91,7 @@ export function GeneralSection({
   const pickTheme = useCallback(
     (id: ThemeId) => {
       onThemeChange(id);
-      try {
-        window.localStorage.setItem(THEME_KEY, id);
-      } catch {
-        /* ignore */
-      }
+      persistTheme(id);
     },
     [onThemeChange],
   );

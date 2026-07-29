@@ -1,10 +1,8 @@
 import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { ensureAccessTokenForSync } from '@shared/api/authSession';
-import { isCloudEnabled } from '@shared/model/features';
+import { isGoogleIntegrationAvailable } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { googleCalendarPollIntervalMs } from '@shared/model/settings';
-import { canReachNetwork, isCloudApiAvailable, isSyncEnabled } from '@shared/sync/syncConfig';
-import { useSyncStore } from '@shared/model/sync';
+import { canReachNetwork } from '@shared/sync/syncConfig';
 
 import {
   defaultGoogleSyncWindow,
@@ -19,11 +17,6 @@ let intervalId: number | null = null;
 let startupTimer: number | null = null;
 let running = false;
 const STARTUP_DEFER_MS = 5_000;
-
-function isAuthError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /\b401\b|unauthorized/i.test(message);
-}
 
 function pollIntervalMs(): number {
   return googleCalendarPollIntervalMs();
@@ -43,11 +36,9 @@ function dispatchChanged(): void {
 
 async function runCycle(force = false): Promise<void> {
   if (running) return;
-  if (!isCloudEnabled()) return;
+  if (!isGoogleIntegrationAvailable()) return;
   if (!force && isGoogleCalendarSnapshotFresh()) return;
-  if (!isSyncEnabled() || !canReachNetwork()) return;
-  if (!isCloudApiAvailable()) return;
-  if (!(await ensureAccessTokenForSync())) return;
+  if (!canReachNetwork()) return;
 
   running = true;
   try {
@@ -61,10 +52,6 @@ async function runCycle(force = false): Promise<void> {
     if (err instanceof GoogleReauthError) {
       invalidateGoogleCalendarCache();
       dispatchChanged();
-      return;
-    }
-    if (isAuthError(err)) {
-      useSyncStore.getState().setSessionReauthRequired(true);
       return;
     }
     console.warn('[googleCalendarSync] unexpected error:', err);
@@ -85,7 +72,7 @@ export function notifyGoogleCalendarConnected(): void {
 }
 
 export function startGoogleCalendarSyncWorker(): void {
-  if (started || !isCloudEnabled()) return;
+  if (started || !isGoogleIntegrationAvailable()) return;
   started = true;
 
   scheduleInterval();

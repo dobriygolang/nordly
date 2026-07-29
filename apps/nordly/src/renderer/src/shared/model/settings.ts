@@ -185,7 +185,13 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
 
 export function readSettings(): NordlySettings {
   if (typeof window === 'undefined') return DEFAULTS;
-  const raw = window.localStorage.getItem(SETTINGS_KEY);
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(SETTINGS_KEY);
+  } catch (err) {
+    console.warn('[settings] localStorage read failed', err);
+    return DEFAULTS;
+  }
   if (!raw) return DEFAULTS;
   const parsed = JSON.parse(raw) as Partial<NordlySettings>;
   const { settings, migrated } = parseStoredSettings(parsed);
@@ -195,7 +201,12 @@ export function readSettings(): NordlySettings {
 
 export function persistSettings(next: NordlySettings): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  } catch (err) {
+    console.warn('[settings] localStorage write failed', err);
+    return;
+  }
   window.dispatchEvent(new Event(NORDLY_EVENTS.settingsChanged));
 }
 

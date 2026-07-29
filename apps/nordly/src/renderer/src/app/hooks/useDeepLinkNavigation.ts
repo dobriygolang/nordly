@@ -8,7 +8,14 @@ export type DeepLinkAction =
   | { kind: 'focus'; args: PomodoroStartArgs }
   | { kind: 'task'; id: string }
   | { kind: 'note'; id: string }
-  | { kind: 'settings'; googleStatus: string | null; zoomStatus: string | null; detail: string | null };
+  | {
+      kind: 'settings';
+      googleStatus: string | null;
+      zoomStatus: string | null;
+      detail: string | null;
+      code: string | null;
+      state: string | null;
+    };
 
 export function parseDeepLink(url: string): DeepLinkAction | null {
   const parsed = new URL(url);
@@ -37,6 +44,8 @@ export function parseDeepLink(url: string): DeepLinkAction | null {
       googleStatus: parsed.searchParams.get('google_calendar'),
       zoomStatus: parsed.searchParams.get('zoom'),
       detail: parsed.searchParams.get('detail'),
+      code: parsed.searchParams.get('code'),
+      state: parsed.searchParams.get('state'),
     };
   }
   return null;
@@ -49,6 +58,42 @@ export interface DeepLinkNavigationHandlers {
   openNote: (id: string) => void;
   startFocus: (args: PomodoroStartArgs) => void;
   onError: (error: unknown) => void;
+}
+
+async function exchangeOAuthCode(action: Extract<DeepLinkAction, { kind: 'settings' }>): Promise<void> {
+  if (!action.code || !action.state) return;
+
+  const { loadOAuthPending } = await import('@shared/integrations/oauthTokens');
+  const [zoomPending, googlePending] = await Promise.all([
+    loadOAuthPending('zoom'),
+    loadOAuthPending('google'),
+  ]);
+
+  if (zoomPending?.state === action.state) {
+    const { completeZoomOAuthFromDeepLink } = await import('@features/calendar/local/zoomOAuth');
+    await completeZoomOAuthFromDeepLink(action.code, action.state);
+    window.dispatchEvent(
+      new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
+        detail: { status: 'connected', detail: null },
+      }),
+    );
+    return;
+  }
+
+  if (googlePending?.state === action.state) {
+    const { completeGoogleOAuthFromDeepLink } = await import(
+      '@features/calendar/local/googleOAuth'
+    );
+    await completeGoogleOAuthFromDeepLink(action.code, action.state);
+    window.dispatchEvent(
+      new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
+        detail: { status: 'connected', detail: null },
+      }),
+    );
+    return;
+  }
+
+  throw new Error('No matching OAuth pending state for deep-link code');
 }
 
 export async function executeDeepLink(
@@ -72,19 +117,39 @@ export async function executeDeepLink(
   }
 
   if (!(await handlers.beforeNavigate('settings'))) return;
-  if (action.googleStatus) {
-    window.dispatchEvent(
-      new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
-        detail: { status: action.googleStatus, detail: action.detail },
-      }),
-    );
-  }
-  if (action.zoomStatus) {
-    window.dispatchEvent(
-      new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
-        detail: { status: action.zoomStatus, detail: action.detail },
-      }),
-    );
+
+  if (action.code && action.state) {
+    try {
+      await exchangeOAuthCode(action);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      window.dispatchEvent(
+        new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
+          detail: { status: 'error', detail },
+        }),
+      );
+      window.dispatchEvent(
+        new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
+          detail: { status: 'error', detail },
+        }),
+      );
+      handlers.onError(err);
+    }
+  } else {
+    if (action.googleStatus) {
+      window.dispatchEvent(
+        new CustomEvent(NORDLY_EVENTS.googleCalendarOAuth, {
+          detail: { status: action.googleStatus, detail: action.detail },
+        }),
+      );
+    }
+    if (action.zoomStatus) {
+      window.dispatchEvent(
+        new CustomEvent(NORDLY_EVENTS.zoomOAuth, {
+          detail: { status: action.zoomStatus, detail: action.detail },
+        }),
+      );
+    }
   }
   handlers.navigateTo('settings');
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tryReleasePointerCapture, trySetPointerCapture } from '@shared/lib/pointerCapture';
 
 const MOVE_THRESHOLD_PX = 3;
 
@@ -42,11 +43,7 @@ export function useVerticalDrag(): {
     e.preventDefault();
     e.stopPropagation();
     const el = e.currentTarget as HTMLElement;
-    try {
-      el.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
+    trySetPointerCapture(el, e.pointerId);
     sessionRef.current = {
       ...cfg,
       startY: e.clientY,
@@ -73,11 +70,7 @@ export function useVerticalDrag(): {
       const s = sessionRef.current;
       if (!s || e.pointerId !== s.pointerId) return;
       const top = clampTop(s, e.clientY - s.startY);
-      try {
-        s.el.releasePointerCapture(s.pointerId);
-      } catch {
-        /* ignore */
-      }
+      tryReleasePointerCapture(s.el, s.pointerId);
       sessionRef.current = null;
       setActive(null);
       if (s.moved) s.onCommit(top);

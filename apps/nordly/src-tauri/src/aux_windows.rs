@@ -19,13 +19,17 @@ fn wire_tray_popover_events(app: &AppHandle, popover: &WebviewWindow) {
     if TRAY_EVENTS_WIRED.swap(true, Ordering::SeqCst) {
         return;
     }
-    let _ = window_macos::set_content_corner_radius(popover, 16.0);
+    if let Err(e) = window_macos::set_content_corner_radius(popover, 16.0) {
+        eprintln!("[nordly:aux] tray popover corner radius: {e}");
+    }
     let handle = app.clone();
     popover.on_window_event(move |event| {
         if let WindowEvent::Focused(false) = event {
-            let _ = handle
-                .get_webview_window(TRAY_POPOVER_LABEL)
-                .and_then(|w| w.hide().ok());
+            if let Some(w) = handle.get_webview_window(TRAY_POPOVER_LABEL) {
+                if let Err(e) = w.hide() {
+                    eprintln!("[nordly:aux] hide tray popover on blur: {e}");
+                }
+            }
         }
     });
 }
@@ -71,6 +75,8 @@ pub fn ensure_notification(app: &AppHandle) -> Result<WebviewWindow, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let _ = window_macos::set_content_corner_radius(&window, 16.0);
+    if let Err(e) = window_macos::set_content_corner_radius(&window, 16.0) {
+        eprintln!("[nordly:aux] notification corner radius: {e}");
+    }
     Ok(window)
 }

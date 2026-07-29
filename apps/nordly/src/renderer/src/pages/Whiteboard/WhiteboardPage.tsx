@@ -13,8 +13,8 @@ import {
   remotePublishWhiteboard,
   remoteShareWhiteboard,
 } from '@features/whiteboard/api/whiteboardRemote';
+import { ensureCloudAuth } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
-import { requireNordlyWebBaseUrl } from '@shared/api/config';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
@@ -74,15 +74,20 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    try {
+      return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    } catch (err) {
+      console.warn('[nordly:whiteboard] sidebar collapse load failed', err);
+      return false;
+    }
   });
   const sidebarMountedRef = useRef(false);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0');
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn('[nordly:whiteboard] sidebar collapse persist failed', err);
     }
     if (!sidebarMountedRef.current) {
       sidebarMountedRef.current = true;
@@ -248,11 +253,12 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     if (!isCloudEnabled()) return;
     setShareMsg(null);
     try {
+      if (!(await ensureCloudAuth())) return;
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title?.trim();
       if (!title) throw new Error('Board title is required');
       const res = await remoteShareWhiteboard(sceneJson, title);
-      const url = `${requireNordlyWebBaseUrl()}/live/${res.roomId}`;
+      const url = res.inviteUrl;
       const outcome = await copyLinkAndOpen(url);
       if (outcome === 'copied') {
         const open = window.nordly?.shell.openExternal;
@@ -272,6 +278,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     if (!isCloudEnabled()) return;
     setShareMsg(null);
     try {
+      if (!(await ensureCloudAuth())) return;
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title?.trim();
       if (!title) throw new Error('Board title is required');

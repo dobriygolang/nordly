@@ -106,7 +106,7 @@ describe('session security boundaries', () => {
     expect(useSessionStore.getState().authKind).toBe('local');
   });
 
-  it('sign-out returns to a local profile instead of guest', async () => {
+  it('sign-out returns to a fresh local profile instead of guest', async () => {
     await useSessionStore.getState().hydrate({
       userId: USER_A,
       accessToken: 'tok',
@@ -119,7 +119,31 @@ describe('session security boundaries', () => {
     const state = useSessionStore.getState();
     expect(state.status).toBe('signed_in');
     expect(state.authKind).toBe('local');
-    expect(state.userId).toBe(USER_A);
+    expect(state.userId).not.toBe(USER_A);
+    expect(state.userId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
     expect(state.accessToken).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEYS.localProfileUserId)).toBe(state.userId);
+  });
+
+  it('cloud login from a local profile does not rebind IndexedDB into the new account', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.localProfileUserId, USER_A);
+    await useSessionStore.getState().bootstrap();
+    expect(useSessionStore.getState().userId).toBe(USER_A);
+    expect(useSessionStore.getState().authKind).toBe('local');
+
+    await useSessionStore.getState().hydrate({
+      userId: USER_B,
+      accessToken: 'tok',
+      refreshToken: 'ref',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    expect(useSessionStore.getState().userId).toBe(USER_B);
+    expect(useSessionStore.getState().authKind).toBe('cloud');
+    // Local profile pointer follows the cloud user for next sign-out rotation,
+    // but rows under USER_A are left untouched (no rebind).
+    expect(window.localStorage.getItem(STORAGE_KEYS.localProfileUserId)).toBe(USER_B);
   });
 });

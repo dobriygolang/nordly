@@ -2,13 +2,18 @@ mod auth;
 #[cfg(desktop)]
 mod aux_windows;
 mod eventkit;
+mod notes_vault;
 mod notification;
+mod oauth_loopback;
+mod oauth_store;
 mod store;
 mod tray;
 mod vault;
 mod window_macos;
 
 use auth::AuthSession;
+use notes_vault::{NotesVaultConfig, VaultFolderMeta, VaultNoteContent, VaultNoteMeta};
+use oauth_store::{OAuthPendingBlob, OAuthTokenBlob};
 use store::PomodoroSnapshot;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
@@ -33,7 +38,9 @@ pub fn run() {
                         match validate_deep_link(&url) {
                             Ok(url) => {
                                 if let Some(main) = h.get_webview_window("main") {
-                                    let _ = main.emit("app:deep-link", DeepLinkPayload { url });
+                                    if let Err(e) = main.emit("app:deep-link", DeepLinkPayload { url }) {
+                                        eprintln!("[nordly] emit deep-link failed: {e}");
+                                    }
                                 }
                             }
                             Err(error) => eprintln!("Rejected deep link: {error}"),
@@ -42,7 +49,9 @@ pub fn run() {
                 });
             }
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window_macos::set_traffic_lights(&window, false);
+                if let Err(e) = window_macos::set_traffic_lights(&window, false) {
+                    eprintln!("[nordly] set_traffic_lights failed: {e}");
+                }
             }
             #[cfg(desktop)]
             {
@@ -57,6 +66,15 @@ pub fn run() {
             vault_pass_load,
             vault_pass_save,
             vault_pass_clear,
+            oauth_tokens_load,
+            oauth_tokens_save,
+            oauth_tokens_clear,
+            oauth_pending_load,
+            oauth_pending_save,
+            oauth_pending_clear,
+            oauth_loopback_start,
+            oauth_loopback_wait,
+            oauth_loopback_cancel,
             pomodoro_load,
             pomodoro_save,
             shell_open_external,
@@ -77,6 +95,27 @@ pub fn run() {
             eventkit::apple_calendar_get_event,
             eventkit::apple_calendar_list_calendars,
             eventkit::apple_calendar_list_events,
+            notes_vault_get_config,
+            notes_vault_set_config,
+            notes_vault_clear_config,
+            notes_vault_pick_folder,
+            notes_vault_list_notes,
+            notes_vault_list_folders,
+            notes_vault_read_note,
+            notes_vault_write_note,
+            notes_vault_create_note,
+            notes_vault_rename_note,
+            notes_vault_move_note,
+            notes_vault_trash_note,
+            notes_vault_create_folder,
+            notes_vault_rename_folder,
+            notes_vault_move_folder,
+            notes_vault_trash_folder,
+            notes_vault_write_bytes,
+            notes_vault_read_bytes,
+            notes_vault_write_pasted_image,
+            notes_vault_start_watch,
+            notes_vault_stop_watch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building nordly")
@@ -130,7 +169,9 @@ fn validate_deep_link(url: &url::Url) -> Result<String, String> {
         "note.open" if required_query_value("id").is_some() => {}
         "settings"
             if required_query_value("google_calendar").is_some()
-                || required_query_value("zoom").is_some() => {}
+                || required_query_value("zoom").is_some()
+                || (required_query_value("code").is_some()
+                    && required_query_value("state").is_some()) => {}
         _ => return Err(format!("unsupported or incomplete URL host: {host}")),
     }
 
@@ -193,6 +234,294 @@ fn vault_pass_save(
 fn vault_pass_clear(window: WebviewWindow, user_id: String) -> Result<(), String> {
     require_main_window(&window)?;
     vault::clear_passphrase(&user_id)
+}
+
+#[tauri::command]
+fn notes_vault_get_config(
+    window: WebviewWindow,
+    app: AppHandle,
+) -> Result<Option<NotesVaultConfig>, String> {
+    require_main_window(&window)?;
+    notes_vault::get_config(&app)
+}
+
+#[tauri::command]
+fn notes_vault_set_config(
+    window: WebviewWindow,
+    app: AppHandle,
+    config: NotesVaultConfig,
+) -> Result<NotesVaultConfig, String> {
+    require_main_window(&window)?;
+    notes_vault::set_config(&app, config)
+}
+
+#[tauri::command]
+fn notes_vault_clear_config(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    require_main_window(&window)?;
+    notes_vault::clear_config(&app)
+}
+
+#[tauri::command]
+fn notes_vault_pick_folder(window: WebviewWindow) -> Result<Option<String>, String> {
+    require_main_window(&window)?;
+    notes_vault::pick_folder(&window)
+}
+
+#[tauri::command]
+fn notes_vault_list_notes(window: WebviewWindow, app: AppHandle) -> Result<Vec<VaultNoteMeta>, String> {
+    require_main_window(&window)?;
+    notes_vault::list_notes(&app)
+}
+
+#[tauri::command]
+fn notes_vault_list_folders(
+    window: WebviewWindow,
+    app: AppHandle,
+) -> Result<Vec<VaultFolderMeta>, String> {
+    require_main_window(&window)?;
+    notes_vault::list_folders(&app)
+}
+
+#[tauri::command]
+fn notes_vault_read_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+) -> Result<VaultNoteContent, String> {
+    require_main_window(&window)?;
+    notes_vault::read_note(&app, relative_path)
+}
+
+#[tauri::command]
+fn notes_vault_write_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    body: String,
+) -> Result<VaultNoteContent, String> {
+    require_main_window(&window)?;
+    notes_vault::write_note(&app, relative_path, body)
+}
+
+#[tauri::command]
+fn notes_vault_create_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    title: String,
+    body: String,
+    folder_rel: Option<String>,
+) -> Result<VaultNoteContent, String> {
+    require_main_window(&window)?;
+    notes_vault::create_note(&app, title, body, folder_rel)
+}
+
+#[tauri::command]
+fn notes_vault_rename_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    new_title: String,
+) -> Result<VaultNoteContent, String> {
+    require_main_window(&window)?;
+    notes_vault::rename_note(&app, relative_path, new_title)
+}
+
+#[tauri::command]
+fn notes_vault_move_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    dest_folder_rel: Option<String>,
+) -> Result<VaultNoteContent, String> {
+    require_main_window(&window)?;
+    notes_vault::move_note(&app, relative_path, dest_folder_rel)
+}
+
+#[tauri::command]
+fn notes_vault_trash_note(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    notes_vault::trash_note(&app, relative_path)
+}
+
+#[tauri::command]
+fn notes_vault_create_folder(
+    window: WebviewWindow,
+    app: AppHandle,
+    name: String,
+    parent_rel: Option<String>,
+) -> Result<VaultFolderMeta, String> {
+    require_main_window(&window)?;
+    notes_vault::create_folder(&app, name, parent_rel)
+}
+
+#[tauri::command]
+fn notes_vault_rename_folder(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    new_name: String,
+) -> Result<VaultFolderMeta, String> {
+    require_main_window(&window)?;
+    notes_vault::rename_folder(&app, relative_path, new_name)
+}
+
+#[tauri::command]
+fn notes_vault_move_folder(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    dest_parent_rel: Option<String>,
+) -> Result<VaultFolderMeta, String> {
+    require_main_window(&window)?;
+    notes_vault::move_folder(&app, relative_path, dest_parent_rel)
+}
+
+#[tauri::command]
+fn notes_vault_trash_folder(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    notes_vault::trash_folder(&app, relative_path)
+}
+
+#[tauri::command]
+fn notes_vault_write_bytes(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+    bytes: Vec<u8>,
+) -> Result<String, String> {
+    require_main_window(&window)?;
+    notes_vault::write_bytes(&app, relative_path, bytes)
+}
+
+#[tauri::command]
+fn notes_vault_read_bytes(
+    window: WebviewWindow,
+    app: AppHandle,
+    relative_path: String,
+) -> Result<Vec<u8>, String> {
+    require_main_window(&window)?;
+    notes_vault::read_bytes(&app, relative_path)
+}
+
+#[tauri::command]
+fn notes_vault_write_pasted_image(
+    window: WebviewWindow,
+    app: AppHandle,
+    note_relative_path: String,
+    bytes: Vec<u8>,
+    ext: String,
+) -> Result<String, String> {
+    require_main_window(&window)?;
+    notes_vault::write_pasted_image(&app, note_relative_path, bytes, ext)
+}
+
+#[tauri::command]
+fn notes_vault_start_watch(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    require_main_window(&window)?;
+    notes_vault::start_watch(app)
+}
+
+#[tauri::command]
+fn notes_vault_stop_watch(window: WebviewWindow) -> Result<(), String> {
+    require_main_window(&window)?;
+    notes_vault::stop_watch_cmd()
+}
+
+#[tauri::command]
+fn oauth_tokens_load(
+    window: WebviewWindow,
+    app: AppHandle,
+    provider: String,
+    user_id: String,
+) -> Result<Option<OAuthTokenBlob>, String> {
+    require_main_window(&window)?;
+    oauth_store::load_tokens(&app, &provider, &user_id)
+}
+
+#[tauri::command]
+fn oauth_tokens_save(
+    window: WebviewWindow,
+    app: AppHandle,
+    user_id: String,
+    tokens: OAuthTokenBlob,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    oauth_store::save_tokens(&app, &user_id, &tokens)
+}
+
+#[tauri::command]
+fn oauth_tokens_clear(
+    window: WebviewWindow,
+    app: AppHandle,
+    provider: String,
+    user_id: String,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    oauth_store::clear_tokens(&app, &provider, &user_id)
+}
+
+#[tauri::command]
+fn oauth_pending_load(
+    window: WebviewWindow,
+    app: AppHandle,
+    provider: String,
+    user_id: String,
+) -> Result<Option<OAuthPendingBlob>, String> {
+    require_main_window(&window)?;
+    oauth_store::load_pending(&app, &provider, &user_id)
+}
+
+#[tauri::command]
+fn oauth_pending_save(
+    window: WebviewWindow,
+    app: AppHandle,
+    user_id: String,
+    pending: OAuthPendingBlob,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    oauth_store::save_pending(&app, &user_id, &pending)
+}
+
+#[tauri::command]
+fn oauth_pending_clear(
+    window: WebviewWindow,
+    app: AppHandle,
+    provider: String,
+    user_id: String,
+) -> Result<(), String> {
+    require_main_window(&window)?;
+    oauth_store::clear_pending(&app, &provider, &user_id)
+}
+
+#[tauri::command]
+fn oauth_loopback_start(window: WebviewWindow, app: AppHandle) -> Result<String, String> {
+    require_main_window(&window)?;
+    oauth_loopback::start(&app)
+}
+
+#[tauri::command]
+fn oauth_loopback_wait(
+    window: WebviewWindow,
+    app: AppHandle,
+    expected_state: String,
+    timeout_ms: u64,
+) -> Result<String, String> {
+    require_main_window(&window)?;
+    oauth_loopback::wait_for_code(&app, expected_state, timeout_ms)
+}
+
+#[tauri::command]
+fn oauth_loopback_cancel(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    require_main_window(&window)?;
+    oauth_loopback::cancel(&app)
 }
 
 #[tauri::command]
@@ -462,6 +791,7 @@ mod tests {
             "nordly://note.open?id=note-1",
             "nordly://settings?google_calendar=connected",
             "nordly://settings?zoom=connected",
+            "nordly://settings?code=abc&state=xyz",
         ];
         for raw in valid {
             let url = url::Url::parse(raw).expect("valid test URL");

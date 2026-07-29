@@ -6,7 +6,7 @@ Agent rules (HTTP, Tauri, fail-fast): [.cursor/rules/nordly.mdc](.cursor/rules/n
 
 ## Purpose
 
-Tauri 2 + React desktop focus workspace: pomodoro timer, notes (E2EE vault), task board with day schedule, local Excalidraw whiteboard, stats/calendar overlays, settings. Local-first IndexedDB; optional cloud sync when signed in and `LOCAL_ONLY=false`.
+Tauri 2 + React desktop focus workspace: pomodoro timer, notes (filesystem vault + optional cloud E2EE), task board with day schedule, local Excalidraw whiteboard, stats/calendar overlays, settings. Local-first; notes SoT is an Obsidian-style vault folder on disk when bound; IndexedDB for tasks/focus/outbox; optional cloud sync when signed in and `LOCAL_ONLY=false`.
 
 ## Stack
 
@@ -15,7 +15,7 @@ Tauri 2 + React desktop focus workspace: pomodoro timer, notes (E2EE vault), tas
 | Native shell | `src-tauri/` — auth keychain, vault passphrase, pomodoro snapshot, deep links |
 | Renderer | `src/renderer/src/` — React + Vite |
 | Local DB | IndexedDB `nordly-db` v5 — `shared/db/nordlyDb.ts` |
-| Sync | `shared/sync/` — outbox push + pull (notes, tasks, focus) |
+| Sync | `shared/sync/` — outbox push + pull (notes, tasks, focus, vault file stubs) |
 | Platform bridge | `platform/ipc.ts`, `platform/native-bridge.ts` → `window.nordly` |
 | HTTP (renderer) | `shared/api/http.ts` → `apiFetch()` — dev: browser `fetch` + Vite proxy; release: `tauri-plugin-http` |
 
@@ -27,11 +27,11 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 |------|-----------|-------|
 | Home | `pages/Home.tsx` | Poster + `widgets/HomeTodayTasks` (today tasks, calendar meetings below, obstacles; no plan header) |
 | Today | `pages/TaskBoard/TaskBoardPage.tsx` | Day columns, infinite scroll, drag schedule; task UI in `features/tasks/components/` |
-| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview editor; paste/drop images → `![alt](nordly-asset:<uuid>)` (IDB + vault + sync); drop `.md` / folders (Obsidian `![[img]]` / relative images rewritten on import); ⌘+/⌘−/⌘0 zooms editor text only |
+| Notes | `pages/Notes.tsx` | Sidebar + CodeMirror live-preview; **filesystem vault** (`.md` + `img/`) after folder pick — see [docs/architecture/005-filesystem-notes-vault.md](docs/architecture/005-filesystem-notes-vault.md); paste/drop → relative `![](…)`; drop `.md` / folders; ⌘+/⌘−/⌘0 zooms editor text only |
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Vault / Shortcuts / About). General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Files & Links / Vault / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) adds `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -43,12 +43,27 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on,
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no cloud sync, no publish, no Google Calendar API |
+| `VITE_NORDLY_LOCAL_ONLY` | `true` | Local-only: no Nordly cloud sync / publish / Telegram login |
+| `VITE_GOOGLE_CLIENT_ID` | unset | Public Google OAuth client — device-owned Calendar (PKCE + Keychain). Settings section shown when set. |
+| `VITE_ZOOM_CLIENT_ID` | unset | Public Zoom OAuth client — device-owned meetings (PKCE + Keychain). Settings section shown when set. |
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
-| `VITE_NORDLY_WEB_BASE` | **required for share** | Public web URL for live whiteboard links (`requireNordlyWebBaseUrl()`) |
+| `VITE_NORDLY_WEB_BASE` | optional | Unused by renderer today (share/publish URLs come from rooms/notes API) |
 
-Prod builds currently ship with `VITE_NORDLY_LOCAL_ONLY=true` (offline month while the backend is down). Set `false` again when cloud APIs return.
+Prod builds ship with `VITE_NORDLY_LOCAL_ONLY=true` while the backend is down. Bake `VITE_GOOGLE_CLIENT_ID` / `VITE_ZOOM_CLIENT_ID` as GitHub Actions repository variables for release builds.
+
+### Device-owned Google / Zoom (offline-capable)
+
+Tokens live only in the OS keychain (`oauth_store` / `shared/integrations/oauthTokens.ts`), scoped per Nordly `userId` (`oauth-tokens-{provider}:{userId}`) — never IndexedDB, never uploaded to tracker. Sign-out and user switches clear that user’s Google/Zoom tokens + pending PKCE.
+
+| Provider | OAuth | Redirect | API |
+|----------|-------|----------|-----|
+| Google | PKCE Desktop | loopback `http://127.0.0.1:<port>/` | Calendar REST → IDB `calendar_events` snapshot |
+| Zoom | PKCE | `nordly://settings` (`code` + `state`) | Create meeting on task |
+
+When Nordly cloud returns: identity sync for notes/tasks/focus is unchanged; Google/Zoom stay client-side. Conference links created offline enqueue outbox `patch` fields (`conferenceUrl`, …) when sync is enabled. Do not auto-import server-stored tracker OAuth tokens — each Mac reconnects Google/Zoom once.
+
+`isGoogleIntegrationAvailable()` / `isZoomIntegrationAvailable()` gate Settings + the calendar worker; they do **not** depend on `LOCAL_ONLY` or Nordly login.
 
 ## Backend dependencies
 
@@ -58,7 +73,7 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 |---------|------------|----------|
 | identity | 8080 | Auth, healthz |
 | billing | 8085 | Feature usage (`GET /v1/billing/me`) for Settings → Features |
-| tracker | 8089 | Work tasks, Google Calendar |
+| tracker | 8089 | Work tasks sync (Google/Zoom OAuth endpoints unused by desktop) |
 | notes | 8090 | Notes CRUD, vault, publish |
 | focus | 8091 | Sessions, stats |
 | rooms | 8087 | Whiteboard live share + publish |
@@ -83,13 +98,12 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | POST | `/v1/devices/register` | `shared/api/registerSyncDevice.ts` — sync device quota registration |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
-**Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+**Packaged builds:** all renderer HTTP goes through `apiFetch` / `vendorFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
 
-**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (keychain session only):
+**Tauri shell (Rust)** — `src-tauri/src/auth.rs` (Nordly session) + `oauth_store.rs` / `oauth_loopback.rs` (Google/Zoom):
 
-**tracker** — task transport in `features/tasks/remote/tasksRemote.ts`; calendar callers use
-`features/calendar/api/calendarClient.ts`, which applies cloud/auth gates before delegating to
-`features/calendar/remote/calendarClient.ts`
+**tracker** — task transport in `features/tasks/remote/tasksRemote.ts`. Calendar is **local**:
+`features/calendar/api/calendarClient.ts` → `features/calendar/local/*` (Google REST + Zoom REST). Tracker Google/Zoom HTTP is unused by desktop.
 
 | Method | Path |
 |--------|------|
@@ -98,16 +112,9 @@ Billing: `GET /v1/billing/me` — Settings → Features (feature usage when sign
 | DELETE | `/v1/tracker/work/tasks/{id}` |
 | POST | `/v1/tracker/work/tasks/{id}/schedule` |
 | POST | `/v1/tracker/work/tasks/{id}/unschedule` |
-| GET/PATCH | `/v1/tracker/settings` |
-| GET | `/v1/tracker/integrations/google/url` |
-| POST | `/v1/tracker/integrations/google/disconnect` |
-| GET | `/v1/tracker/integrations/google/events` |
-| POST/PATCH/DELETE | `/v1/tracker/integrations/google/events` (+ `{id}` for patch/delete) |
-| GET | `/v1/tracker/integrations/google/calendars` |
-| GET/POST | `/v1/tracker/integrations/zoom/url`, `/disconnect` |
 | GET | `/v1/tracker/work/epics` |
-| PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference) |
-| POST | `/v1/tracker/work/tasks/{id}/conference` |
+| PATCH | `/v1/tracker/work/tasks/{id}` (epicId, clearEpic, clearConference, conferenceUrl, …) |
+| POST | `/v1/tracker/work/tasks/{id}/conference` (server-side Meet/Zoom — unused by desktop) |
 
 **notes** — `features/notes/remote/{notesRemote,publishRemote,vaultRemote}.ts`, `shared/crypto/vault.ts`
 
@@ -157,19 +164,22 @@ Scoped by `setDbUserId()` on sign-in.
 
 ## Sync engine
 
-**Local app access** (`canUseLocalApp()`): signed in with `userId` — works offline even when access token expired.
+**Local app access** (`canUseLocalApp()`): `signed_in` with `userId` — works for both `authKind: 'local'` (tokenless offline profile) and `authKind: 'cloud'` (even when access JWT is expired).
 
-**Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid (non-expired) access token, and registered sync device.
+**Auth boot** (`shared/model/session.ts`): keychain cloud session if present; otherwise `ensureLocalProfile()` opens the shell without Telegram. Hard full-screen `LoginScreen` is not a boot gate. Cloud `hydrate` from another profile **does not** rebind IndexedDB (no silent merge across users on a shared Mac). Sign-out clears Nordly tokens + device Google/Zoom OAuth and rotates to a **new** local profile id.
 
-**Outbox queue** (`isSyncQueueEnabled()`): same as sync but ignores access expiry — local mutations still enqueue while offline/expired; push waits for a fresh token.
+**Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid (non-expired) access token, and registered sync device. Local profiles enqueue outbox when `isSyncQueueEnabled()` but never push until cloud auth exists.
 
-**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone or transient network errors. Offline + expired session → silent local-only grace (no sync, no logout, no reauth overlay). Network errors surface inline on intentional online actions (Meet/Zoom, note share, whiteboard share/publish, Settings connect).
+**Outbox queue** (`isSyncQueueEnabled()`): same as sync but ignores access expiry — local mutations still enqueue while offline/expired/local-profile; push waits for a fresh token.
+
+**Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone, local profiles, or transient network errors. Soft dismissible “sign in to sync” banner for local profiles when cloud is enabled. `ensureCloudAuth()` opens the login overlay only for intentional Nordly cloud CTAs (note publish, whiteboard share/publish) — never for Google/Zoom connect (device-owned) or silent outbox/sync. Offline + expired cloud session → silent local-only grace (no sync, no logout). Network errors surface inline on intentional online actions.
 
 Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Calls `ensureAccessTokenForSync()` before each run.
 
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|
-| notes | create, update, delete, attachment_put, attachment_delete | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
+| notes | create, update, delete, attachment_put, attachment_delete (legacy IDB path) | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
+| vault | file_put, file_delete (path-keyed; stub push until server RPCs) | stub pull | planned: ListVaultFiles / PutVaultFile / GetVaultFile / DeleteVaultFile |
 | tasks | create, status, schedule, unschedule, delete, patch (clear conference) | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
@@ -177,15 +187,17 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 
 Task fields **device-only** (preserved on pull/replace): `order`.
 
-Note fields **device-only** (preserved on pull/replace): `folderId`. Nested folder list lives in IndexedDB `meta` (`note_folders::{userId}`, each folder has `parentId`) — local-only until a sync follow-up. Deleting a folder removes its subtree **and soft-deletes notes inside** (same path as note delete: attachments + outbox).
+Note fields **device-only** (preserved on pull/replace): `folderId` (IDB mode). **Filesystem vault mode:** folders are real directories; note id = relative `.md` path — see ADR 005.
 
-**Note images:** PNG/JPEG/GIF/WebP ≤5 MiB, 50 per note. Markdown uses `nordly-asset:<uuid>` (HTTPS URLs unchanged). Local store encrypts with vault when enabled; outbox `attachment_put` (lean `{ noteId }`, blob read at push) / `attachment_delete` (`{ noteId }`). List attachments is metadata-only; pull GETs bytes only when newer/missing. Tombstones never revive. Publish sends plaintext attachment bytes; public pages load `/v1/notes/public/{slug}/assets/{id}` (password shares embed data URLs, ≤15 MiB raw).
+**Note images (filesystem vault):** paste/drop writes under the attachment folder (default `img/`) with Obsidian-like `Pasted image YYYYMMDDHHmmss.*` names; markdown uses relative `![](…)`. Preview resolves via FS read → blob URL.
 
-Task epics: `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`).
+**Note images (legacy IDB):** PNG/JPEG/GIF/WebP ≤5 MiB, 50 per note. Markdown uses `nordly-asset:<uuid>` (HTTPS URLs unchanged). Local store encrypts with vault when enabled; outbox `attachment_put` / `attachment_delete`. Publish sends plaintext attachment bytes; public pages load `/v1/notes/public/{slug}/assets/{id}` (password shares embed data URLs, ≤15 MiB raw).
+
+Task epics (UI: **tags**): `epicId` syncs to tracker when online; `epicColor` is offline/pending fallback until push resolves color → server epic. Epic list cached in IndexedDB `meta` (`tracker_epics::{userId}`); when empty / local-only, UI uses `OFFLINE_EPIC_STUBS` (4 palette colors, shown as Blue/Green/Purple/Orange).
 
 Conflict: LWW by `updatedAt`, with **local tombstones never revived** (`shared/sync/tombstone.ts`). Soft-delete cancels non-delete outbox ops then enqueues `delete`. Pull soft-deletes previously synced locals absent from the remote list. Outbox: `shared/sync/outbox.ts`. ID map: `shared/sync/idMap.ts`.
 
-Not synced via outbox: whiteboards (local + share/publish via rooms), vault prefs, publish status (direct API on user action). Google Calendar events are **cached** in IndexedDB (`calendar_events`) for offline display; refreshed by the background worker when online. UI hooks (`useGoogleCalendarEvents`, Home Today, DayTimeline, Calendar modal) read **only** from that local snapshot — they never fetch Google over the network.
+Not synced via outbox: whiteboards (local + share/publish via rooms), vault prefs, publish status (direct API on user action). Google Calendar events are **cached** in IndexedDB (`calendar_events`) for offline display; refreshed by the background worker via **direct Google Calendar API** when a device Google connection exists and the network is reachable. UI hooks (`useGoogleCalendarEvents`, Home Today, DayTimeline, Calendar modal) read **only** from that local snapshot — they never call Google from the render path.
 
 ## Feature layering (offline vs online)
 
@@ -202,14 +214,19 @@ internals. Whiteboard pages use `features/whiteboard/api/whiteboardClient.ts` fo
 
 Architecture decisions: [local-first consistency](docs/architecture/001-local-first-consistency.md),
 [vault threat model](docs/architecture/002-vault-threat-model.md),
-[feature boundaries](docs/architecture/003-feature-boundaries.md), and
-[sync conflict policy](docs/architecture/004-sync-conflict-policy.md).
+[feature boundaries](docs/architecture/003-feature-boundaries.md),
+[sync conflict policy](docs/architecture/004-sync-conflict-policy.md), and
+[filesystem notes vault](docs/architecture/005-filesystem-notes-vault.md).
 
 ### Shell code-splitting (bundle budgets)
 
 `app/App.tsx` must not **statically** import Home calendar/meetings widgets or other heavy chrome that can share into the Notes route graph. Use `React.lazy` + `Suspense` (same pattern as pages). Prefer leaf calendar imports over `@features/calendar/api/calendar` barrels. After shell changes: `npm run build:vite && node scripts/check-bundle-budgets.mjs` — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
 
-## Vault (E2EE)
+## Filesystem notes vault
+
+Obsidian-style folder SoT after first bind (`features/notes/vault/`, Tauri `notes_vault_*`). Local files are **plaintext**. Soft-delete → `.trash/`. Settings → Files & Links. One-shot IDB export on first pick.
+
+## Encrypted vault (cloud E2EE)
 
 Client: PBKDF2 200k + AES-256-GCM. Server stores salt + ciphertext only.
 
@@ -242,7 +259,7 @@ Local Excalidraw (`@excalidraw/excalidraw`). Single board `DEFAULT_BOARD_ID = 'd
 
 Sharing (requires sign-in + network):
 
-- **Live share** → `POST /v1/rooms/share-whiteboard` → web `/live/{roomId}` (short URL copied client-side)
+- **Live share** → `POST /v1/rooms/share-whiteboard` → API `invite.url` (`code.trynordly.app/{roomId}`)
 - **Publish** → `POST /v1/rooms/publish-whiteboard` → web `/board/{slug}` (read-only)
 
 ## Tauri IPC commands
@@ -254,7 +271,8 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_session` | Load session from keychain |
 | `auth_persist` | Save session to keychain (no event; renderer already updated store) |
 | `auth_logout` | Clear session |
-| `vault_pass_load/save/clear` | Vault passphrase keychain |
+| `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
+| `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 60s |
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |
@@ -269,7 +287,7 @@ Registered in `src-tauri/src/lib.rs`:
 
 **Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?code=&state=` (Zoom / optional Google PKCE callback), `settings?google_calendar=…` / `settings?zoom=…` (legacy status bridge). Google Desktop OAuth primarily uses loopback, not deep link.
 
 ## Commands
 
@@ -309,9 +327,10 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 
 | Gap | Status |
 |-----|--------|
-| Note folders sync | Nested local folders UI in vault sidebar (`parentId`); `folderId` device-only (not synced) |
-| Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
-| Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
+| Note folders sync | FS vault: folders = dirs (path sync via vault domain later). IDB mode: nested local folders; `folderId` device-only |
+| Vault file sync RPCs | Client outbox `vault`/`file_put`/`file_delete` stubs; server List/Put/Get/DeleteVaultFile when VPS returns |
+| Google OAuth callback | Desktop: loopback `http://127.0.0.1:<port>/` + Keychain; optional `nordly://settings?code&state` |
+| Zoom OAuth callback | Desktop: `nordly://settings?code=&state=` → PKCE exchange + Keychain |
 
 ## Layout
 

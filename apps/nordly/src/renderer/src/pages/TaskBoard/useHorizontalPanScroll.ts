@@ -1,5 +1,7 @@
 import { useEffect, type RefObject } from 'react';
 
+import { tryReleasePointerCapture, trySetPointerCapture } from '@shared/lib/pointerCapture';
+
 const PAN_THRESHOLD_PX = 4;
 
 /** Click-drag horizontal scroll for mouse users (trackpad scroll still works natively). */
@@ -18,11 +20,7 @@ export function useHorizontalPanScroll(
     const finish = (e: PointerEvent) => {
       if (!session || e.pointerId !== session.pointerId) return;
       if (session.active) suppressClick = true;
-      try {
-        el.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+      tryReleasePointerCapture(el, e.pointerId);
       el.classList.remove('nordly-task-board-scroll--panning');
       session = null;
     };
@@ -45,11 +43,7 @@ export function useHorizontalPanScroll(
         startScrollLeft: el.scrollLeft,
         active: false,
       };
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+      trySetPointerCapture(el, e.pointerId);
     };
 
     const onMove = (e: PointerEvent) => {

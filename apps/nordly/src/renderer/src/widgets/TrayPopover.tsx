@@ -209,6 +209,8 @@ export function TrayPopoverApp(): JSX.Element {
     sendPomodoroCommand('toggle');
   }, []);
 
+  const posterSrc = themePosterSrc(theme);
+
   return (
     <div className="nordly-tray-popover-shell">
       <div className="nordly-tray-popover">
@@ -223,7 +225,7 @@ export function TrayPopoverApp(): JSX.Element {
         </button>
 
         <div className="nordly-tray-popover__poster">
-          <img key={theme} src={themePosterSrc(theme)} alt="" aria-hidden="true" />
+          {posterSrc ? <img key={theme} src={posterSrc} alt="" aria-hidden="true" /> : null}
         </div>
 
         <div className="nordly-tray-popover__controls">

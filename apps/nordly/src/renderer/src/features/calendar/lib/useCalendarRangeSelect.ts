@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tryReleasePointerCapture, trySetPointerCapture } from '@shared/lib/pointerCapture';
 
 import {
   CALENDAR_GRID_END_HOUR,
   CALENDAR_GRID_START_HOUR,
+  CALENDAR_TIME_SNAP_MIN,
 } from '@features/calendar/lib/events';
 import { snapMinutes } from '@shared/lib/dates';
 
 const MOVE_THRESHOLD_PX = 4;
-const MIN_DURATION_MIN = 15;
+const MIN_DURATION_MIN = CALENDAR_TIME_SNAP_MIN;
 
 export interface CalendarRangeSelection {
   dayKey: string;
@@ -31,7 +33,7 @@ function offsetToMinutes(offsetTop: number, hourHeight: number): number {
   const raw = (offsetTop / hourHeight + CALENDAR_GRID_START_HOUR) * 60;
   const minBound = CALENDAR_GRID_START_HOUR * 60;
   const maxBound = CALENDAR_GRID_END_HOUR * 60;
-  return Math.max(minBound, Math.min(maxBound, snapMinutes(raw)));
+  return Math.max(minBound, Math.min(maxBound, snapMinutes(raw, CALENDAR_TIME_SNAP_MIN)));
 }
 
 function minutesToOffset(totalMin: number, hourHeight: number): number {
@@ -43,6 +45,10 @@ function dateFromMinutes(dayKey: string, totalMin: number): Date {
   return new Date(y, m - 1, d, Math.floor(totalMin / 60), totalMin % 60, 0, 0);
 }
 
+/**
+ * Google Calendar style: snap the preview to the time grid while dragging
+ * so the highlight matches the times that will be committed.
+ */
 function rangeLayout(
   anchorTop: number,
   currentTop: number,
@@ -69,7 +75,7 @@ function rangeLayout(
 
 /**
  * Drag on an empty week column to select a time range (Google Calendar style).
- * Commits only after pointer movement past the click threshold.
+ * Preview snaps to :00/:30 while dragging; commits only after movement past the click threshold.
  */
 export function useCalendarRangeSelect(options: {
   hourHeight: number;
@@ -91,17 +97,15 @@ export function useCalendarRangeSelect(options: {
   const onColumnPointerDown = useCallback((dayKey: string, e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('.nordly-calendar-event')) return;
+    if (target.closest('.nordly-calendar-event, .nordly-timeline-task')) return;
 
     const columnEl = e.currentTarget;
     const rect = columnEl.getBoundingClientRect();
     const anchorTop = clampOffset(e.clientY - rect.top, metricsRef.current.gridHeight);
+    const { hourHeight: hh, gridHeight: gh } = metricsRef.current;
+    const initial = rangeLayout(anchorTop, anchorTop, hh, gh);
 
-    try {
-      columnEl.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
+    trySetPointerCapture(columnEl, e.pointerId);
 
     sessionRef.current = {
       dayKey,
@@ -110,7 +114,7 @@ export function useCalendarRangeSelect(options: {
       anchorTop,
       moved: false,
     };
-    setSelection({ dayKey, top: anchorTop, height: (MIN_DURATION_MIN / 60) * metricsRef.current.hourHeight });
+    setSelection({ dayKey, top: initial.top, height: initial.height });
   }, []);
 
   useEffect(() => {
@@ -135,11 +139,7 @@ export function useCalendarRangeSelect(options: {
       const rect = s.columnEl.getBoundingClientRect();
       const currentTop = clampOffset(e.clientY - rect.top, gh);
 
-      try {
-        s.columnEl.releasePointerCapture(s.pointerId);
-      } catch {
-        /* ignore */
-      }
+      tryReleasePointerCapture(s.columnEl, s.pointerId);
       sessionRef.current = null;
       setSelection(null);
 

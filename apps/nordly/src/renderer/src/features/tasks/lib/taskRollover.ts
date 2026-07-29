@@ -22,12 +22,21 @@ function rolloverStorageKey(userId: string): string {
 
 function lastRolloverDay(userId: string): string | null {
   if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(rolloverStorageKey(userId));
+  try {
+    return window.localStorage.getItem(rolloverStorageKey(userId));
+  } catch (err) {
+    console.warn('[taskRollover] read failed', err);
+    return null;
+  }
 }
 
 function markRolloverDay(userId: string, dayKey: string): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(rolloverStorageKey(userId), dayKey);
+  try {
+    window.localStorage.setItem(rolloverStorageKey(userId), dayKey);
+  } catch (err) {
+    console.warn('[taskRollover] persist failed', err);
+  }
 }
 
 /**

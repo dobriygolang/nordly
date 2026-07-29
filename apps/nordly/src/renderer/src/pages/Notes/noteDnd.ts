@@ -28,7 +28,7 @@ export function parseFolderDraggableId(id: string): string | null {
 /**
  * Resolve drop target folder id.
  * - `undefined` — ignore drop (unknown / miss)
- * - `null` — unfiled
+ * - `null` — vault root
  * - string — folder id
  */
 export function resolveDropFolderId(overId: string | null | undefined): string | null | undefined {
@@ -38,18 +38,22 @@ export function resolveDropFolderId(overId: string | null | undefined): string |
   return folderId ?? undefined;
 }
 
-/** Prefer pointer hit on folder/unfiled droppables; fall back to rect intersection. */
+/** Prefer folder targets over vault-root; fall back to rect intersection. */
 export const notesCollisionDetection: CollisionDetection = (args) => {
   const isFolderDrop = (id: string | number) => {
     const s = String(id);
     return s === UNFILED_DROPPABLE_ID || s.startsWith('folder:');
   };
+  const preferFolder = <T extends { id: string | number }>(hits: T[]): T[] => {
+    const folders = hits.filter((c) => String(c.id).startsWith('folder:'));
+    return folders.length > 0 ? folders : hits;
+  };
 
   const pointerHits = pointerWithin(args).filter((c) => isFolderDrop(c.id));
-  if (pointerHits.length > 0) return pointerHits;
+  if (pointerHits.length > 0) return preferFolder(pointerHits);
 
   const rectHits = rectIntersection(args).filter((c) => isFolderDrop(c.id));
-  return rectHits;
+  return preferFolder(rectHits);
 };
 
 export type NoteDragData = {

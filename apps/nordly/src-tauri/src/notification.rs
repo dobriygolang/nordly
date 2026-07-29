@@ -21,7 +21,9 @@ pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> 
     let window = aux_windows::ensure_notification(app)?;
 
     position_top_right(app, &window)?;
-    let _ = window_macos::set_content_corner_radius(&window, 16.0);
+    if let Err(e) = window_macos::set_content_corner_radius(&window, 16.0) {
+        eprintln!("[nordly:notification] corner radius: {e}");
+    }
     window
         .emit("notification:show", NotificationPayload { title, body })
         .map_err(|e| e.to_string())?;
@@ -41,7 +43,9 @@ pub fn hide(app: &AppHandle) -> Result<(), String> {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(HIDE_ANIM_MS));
         if let Some(w) = handle.get_webview_window(NOTIFICATION_LABEL) {
-            let _ = w.hide();
+            if let Err(e) = w.hide() {
+                eprintln!("[nordly:notification] hide after anim: {e}");
+            }
         }
     });
 
@@ -60,7 +64,9 @@ pub fn hide_notification(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn focus_main_window(app: AppHandle) -> Result<(), String> {
-    let _ = hide(&app);
+    if let Err(e) = hide(&app) {
+        eprintln!("[nordly:notification] hide before focus main: {e}");
+    }
     tray::show_main(&app)
 }
 

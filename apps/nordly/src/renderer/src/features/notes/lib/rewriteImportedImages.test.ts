@@ -6,6 +6,7 @@ describe('rewriteImportedImages', () => {
   it('rewrites embeds and relative images in one pass', async () => {
     const create = vi.fn(async (_noteId: string, fileName: string) => ({
       attachment: { id: `id-${fileName}` },
+      markdown: `![${fileName.replace(/\.[^.]+$/, '') || 'image'}](nordly-asset:id-${fileName})`,
     }));
     const load = vi.fn(async (rel: string) => ({
       bytes: new Uint8Array([1, 2, 3]),
@@ -44,5 +45,21 @@ describe('rewriteImportedImages', () => {
     const res = await rewriteImportedImages('n', '![[gone.png]]', load, create);
     expect(res.bodyMd).toBe('![[gone.png]]');
     expect(res.missing).toEqual(['gone.png']);
+  });
+
+  it('uses markdown href from createAttachment (vault-relative paths)', async () => {
+    const create = vi.fn(async () => ({
+      attachment: { id: 'vault:a.png' },
+      markdown: '![a](img/Pasted%20image%202026.png)',
+    }));
+    const load = vi.fn(async () => ({
+      bytes: new Uint8Array([1]),
+      fileName: 'a.png',
+      mime: 'image/png',
+    }));
+    const res = await rewriteImportedImages('note.md', '![[a.png]]', load, create);
+    expect(res.bodyMd).toContain('img/Pasted%20image%202026.png');
+    expect(res.bodyMd).not.toContain('nordly-asset:');
+    expect(res.bodyMd).not.toContain('![[a.png]]');
   });
 });

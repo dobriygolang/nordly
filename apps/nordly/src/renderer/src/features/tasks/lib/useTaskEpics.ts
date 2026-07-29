@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { TaskEpic } from '@features/tasks/api/epics';
+import { OFFLINE_EPIC_STUBS, type TaskEpic } from '@features/tasks/api/epics';
 import { epicsStoreList, epicsStoreReplace } from '@features/tasks/repository/epicsStore';
 import { remoteListEpics } from '@features/tasks/remote/tasksRemote';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -15,18 +15,20 @@ function isAuthError(err: unknown): boolean {
 
 /** Load tracker epics — IndexedDB cache first, refresh from API when sync is on. */
 export function useTaskEpics(): { epics: TaskEpic[]; refresh: () => Promise<void> } {
-  const [epics, setEpics] = useState<TaskEpic[]>([]);
+  const [epics, setEpics] = useState<TaskEpic[]>(OFFLINE_EPIC_STUBS);
 
   const refresh = useCallback(async () => {
     const { status, userId } = useSessionStore.getState();
-    if (status !== 'signed_in' || !userId) return;
+    if (status !== 'signed_in' || !userId) {
+      setEpics(OFFLINE_EPIC_STUBS);
+      return;
+    }
 
     const cached = await epicsStoreList(userId);
-
     if (cached.length > 0) setEpics(cached);
 
     if (!isSyncEnabled()) {
-      if (cached.length === 0) setEpics([]);
+      if (cached.length === 0) setEpics(OFFLINE_EPIC_STUBS);
       return;
     }
 
@@ -38,10 +40,11 @@ export function useTaskEpics(): { epics: TaskEpic[]; refresh: () => Promise<void
         useSyncStore.getState().setSessionReauthRequired(true);
         return;
       }
+      if (cached.length === 0) setEpics(OFFLINE_EPIC_STUBS);
       throw err;
     }
     await epicsStoreReplace(remote);
-    setEpics(remote);
+    setEpics(remote.length > 0 ? remote : OFFLINE_EPIC_STUBS);
   }, []);
 
   useEffect(() => {
@@ -63,9 +66,10 @@ export function useTaskEpics(): { epics: TaskEpic[]; refresh: () => Promise<void
 
 export async function pullEpicsCache(): Promise<TaskEpic[]> {
   if (!isSyncEnabled()) {
-    return epicsStoreList();
+    const cached = await epicsStoreList();
+    return cached.length > 0 ? cached : OFFLINE_EPIC_STUBS;
   }
   const remote = await remoteListEpics();
   await epicsStoreReplace(remote);
-  return remote;
+  return remote.length > 0 ? remote : OFFLINE_EPIC_STUBS;
 }

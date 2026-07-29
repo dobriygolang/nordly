@@ -21,9 +21,7 @@ import {
   createNote,
   createFolder,
   ensureFolderPath,
-  renameFolder,
   deleteFolder,
-  moveFolder,
   moveNoteToFolder,
   updateNote,
   publishNoteToWeb,
@@ -37,7 +35,20 @@ import {
   type PublishToWebOptions,
   isNoteVaultLocked,
   nextUniqueFolderName,
+  refreshNotesVaultBoundCache,
+  isNotesVaultBound,
+  renameFolderWithRemap,
+  moveFolderWithRemap,
 } from '@features/notes/api/notesClient';
+import {
+  listenVaultChanged,
+  vaultStartWatch,
+  vaultStopWatch,
+  isVaultWatchSuppressed,
+  deferVaultWatchReload,
+  remapVaultPath,
+  revokeVaultImageCache,
+} from '@features/notes/vault';
 import { getServerId } from '@shared/sync/idMap';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { subscribeVault } from '@shared/crypto/vault';
@@ -55,6 +66,7 @@ import { Sidebar } from './Notes/Sidebar';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { Editor } from './Notes/Editor';
 import { FileDropOverlay } from './Notes/FileDropOverlay';
+import { VaultOnboarding } from './Notes/VaultOnboarding';
 import { VAULT_SIDEBAR_W } from './vaultSidebar';
 import { isTauriRuntime } from '@platform/runtime';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
@@ -130,6 +142,9 @@ export function NotesPage({
   const [editorZoom, setEditorZoom] = useState(loadNotesEditorZoom);
   const saveTimer = useRef<number | null>(null);
   const saveInFlightRef = useRef<Promise<boolean> | null>(null);
+  const [vaultReady, setVaultReady] = useState<boolean | null>(
+    () => (isTauriRuntime() ? null : true),
+  );
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -199,11 +214,48 @@ export function NotesPage({
   }, [t]);
 
   useEffect(() => {
+    if (vaultReady !== true) return;
     loadList();
-  }, [loadList]);
+  }, [loadList, vaultReady]);
 
   useEffect(() => {
-    const onNotesChanged = () => loadList();
+    if (!isTauriRuntime()) {
+      setVaultReady(true);
+      return;
+    }
+    let cancelled = false;
+    void refreshNotesVaultBoundCache()
+      .then((bound) => {
+        if (cancelled) return;
+        setVaultReady(bound);
+        if (bound) {
+          void vaultStartWatch().catch((err) => {
+            console.warn('[nordly:notes] vault watch start failed', err);
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('[nordly:notes] vault bind check failed', err);
+        if (!cancelled) setVaultReady(false);
+      });
+    return () => {
+      cancelled = true;
+      void vaultStopWatch().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onNotesChanged = () => {
+      void (async () => {
+        const bound = await isNotesVaultBound();
+        if (isTauriRuntime() && !bound) {
+          setVaultReady(false);
+          return;
+        }
+        setVaultReady(true);
+        loadList();
+      })();
+    };
     window.addEventListener(NORDLY_EVENTS.notesChanged, onNotesChanged);
     return () => window.removeEventListener(NORDLY_EVENTS.notesChanged, onNotesChanged);
   }, [loadList]);
@@ -314,15 +366,34 @@ export function NotesPage({
       try {
         const n = await updateNote(activeId, title, body);
         lastSavedRef.current = { title: n.title, body: n.bodyMd };
-        setActive((cur) => (cur && cur.id === n.id ? n : cur));
-        setList((prev) => ({
-          ...prev,
-          notes: prev.notes.map((row) =>
-            row.id === activeId
-              ? { ...row, title: n.title, updatedAt: n.updatedAt, sizeBytes: n.sizeBytes }
-              : row,
-          ),
-        }));
+        if (n.id !== activeId) {
+          setSelectedId(n.id);
+          setList((prev) => ({
+            ...prev,
+            notes: prev.notes.map((row) =>
+              row.id === activeId
+                ? {
+                    ...row,
+                    id: n.id,
+                    title: n.title,
+                    updatedAt: n.updatedAt,
+                    sizeBytes: n.sizeBytes,
+                    folderId: n.folderId,
+                  }
+                : row,
+            ),
+          }));
+        } else {
+          setList((prev) => ({
+            ...prev,
+            notes: prev.notes.map((row) =>
+              row.id === activeId
+                ? { ...row, title: n.title, updatedAt: n.updatedAt, sizeBytes: n.sizeBytes }
+                : row,
+            ),
+          }));
+        }
+        setActive(n);
         setSaveStatus('saved');
         window.setTimeout(() => {
           setSaveStatus((cur) => (cur === 'saved' ? 'idle' : cur));
@@ -341,6 +412,55 @@ export function NotesPage({
       if (saveInFlightRef.current === save) saveInFlightRef.current = null;
     }
   }, [t]);
+
+  useEffect(() => {
+    if (vaultReady !== true) return;
+    revokeVaultImageCache();
+  }, [vaultReady, selectedId]);
+
+  useEffect(() => {
+    return () => {
+      revokeVaultImageCache();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (vaultReady !== true) return;
+    return listenVaultChanged(() => {
+      const reload = () => {
+        void (async () => {
+          const id = selectedIdRef.current;
+          const draft = draftRef.current;
+          const dirty =
+            Boolean(id) &&
+            draft.activeId === id &&
+            (draft.title !== lastSavedRef.current.title ||
+              draft.body !== lastSavedRef.current.body);
+          loadList();
+          if (!id || dirty) return;
+          try {
+            const n = await getNote(id);
+            if (selectedIdRef.current !== id) return;
+            setActive(n);
+            if (!isNoteVaultLocked(n)) {
+              setDraftTitle(n.title);
+              setDraftBody(n.bodyMd);
+              lastSavedRef.current = { title: n.title, body: n.bodyMd };
+            }
+          } catch {
+            // Active path removed externally — refresh selection via list.
+            setActive(null);
+            setSelectedId(null);
+          }
+        })();
+      };
+      if (isVaultWatchSuppressed()) {
+        deferVaultWatchReload(reload);
+        return;
+      }
+      reload();
+    });
+  }, [vaultReady, loadList]);
 
   useEffect(() => {
     if (!active || isNoteVaultLocked(active)) return;
@@ -765,7 +885,15 @@ export function NotesPage({
       const siblings = folders.filter((f) => (f.parentId ?? null) === parentId);
       const name = nextUniqueFolderName(base, siblings.map((f) => f.name));
       const folder = await createFolder(name, parentId);
-      setFolders((prev) => [...prev, folder]);
+      // Upsert by id — create_dir_all is idempotent; a stale self-parent row from a
+      // buggy list must not duplicate and blow the tree walk stack.
+      setFolders((prev) => {
+        const idx = prev.findIndex((f) => f.id === folder.id);
+        if (idx < 0) return [...prev, folder];
+        const next = prev.slice();
+        next[idx] = folder;
+        return next;
+      });
       // Stay at the same create level so the next folder is a sibling, not a child.
       return folder;
     } catch (err: unknown) {
@@ -774,17 +902,63 @@ export function NotesPage({
     }
   }, [createTargetFolderId, folders, t]);
 
+  const applyFolderPathRemap = useCallback((fromPath: string, toPath: string) => {
+    if (fromPath === toPath) return;
+    const mapId = (id: string) => remapVaultPath(id, fromPath, toPath);
+    setFolders((prev) =>
+      prev.map((f) => ({
+        ...f,
+        id: mapId(f.id),
+        parentId: f.parentId ? mapId(f.parentId) : null,
+      })),
+    );
+    setList((prev) => ({
+      ...prev,
+      notes: prev.notes.map((n) => ({
+        ...n,
+        id: mapId(n.id),
+        folderId: n.folderId ? mapId(n.folderId) : null,
+      })),
+    }));
+    const sel = selectedIdRef.current;
+    if (sel) {
+      const next = mapId(sel);
+      if (next !== sel) {
+        setSelectedId(next);
+        setActive((cur) =>
+          cur
+            ? {
+                ...cur,
+                id: mapId(cur.id),
+                folderId: cur.folderId ? mapId(cur.folderId) : null,
+              }
+            : cur,
+        );
+        draftRef.current = { ...draftRef.current, activeId: next };
+      }
+    }
+    if (createTargetFolderId) {
+      const nextFolder = mapId(createTargetFolderId);
+      if (nextFolder !== createTargetFolderId) setCreateTargetFolderId(nextFolder);
+    }
+  }, [createTargetFolderId]);
+
   const handleRenameFolder = useCallback(
     (id: string, name: string) => {
-      void renameFolder(id, name)
-        .then((folder) => {
-          setFolders((prev) => prev.map((f) => (f.id === id ? folder : f)));
+      void renameFolderWithRemap(id, name)
+        .then(({ folder, fromPath, toPath }) => {
+          if (fromPath !== toPath) {
+            applyFolderPathRemap(fromPath, toPath);
+          } else {
+            setFolders((prev) => prev.map((f) => (f.id === id ? folder : f)));
+          }
+          loadList();
         })
         .catch((err: unknown) => {
           setActiveError(errorMessage(err, t));
         });
     },
-    [t],
+    [applyFolderPathRemap, loadList, t],
   );
 
   const handleDeleteFolder = useCallback(
@@ -826,7 +1000,33 @@ export function NotesPage({
         notes: prev.notes.map((n) => (n.id === noteId ? { ...n, folderId } : n)),
       }));
       try {
-        await moveNoteToFolder(noteId, folderId);
+        const moved = await moveNoteToFolder(noteId, folderId);
+        if (moved.noteId !== noteId) {
+          setList((prev) => ({
+            ...prev,
+            notes: prev.notes.map((n) =>
+              n.id === noteId
+                ? { ...n, id: moved.noteId, folderId: moved.folderId }
+                : n,
+            ),
+          }));
+          if (selectedIdRef.current === noteId) {
+            setSelectedId(moved.noteId);
+            setActive((cur) =>
+              cur && cur.id === noteId
+                ? { ...cur, id: moved.noteId, folderId: moved.folderId }
+                : cur,
+            );
+            draftRef.current = { ...draftRef.current, activeId: moved.noteId };
+          }
+        } else {
+          setList((prev) => ({
+            ...prev,
+            notes: prev.notes.map((n) =>
+              n.id === noteId ? { ...n, folderId: moved.folderId } : n,
+            ),
+          }));
+        }
       } catch (err: unknown) {
         setList((prev) => ({
           ...prev,
@@ -852,7 +1052,18 @@ export function NotesPage({
         ),
       );
       try {
-        await moveFolder(folderId, parentId);
+        const { folder, fromPath, toPath } = await moveFolderWithRemap(
+          folderId,
+          parentId,
+        );
+        if (fromPath !== toPath) {
+          applyFolderPathRemap(fromPath, toPath);
+        } else {
+          setFolders((prev) =>
+            prev.map((f) => (f.id === folderId ? folder : f)),
+          );
+        }
+        loadList();
       } catch (err: unknown) {
         setFolders((prev) =>
           prev.map((f) => (f.id === folderId ? { ...f, parentId: previous } : f)),
@@ -861,7 +1072,7 @@ export function NotesPage({
         throw err;
       }
     },
-    [folders, t],
+    [applyFolderPathRemap, folders, loadList, t],
   );
 
   const handleFocusFolder = useCallback((folderId: string | null) => {
@@ -1060,6 +1271,33 @@ export function NotesPage({
   );
 
   const SIDEBAR_W = VAULT_SIDEBAR_W;
+
+  if (vaultReady === null) {
+    return <div className="nordly-vault" />;
+  }
+
+  if (vaultReady === false) {
+    return (
+      <div className="nordly-vault">
+        <div className="nordly-vault-main">
+          <VaultOnboarding
+            onBound={(result) => {
+              setVaultReady(true);
+              if (result?.skippedLocked) {
+                setActiveError(
+                  t('nordly.notes.vault_onboarding.skipped_locked').replace(
+                    '{{count}}',
+                    String(result.skippedLocked),
+                  ),
+                );
+              }
+              loadList();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

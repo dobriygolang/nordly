@@ -1,4 +1,4 @@
-export type SyncDomain = 'notes' | 'tasks' | 'focus';
+export type SyncDomain = 'notes' | 'tasks' | 'focus' | 'vault';
 
 export type OutboxOp =
   | 'create'
@@ -11,7 +11,9 @@ export type OutboxOp =
   | 'session_start'
   | 'session_end'
   | 'attachment_put'
-  | 'attachment_delete';
+  | 'attachment_delete'
+  | 'file_put'
+  | 'file_delete';
 
 export interface OutboxEntry {
   id: string;

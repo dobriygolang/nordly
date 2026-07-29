@@ -9,6 +9,8 @@ import {
   type AuthSession,
   type EventPayload,
   type NordlyAPI,
+  type OAuthPendingBlob,
+  type OAuthTokenBlob,
   type PomodoroSnapshot,
 } from '@platform/ipc';
 
@@ -42,6 +44,20 @@ export function installNativeBridge(): void {
       passLoad: (userId) => invoke<string | null>('vault_pass_load', { userId }),
       passSave: (userId, passphrase) => invoke('vault_pass_save', { userId, passphrase }),
       passClear: (userId) => invoke('vault_pass_clear', { userId }),
+    },
+    oauth: {
+      tokensLoad: (provider, userId) =>
+        invoke<OAuthTokenBlob | null>('oauth_tokens_load', { provider, userId }),
+      tokensSave: (tokens, userId) => invoke('oauth_tokens_save', { tokens, userId }),
+      tokensClear: (provider, userId) => invoke('oauth_tokens_clear', { provider, userId }),
+      pendingLoad: (provider, userId) =>
+        invoke<OAuthPendingBlob | null>('oauth_pending_load', { provider, userId }),
+      pendingSave: (pending, userId) => invoke('oauth_pending_save', { pending, userId }),
+      pendingClear: (provider, userId) => invoke('oauth_pending_clear', { provider, userId }),
+      loopbackStart: () => invoke<string>('oauth_loopback_start'),
+      loopbackWait: (expectedState, timeoutMs) =>
+        invoke<string>('oauth_loopback_wait', { expectedState, timeoutMs }),
+      loopbackCancel: () => invoke('oauth_loopback_cancel'),
     },
     on: (channel, listener) => {
       const wire = eventWire(channel);

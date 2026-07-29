@@ -23,16 +23,16 @@ function resolveView(): NordlyView {
       if (label === 'tray-popover') return 'tray';
       if (label === 'notification') return 'notification';
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn('[nordly] resolveView tauri label failed', err);
   }
   try {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view');
     if (view === 'tray') return 'tray';
     if (view === 'notification') return 'notification';
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn('[nordly] resolveView query parse failed', err);
   }
   return 'main';
 }

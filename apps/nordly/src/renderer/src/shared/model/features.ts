@@ -15,7 +15,17 @@ export const LOCAL_ONLY =
   readBoolEnv(import.meta.env.VITE_NORDLY_LOCAL_ONLY) ??
   true;
 
-/** Cloud sync + integrations (tracker, notes API, Google Calendar, vault server). */
+/** Cloud sync + Nordly identity integrations (notes/tasks sync, publish). */
 export function isCloudEnabled(): boolean {
   return !LOCAL_ONLY;
+}
+
+/** Public Google OAuth client id baked at build time — device-owned calendar. */
+export function isGoogleIntegrationAvailable(): boolean {
+  return Boolean(String(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim());
+}
+
+/** Public Zoom OAuth client id baked at build time — device-owned meetings. */
+export function isZoomIntegrationAvailable(): boolean {
+  return Boolean(String(import.meta.env.VITE_ZOOM_CLIENT_ID ?? '').trim());
 }

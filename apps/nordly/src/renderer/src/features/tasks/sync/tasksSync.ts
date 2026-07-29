@@ -213,6 +213,16 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     const patch: Parameters<typeof remotePatchTask>[1] = {};
     if (payload.clearEpic === true) patch.clearEpic = true;
     if (payload.clearConference === true) patch.clearConference = true;
+    if (typeof payload.conferenceUrl === 'string' && payload.conferenceUrl.trim()) {
+      patch.conferenceUrl = payload.conferenceUrl.trim();
+    }
+    if (payload.conferenceProvider === 'meet' || payload.conferenceProvider === 'zoom') {
+      patch.conferenceProvider = payload.conferenceProvider;
+    }
+    if (payload.googleEventId === null) patch.googleEventId = null;
+    else if (typeof payload.googleEventId === 'string') patch.googleEventId = payload.googleEventId;
+    if (payload.zoomMeetingId === null) patch.zoomMeetingId = null;
+    else if (typeof payload.zoomMeetingId === 'string') patch.zoomMeetingId = payload.zoomMeetingId;
     if (payload.epicId !== undefined) {
       if (typeof payload.epicId !== 'string' || !payload.epicId.trim()) {
         throw new Error(`Invalid tasks patch outbox (${entry.id}): epicId must be a non-empty string`);

@@ -4,9 +4,11 @@ export interface SyncDomainHandlers {
   pushNotesOutbox: (entry: OutboxEntry) => Promise<void>;
   pushTasksOutbox: (entry: OutboxEntry) => Promise<void>;
   pushFocusOutbox: (entry: OutboxEntry) => Promise<void>;
+  pushVaultOutbox: (entry: OutboxEntry) => Promise<void>;
   pullNotes: () => Promise<void>;
   pullTasks: () => Promise<void>;
   pullFocus: () => Promise<void>;
+  pullVault: () => Promise<void>;
   reconcileOutbox: () => Promise<void>;
 }
 

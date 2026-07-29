@@ -122,8 +122,8 @@ export function VaultSection() {
         const vaultBridge = window.nordly?.vault;
         if (vaultBridge) await vaultBridge.passClear(userId);
         else window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
-      } catch {
-        /* best-effort local passphrase cleanup */
+      } catch (err) {
+        console.warn('[vault] local passphrase cleanup failed', err);
       }
       setEnabled(false);
       setModal(null);

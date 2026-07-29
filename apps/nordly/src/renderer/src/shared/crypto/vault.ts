@@ -95,16 +95,22 @@ export async function fetchVaultSalt(): Promise<string | null> {
     return local?.saltB64 ?? null;
   }
 
-  const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: syncAuthHeaders() });
-  // Cloud said vault is absent — do not invent a local salt as if it were the server's.
-  if (resp.status === 404) return null;
-  if (!resp.ok) {
-    throw new Error(`vault salt: ${resp.status}`);
+  try {
+    const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/salt`, { headers: syncAuthHeaders() });
+    // Cloud said vault is absent — do not invent a local salt as if it were the server's.
+    if (resp.status === 404) return null;
+    if (!resp.ok) {
+      if (local?.saltB64) return local.saltB64;
+      throw new Error(`vault salt: ${resp.status}`);
+    }
+    const j = (await resp.json()) as SaltResponse;
+    const saltB64 = requireSaltB64(j);
+    await cacheLocalSalt(saltB64);
+    return saltB64;
+  } catch (err) {
+    if (local?.saltB64) return local.saltB64;
+    throw err;
   }
-  const j = (await resp.json()) as SaltResponse;
-  const saltB64 = requireSaltB64(j);
-  await cacheLocalSalt(saltB64);
-  return saltB64;
 }
 
 const PBKDF2_ITERATIONS = 200_000;

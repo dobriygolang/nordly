@@ -34,8 +34,36 @@ function errorMessage(err: unknown, t?: (key: string) => string): string {
     const msg = t(key);
     if (msg !== key) return msg;
   }
-  if (t) return formatLimitError(err, t);
-  return err instanceof Error ? err.message : String(err);
+  const raw = err instanceof Error ? err.message : String(err);
+  if (t) {
+    const mapped = mapVaultFsError(raw, t);
+    if (mapped) return mapped;
+    return formatLimitError(err, t);
+  }
+  return raw;
+}
+
+function mapVaultFsError(raw: string, t: (key: string) => string): string | null {
+  const lower = raw.toLowerCase();
+  const table: Array<[RegExp | string, string]> = [
+    ['notes vault is not configured', 'nordly.notes.vault_fs.not_configured'],
+    ['path escape', 'nordly.notes.vault_fs.path_escape'],
+    ['vault root must be an absolute path', 'nordly.notes.vault_fs.absolute_root'],
+    ['vault root is not a directory', 'nordly.notes.vault_fs.not_directory'],
+    ['vault root inaccessible', 'nordly.notes.vault_fs.inaccessible'],
+    ['image exceeds 5 mib', 'nordly.notes.attachment.too_large'],
+    ['unsupported image type', 'nordly.notes.attachment.bad_type'],
+    ['permission denied', 'nordly.notes.vault_fs.permission_denied'],
+    ['operation not permitted', 'nordly.notes.vault_fs.permission_denied'],
+  ];
+  for (const [needle, key] of table) {
+    const hit =
+      typeof needle === 'string' ? lower.includes(needle) : needle.test(lower);
+    if (!hit) continue;
+    const msg = t(key);
+    if (msg !== key) return msg;
+  }
+  return null;
 }
 
 export { errorMessage };

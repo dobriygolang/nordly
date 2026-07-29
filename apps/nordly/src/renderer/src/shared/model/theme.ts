@@ -31,18 +31,24 @@ const THEME_POSTER_SRC: Partial<Record<ThemeId, string>> = {
 };
 
 /** Static poster image for non-animated image-based canvas themes. */
-export function themePosterSrc(theme: ThemeId): string {
-  return THEME_POSTER_SRC[theme] ?? '/backgrounds/launch.png';
+export function themePosterSrc(theme: ThemeId): string | null {
+  return THEME_POSTER_SRC[theme] ?? null;
 }
 
 const THEME_KEY = STORAGE_KEYS.theme;
 
 export function readStoredTheme(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME_ID;
-  const v = window.localStorage.getItem(THEME_KEY);
-  if (!v) return DEFAULT_THEME_ID;
-  if ((THEME_IDS as readonly string[]).includes(v)) return v as ThemeId;
-  throw new Error(`Invalid stored theme: ${v}`);
+  try {
+    const v = window.localStorage.getItem(THEME_KEY);
+    if (!v) return DEFAULT_THEME_ID;
+    if ((THEME_IDS as readonly string[]).includes(v)) return v as ThemeId;
+    throw new Error(`Invalid stored theme: ${v}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Invalid stored theme:')) throw err;
+    console.warn('[theme] read failed', err);
+    return DEFAULT_THEME_ID;
+  }
 }
 
 export function persistTheme(id: ThemeId): void {
@@ -50,5 +56,9 @@ export function persistTheme(id: ThemeId): void {
   if (!(THEME_IDS as readonly string[]).includes(id)) {
     throw new Error(`Invalid theme id: ${id}`);
   }
-  window.localStorage.setItem(THEME_KEY, id);
+  try {
+    window.localStorage.setItem(THEME_KEY, id);
+  } catch (err) {
+    console.warn('[theme] persist failed', err);
+  }
 }

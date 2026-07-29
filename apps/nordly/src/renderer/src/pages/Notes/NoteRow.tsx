@@ -118,7 +118,9 @@ export const NoteRow = memo(function NoteRow({
     let live = true;
     void (async () => {
       if (publishInFlightRef.current) {
-        await publishInFlightRef.current.catch(() => undefined);
+        await publishInFlightRef.current.catch((err: unknown) => {
+          console.warn('[nordly:notes] prior publish status request failed', err);
+        });
         if (!live) return;
       }
       const status = await getPublishStatus(note.id);

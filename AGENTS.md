@@ -36,8 +36,10 @@ Root `go.work` is optional. Services build with `GOWORK=off`.
 Pattern from **identity** + **template**. **Start new services by copying `services/template/`.**
 
 > **Target architecture (CQRS + DDD + Clean Architecture):** see
-> [.cursor/rules/architecture-standard.mdc](.cursor/rules/architecture-standard.mdc).
-> Per domain add `usecase/{command,query}/<op>/` packages (each = `command|query.go`
+> [.cursor/rules/architecture-standard.mdc](.cursor/rules/architecture-standard.mdc)
+> and [.cursor/rules/fail-fast-no-fallbacks.mdc](.cursor/rules/fail-fast-no-fallbacks.mdc).
+> Prefer `slices`/`sort`, mockery-only tests, fail at `New`/`Load`, delete dead branches,
+> drop unused fields/SQL. Per domain add `usecase/{command,query}/<op>/` packages (each = `command|query.go`
 > with `Validate()` + `handler.go` with `New`/`Handle` + `mocks/`) and a `repository/store.go`
 > port. Reference exemplars: `services/template/internal/example/usecase/query/get_item/`
 > (read) and `services/template/internal/example/usecase/command/` (write — add when extracting commands).

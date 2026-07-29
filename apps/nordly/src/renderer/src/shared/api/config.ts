@@ -19,12 +19,3 @@ export const API_BASE_URL =
 
 /** Liveness probe — identity `/healthz` (Caddy in prod, Vite proxy in dev). */
 export const HEALTH_CHECK_URL = `${API_BASE_URL}/healthz`;
-
-/** Public web companion base URL — required for live/share links (no silent prod default). */
-export function requireNordlyWebBaseUrl(): string {
-  const raw = (import.meta.env.VITE_NORDLY_WEB_BASE as string | undefined)?.trim();
-  if (!raw) {
-    throw new Error('VITE_NORDLY_WEB_BASE is required for share links');
-  }
-  return raw.replace(/\/$/, '');
-}

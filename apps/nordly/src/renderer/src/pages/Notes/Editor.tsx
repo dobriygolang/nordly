@@ -134,11 +134,15 @@ function ActiveEditor({
   const resolveImageHref = useMemo((): ImageHrefResolver => {
     return async (href: string) => {
       if (/^https:\/\//i.test(href)) return href;
+      const { isNotesVaultBound, resolveVaultImageHref } = await import('@features/notes/vault');
+      if (await isNotesVaultBound()) {
+        return resolveVaultImageHref(href, noteId);
+      }
       const id = parseNordlyAssetId(href);
       if (!id) return null;
       return resolveAttachmentObjectUrl(id);
     };
-  }, []);
+  }, [noteId]);
 
   const onInsertImageFile = useCallback(
     async (file: File) => {

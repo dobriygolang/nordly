@@ -1,4 +1,4 @@
-// Local-first notes — IndexedDB source of truth; background sync when enabled.
+// Local-first notes — filesystem vault SoT when bound; IndexedDB until first vault pick (non-Tauri tests).
 import { encryptText, isVaultUnlocked } from '@shared/crypto/vault';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import {
@@ -53,16 +53,34 @@ import {
   bytesToBase64,
   extractNordlyAssetIds,
 } from '@features/notes/lib/noteAttachments';
+import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 import {
   attachmentsStoreGetPlainBytes,
   attachmentsStoreListByNote,
 } from '@features/notes/repository/attachmentsStore';
 import type { PublishedAttachmentInput } from '@features/notes/remote/publishRemote';
+import {
+  isNotesVaultBound,
+  vaultIoCreateFolder,
+  vaultIoCreateNote,
+  vaultIoDeleteFolder,
+  vaultIoDeleteNote,
+  vaultIoEnsureFolderPath,
+  vaultIoGetNote,
+  vaultIoListFolders,
+  vaultIoListNotes,
+  vaultIoMoveFolder,
+  vaultIoMoveNoteToFolder,
+  vaultIoOpenWikiLink,
+  vaultIoRenameFolder,
+  vaultIoUpdateNote,
+} from '@features/notes/vault';
 
 export type { PublishToWebOptions } from '@features/notes/model/publishOptions';
 export type { PublishStatus };
 export type { NoteFolder };
 export { collectSubtreeIds, nextUniqueFolderName } from '@features/notes/repository/foldersStore';
+export { isNotesVaultBound } from '@features/notes/vault';
 
 export interface Note {
   id: string;
@@ -73,7 +91,7 @@ export interface Note {
   sizeBytes: number;
   /** True when E2EE vault is on but passphrase was not entered yet. */
   vaultLocked?: boolean;
-  /** Local-only folder id (not synced). */
+  /** Local-only folder id (not synced). In FS vault mode = relative folder path. */
   folderId?: string | null;
 }
 
@@ -83,7 +101,7 @@ export interface NoteSummary {
   updatedAt: Date | null;
   sizeBytes: number;
   vaultLocked?: boolean;
-  /** Local-only folder id (not synced). */
+  /** Local-only folder id (not synced). In FS vault mode = relative folder path. */
   folderId?: string | null;
 }
 
@@ -93,20 +111,54 @@ export function isNoteVaultLocked(note: Pick<NoteSummary, 'vaultLocked'>): boole
 
 /** Rewrites all remotely synced notes with vault encryption after vault enablement. */
 export async function encryptAllNotesForVault(): Promise<void> {
+  if (await isNotesVaultBound()) {
+    // Filesystem vault is plaintext on disk; cloud E2EE encrypts payloads later.
+    return;
+  }
   await pushAllNotesEncrypted();
 }
 
+let vaultBoundCache: boolean | null = null;
+
+export async function refreshNotesVaultBoundCache(): Promise<boolean> {
+  vaultBoundCache = await isNotesVaultBound();
+  return vaultBoundCache;
+}
+
+export function setNotesVaultBoundCache(bound: boolean): void {
+  vaultBoundCache = bound;
+}
+
+async function useFsVault(): Promise<boolean> {
+  if (vaultBoundCache === null) {
+    vaultBoundCache = await isNotesVaultBound();
+  }
+  return vaultBoundCache;
+}
+
 async function wikiLinksForSave(bodyMd: string): Promise<StoredWikiLink[]> {
+  if (await useFsVault()) {
+    const { notes } = await vaultIoListNotes();
+    return buildWikiLinksWire(bodyMd, notes);
+  }
   const notes = await notesStoreList();
   return buildWikiLinksWire(bodyMd, notes);
 }
 
 export async function listNotes(): Promise<{ notes: NoteSummary[] }> {
+  if (await useFsVault()) return vaultIoListNotes();
   const notes = await notesStoreList();
   return { notes };
 }
 
 async function resolveNote(id: string): Promise<Note | null> {
+  if (await useFsVault()) {
+    try {
+      return await vaultIoGetNote(id);
+    } catch {
+      return null;
+    }
+  }
   const direct = await notesStoreGet(id);
   if (direct) return direct;
   const serverId = await getServerId('notes', id);
@@ -125,6 +177,9 @@ export async function createNote(
   bodyMd: string,
   folderId?: string | null,
 ): Promise<Note> {
+  if (await useFsVault()) {
+    return vaultIoCreateNote(title, bodyMd, folderId);
+  }
   const id = crypto.randomUUID();
   const wikiLinks = await wikiLinksForSave(bodyMd);
   const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks, folderId ?? null);
@@ -136,6 +191,7 @@ export async function createNote(
 }
 
 export async function listFolders(): Promise<NoteFolder[]> {
+  if (await useFsVault()) return vaultIoListFolders();
   return foldersStoreList();
 }
 
@@ -143,11 +199,29 @@ export async function createFolder(
   name: string,
   parentId?: string | null,
 ): Promise<NoteFolder> {
+  if (await useFsVault()) return vaultIoCreateFolder(name, parentId);
   return foldersStoreCreate(name, parentId ?? null);
 }
 
 export async function renameFolder(id: string, name: string): Promise<NoteFolder> {
+  if (await useFsVault()) {
+    const { folder } = await vaultIoRenameFolder(id, name);
+    return folder;
+  }
   return foldersStoreRename(id, name);
+}
+
+/**
+ * Rename a vault folder and return path remap so the UI can update note ids.
+ * IDB mode: fromPath === toPath === id (UUID stable).
+ */
+export async function renameFolderWithRemap(
+  id: string,
+  name: string,
+): Promise<{ folder: NoteFolder; fromPath: string; toPath: string }> {
+  if (await useFsVault()) return vaultIoRenameFolder(id, name);
+  const folder = await foldersStoreRename(id, name);
+  return { folder, fromPath: id, toPath: id };
 }
 
 /**
@@ -155,7 +229,20 @@ export async function renameFolder(id: string, name: string): Promise<NoteFolder
  * Notes and nested folders travel with it (they keep pointing at the same ids).
  */
 export async function moveFolder(id: string, parentId: string | null): Promise<NoteFolder> {
+  if (await useFsVault()) {
+    const { folder } = await vaultIoMoveFolder(id, parentId);
+    return folder;
+  }
   return foldersStoreMove(id, parentId);
+}
+
+export async function moveFolderWithRemap(
+  id: string,
+  parentId: string | null,
+): Promise<{ folder: NoteFolder; fromPath: string; toPath: string }> {
+  if (await useFsVault()) return vaultIoMoveFolder(id, parentId);
+  const folder = await foldersStoreMove(id, parentId);
+  return { folder, fromPath: id, toPath: id };
 }
 
 /**
@@ -166,6 +253,7 @@ export async function ensureFolderPath(
   segments: string[],
   rootParentId: string | null = null,
 ): Promise<{ folderId: string | null; created: NoteFolder[] }> {
+  if (await useFsVault()) return vaultIoEnsureFolderPath(segments, rootParentId);
   let parentId = rootParentId;
   const created: NoteFolder[] = [];
   for (const segment of segments) {
@@ -194,6 +282,7 @@ export async function ensureFolderPath(
 export async function deleteFolder(
   id: string,
 ): Promise<{ deletedFolderIds: string[]; deletedNoteIds: string[] }> {
+  if (await useFsVault()) return vaultIoDeleteFolder(id);
   const folders = await foldersStoreList();
   if (!folders.some((f) => f.id === id)) {
     throw new Error(`Folder not found: ${id}`);
@@ -207,13 +296,24 @@ export async function deleteFolder(
   return { deletedFolderIds, deletedNoteIds: noteIds };
 }
 
-export async function moveNoteToFolder(noteId: string, folderId: string | null): Promise<void> {
+export async function moveNoteToFolder(
+  noteId: string,
+  folderId: string | null,
+): Promise<{ noteId: string; folderId: string | null }> {
+  if (await useFsVault()) {
+    const note = await vaultIoMoveNoteToFolder(noteId, folderId);
+    return { noteId: note.id, folderId: note.folderId ?? null };
+  }
   const prev = await resolveNote(noteId);
   if (!prev) throw new Error(`Note not found: ${noteId}`);
   await notesStoreSetFolderId(prev.id, folderId);
+  return { noteId: prev.id, folderId };
 }
 
 export async function updateNote(id: string, title: string, bodyMd: string): Promise<Note> {
+  if (await useFsVault()) {
+    return vaultIoUpdateNote(id, title, bodyMd);
+  }
   const prev = await resolveNote(id);
   if (!prev) throw new Error(`Note not found: ${id}`);
   const canonicalId = prev.id;
@@ -230,6 +330,7 @@ export async function updateNote(id: string, title: string, bodyMd: string): Pro
 
 /** Soft-delete local attachments no longer referenced by `nordly-asset:` in body. */
 async function sweepOrphanAttachments(noteId: string, bodyMd: string): Promise<void> {
+  if (await useFsVault()) return;
   const referenced = new Set(extractNordlyAssetIds(bodyMd));
   const list = await attachmentsStoreListByNote(noteId);
   for (const attachment of list) {
@@ -241,6 +342,7 @@ async function sweepOrphanAttachments(noteId: string, bodyMd: string): Promise<v
 export async function openWikiLink(
   linkText: string,
 ): Promise<{ noteId: string; created: boolean }> {
+  if (await useFsVault()) return vaultIoOpenWikiLink(linkText);
   const trimmed = linkText.trim();
   if (!trimmed) throw new Error('Wiki link title is empty');
 
@@ -287,7 +389,7 @@ export async function countPublishedNotes(): Promise<number> {
     return useFeatureUsageStore.getState().publishedNotesCount;
   }
 
-  const notes = await notesStoreList();
+  const { notes } = await listNotes();
   const published = await mapPool(notes, 6, async (note) => {
     const serverId = await getServerId('notes', note.id);
     if (!serverId) return false;
@@ -300,9 +402,12 @@ export async function countPublishedNotes(): Promise<number> {
 
 async function collectPublishAttachments(
   bodyMd: string,
+  notePath?: string,
 ): Promise<PublishedAttachmentInput[]> {
-  const ids = extractNordlyAssetIds(bodyMd);
   const out: PublishedAttachmentInput[] = [];
+  const seen = new Set<string>();
+
+  const ids = extractNordlyAssetIds(bodyMd);
   for (const id of ids) {
     let plain: Awaited<ReturnType<typeof attachmentsStoreGetPlainBytes>>;
     try {
@@ -316,6 +421,7 @@ async function collectPublishAttachments(
     if (!plain) {
       throw new AttachmentError('publish_unresolved');
     }
+    seen.add(id);
     out.push({
       id,
       fileName: plain.fileName,
@@ -323,6 +429,53 @@ async function collectPublishAttachments(
       dataB64: bytesToBase64(plain.bytes),
     });
   }
+
+  if (notePath && (await useFsVault())) {
+    const { vaultReadBytes, joinNoteRelative } = await import('@features/notes/vault');
+    const {
+      MD_IMAGE_RE,
+      MAX_ATTACHMENT_BYTES,
+      isAllowedImageMime,
+      mimeFromFilename: mimeFn,
+    } = await import('@features/notes/lib/noteAttachments');
+    MD_IMAGE_RE.lastIndex = 0;
+    let m = MD_IMAGE_RE.exec(bodyMd);
+    while (m) {
+      const href = m[2] ?? '';
+      if (/^https:\/\//i.test(href) || parseNordlyAssetId(href)) {
+        m = MD_IMAGE_RE.exec(bodyMd);
+        continue;
+      }
+      const rel = joinNoteRelative(notePath, href);
+      if (!rel || seen.has(rel) || rel.split('/').includes('..')) {
+        m = MD_IMAGE_RE.exec(bodyMd);
+        continue;
+      }
+      const fileName = rel.split('/').pop() || 'image.png';
+      const mime = (mimeFn(fileName) || '').toLowerCase();
+      if (!mime || !isAllowedImageMime(mime)) {
+        // Do not upload non-image vault paths (e.g. .md / .trash) as publish attachments.
+        throw new AttachmentError(
+          'bad_type',
+          `publish image must be png/jpeg/gif/webp: ${rel}`,
+        );
+      }
+      seen.add(rel);
+      const bytes = await vaultReadBytes(rel);
+      if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+        throw new AttachmentError('too_large');
+      }
+      const id = `vault-${rel.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      out.push({
+        id,
+        fileName,
+        mime,
+        dataB64: bytesToBase64(bytes),
+      });
+      m = MD_IMAGE_RE.exec(bodyMd);
+    }
+  }
+
   return out;
 }
 
@@ -336,7 +489,7 @@ export async function publishNoteToWeb(
     const note = await getNote(noteId);
     // Do not remoteUpdateNote first: published GETs would briefly serve raw
     // nordly-asset: refs, and vault notes must not push plaintext body_md.
-    const attachments = await collectPublishAttachments(note.bodyMd);
+    const attachments = await collectPublishAttachments(note.bodyMd, note.id);
     const res = await remoteShareNoteToWeb(serverId, note.bodyMd, options, attachments);
     if (!res.alreadyPublished) {
       useFeatureUsageStore.getState().adjustPublishedNotesCount(1);
@@ -357,7 +510,7 @@ export async function updatePublishedNoteOptions(
   return withNotesRemoteMutation(async () => {
     const note = await getNote(noteId);
     // Share rewrites asset refs; never pre-write nordly-asset: into published body_md.
-    const attachments = await collectPublishAttachments(note.bodyMd);
+    const attachments = await collectPublishAttachments(note.bodyMd, note.id);
     await remoteShareNoteToWeb(serverId, note.bodyMd, options, attachments);
     const status = await remoteGetPublishStatus(serverId);
     if (status === null) throw new Error('Note not found on server');
@@ -385,6 +538,10 @@ export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
 }
 
 export async function deleteNote(id: string): Promise<void> {
+  if (await useFsVault()) {
+    await vaultIoDeleteNote(id);
+    return;
+  }
   const prev = await resolveNote(id);
   // Idempotent — bulk/folder cascade may already have removed the row.
   if (!prev) return;
@@ -400,4 +557,3 @@ export async function deleteNote(id: string): Promise<void> {
     scheduleSync();
   }
 }
-

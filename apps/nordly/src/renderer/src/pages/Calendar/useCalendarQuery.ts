@@ -10,7 +10,7 @@ import {
   type CalendarViewSelection,
 } from '@features/calendar/api/calendar';
 import type { TaskCard } from '@features/tasks/api/tasks';
-import { isCloudEnabled } from '@shared/model/features';
+import { isGoogleIntegrationAvailable } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
 
 export interface CalendarQueryResult {
@@ -37,7 +37,7 @@ export function useCalendarQuery(
     reauthRequired: connectionReauth,
     ready: connectionReady,
   } = useGoogleCalendarConnection();
-  const googleEnabled = isCloudEnabled() && connected && connectionReady;
+  const googleEnabled = isGoogleIntegrationAvailable() && connected && connectionReady;
   const {
     events: googleEvents,
     error: googleFetchError,
@@ -59,7 +59,7 @@ export function useCalendarQuery(
     googleFetchFailed: googleFetchError === 'fetch' && !googleReauthNeeded,
     googleReauthNeeded,
     showGoogleReauthBanner:
-      isCloudEnabled() &&
+      isGoogleIntegrationAvailable() &&
       connected &&
       googleReauthNeeded &&
       !sessionReauthRequired &&

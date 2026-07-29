@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import {
   CALENDAR_GRID_START_HOUR,
+  CALENDAR_TIME_SNAP_MIN,
   refreshGoogleCalendarCache,
   updateGoogleCalendarEvent,
   type CalendarEntry,
@@ -29,7 +30,7 @@ export async function moveCalendarEntry(
   dependencies: CalendarEntryDragDependencies,
 ): Promise<'task' | 'google' | null> {
   const startHour = finalTop / hourHeight + CALENDAR_GRID_START_HOUR;
-  const minutes = snapMinutes(startHour * 60);
+  const minutes = snapMinutes(startHour * 60, CALENDAR_TIME_SNAP_MIN);
   const start = new Date(entry.start);
   start.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
   const durationMin = Math.max(

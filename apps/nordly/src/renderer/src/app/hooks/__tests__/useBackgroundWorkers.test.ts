@@ -11,6 +11,7 @@ function dependencies(
   return {
     loadVaultPrefs: vi.fn(async () => undefined),
     isCloudEnabled: vi.fn(() => true),
+    isGoogleIntegrationAvailable: vi.fn(() => true),
     isVaultEnabled: vi.fn(() => true),
     hydrateCalendarCache: vi.fn(async () => undefined),
     startWorkers: vi.fn(),
@@ -73,9 +74,10 @@ describe('initializeCloudWorkers', () => {
     expect(deps.startWorkers).not.toHaveBeenCalled();
   });
 
-  it('skips calendar hydrate when cloud is disabled but still gates vault', async () => {
+  it('hydrates calendar when Google is available even if Nordly cloud is off', async () => {
     const deps = dependencies({
       isCloudEnabled: vi.fn(() => false),
+      isGoogleIntegrationAvailable: vi.fn(() => true),
       isVaultEnabled: vi.fn(() => true),
     });
     const setVaultGateActive = vi.fn();
@@ -87,8 +89,24 @@ describe('initializeCloudWorkers', () => {
       dependencies: deps,
     });
 
-    expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
+    expect(deps.hydrateCalendarCache).toHaveBeenCalled();
     expect(deps.startWorkers).not.toHaveBeenCalled();
     expect(setVaultGateActive).toHaveBeenCalledWith(true);
+  });
+
+  it('skips calendar hydrate when Google client id is unset', async () => {
+    const deps = dependencies({
+      isCloudEnabled: vi.fn(() => true),
+      isGoogleIntegrationAvailable: vi.fn(() => false),
+    });
+
+    await initializeCloudWorkers({
+      userId: 'user-1',
+      isCancelled: () => false,
+      setVaultGateActive: vi.fn(),
+      dependencies: deps,
+    });
+
+    expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
   });
 });

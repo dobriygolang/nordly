@@ -30,33 +30,171 @@ under `internal/<worker>/` or `internal/services/`.
 - Command: `services/interview/internal/interview/usecase/command/submit_attempt/`
 - Repository port: `services/billing/internal/billing/repository/store.go`
 
+## Domain package layout (search-performance shape)
+
+```
+internal/<domain>/
+├── model/          # entities + errors.go sentinels (+ enums.go when needed)
+├── dto/            # optional — DB/API transfer shapes that are not domain entities
+├── enum/           # optional — typed closed sets (or model/enums.go)
+├── requests/       # optional — service-facing request/response DTOs
+├── repository/     # store.go (port) + concrete Postgres/Redis + mocks/
+├── service/        # Service interface + thin orchestrator (wires usecase handlers)
+│   └── <op>.go     # one public method per file when the surface grows
+├── usecase/
+│   ├── command/<op>/   # command.go + handler.go (+ *_test.go) + mocks/
+│   └── query/<op>/     # query.go   + handler.go (+ *_test.go) + mocks/
+└── …
+
+internal/adapter/<vendor>/   # one package per external system; adapter.go + method files + mocks/
+internal/app/api/<name>/     # transport: service.go + one RPC per file + mapper/errors/register/gateway
+```
+
+External reference: Ozon `search-performance` (full mature CQRS service).
+Nordly exemplars: `services/template` (query), `services/billing` (commands + Store port).
+
+## File declaration order (within a `.go` file)
+
+Match search-performance / Uber-style readability — **top → bottom**:
+
+1. `//go:generate` mockery lines (above or immediately after `package`)
+2. `package`
+3. `import`
+4. `const` / `var` (package-level)
+5. **Interfaces** (consumer-side ports for *this* package)
+6. **Config / Deps** struct (constructor input)
+7. **Handler / Adapter / Implementation / concrete** struct
+8. **`New` / `NewHandler` / `NewAdapter`** constructor
+9. **Exported methods** (`Handle`, public API) — one concern; keep helpers below
+10. **Unexported helpers** last
+
+| Kind | Files | Order inside |
+|------|-------|--------------|
+| Usecase command | `command.go` → `Command` + `Validate()` (+ small helpers) | then `handler.go` → ports → Config → Handler → New → Handle → private |
+| Usecase query | `query.go` → `Query` + `Validate()` | then `handler.go` same as command |
+| Domain service | `service.go` → `Service` interface → concrete struct → `Deps` → `New` | one method file per op when large |
+| Transport | `service.go` → domain `Service` iface → `Implementation` → `New` | one RPC file = thin map → call → map error |
+| Adapter | `adapter.go` → ports → `Adapter` → `New` | one method file per remote call |
+| Repository | `store.go` → `Store` port + `var _ Store = (*Repository)(nil)` | concrete methods in other files |
+
 ## Conventions
 
-- **Consumer-side interfaces**: declare the narrow interface a handler needs in the
-  handler package; the concrete repo/adapter satisfies it. Never depend on a concrete
-  `*Repository` from the service/usecase layer.
-- **Mocks**: `//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter`
-  on each port; run `go generate ./...` after changing an interface. **Never** hand-write
-  `fakeRepo` / `stubBilling` structs in tests — only generated `mocks/` (+ expecters).
-  Thin `pgx.Row`-style driver stubs are the only exception.
-- **Prefer `slices`**: `Clone`, `Contains`/`ContainsFunc`, `Index`/`IndexFunc`, `DeleteFunc` over manual loops.
-- **No redundant conditions**: do not guard required wired deps or already-validated inputs “just in case”.
-- **Validation**: each `Command`/`Query` has a `Validate()`; missing/bad input wraps a
-  sentinel (`ErrInvalidArgument`/`ErrInvalidInput`), mapped to gRPC `InvalidArgument`.
-- **Errors**: wrap with `%w`; domain sentinels live in `model/errors.go` (shared by
-  service + usecase to avoid import cycles); transport `mapServiceError` maps them to codes.
-- **Transactions**: multi-write operations use the repository `WithTx(ctx, fn)` +
-  context-aware connection (`conn(ctx)`); idempotency guards (outbox/processed_events)
-  run inside the transaction (INSERT ... ON CONFLICT DO NOTHING RETURNING).
-- **Quotas / external side effects**: gate (no consume) before work; consume after the
-  durable write succeeds; compensate on later failure.
+### Consumer-side interfaces
+
+Declare the **narrow** interface a handler/service needs in *that* package. The concrete
+repo/adapter satisfies it. Never import `*repository.Repository` from usecase/service.
+
+```go
+// DO — in usecase/command/foo/handler.go
+type Store interface {
+    GetNote(ctx context.Context, id string) (*model.Note, error)
+    SaveNote(ctx context.Context, n *model.Note) error
+}
+
+// DON'T — depend on the whole concrete type
+func New(repo *repository.Repository) *Handler // too wide; couples to Postgres
+```
+
+### Mocks — mockery only
+
+```go
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Store
+```
+
+- Run `go generate ./...` after changing a port interface.
+- **Never** hand-write `fakeRepo` / `stubBilling` / `mockStore` structs in `*_test.go`.
+- Use generated `mocks/` + expecters only.
+- Exception: thin `pgx.Row` / `pgx.Rows` driver stubs when testing SQL scanning.
+- When editing a package that still has handmade fakes, rewrite those tests to mockery
+  **in the same change set**.
+
+```go
+// DO
+store := mocks.NewStore(t)
+store.EXPECT().GetNote(mock.Anything, "id").Return(note, nil)
+
+// DON'T
+type fakeStore struct{ note *model.Note }
+func (f *fakeStore) GetNote(...) (*model.Note, error) { return f.note, nil }
+```
+
+### Prefer `slices` / `sort`
+
+| Instead of | Use |
+|------------|-----|
+| manual `for` + `append` clone | `slices.Clone(s)` |
+| membership `for` loop | `slices.Contains` / `ContainsFunc` |
+| find index loop | `slices.Index` / `IndexFunc` |
+| filter-in-place loop | `slices.DeleteFunc` |
+| `sort.Slice(s, func(i,j int) bool { return s[i].X < s[j].X })` | `slices.SortFunc` / `SortStableFunc` |
+
+Do **not** replace a clear domain loop that does more than clone/filter/sort with a
+forced `slices` call — idioms first, cleverness never.
+
+### Fail at construction; delete dead branches
+
+- Required deps: reject in `config.Load()`, `cmd/*/app/run.go`, or `New(Deps)` /
+  `NewHandler(Config)` (panic or return error). **No** `if deps.X == nil { return Err… }`
+  mid-`Handle`.
+- After `Validate()` / constructor invariants, do not re-check the same conditions
+  “just in case”.
+- If a branch cannot run given prior validation, **delete it**.
+
+```go
+// DO
+func New(deps Deps) *Handler {
+    if deps.Store == nil {
+        panic("foo.Handler: Store is required")
+    }
+    return &Handler{store: deps.Store}
+}
+
+// DON'T — mid-request nil guard on a wired dep
+func (h *Handler) Handle(ctx context.Context, cmd Command) error {
+    if h.store == nil {
+        return errors.New("store not configured")
+    }
+    ...
+}
+```
+
+### No unused fields; no redundant SQL
+
+- Remove model/DTO/struct fields that nothing reads or maps to proto/DB.
+- Do not `SELECT` columns the caller never uses; do not run a second query for data
+  already loaded in the same flow.
+- Delete dead RPCs/proto fields at the root (proto → gen → transport → service → repo),
+  verified against clients — see fail-fast rule.
+
+### Transport, validation, errors
+
+- **Transport mappers**: panic (or error before map) on nil required entities — never
+  return empty proto as success.
+- **Validation**: each `Command`/`Query` has `Validate()`; missing/bad input wraps a
+  sentinel (`ErrInvalidArgument`/`ErrInvalidInput`) → gRPC `InvalidArgument`.
+- **Errors**: wrap with `%w`; domain sentinels in `model/errors.go` (shared by service +
+  usecase); transport `mapServiceError` maps them to codes.
+- **Transactions**: multi-write → repository `WithTx(ctx, fn)` + `conn(ctx)`;
+  idempotency (outbox/processed_events) inside the tx.
+- **Quotas / side effects**: gate before work; consume after durable write; compensate
+  on later failure.
 - **One RPC per transport file**; thin handlers (validate → call service → map error).
-- **Typed enums, not raw strings**: finite domain values (status, type, mode, priority) use
-  proto `enum` in `.proto`, typed aliases in `model/enums.go` (DB/API wire values as snake_case
-  string constants), and `internal/app/api/<name>/proto_enums.go` for domain↔proto mapping.
-  Do not expose bare `string` fields for closed sets in public API or domain models. Reference:
-  `services/interview/internal/interview/model/enums.go`, `services/recommendation/internal/recommendation/model/enums.go`.
+- **Typed enums, not raw strings**: proto `enum` + `model/enums.go` snake_case constants
+  + `proto_enums.go` mapping. No bare `string` for closed sets in public API/domain.
 - English code/logs/comments; user commits manually; minimal diffs.
+
+## DO / DON'T (quick reference)
+
+| DO | DON'T |
+|----|-------|
+| Narrow consumer-side port in handler package | Depend on `*repository.Repository` from usecase |
+| `//go:generate mockery` + `mocks.NewX(t)` expecters | Hand-write `fakeRepo` / `stubX` in tests |
+| `slices.Contains` / `SortFunc` / `Clone` / `DeleteFunc` | Manual membership/sort/clone boilerplate |
+| Panic/error in `New`/`Load` on missing required dep | `if s.repo == nil` inside `Handle` |
+| Delete unreachable branches after `Validate()` | Keep “defensive” invent-default arms |
+| Drop unused struct fields and unused `SELECT`s | Leave dead DTO fields “for later” |
+| Extract complex writes into `usecase/command/<op>/` | Big-bang rewrite of whole service |
+| Keep trivial CRUD reads inline in service | Over-engineer every Get into a query package |
 
 ## Migration posture
 

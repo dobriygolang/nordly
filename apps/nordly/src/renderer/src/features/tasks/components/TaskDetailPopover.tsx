@@ -5,15 +5,20 @@ import { useT } from '@nordly-i18n';
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
-import { isCloudEnabled } from '@shared/model/features';
+import {
+  isGoogleIntegrationAvailable,
+  isZoomIntegrationAvailable,
+} from '@shared/model/features';
 import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
-import { isEpicActive, taskHasEpic } from '@features/tasks/lib/epicColor';
+import { isEpicActive, tagDisplayName, taskHasEpic } from '@features/tasks/lib/epicColor';
 import { conferenceProvider } from '@features/tasks/lib/taskUi';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 function openConferenceLink(url: string): void {
-  void navigator.clipboard.writeText(url).catch(() => undefined);
+  void navigator.clipboard.writeText(url).catch((err) => {
+    console.warn('[taskDetail] clipboard write failed', err);
+  });
   openExternalUrl(url);
 }
 
@@ -30,7 +35,7 @@ interface TaskDetailPopoverProps {
   onClose: () => void;
 }
 
-/** Compact row-attached toolbar — epic dots, video, delete. */
+/** Compact row-attached toolbar — tag dots, video, delete. */
 export function TaskDetailPopover({
   task,
   epics,
@@ -50,10 +55,11 @@ export function TaskDetailPopover({
   const provider = conferenceProvider(task.conferenceUrl, task.conferenceProvider);
 
   const googleReady =
-    isCloudEnabled() &&
+    isGoogleIntegrationAvailable() &&
     Boolean(settings?.googleCalendarConnected && !settings.googleReauthRequired);
   const zoomReady =
-    isCloudEnabled() && Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
+    isZoomIntegrationAvailable() &&
+    Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
 
   useEscapeLayer(onClose, !closing);
 
@@ -72,8 +78,12 @@ export function TaskDetailPopover({
   }, [onClose, anchorRef, closing]);
 
   const handleCreate = async (p: ConferenceProvider): Promise<void> => {
-    if (!isCloudEnabled()) {
-      setError(t('nordly.taskboard.detail_cloud_required'));
+    if (p === 'meet' && !isGoogleIntegrationAvailable()) {
+      setError(t('nordly.taskboard.detail_connect_google'));
+      return;
+    }
+    if (p === 'zoom' && !isZoomIntegrationAvailable()) {
+      setError(t('nordly.taskboard.detail_connect_zoom'));
       return;
     }
     if (p === 'meet' && !googleReady) {
@@ -90,9 +100,11 @@ export function TaskDetailPopover({
       await onCreateConference(p);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      if (msg.includes('google_not_connected')) setError(t('nordly.taskboard.detail_connect_google'));
-      else if (msg.includes('zoom_not_connected')) setError(t('nordly.taskboard.detail_connect_zoom'));
-      else if (msg.includes('task_not_synced')) setError(t('nordly.taskboard.detail_sync_task_first'));
+      if (msg.includes('google_not_connected') || msg.includes('google_reauth_required')) {
+        setError(t('nordly.taskboard.detail_connect_google'));
+      } else if (msg.includes('zoom_not_connected') || msg.includes('zoom_reauth_required')) {
+        setError(t('nordly.taskboard.detail_connect_zoom'));
+      } else if (msg.includes('task_not_synced')) setError(t('nordly.taskboard.detail_sync_task_first'));
       else if (msg.includes('conference_not_available')) setError(t('nordly.taskboard.detail_conference_unavailable'));
       else setError(t('nordly.taskboard.detail_conference_error'));
     } finally {
@@ -100,7 +112,7 @@ export function TaskDetailPopover({
     }
   };
 
-  const handleEpicPick = (epic: TaskEpic): void => {
+  const handleTagPick = (epic: TaskEpic): void => {
     const active = isEpicActive(task, epic);
     if (active) {
       onEpicChange(null);
@@ -123,12 +135,12 @@ export function TaskDetailPopover({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="nordly-task-detail-pop__toolbar" role="toolbar" aria-label={t('nordly.taskboard.detail_aria')}>
-        <div className="nordly-task-detail-pop__epics" role="listbox" aria-label={t('nordly.taskboard.detail_epic')}>
+        <div className="nordly-task-detail-pop__epics" role="listbox" aria-label={t('nordly.taskboard.detail_tag')}>
           <button
             type="button"
             role="option"
             aria-selected={!taskHasEpic(task)}
-            title={t('nordly.taskboard.detail_epic_none')}
+            title={t('nordly.taskboard.detail_tag_none')}
             className={`nordly-task-detail-pop__epic-dot-btn${!taskHasEpic(task) ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
             onClick={() => onEpicChange(null)}
           >
@@ -136,16 +148,17 @@ export function TaskDetailPopover({
           </button>
           {epics.map((epic) => {
             const active = isEpicActive(task, epic);
+            const label = tagDisplayName(epic, t);
             return (
               <button
                 key={epic.id}
                 type="button"
                 role="option"
                 aria-selected={active}
-                title={epic.name || epic.color}
+                title={label}
                 className={`nordly-task-detail-pop__epic-dot-btn${active ? ' nordly-task-detail-pop__epic-dot-btn--active' : ''}`}
                 style={{ '--epic-color': epic.color } as React.CSSProperties}
-                onClick={() => handleEpicPick(epic)}
+                onClick={() => handleTagPick(epic)}
               >
                 <span className="nordly-task-detail-pop__epic-dot" aria-hidden />
               </button>

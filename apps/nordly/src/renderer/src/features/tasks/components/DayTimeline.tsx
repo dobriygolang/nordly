@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocale, useT } from '@nordly-i18n';
 
@@ -15,12 +15,16 @@ import {
   useAppleCalendarEvents,
   useGoogleCalendarConnection,
   useGoogleCalendarEvents,
+  useCalendarRangeSelect,
+  CALENDAR_GRID_END_HOUR,
+  CALENDAR_GRID_START_HOUR,
+  CALENDAR_TIME_SNAP_MIN,
   type CalendarEntry,
 } from '@features/calendar/api/calendar';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
-import { isCloudEnabled } from '@shared/model/features';
+import { isGoogleIntegrationAvailable } from '@shared/model/features';
 import { readSettings } from '@shared/model/settings';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
 import { useVerticalResize } from '@shared/lib/useVerticalResize';
@@ -33,14 +37,15 @@ import {
 } from '@shared/lib/dates';
 import { epicTimelineSurfaceStyle, resolveTaskEpicColor } from '@features/tasks/lib/taskUi';
 
-const HOUR_START = 6;
-const HOUR_END = 23;
-const HOUR_COUNT = HOUR_END - HOUR_START + 1;
+/** Visible day hours — same daytime window as the week calendar grid. */
+const HOUR_START = CALENDAR_GRID_START_HOUR;
+const HOUR_END = CALENDAR_GRID_END_HOUR - 1;
+const HOUR_COUNT = CALENDAR_GRID_END_HOUR - CALENDAR_GRID_START_HOUR;
 const HOUR_PX_DEFAULT = 52;
-const HOUR_PX_MIN = 22;
+const HOUR_PX_MIN = 28;
 const GRID_PAD_TOP = 12;
 const GRID_PAD_BOTTOM = 24;
-const MIN_DURATION_MIN = 15;
+const MIN_DURATION_MIN = CALENDAR_TIME_SNAP_MIN;
 const MAX_DURATION_MIN = 480;
 
 interface DayTimelineProps {
@@ -49,6 +54,8 @@ interface DayTimelineProps {
   epics: TaskEpic[];
   onReschedule?: (task: TaskCard, start: Date) => void;
   onDurationChange?: (task: TaskCard, durationMin: number) => void;
+  /** Drag / double-click empty lane to create a scheduled task (same as week calendar). */
+  onCreateRange?: (start: Date, end: Date) => void;
   /** When false, use fixed hour height and scroll (full 06:00–23:00). Default: true (compress to fit). */
   fitToHeight?: boolean;
   className?: string;
@@ -84,6 +91,7 @@ export const DayTimeline = memo(function DayTimeline({
   epics,
   onReschedule,
   onDurationChange,
+  onCreateRange,
   fitToHeight = true,
   className,
 }: DayTimelineProps) {
@@ -104,7 +112,7 @@ export const DayTimeline = memo(function DayTimeline({
   }, [date]);
 
   const { connected, ready: connectionReady } = useGoogleCalendarConnection();
-  const googleEnabled = isCloudEnabled() && connected && connectionReady;
+  const googleEnabled = isGoogleIntegrationAvailable() && connected && connectionReady;
   const appleCalendarEnabled = readSettings().appleCalendarEnabled;
   const { events: googleEvents } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
   const { events: appleEvents } = useAppleCalendarEvents(
@@ -160,11 +168,38 @@ export const DayTimeline = memo(function DayTimeline({
     const meetingEntries = calendarEntries.filter(
       (e) => !e.allDay && toDayKey(e.start) === dayKey,
     );
-    return layoutTimedEntriesForDay([...meetingEntries, ...taskEntries], hourPx);
+    return layoutTimedEntriesForDay(
+      [...meetingEntries, ...taskEntries],
+      hourPx,
+      HOUR_START,
+      HOUR_END + 1,
+    );
   }, [calendarEntries, planned, dayKey, hourPx]);
 
   const hoursHeight = HOUR_COUNT * hourPx;
   const gridHeight = hoursHeight + GRID_PAD_TOP + GRID_PAD_BOTTOM;
+
+  const onCreateRangeRef = useRef(onCreateRange);
+  onCreateRangeRef.current = onCreateRange;
+
+  const { selection: rangeSelection, onColumnPointerDown } = useCalendarRangeSelect({
+    hourHeight: hourPx,
+    gridHeight: hoursHeight,
+    onCommit: ({ start, end }) => onCreateRangeRef.current?.(start, end),
+  });
+
+  const createFromSlot = useCallback(
+    (offsetTop: number) => {
+      if (!onCreateRange) return;
+      const startH = offsetTop / hourPx + HOUR_START;
+      const min = snapMinutes(startH * 60, CALENDAR_TIME_SNAP_MIN);
+      const start = startOfLocalDay(date);
+      start.setHours(Math.floor(min / 60), min % 60, 0, 0);
+      const end = new Date(start.getTime() + CALENDAR_TIME_SNAP_MIN * 60_000);
+      onCreateRange(start, end);
+    },
+    [date, hourPx, onCreateRange],
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -269,6 +304,34 @@ export const DayTimeline = memo(function DayTimeline({
             </div>
           ))}
 
+          {onCreateRange ? (
+            <div
+              className="nordly-day-timeline__create-lane"
+              style={{
+                position: 'absolute',
+                top: GRID_PAD_TOP,
+                left: 0,
+                right: 0,
+                height: hoursHeight,
+                zIndex: 0,
+                touchAction: 'none',
+              }}
+              onPointerDown={(e) => onColumnPointerDown(dayKey, e)}
+              onDoubleClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                createFromSlot(e.clientY - rect.top);
+              }}
+            >
+              {rangeSelection?.dayKey === dayKey ? (
+                <div
+                  className="nordly-calendar-selection"
+                  style={{ top: rangeSelection.top, height: rangeSelection.height }}
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+          ) : null}
+
           {showNow && now.getHours() >= HOUR_START && now.getHours() <= HOUR_END && (
             <div
               style={{
@@ -316,7 +379,7 @@ export const DayTimeline = memo(function DayTimeline({
               const isResizing = resizeId === task.id;
               const top = Math.max(minTop, Math.min(isDragging ? dragTop : baseTop, maxTop));
               const height = isResizing ? resizeHeight : baseHeight;
-              const minHeight = Math.max(28, (MIN_DURATION_MIN / 60) * hourPx);
+              const minHeight = (MIN_DURATION_MIN / 60) * hourPx;
               const maxHeight = Math.max(minHeight, gridBottom - top);
               const done = task.status === 'done';
               const canDrag = Boolean(onReschedule);
@@ -327,14 +390,17 @@ export const DayTimeline = memo(function DayTimeline({
                 : null;
 
               const commitMove = (finalTop: number) => {
-                const min = snapMinutes(((finalTop - GRID_PAD_TOP) / hourPx + HOUR_START) * 60);
+                const min = snapMinutes(
+                  ((finalTop - GRID_PAD_TOP) / hourPx + HOUR_START) * 60,
+                  CALENDAR_TIME_SNAP_MIN,
+                );
                 const next = startOfLocalDay(date);
                 next.setHours(Math.floor(min / 60), min % 60, 0, 0);
                 onReschedule?.(task, next);
               };
 
               const commitResize = (finalHeight: number) => {
-                const snapped = snapMinutes((finalHeight / hourPx) * 60, 15);
+                const snapped = snapMinutes((finalHeight / hourPx) * 60, CALENDAR_TIME_SNAP_MIN);
                 const nextDuration = Math.max(
                   MIN_DURATION_MIN,
                   Math.min(MAX_DURATION_MIN, snapped),

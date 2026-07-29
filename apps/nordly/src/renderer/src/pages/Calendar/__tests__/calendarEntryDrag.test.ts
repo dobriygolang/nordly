@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@features/calendar/api/calendar', () => ({
   CALENDAR_GRID_START_HOUR: 6,
+  CALENDAR_TIME_SNAP_MIN: 30,
   refreshGoogleCalendarCache: vi.fn(),
   updateGoogleCalendarEvent: vi.fn(),
 }));
 vi.mock('@shared/lib/dates', () => ({
-  snapMinutes: (minutes: number) => Math.round(minutes / 15) * 15,
+  snapMinutes: (minutes: number, step = 30) => Math.round(minutes / step) * step,
 }));
 
 import type {
@@ -53,6 +54,7 @@ describe('moveCalendarEntry', () => {
       googleEditable: true,
     };
 
+    // Grid starts at 06:00 — 9:00 sits 3 hours down.
     const result = await moveCalendarEntry(entry, 3 * 60, 60, deps);
 
     expect(result).toBe('google');

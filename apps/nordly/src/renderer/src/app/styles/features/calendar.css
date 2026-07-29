@@ -289,7 +289,7 @@
 .nordly-calendar-event {
   position: absolute;
   z-index: 1;
-  padding: 4px 6px;
+  padding: 1px 6px;
   border-radius: 6px;
   border: 1px solid var(--ink-tint-08);
   background: rgb(var(--ink-rgb) / 0.12);
@@ -300,6 +300,8 @@
   left: 4px;
   right: 4px;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 .nordly-calendar-event[data-source='google'] {
   background: rgb(66 133 244 / 0.18);
@@ -330,9 +332,10 @@ button.nordly-calendar-event:hover {
 }
 .nordly-calendar-event__title {
   display: block;
+  width: 100%;
   font-size: 11px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

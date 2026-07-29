@@ -103,7 +103,7 @@ export function formatDurationShort(totalMin: number): string {
   return `${h}h ${m}m`;
 }
 
-/** Snap a minutes-of-day value to the nearest step (default 5 min). */
+/** Snap a minutes-of-day value to the nearest step (default 5 min). Calendar grids pass 30. */
 export function snapMinutes(totalMin: number, step = 5): number {
   return Math.round(totalMin / step) * step;
 }

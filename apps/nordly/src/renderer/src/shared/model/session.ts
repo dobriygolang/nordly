@@ -5,7 +5,6 @@
 import { create } from 'zustand';
 
 import { setDbUserId } from '@shared/db/nordlyDb';
-import { rebindDbUserId } from '@shared/db/rebindUserId';
 import { lockVault } from '@shared/crypto/vault';
 import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
@@ -70,31 +69,14 @@ function clearLocalAuthBannerDismissed(): void {
   }
 }
 
-async function migrateVaultPassphrase(fromUserId: string, toUserId: string): Promise<void> {
-  if (fromUserId === toUserId) return;
-  const bridge = window.nordly?.vault;
-  if (!bridge) {
-    try {
-      const fromKey = `nordly:vault-pass:${fromUserId}`;
-      const toKey = `nordly:vault-pass:${toUserId}`;
-      const pass = window.sessionStorage.getItem(fromKey);
-      if (pass) {
-        window.sessionStorage.setItem(toKey, pass);
-        window.sessionStorage.removeItem(fromKey);
-      }
-    } catch (err) {
-      console.warn('[nordly:session] vault passphrase migrate failed', err);
-    }
-    return;
-  }
+async function clearDeviceOAuthBestEffort(userId: string | null): Promise<void> {
+  if (!userId) return;
+  if (!window.nordly?.oauth) return;
   try {
-    const pass = await bridge.passLoad(fromUserId);
-    if (pass) {
-      await bridge.passSave(toUserId, pass);
-      await bridge.passClear(fromUserId);
-    }
+    const { clearAllDeviceOAuth } = await import('@shared/integrations/oauthTokens');
+    await clearAllDeviceOAuth(userId);
   } catch (err) {
-    console.warn('[nordly:session] vault passphrase migrate failed', err);
+    console.warn('[nordly:session] device OAuth clear failed', err);
   }
 }
 
@@ -197,7 +179,7 @@ interface SessionState {
     expiresAt: number;
   }) => Promise<void>;
 
-  /** Clears cloud tokens and returns to a local profile (same IDB scope when possible). */
+  /** Clears cloud tokens, device OAuth, and starts a fresh local profile id. */
   clear: (opts?: { skipNativeLogout?: boolean }) => Promise<void>;
 
   /** Updates tokens after refresh — persists to browser + keychain. */
@@ -340,11 +322,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     };
 
     const current = get();
-    if (current.authKind === 'local' && current.userId && current.userId !== userId) {
-      await rebindDbUserId(current.userId, userId);
-      await migrateVaultPassphrase(current.userId, userId);
-      clearVaultPrefsCache();
-    } else if (current.userId !== userId) {
+    // Never silently merge another profile's IndexedDB into this cloud account.
+    // Shared-OS logins must not inherit prior local/cloud rows via rebind.
+    if (current.userId && current.userId !== userId) {
+      await clearDeviceOAuthBestEffort(current.userId);
       lockVault();
       clearVaultPrefsCache();
     }
@@ -385,6 +366,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   clear: async (opts) => {
     sessionPersistEpoch += 1;
+    const previousUserId = get().userId;
     clearBrowserPersist();
     lockVault();
     clearVaultPrefsCache();
@@ -392,6 +374,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useSyncStore.getState().setCloudSyncBlocked(false);
     useFeatureUsageStore.getState().setDeviceRegistration(null);
     clearLocalAuthBannerDismissed();
+    await clearDeviceOAuthBestEffort(previousUserId);
     try {
       const { resetAuthRefreshState, rejectPendingCloudAuth } = await import('@shared/api/authSession');
       resetAuthRefreshState();
@@ -410,7 +393,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
       resetDeviceRegisterCache();
     });
-    // Keep the same IDB scope (localProfileUserId was updated on cloud login).
+    // New local profile id — do not leave the previous cloud/local IDB scope active
+    // for the next person who signs in on this Mac.
+    writeStoredLocalProfileId(crypto.randomUUID());
     get().ensureLocalProfile();
   },
 }));

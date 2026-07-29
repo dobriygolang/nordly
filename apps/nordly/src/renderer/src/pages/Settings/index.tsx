@@ -13,8 +13,15 @@ import { ShortcutsSection } from './sections/ShortcutsSection';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
 import { VaultSection } from './sections/VaultSection';
+import { FilesAndLinksSection } from './sections/FilesAndLinksSection';
 
-type SectionId = 'general' | 'integrations' | 'vault' | 'shortcuts' | 'about';
+type SectionId =
+  | 'general'
+  | 'integrations'
+  | 'files_links'
+  | 'vault'
+  | 'shortcuts'
+  | 'about';
 
 interface NavItem {
   id: SectionId;
@@ -25,6 +32,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: 'general', icon: 'settings', labelKey: 'nordly.settings.nav.general' },
   { id: 'integrations', icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
+  { id: 'files_links', icon: 'folder', labelKey: 'nordly.settings.nav.files_links' },
   { id: 'vault', icon: 'lock', labelKey: 'nordly.settings.nav.vault' },
   { id: 'shortcuts', icon: 'command', labelKey: 'nordly.settings.nav.shortcuts' },
   { id: 'about', icon: 'info', labelKey: 'nordly.settings.nav.about' },
@@ -85,7 +93,20 @@ export function SettingsPage(props: SettingsPageProps) {
             </>
           )}
 
-          {section === 'vault' && <VaultSection />}
+          {section === 'files_links' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.files_links')}</h1>
+              <FilesAndLinksSection />
+            </>
+          )}
+
+
+          {section === 'vault' && (
+            <>
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.vault')}</h1>
+              <VaultSection />
+            </>
+          )}
 
           {section === 'shortcuts' && (
             <>

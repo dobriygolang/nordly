@@ -59,11 +59,13 @@ Same policy as repo root [fail-fast-no-fallbacks.mdc](../../../.cursor/rules/fai
 - **Cloud mode:** `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter `LOCAL_ONLY` or duplicate guards.
 - **JSON API:** grpc-gateway protojson uses camelCase — use `shared/api/json.ts` (`requireJsonString`, etc.). No dual `camelCase ?? snake_case` reads.
 - **Login:** bot username from `GET /v1/auth/config` only — no `VITE_TELEGRAM_BOT_USERNAME` fallback.
-- **Share links:** `requireNordlyWebBaseUrl()` — set `VITE_NORDLY_WEB_BASE` (CI release sets prod URL).
+- **Share links:** use `invite.url` / publish `url` from rooms API responses (canonical live host: `code.trynordly.app`).
 - **Deep links:** `task.open?id=…`, `note.open?id=…` only (no legacy `task` / `note` query aliases).
 - **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / throw / inline on intentional online actions). `SyncStatusBanner` is reauth-only; no passive offline/unreachable banners. Do not `catch {}` and refresh silently.
 - **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
 - **No redundant conditions:** do not nest “just in case” branches or invent defaults after a failed read; throw or surface empty honest state.
+- **Storage / clipboard:** log failures (`console.warn`) — do not empty-`catch` quota or permission errors.
+- **Import / sync payloads:** reject empty required fields (e.g. markdown import title) instead of inventing `"Untitled"`.
 - **Tests:** Vitest — `vi.fn` / `vi.mock` / shared harness only. Do **not** hand-write stub classes that re-implement feature ports; prefer mocking the module under test’s imports.
 
 ## Renderer layering

@@ -51,9 +51,11 @@ export function taskIsMeeting(task: { conferenceUrl?: string | null }): boolean 
 }
 
 export const CALENDAR_GRID_START_HOUR = 6;
-/** Exclusive end hour — labels run through 11 PM (matches task board timeline). */
+/** Exclusive end hour — daytime grid through 23:00 (labels 6 AM–11 PM). */
 export const CALENDAR_GRID_END_HOUR = 24;
 export const CALENDAR_HOUR_HEIGHT_PX = 52;
+/** Click / drag snap on day grids — half-hour slots (:00 / :30), Google Calendar style. */
+export const CALENDAR_TIME_SNAP_MIN = 30;
 
 const VISIBLE_TASK_STATUSES = new Set(['todo', 'in_progress', 'in_review', 'done']);
 
@@ -327,6 +329,8 @@ export function entriesForYear(entries: CalendarEntry[], year: number): Calendar
 export function eventBlockLayout(
   entry: CalendarEntry,
   hourHeight = CALENDAR_HOUR_HEIGHT_PX,
+  gridStartHour = CALENDAR_GRID_START_HOUR,
+  gridEndHour = CALENDAR_GRID_END_HOUR,
 ): { top: number; height: number } | null {
   if (entry.allDay) return null;
 
@@ -336,20 +340,22 @@ export function eventBlockLayout(
     endH = startH + Math.max(0.5, (entry.end.getTime() - entry.start.getTime()) / 3_600_000);
   }
 
-  const gridSpan = CALENDAR_GRID_END_HOUR - CALENDAR_GRID_START_HOUR;
+  const gridSpan = gridEndHour - gridStartHour;
   const maxTop = gridSpan * hourHeight;
-  let top = (startH - CALENDAR_GRID_START_HOUR) * hourHeight;
-  let height = Math.max((endH - startH) * hourHeight, 22);
+  let top = (startH - gridStartHour) * hourHeight;
+  // True duration height — no large floor (that blocked ~30m blocks on compressed grids).
+  let height = Math.max((endH - startH) * hourHeight, 12);
 
   if (top < 0) {
     height += top;
     top = 0;
   }
+  if (height <= 0) return null;
   if (top >= maxTop) {
-    top = Math.max(0, maxTop - 22);
-    height = 22;
+    top = Math.max(0, maxTop - 12);
+    height = 12;
   } else if (top + height > maxTop) {
-    height = Math.max(22, maxTop - top);
+    height = Math.max(12, maxTop - top);
   }
 
   return { top, height };
@@ -396,6 +402,8 @@ function timedEventsOverlap(a: CalendarEntry, b: CalendarEntry): boolean {
 export function layoutTimedEntriesForDay(
   entries: CalendarEntry[],
   hourHeight = CALENDAR_HOUR_HEIGHT_PX,
+  gridStartHour = CALENDAR_GRID_START_HOUR,
+  gridEndHour = CALENDAR_GRID_END_HOUR,
 ): TimedEventLayout[] {
   const timed = entries.filter((e) => !e.allDay);
   if (timed.length === 0) return [];
@@ -459,7 +467,7 @@ export function layoutTimedEntriesForDay(
 
     const columnCount = Math.max(1, columnEnds.length);
     for (const entry of group) {
-      const block = eventBlockLayout(entry, hourHeight);
+      const block = eventBlockLayout(entry, hourHeight, gridStartHour, gridEndHour);
       if (!block) continue;
       out.push({
         entry,

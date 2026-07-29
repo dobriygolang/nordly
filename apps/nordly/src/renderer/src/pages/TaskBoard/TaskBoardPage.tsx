@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useT } from '@nordly-i18n';
+import { useLocale, useT } from '@nordly-i18n';
 
 import {
   listTasks,
@@ -18,7 +18,6 @@ import {
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { useSyncStore } from '@shared/model/sync';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import { isRecoverableTaskActionError } from '@features/tasks/lib/taskActionErrors';
@@ -28,6 +27,8 @@ import { useDayTaskDnd } from '@features/tasks/lib/useDayTaskDnd';
 import { useHorizontalPanScroll } from './useHorizontalPanScroll';
 import { DAY_COL_GAP, useInfiniteDayScroll } from './useInfiniteDayScroll';
 import { DayTimeline } from '@features/tasks/components/DayTimeline';
+import { CalendarEventEditor } from '@pages/Calendar/CalendarEventEditor';
+import { useCalendarEditor } from '@pages/Calendar/useCalendarEditor';
 import {
   applyTimeFromDay,
   buildDefaultScheduleDate,
@@ -66,6 +67,7 @@ export function TaskBoardPage({
   onConsumeOpenRequest,
 }: TaskBoardPageProps = {}): JSX.Element {
   const t = useT();
+  const [locale] = useLocale();
   const todayKey = useTodayKey();
   const today = useMemo(() => parseDayKey(todayKey), [todayKey]);
   const { days, scrollRef, showBackToToday, scrollToToday, ensureDayVisible, expandRangeForDayKeys } =
@@ -117,7 +119,6 @@ export function TaskBoardPage({
   );
 
   const loadSettings = useCallback(async () => {
-    if (!isCloudApiAvailable()) return;
     setTrackerSettings(await getTrackerSettings());
   }, []);
 
@@ -466,6 +467,20 @@ export function TaskBoardPage({
     [handleDurationChange, today],
   );
 
+  const {
+    editor: createEditor,
+    saving: createSaving,
+    openTaskRange,
+    setTitle: setCreateTitle,
+    close: closeCreateEditor,
+    save: saveCreateEditor,
+    deleteEvent: deleteCreateEditor,
+  } = useCalendarEditor({
+    refreshTasks: refresh,
+    onError: failTaskAction,
+    onGoogleError: failTaskAction,
+  });
+
   const handleBackToToday = useCallback(() => {
     scrollToToday();
     setSelectedDay(todayKey);
@@ -567,7 +582,20 @@ export function TaskBoardPage({
         epics={epics}
         onReschedule={handleTimelineReschedule}
         onDurationChange={handleTimelineDurationChange}
+        onCreateRange={openTaskRange}
       />
+
+      {createEditor ? (
+        <CalendarEventEditor
+          editor={createEditor}
+          saving={createSaving}
+          locale={locale}
+          onTitleChange={setCreateTitle}
+          onSave={() => void saveCreateEditor()}
+          onDelete={() => void deleteCreateEditor()}
+          onClose={closeCreateEditor}
+        />
+      ) : null}
 
       {showBackToToday && (
         <div className="nordly-back-to-today-anchor">

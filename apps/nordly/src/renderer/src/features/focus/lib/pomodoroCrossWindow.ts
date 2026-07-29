@@ -3,6 +3,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import { isTauriRuntime } from '@platform/runtime';
 import { listenEffects } from '@shared/lib/tauriListen';
 import {
+  parseFocusTimerMode,
   usePomodoroStore,
   type FocusTimerMode,
 } from '@shared/model/pomodoro';
@@ -114,48 +115,53 @@ export function initPomodoroFollower(): () => void {
 
   const bridge = window.nordly;
   if (bridge) {
-    void bridge.pomodoro.load().then((snap) => {
-      if (!snap) return;
-      const mode: FocusTimerMode = snap.mode === 'stopwatch' ? 'stopwatch' : 'pomodoro';
-      const elapsedMs = Date.now() - snap.savedAt;
-      if (mode === 'pomodoro') {
-        if (snap.running && elapsedMs >= snap.remainSec * 1000) {
+    void bridge.pomodoro
+      .load()
+      .then((snap) => {
+        if (!snap) return;
+        const mode = parseFocusTimerMode(snap.mode);
+        const elapsedMs = Date.now() - snap.savedAt;
+        if (mode === 'pomodoro') {
+          if (snap.running && elapsedMs >= snap.remainSec * 1000) {
+            applyPayload({
+              mode,
+              remain: 0,
+              elapsed: 0,
+              running: false,
+              durationSec: usePomodoroStore.getState().durationSec,
+            });
+            void emit(POMODORO_EXPIRED_EVENT, {});
+            syncLocalTick();
+            return;
+          }
+          const adjusted = snap.running
+            ? Math.max(0, snap.remainSec - Math.floor(elapsedMs / 1000))
+            : snap.remainSec;
           applyPayload({
             mode,
-            remain: 0,
+            remain: adjusted,
             elapsed: 0,
-            running: false,
+            running: snap.running,
             durationSec: usePomodoroStore.getState().durationSec,
           });
-          void emit(POMODORO_EXPIRED_EVENT, {});
           syncLocalTick();
           return;
         }
         const adjusted = snap.running
-          ? Math.max(0, snap.remainSec - Math.floor(elapsedMs / 1000))
+          ? Math.max(0, snap.remainSec + Math.floor(elapsedMs / 1000))
           : snap.remainSec;
         applyPayload({
           mode,
-          remain: adjusted,
-          elapsed: 0,
+          remain: 0,
+          elapsed: adjusted,
           running: snap.running,
           durationSec: usePomodoroStore.getState().durationSec,
         });
         syncLocalTick();
-        return;
-      }
-      const adjusted = snap.running
-        ? Math.max(0, snap.remainSec + Math.floor(elapsedMs / 1000))
-        : snap.remainSec;
-      applyPayload({
-        mode,
-        remain: 0,
-        elapsed: adjusted,
-        running: snap.running,
-        durationSec: usePomodoroStore.getState().durationSec,
+      })
+      .catch((err: unknown) => {
+        console.error('[pomodoro] snapshot hydrate failed', err);
       });
-      syncLocalTick();
-    });
   }
 
   return () => {

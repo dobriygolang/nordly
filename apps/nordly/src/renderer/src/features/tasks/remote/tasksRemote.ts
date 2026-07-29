@@ -122,12 +122,24 @@ export async function remoteUnscheduleTask(taskId: string): Promise<TaskCard> {
 
 export async function remotePatchTask(
   taskId: string,
-  patch: { epicId?: string; clearEpic?: boolean; clearConference?: boolean },
+  patch: {
+    epicId?: string;
+    clearEpic?: boolean;
+    clearConference?: boolean;
+    conferenceUrl?: string;
+    conferenceProvider?: ConferenceProvider;
+    googleEventId?: string | null;
+    zoomMeetingId?: string | null;
+  },
 ): Promise<TaskCard> {
   const body: Record<string, unknown> = { id: taskId };
   if (patch.clearEpic) body.clearEpic = true;
   else if (patch.epicId) body.epicId = patch.epicId;
   if (patch.clearConference) body.clearConference = true;
+  if (patch.conferenceUrl !== undefined) body.conferenceUrl = patch.conferenceUrl;
+  if (patch.conferenceProvider !== undefined) body.conferenceProvider = patch.conferenceProvider;
+  if (patch.googleEventId !== undefined) body.googleEventId = patch.googleEventId ?? '';
+  if (patch.zoomMeetingId !== undefined) body.zoomMeetingId = patch.zoomMeetingId ?? '';
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },

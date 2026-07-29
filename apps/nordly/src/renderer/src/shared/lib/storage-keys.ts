@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
   localAuthBannerDismissed: 'nordly:local-auth-banner-dismissed',
   /** Settings JSON blob (pomodoro / dailyGoal / notifications / calendar reminders). */
   settings: 'nordly:settings',
+  /** Device-owned Google write-target calendar id (not tokens). */
+  integrationPrefs: 'nordly:integration-prefs',
   /** Theme id ('winter' | 'drift' | 'visor' | 'debris' | 'launch' | 'birthday-light' | 'particles'). */
   theme: 'nordly:theme',
   /** Last background update check + notified version. */

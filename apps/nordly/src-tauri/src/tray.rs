@@ -13,6 +13,10 @@ const TRAY_ID: &str = "nordly-tray";
 const POPOVER_LABEL: &str = "tray-popover";
 const MAIN_LABEL: &str = "main";
 
+fn log_err(ctx: &str, err: impl std::fmt::Display) {
+    eprintln!("[nordly:tray] {ctx}: {err}");
+}
+
 fn load_tray_icon() -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
     // Embed at compile time — env!("CARGO_MANIFEST_DIR") only exists on the build machine,
     // so release installs would miss icons/trayTemplate.png and fall back to the color app icon
@@ -58,9 +62,11 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         main.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = handle
-                    .get_webview_window(MAIN_LABEL)
-                    .and_then(|w| w.hide().ok());
+                if let Some(w) = handle.get_webview_window(MAIN_LABEL) {
+                    if let Err(e) = w.hide() {
+                        log_err("hide main on close", e);
+                    }
+                }
             }
         });
     }
@@ -71,50 +77,84 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
     #[cfg(target_os = "macos")]
     if let RunEvent::Reopen { .. } = event {
-        let _ = show_main(app);
+        if let Err(e) = show_main(app) {
+            log_err("reopen show_main", e);
+        }
     }
 }
 
 fn toggle_popover(app: &tauri::AppHandle) {
-    let Ok(popover) = aux_windows::ensure_tray_popover(app) else {
-        return;
+    let popover = match aux_windows::ensure_tray_popover(app) {
+        Ok(w) => w,
+        Err(e) => {
+            log_err("ensure_tray_popover", e);
+            return;
+        }
     };
 
-    if popover.is_visible().unwrap_or(false) {
-        let _ = popover.hide();
-        return;
+    match popover.is_visible() {
+        Ok(true) => {
+            if let Err(e) = popover.hide() {
+                log_err("hide popover", e);
+            }
+            return;
+        }
+        Ok(false) => {}
+        Err(e) => log_err("popover is_visible", e),
     }
 
-    let _ = popover.move_window(Position::TrayCenter);
-    let _ = window_macos::set_content_corner_radius(&popover, 16.0);
-    let _ = popover.show();
-    let _ = popover.set_focus();
+    if let Err(e) = popover.move_window(Position::TrayCenter) {
+        log_err("move_window TrayCenter", e);
+    }
+    if let Err(e) = window_macos::set_content_corner_radius(&popover, 16.0) {
+        log_err("popover corner radius", e);
+    }
+    if let Err(e) = popover.show() {
+        log_err("show popover", e);
+    }
+    if let Err(e) = popover.set_focus() {
+        log_err("focus popover", e);
+    }
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(120));
-        let _ = handle.emit("tray-popover:show", ());
+        if let Err(e) = handle.emit("tray-popover:show", ()) {
+            log_err("emit tray-popover:show", e);
+        }
     });
 }
 
 pub fn tray_show_main(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(popover) = app.get_webview_window(POPOVER_LABEL) {
-        let _ = popover.hide();
+        if let Err(e) = popover.hide() {
+            log_err("hide popover before show_main", e);
+        }
     }
     show_main(&app)?;
-    let _ = app.emit("app:open-palette", ());
+    if let Err(e) = app.emit("app:open-palette", ()) {
+        log_err("emit open-palette", e);
+    }
     Ok(())
 }
 
 pub fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let _ = app.show();
+        if let Err(e) = app.show() {
+            log_err("app.show", e);
+        }
     }
     let Some(main) = app.get_webview_window(MAIN_LABEL) else {
         return Ok(());
     };
-    let _ = main.unminimize();
-    let _ = main.show();
-    let _ = main.set_focus();
+    if let Err(e) = main.unminimize() {
+        log_err("unminimize main", e);
+    }
+    if let Err(e) = main.show() {
+        log_err("show main", e);
+    }
+    if let Err(e) = main.set_focus() {
+        log_err("focus main", e);
+    }
     Ok(())
 }

@@ -1,4 +1,4 @@
-/** Epic color resolution — prefer server epicId; `epicColor` is read only from existing rows. */
+/** Epic/tag color resolution — prefer server epicId; `epicColor` is read only from existing rows. */
 
 import type { TaskEpic } from '../api/epics';
 import type { TaskCard } from '../api/tasks';
@@ -11,6 +11,14 @@ export const TASK_EPIC_PALETTE = [
 ] as const;
 
 export type TaskEpicColor = (typeof TASK_EPIC_PALETTE)[number];
+
+/** i18n keys for the built-in tag colors (Mac-style color names). */
+export const TAG_COLOR_LABEL_KEYS: Record<string, string> = {
+  '#5b8def': 'nordly.taskboard.tag.blue',
+  '#4cb35c': 'nordly.taskboard.tag.green',
+  '#c084fc': 'nordly.taskboard.tag.purple',
+  '#f59e0b': 'nordly.taskboard.tag.orange',
+};
 
 const PALETTE_SET = new Set<string>(TASK_EPIC_PALETTE.map(normalizeHex));
 
@@ -39,6 +47,16 @@ export function resolveTaskEpicColor(
   }
   if (task.epicColor) return normalizeHex(task.epicColor);
   return null;
+}
+
+/** Localized tag label for a palette color; falls back to epic.name. */
+export function tagDisplayName(
+  epic: Pick<TaskEpic, 'name' | 'color'>,
+  t: (key: string) => string,
+): string {
+  const key = TAG_COLOR_LABEL_KEYS[normalizeHex(epic.color)];
+  if (key) return t(key);
+  return epic.name || epic.color;
 }
 
 function parseHexColor(hex: string): { r: number; g: number; b: number } | null {

@@ -25,6 +25,11 @@
         { "url": "https://api.github.com/**" },
         { "url": "https://objects.githubusercontent.com/**" },
         { "url": "https://release-assets.githubusercontent.com/**" },
+        { "url": "https://www.googleapis.com/**" },
+        { "url": "https://oauth2.googleapis.com/**" },
+        { "url": "https://accounts.google.com/**" },
+        { "url": "https://zoom.us/**" },
+        { "url": "https://api.zoom.us/**" },
         { "url": "http://localhost:8080/**" },
         { "url": "http://127.0.0.1:8080/**" }
       ]

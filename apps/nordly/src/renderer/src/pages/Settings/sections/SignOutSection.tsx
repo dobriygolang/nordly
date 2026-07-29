@@ -39,7 +39,13 @@ export function SignOutSection() {
             id: userId ? `${userId.slice(0, 8)}…${userId.slice(-4)}` : '—',
           })}
         </p>
-        <p className="nordly-settings-account__reauth">{t('nordly.settings.local_profile_hint')}</p>
+        <p className="nordly-settings-account__reauth">
+          {t(
+            isCloudEnabled()
+              ? 'nordly.settings.local_profile_hint'
+              : 'nordly.settings.local_profile_hint_offline',
+          )}
+        </p>
         {isCloudEnabled() ? (
           <button
             type="button"

@@ -21,7 +21,8 @@ export type MarkdownImportErrorCode =
   | 'only_md'
   | 'empty_folder'
   | 'too_many'
-  | 'too_deep';
+  | 'too_deep'
+  | 'empty_title';
 
 export class MarkdownImportError extends Error {
   readonly code: MarkdownImportErrorCode;
@@ -44,7 +45,10 @@ export function basenameFromPath(path: string): string {
 export function titleFromMarkdownFilename(name: string): string {
   const base = basenameFromPath(name);
   const withoutExt = base.replace(MARKDOWN_EXT, '').trim();
-  return withoutExt || 'Untitled';
+  if (!withoutExt) {
+    throw new MarkdownImportError('empty_title');
+  }
+  return withoutExt;
 }
 
 /** Skip hidden names and node_modules. */

@@ -30,7 +30,8 @@ async function readErrorBody(resp: Response): Promise<{ message: string; code?: 
     }
     const code = typeof body.code === 'string' ? body.code : undefined;
     return { message: body.message, code };
-  } catch {
+  } catch (err) {
+    console.warn('[limitErrors] error body unreadable', resp.status, err);
     return { message: `HTTP ${resp.status}` };
   }
 }

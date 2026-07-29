@@ -38,9 +38,15 @@ describe('titleFromMarkdownFilename', () => {
     expect(titleFromMarkdownFilename('C:\\\\docs\\\\plan.MD')).toBe('plan');
   });
 
-  it('falls back to Untitled when empty after strip', () => {
-    expect(titleFromMarkdownFilename('.md')).toBe('Untitled');
-    expect(titleFromMarkdownFilename('  .markdown')).toBe('Untitled');
+  it('throws empty_title when stem is empty after strip', () => {
+    expect(() => titleFromMarkdownFilename('.md')).toThrow(MarkdownImportError);
+    expect(() => titleFromMarkdownFilename('  .markdown')).toThrow(MarkdownImportError);
+    try {
+      titleFromMarkdownFilename('.md');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MarkdownImportError);
+      expect((err as MarkdownImportError).code).toBe('empty_title');
+    }
   });
 });
 

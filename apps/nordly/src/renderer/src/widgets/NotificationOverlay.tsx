@@ -40,7 +40,9 @@ export function NotificationOverlayApp(): JSX.Element {
 
   const requestDismiss = useCallback(() => {
     clearDismissTimer();
-    void invoke('hide_notification').catch(() => undefined);
+    void invoke('hide_notification').catch((err) => {
+      console.warn('[notification] hide failed', err);
+    });
   }, [clearDismissTimer]);
 
   const scheduleAutoDismiss = useCallback(() => {
@@ -94,7 +96,9 @@ export function NotificationOverlayApp(): JSX.Element {
 
   const openApp = () => {
     if (dragRef.current.moved) return;
-    void invoke('focus_main_window').catch(() => undefined);
+    void invoke('focus_main_window').catch((err) => {
+      console.warn('[notification] focus main failed', err);
+    });
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {

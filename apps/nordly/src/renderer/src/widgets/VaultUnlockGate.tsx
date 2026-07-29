@@ -31,7 +31,12 @@ async function loadSavedPassphrase(userId: string): Promise<string | null> {
   if (bridge) {
     return bridge.passLoad(userId);
   }
-  return window.sessionStorage.getItem(`nordly:vault-pass:${userId}`);
+  try {
+    return window.sessionStorage.getItem(`nordly:vault-pass:${userId}`);
+  } catch (err) {
+    console.warn('[vault] session passphrase load failed', err);
+    return null;
+  }
 }
 
 async function savePassphrase(userId: string, pass: string): Promise<void> {
@@ -40,7 +45,11 @@ async function savePassphrase(userId: string, pass: string): Promise<void> {
     await bridge.passSave(userId, pass);
     return;
   }
-  window.sessionStorage.setItem(`nordly:vault-pass:${userId}`, pass);
+  try {
+    window.sessionStorage.setItem(`nordly:vault-pass:${userId}`, pass);
+  } catch (err) {
+    console.warn('[vault] session passphrase save failed', err);
+  }
 }
 
 async function clearSavedPassphrase(userId: string): Promise<void> {
@@ -49,7 +58,11 @@ async function clearSavedPassphrase(userId: string): Promise<void> {
     await bridge.passClear(userId);
     return;
   }
-  window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
+  try {
+    window.sessionStorage.removeItem(`nordly:vault-pass:${userId}`);
+  } catch (err) {
+    console.warn('[vault] session passphrase clear failed', err);
+  }
 }
 
 export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
@@ -131,7 +144,7 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
   }, []);
 
   useEffect(() => {
-    if (useSessionStore.getState().status === 'guest') lockVault();
+    if (!useSessionStore.getState().userId) lockVault();
   }, []);
 
   const handleSetup = async () => {

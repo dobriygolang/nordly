@@ -27,6 +27,28 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('nordly://task?id=task-1')).toBeNull();
     expect(parseDeepLink('nordly://note?id=note-1')).toBeNull();
   });
+
+  it('parses settings code+state for Zoom callback', () => {
+    expect(parseDeepLink('nordly://settings?code=abc&state=xyz')).toEqual({
+      kind: 'settings',
+      googleStatus: null,
+      zoomStatus: null,
+      detail: null,
+      code: 'abc',
+      state: 'xyz',
+    });
+  });
+
+  it('parses legacy connected status without code', () => {
+    expect(parseDeepLink('nordly://settings?google_calendar=connected')).toEqual({
+      kind: 'settings',
+      googleStatus: 'connected',
+      zoomStatus: null,
+      detail: null,
+      code: null,
+      state: null,
+    });
+  });
 });
 
 describe('executeDeepLink', () => {

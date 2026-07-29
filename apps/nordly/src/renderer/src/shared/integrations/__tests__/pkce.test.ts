@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { createPkcePair, pkceChallenge, randomUrlSafe } from '@shared/integrations/pkce';
-import { parseDeepLink } from '@app/hooks/useDeepLinkNavigation';
 
 describe('pkce', () => {
   it('generates url-safe verifier and matching challenge', async () => {
@@ -17,29 +16,5 @@ describe('pkce', () => {
     const b = await createPkcePair();
     expect(a.state).not.toEqual(b.state);
     expect(a.verifier).not.toEqual(b.verifier);
-  });
-});
-
-describe('parseDeepLink oauth', () => {
-  it('parses settings code+state for Zoom callback', () => {
-    expect(parseDeepLink('nordly://settings?code=abc&state=xyz')).toEqual({
-      kind: 'settings',
-      googleStatus: null,
-      zoomStatus: null,
-      detail: null,
-      code: 'abc',
-      state: 'xyz',
-    });
-  });
-
-  it('parses legacy connected status without code', () => {
-    expect(parseDeepLink('nordly://settings?google_calendar=connected')).toEqual({
-      kind: 'settings',
-      googleStatus: 'connected',
-      zoomStatus: null,
-      detail: null,
-      code: null,
-      state: null,
-    });
   });
 });

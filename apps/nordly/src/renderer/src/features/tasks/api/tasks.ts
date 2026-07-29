@@ -272,9 +272,7 @@ export async function createTaskConference(
   let zoomMeetingId: string | undefined;
 
   if (provider === 'meet') {
-    const { createGoogleMeetForTask } = await import(
-      '@features/calendar/local/googleCalendarApi'
-    );
+    const { createGoogleMeetForTask } = await import('@features/calendar/api/calendarClient');
     const start = prev.scheduledStart
       ? new Date(prev.scheduledStart)
       : new Date();
@@ -292,7 +290,7 @@ export async function createTaskConference(
     conferenceUrl = meet.meetUrl;
     googleEventId = meet.googleEventId;
   } else {
-    const { createZoomMeeting } = await import('@features/calendar/local/zoomApi');
+    const { createZoomMeeting } = await import('@features/calendar/api/calendarClient');
     const meeting = await createZoomMeeting({
       topic: title,
       start: prev.scheduledStart ? new Date(prev.scheduledStart) : undefined,

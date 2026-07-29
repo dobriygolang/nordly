@@ -106,6 +106,23 @@ export function disconnectZoom(): Promise<TrackerSettings> {
   return remote.disconnectZoom();
 }
 
+export function createGoogleMeetForTask(input: {
+  title: string;
+  start: Date;
+  end: Date;
+  existingEventId?: string;
+}): ReturnType<typeof remote.createGoogleMeetForTask> {
+  requireGoogleIntegration();
+  return remote.createGoogleMeetForTask(input);
+}
+
+export function createZoomMeeting(
+  input: Parameters<typeof remote.createZoomMeeting>[0],
+): ReturnType<typeof remote.createZoomMeeting> {
+  requireZoomIntegration();
+  return remote.createZoomMeeting(input);
+}
+
 export function openExternalUrl(url: string): void {
   remote.openExternalUrl(url);
 }

@@ -21,6 +21,11 @@ import {
   GoogleReauthError,
 } from '../local/googleOAuth';
 import { beginZoomOAuth, disconnectZoomOAuth } from '../local/zoomOAuth';
+import {
+  createZoomMeeting as createZoomMeetingLocal,
+  type ZoomMeetingInput,
+  type ZoomMeetingResult,
+} from '../local/zoomApi';
 
 export { GoogleNotConnectedError, GoogleReauthError };
 
@@ -98,6 +103,19 @@ export async function connectZoom(): Promise<TrackerSettings> {
 export async function disconnectZoom(): Promise<TrackerSettings> {
   await disconnectZoomOAuth();
   return clearLocalIntegration('zoom');
+}
+
+export async function createGoogleMeetForTask(input: {
+  title: string;
+  start: Date;
+  end: Date;
+  existingEventId?: string;
+}): Promise<googleApi.MeetConferenceResult> {
+  return googleApi.createGoogleMeetForTask(input);
+}
+
+export async function createZoomMeeting(input: ZoomMeetingInput): Promise<ZoomMeetingResult> {
+  return createZoomMeetingLocal(input);
 }
 
 export function openExternalUrl(url: string): void {

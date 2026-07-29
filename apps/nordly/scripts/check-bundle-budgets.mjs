@@ -6,10 +6,12 @@ const dist = resolve(root, 'dist');
 const manifestPath = resolve(dist, '.vite/manifest.json');
 
 const budgets = {
-  main: { source: 'index.html', bytes: 410 * 1024 },
-  // Notes cold graph: Esc/vault shell (DRU-88) + attachments (DRU-89) + multi-select sidebar (DRU-90).
-  Notes: { source: 'src/pages/Notes.tsx', bytes: 1315 * 1024 },
-  Whiteboard: { entry: 'whiteboard', bytes: 1845 * 1024 },
+  // Shared shell + device OAuth helpers (PKCE/keychain) ride the main graph.
+  main: { source: 'index.html', bytes: 420 * 1024 },
+  // Notes cold graph: Esc/vault shell + attachments + multi-select + filesystem vault (ADR 005).
+  Notes: { source: 'src/pages/Notes.tsx', bytes: 1360 * 1024 },
+  // Excalidraw route; shared-chunk drift from vault/OAuth shared deps.
+  Whiteboard: { entry: 'whiteboard', bytes: 1865 * 1024 },
 };
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

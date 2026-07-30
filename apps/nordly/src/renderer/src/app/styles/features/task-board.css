@@ -232,7 +232,13 @@ body.nordly-task-dragging .nordly-task-row__detail {
   line-height: 1;
   padding: 0;
   opacity: 0;
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Opacity only. `all` also animated width/margin-right, so every card the
+     pointer passed over while the board scrolled ran a 200ms reflow that shoved
+     the task title sideways frame by frame. The size change is instant now. */
+  transition:
+    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nordly-task-row__card:hover .nordly-task-row__check,
@@ -375,20 +381,24 @@ body.nordly-task-dragging .nordly-task-row__check {
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   cursor: grab;
-  overflow-y: visible;
+  /* `visible` is illegal next to the inline `overflow-x: auto` and computed to
+     `auto` anyway; spelling it out keeps the second axis honest. Columns taller
+     than the viewport must stay reachable, so this cannot become `hidden`. */
+  overflow-y: auto;
 }
 .nordly-task-board-scroll--panning {
   cursor: grabbing;
   user-select: none;
 }
 
+/* No `contain-intrinsic-size` (inert without `content-visibility`) and no
+   `perspective` — nothing here uses a 3D transform, but perspective still forced
+   a 3D rendering context on every one of the ~35 mounted columns. */
 .nordly-day-column {
   position: relative;
-  contain-intrinsic-size: 270px 480px;
   box-sizing: border-box;
   height: 100%;
   min-height: 100%;
-  perspective: 1600px;
 }
 
 .nordly-day-column:focus-visible {

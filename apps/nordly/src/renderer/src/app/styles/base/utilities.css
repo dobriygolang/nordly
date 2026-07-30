@@ -1,21 +1,10 @@
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgb(var(--ink-rgb) / 0.10);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--ink-rgb) / 0.22);
-  background-clip: padding-box;
-  border: 2px solid transparent;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Scrollbar — native macOS overlay scrollbars only.
+ * Any `::-webkit-scrollbar` rule opts WKWebView out of overlay scrollbars into
+ * legacy custom ones: they are painted into the scroller's own layer, repainted
+ * every scroll frame, and occupy real layout width instead of floating above the
+ * content. `scrollbar-width` is the standard property and keeps the native path. */
+html {
+  scrollbar-width: thin;
 }
 
 @keyframes redpulse {

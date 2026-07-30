@@ -657,16 +657,20 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   line-height: 1.3;
   color: var(--ink);
 }
+/* h4–h6 line-heights are picked so `font-size * line-height` lands on whole
+   pixels at the default root (18×1.333=24, 16×1.5=24, 14×1.5=21). Fractional
+   line boxes put each following line on a half device pixel and the text
+   shimmers as the editor scrolls. */
 .nordly-live-md .cm-content span.nordly-md-h4 {
   font-size: 1.125rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3333;
   color: var(--ink);
 }
 .nordly-live-md .cm-content span.nordly-md-h5 {
   font-size: 1rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.5;
   color: var(--ink-90);
 }
 .nordly-live-md .cm-content span.nordly-md-h6 {
@@ -674,7 +678,7 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   font-weight: 600;
   letter-spacing: 0.025em;
   text-transform: uppercase;
-  line-height: 1.4;
+  line-height: 1.5;
   color: var(--ink-80);
 }
 .nordly-md-quote {
@@ -851,7 +855,8 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   border-right: 1px solid rgb(var(--ink-rgb) / 0.12);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.875em;
-  line-height: 1.55;
+  /* 14px × 1.5 = 21px — whole pixels, see the h4–h6 note above. */
+  line-height: 1.5;
 }
 
 .cm-line.nordly-md-code-block--lang {

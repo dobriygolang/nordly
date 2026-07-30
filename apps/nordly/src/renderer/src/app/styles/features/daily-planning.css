@@ -252,6 +252,25 @@
   box-shadow: none;
 }
 
+/* Reveals the next week of pool tasks — see buildPlanningPool. */
+.nordly-planning-pool-more {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ink-tint-12);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-40);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+.nordly-planning-pool-more:hover {
+  border-color: var(--ink-tint-16);
+  color: var(--ink-90);
+}
+
 .nordly-planning-day-column__header {
   display: flex;
   align-items: flex-start;

@@ -161,9 +161,11 @@
   z-index: 1;
   opacity: 1;
   transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
-  /* layout/style only — paint containment + permanent will-change made WKWebView
-     scroll feel like ~30Hz on high-refresh displays. */
-  contain: layout style;
+  /* layout only — paint containment + permanent will-change made WKWebView scroll
+     feel like ~30Hz on high-refresh displays, and `style` containment buys nothing
+     here (no counters/quotes cross this boundary) while still perturbing WebKit's
+     layer decisions for the scrollers inside. */
+  contain: layout;
   pointer-events: auto;
 }
 .nordly-page-layer[data-status='entering'],
@@ -197,10 +199,6 @@ body.nordly-task-dragging * {
 body.nordly-task-dragging .nordly-page-layer[data-status='active'] {
   contain: none;
   overflow: visible;
-}
-
-body.nordly-task-dragging .nordly-task-board-scroll {
-  overflow-y: visible;
 }
 
 .nordly-notes-editor-shell {
@@ -256,7 +254,8 @@ body.nordly-task-dragging .nordly-task-board-scroll {
   flex: 1;
   min-height: 0;
   font-size: 1rem;
-  line-height: 1.7;
+  /* Whole-pixel line box at 16px root — see notesEditorTheme. */
+  line-height: 1.75;
   color: var(--ink-90);
 }
 
@@ -278,7 +277,7 @@ body.nordly-task-dragging .nordly-task-board-scroll {
   top: 1px;
   left: 0;
   font-size: 1rem;
-  line-height: 1.7;
+  line-height: 1.75;
   color: var(--ink-40);
   pointer-events: none;
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;

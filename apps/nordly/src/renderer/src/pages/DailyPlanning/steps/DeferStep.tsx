@@ -22,7 +22,7 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
   const t = useT();
   const todayDate = parseDayKey(todayKey);
   const tomorrowDate = parseDayKey(board.tomorrow);
-  const mondayDate = parseDayKey(board.monday);
+  const nextWeekDate = parseDayKey(board.nextWeek);
   const { dnd } = board;
 
   const columnProps = {
@@ -71,14 +71,14 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
           {...columnProps}
         />
         <PlanningTaskColumn
-          dayKey={board.monday}
+          dayKey={board.nextWeek}
           title={t('nordly.planning.col_next_week')}
           subtitle={t('nordly.planning.col_next_week_hint')}
-          taskIds={dnd.getColumnTaskIds(board.monday)}
+          taskIds={dnd.getColumnTaskIds(board.nextWeek)}
           taskById={dnd.taskById}
-          dropHighlight={dnd.overContainerId === board.monday && dnd.isDragging}
-          insertPreviewAt={dnd.getColumnInsertPreviewAt(board.monday)}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, mondayDate)}
+          dropHighlight={dnd.overContainerId === board.nextWeek && dnd.isDragging}
+          insertPreviewAt={dnd.getColumnInsertPreviewAt(board.nextWeek)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min, nextWeekDate)}
           {...columnProps}
         />
       </div>

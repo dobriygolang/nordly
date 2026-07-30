@@ -1,9 +1,9 @@
-import { useT } from '@nordly-i18n';
+import { useLocale, useT } from '@nordly-i18n';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
-import { parseDayKey } from '@shared/lib/dates';
+import { formatWhenChip, parseDayKey } from '@shared/lib/dates';
 
 import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';
 import { PlanningTaskColumn } from '@features/planning/components/PlanningTaskColumn';
@@ -21,8 +21,35 @@ interface PickStepProps {
 
 export function PickStep({ todayKey, epics, settings, board }: PickStepProps): JSX.Element {
   const t = useT();
+  const [locale] = useLocale();
   const todayDate = parseDayKey(todayKey);
-  const { dnd } = board;
+  const { dnd, pool } = board;
+
+  // The pool is a date window, so name the range it covers instead of "from all your
+  // lists" — otherwise a shrunken column reads as missing tasks.
+  const windowEndLabel = formatWhenChip(parseDayKey(pool.windowEndKey), locale);
+  const poolSubtitle =
+    pool.overdueCount > 0
+      ? t('nordly.planning.col_all_hint_overdue', {
+          count: pool.overdueCount,
+          date: windowEndLabel,
+        })
+      : t('nordly.planning.col_all_hint_window', { date: windowEndLabel });
+
+  const poolFooter =
+    pool.nextHiddenKey === null ? null : (
+      <button
+        type="button"
+        className="nordly-planning-pool-more"
+        onClick={board.extendPool}
+        style={{ pointerEvents: dnd.isDragging ? 'none' : 'auto' }}
+      >
+        {t('nordly.planning.col_all_more', {
+          count: pool.hiddenCount,
+          date: formatWhenChip(parseDayKey(pool.nextHiddenKey), locale),
+        })}
+      </button>
+    );
 
   const columnProps = {
     epics,
@@ -62,11 +89,12 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
         <PlanningTaskColumn
           dayKey={PLANNING_POOL_DAY_KEY}
           title={t('nordly.planning.col_all_tasks')}
-          subtitle={t('nordly.planning.col_all_hint')}
+          subtitle={poolSubtitle}
           taskIds={dnd.getColumnTaskIds(PLANNING_POOL_DAY_KEY)}
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === PLANNING_POOL_DAY_KEY && dnd.isDragging}
           insertPreviewAt={dnd.getColumnInsertPreviewAt(PLANNING_POOL_DAY_KEY)}
+          footer={poolFooter}
           onAddClick={() => undefined}
           onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
           {...columnProps}

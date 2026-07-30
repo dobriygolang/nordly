@@ -1,16 +1,15 @@
 import type { TaskCard } from '@features/tasks/api/tasks';
 import {
   addDays,
-  buildDefaultScheduleDate,
   defaultDurationMin,
   parseDayKey,
-  resolveScheduleStart,
   startOfLocalDay,
   sumDurationMin,
   taskDayKey,
   taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
+import { startOfLocaleWeek } from '@shared/lib/localeFormat';
 
 /** Synthetic day key for the "all other tasks" pool column — not a real schedule target. */
 export const PLANNING_POOL_DAY_KEY = '__planning_pool__';
@@ -21,8 +20,6 @@ export const VISIBLE_TASK_STATUSES = new Set<TaskCard['status']>([
   'in_review',
   'done',
 ]);
-
-export type PlanningColumnId = 'today' | 'all' | 'tomorrow' | 'next_week';
 
 export function taskColumnKey(task: TaskCard, todayKey: string): string {
   if (!task.scheduledStart) return todayKey;
@@ -40,20 +37,7 @@ export function tasksForToday(tasks: TaskCard[], todayKey: string): TaskCard[] {
     .sort(sortPlanningTasks);
 }
 
-export function tasksForAllPool(tasks: TaskCard[], todayKey: string): TaskCard[] {
-  return tasks
-    .filter(isVisibleTask)
-    .filter((task) => Boolean(task.scheduledStart) && taskColumnKey(task, todayKey) !== todayKey)
-    .sort(sortPlanningTasks);
-}
-
-export function tasksForDayKey(tasks: TaskCard[], dayKey: string, todayKey: string): TaskCard[] {
-  return tasks
-    .filter(isVisibleTask)
-    .filter((task) => taskColumnKey(task, todayKey) === dayKey)
-    .sort(sortPlanningTasks);
-}
-
+/** Order inside a real day column: unfinished first, then the manual `order` index. */
 function sortPlanningTasks(a: TaskCard, b: TaskCard): number {
   const aDone = a.status === 'done' ? 1 : 0;
   const bDone = b.status === 'done' ? 1 : 0;
@@ -63,35 +47,135 @@ function sortPlanningTasks(a: TaskCard, b: TaskCard): number {
   return aOrder - bOrder;
 }
 
-export function findPlanningDayKey(task: TaskCard, todayKey: string): string {
+/**
+ * Chronological order for the cross-day pool.
+ *
+ * `order` must not participate here: it is a dense within-day index, so a task that
+ * was ever dragged carries `order` 0..n while an untouched one falls back to an epoch
+ * timestamp — mixing the two floated every dragged task above every other day and let
+ * a Friday task outrank a Monday one.
+ */
+function compareByScheduleAsc(a: TaskCard, b: TaskCard): number {
+  const at = taskScheduleStart(a)?.getTime() ?? 0;
+  const bt = taskScheduleStart(b)?.getTime() ?? 0;
+  if (at !== bt) return at - bt;
+  return a.title.localeCompare(b.title);
+}
+
+export function findPlanningDayKey(
+  task: TaskCard,
+  todayKey: string,
+  poolAbsorbsNearDays = false,
+): string {
   if (!task.scheduledStart) return todayKey;
   const key = taskDayKey(task);
   if (key === todayKey) return todayKey;
-  const tomorrow = tomorrowKey(todayKey);
-  if (key === tomorrow) return tomorrow;
-  const monday = nextMondayKey(todayKey);
-  if (key === monday) return monday;
+  if (poolAbsorbsNearDays) return PLANNING_POOL_DAY_KEY;
+  if (key === tomorrowKey(todayKey)) return key;
+  if (key === nextWeekStartKey(todayKey)) return key;
   return PLANNING_POOL_DAY_KEY;
 }
 
-/** Next calendar Monday strictly after today (or next week if today is Monday). */
-export function nextMonday(from = new Date()): Date {
-  const d = startOfLocalDay(from);
-  const dow = d.getDay();
-  const add = dow === 0 ? 1 : 8 - dow;
-  return addDays(d, add);
+/** Start of the week after the one holding `from`, honouring Settings → week starts on. */
+export function nextWeekStart(from = new Date()): Date {
+  return addDays(startOfLocaleWeek(startOfLocalDay(from)), 7);
 }
 
 export function tomorrowKey(todayKey: string): string {
-  return toDayKey(addDays(parseDayKeyLocal(todayKey), 1));
+  return toDayKey(addDays(parseDayKey(todayKey), 1));
 }
 
-export function nextMondayKey(todayKey: string): string {
-  return toDayKey(nextMonday(parseDayKeyLocal(todayKey)));
+export function nextWeekStartKey(todayKey: string): string {
+  return toDayKey(nextWeekStart(parseDayKey(todayKey)));
 }
 
-function parseDayKeyLocal(key: string): Date {
-  return parseDayKey(key);
+/** Last day (inclusive) of the week `weeksAhead` weeks after the one holding `todayKey`. */
+export function weekWindowEndKey(todayKey: string, weeksAhead = 0): string {
+  const weekStart = startOfLocaleWeek(parseDayKey(todayKey));
+  return toDayKey(addDays(weekStart, 7 * (weeksAhead + 1) - 1));
+}
+
+export interface PlanningPool {
+  /** Overdue first (oldest → newest), then upcoming inside the window (nearest day first). */
+  tasks: TaskCard[];
+  overdueCount: number;
+  /** Last day the upcoming window covers. */
+  windowEndKey: string;
+  /** Weeks the window spans beyond the current one, after any automatic roll-forward. */
+  weeksAhead: number;
+  /** Upcoming tasks scheduled past the window. */
+  hiddenCount: number;
+  /** Day of the nearest task past the window — what extending would reveal. */
+  nextHiddenKey: string | null;
+}
+
+interface BuildPlanningPoolOptions {
+  /** Extra whole weeks the user asked for on top of the current one. */
+  extraWeeks?: number;
+  /**
+   * Pick renders only Today + the pool, so tomorrow and next week must fold into the
+   * pool there or those tasks are invisible. Defer gives them their own columns.
+   */
+  poolAbsorbsNearDays: boolean;
+}
+
+/**
+ * Candidates to pull into today, as a date-ordered window rather than every task ever.
+ *
+ * Day keys are `YYYY-MM-DD`, so lexicographic comparison is a valid date comparison.
+ */
+export function buildPlanningPool(
+  tasks: TaskCard[],
+  todayKey: string,
+  { extraWeeks = 0, poolAbsorbsNearDays }: BuildPlanningPoolOptions,
+): PlanningPool {
+  const skipped = new Set([todayKey]);
+  if (!poolAbsorbsNearDays) {
+    skipped.add(tomorrowKey(todayKey));
+    skipped.add(nextWeekStartKey(todayKey));
+  }
+
+  // Done tasks from other days are not candidates for today, only noise in the pool.
+  const candidates = tasks.filter(
+    (task) =>
+      isVisibleTask(task) &&
+      task.status !== 'done' &&
+      Boolean(task.scheduledStart) &&
+      !skipped.has(taskDayKey(task)),
+  );
+
+  const overdue = candidates
+    .filter((task) => taskDayKey(task) < todayKey)
+    .sort(compareByScheduleAsc);
+  const upcoming = candidates
+    .filter((task) => taskDayKey(task) > todayKey)
+    .sort(compareByScheduleAsc);
+
+  let weeksAhead = Math.max(0, Math.trunc(extraWeeks));
+  let windowEndKey = weekWindowEndKey(todayKey, weeksAhead);
+
+  // Nothing left in range: roll the window forward whole weeks until it reaches the
+  // nearest upcoming task, so the column is never pointlessly empty and days from
+  // different weeks never interleave.
+  if (upcoming.length > 0 && taskDayKey(upcoming[0]) > windowEndKey) {
+    const nearestKey = taskDayKey(upcoming[0]);
+    while (windowEndKey < nearestKey) {
+      weeksAhead += 1;
+      windowEndKey = weekWindowEndKey(todayKey, weeksAhead);
+    }
+  }
+
+  const inWindow = upcoming.filter((task) => taskDayKey(task) <= windowEndKey);
+  const beyond = upcoming.filter((task) => taskDayKey(task) > windowEndKey);
+
+  return {
+    tasks: [...overdue, ...inWindow],
+    overdueCount: overdue.length,
+    windowEndKey,
+    weeksAhead,
+    hiddenCount: beyond.length,
+    nextHiddenKey: beyond.length > 0 ? taskDayKey(beyond[0]) : null,
+  };
 }
 
 export function totalDurationLabel(tasks: TaskCard[]): string {
@@ -107,48 +191,6 @@ export function formatPlanningDuration(totalMin: number): string {
   return `${h}h ${m}m`;
 }
 
-/** First calendar day that lands in the "all tasks" pool (not today / tomorrow / next Monday). */
-export function poolDayKey(todayKey: string): string {
-  const tomorrow = tomorrowKey(todayKey);
-  const monday = nextMondayKey(todayKey);
-  let d = addDays(parseDayKeyLocal(todayKey), 2);
-  for (let i = 0; i < 14; i++) {
-    const key = toDayKey(d);
-    if (key !== todayKey && key !== tomorrow && key !== monday) return key;
-    d = addDays(d, 1);
-  }
-  return toDayKey(addDays(parseDayKeyLocal(todayKey), 7));
-}
-
-export function scheduleTargetForPool(todayKey: string, tasks: TaskCard[]): Date {
-  const key = poolDayKey(todayKey);
-  return resolveScheduleStart(key, tasks, buildDefaultScheduleDate(parseDayKeyLocal(key)));
-}
-
-export function scheduleTargetForColumn(
-  column: PlanningColumnId,
-  todayKey: string,
-  tasks: TaskCard[],
-): Date {
-  if (column === 'today') {
-    return resolveScheduleStart(todayKey, tasks, buildDefaultScheduleDate(parseDayKeyLocal(todayKey)));
-  }
-  if (column === 'tomorrow') {
-    const key = tomorrowKey(todayKey);
-    return resolveScheduleStart(key, tasks, buildDefaultScheduleDate(parseDayKeyLocal(key)));
-  }
-  const key = nextMondayKey(todayKey);
-  return resolveScheduleStart(key, tasks, buildDefaultScheduleDate(parseDayKeyLocal(key)));
-}
-
 export function durationLabel(task: TaskCard): string {
   return formatPlanningDuration(defaultDurationMin(task));
-}
-
-export function planningColumnForTask(task: TaskCard, todayKey: string): PlanningColumnId {
-  const key = taskColumnKey(task, todayKey);
-  if (key === todayKey) return 'today';
-  if (key === tomorrowKey(todayKey)) return 'tomorrow';
-  if (key === nextMondayKey(todayKey)) return 'next_week';
-  return 'all';
 }

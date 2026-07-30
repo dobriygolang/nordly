@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useMemo, Fragment } from 'react';
+import { useMemo, Fragment, type ReactNode } from 'react';
 import { useT } from '@nordly-i18n';
 
 import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
@@ -29,6 +29,8 @@ interface PlanningTaskColumnProps {
   showAdd?: boolean;
   noDrop?: boolean;
   isDragging: boolean;
+  /** Rendered under the task list — the pool uses it for "reveal one more week". */
+  footer?: ReactNode;
   onAddClick: () => void;
   onToggleDone: (task: TaskCard) => void;
   onDurationChange: (task: TaskCard, minutes: number) => void;
@@ -58,6 +60,7 @@ export function PlanningTaskColumn({
   showAdd,
   noDrop,
   isDragging,
+  footer,
   onAddClick,
   onToggleDone,
   onDurationChange,
@@ -146,6 +149,7 @@ export function PlanningTaskColumn({
               <DayTaskInsertSlot task={previewTask} epics={epics} settings={settings} />
             ) : null}
           </SortableContext>
+          {footer}
         </div>
       </div>
     </section>

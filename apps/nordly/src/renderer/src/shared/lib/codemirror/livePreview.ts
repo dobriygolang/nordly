@@ -595,7 +595,10 @@ export const notesEditorTheme = EditorView.theme({
     height: '100%',
     /* 1em → inherits Notes shell zoom (⌘+/⌘−); rem would ignore zoom. */
     fontSize: '1em',
-    lineHeight: '1.7',
+    /* 1.75 keeps the line box on whole pixels at the default 16px root (28px, or
+       30px with .cm-line padding). 1.7 gave 27.2px, so every line started on a
+       fractional device-pixel offset and the glyphs shimmered while scrolling. */
+    lineHeight: '1.75',
   },
   '&.cm-focused': {
     outline: 'none',

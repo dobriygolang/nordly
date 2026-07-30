@@ -76,7 +76,9 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       window.clearTimeout(scrollIdleTimerRef.current);
     }
     scrollSettledRef.current = false;
-    setShowBackToToday(false);
+    // Only hide once per gesture. Re-dispatching on every scroll event re-rendered
+    // the whole unvirtualized board (~35 columns) mid-scroll.
+    setShowBackToToday((prev) => (prev ? false : prev));
 
     scrollIdleTimerRef.current = window.setTimeout(() => {
       scrollIdleTimerRef.current = null;

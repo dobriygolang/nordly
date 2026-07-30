@@ -99,6 +99,8 @@ export function DailyPlanningModal({
     tasks,
     setTasks,
     refresh,
+    // Pick shows only Today + the pool; Defer promotes tomorrow / next week to columns.
+    poolAbsorbsNearDays: step === 'pick',
     onActionError: (err) => {
       if (isRecoverableTaskActionError(err)) return;
       handleLoadError(err);

@@ -27,11 +27,10 @@ import {
 } from '@shared/lib/dates';
 
 import {
+  buildPlanningPool,
   findPlanningDayKey,
-  nextMondayKey,
+  nextWeekStartKey,
   PLANNING_POOL_DAY_KEY,
-  poolDayKey,
-  scheduleTargetForPool,
   tomorrowKey,
   VISIBLE_TASK_STATUSES,
 } from '@features/planning/lib/planningTasks';
@@ -44,6 +43,11 @@ interface UsePlanningTaskBoardArgs {
   setTasks: React.Dispatch<React.SetStateAction<TaskCard[]>>;
   refresh: () => Promise<void>;
   onActionError: (err: unknown) => void;
+  /**
+   * True while the step renders only Today + the pool (Pick): tomorrow and next week
+   * have no column of their own there, so their tasks must fold into the pool.
+   */
+  poolAbsorbsNearDays: boolean;
 }
 
 export function usePlanningTaskBoard({
@@ -52,21 +56,34 @@ export function usePlanningTaskBoard({
   setTasks,
   refresh,
   onActionError,
+  poolAbsorbsNearDays,
 }: UsePlanningTaskBoardArgs) {
   const [editRequest, setEditRequest] = useState<{ taskId: string; key: number } | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [poolExtraWeeks, setPoolExtraWeeks] = useState(0);
 
   const tomorrow = useMemo(() => tomorrowKey(todayKey), [todayKey]);
-  const monday = useMemo(() => nextMondayKey(todayKey), [todayKey]);
+  const nextWeek = useMemo(() => nextWeekStartKey(todayKey), [todayKey]);
+
+  const pool = useMemo(
+    () =>
+      buildPlanningPool(tasks, todayKey, {
+        extraWeeks: poolExtraWeeks,
+        poolAbsorbsNearDays,
+      }),
+    [tasks, todayKey, poolExtraWeeks, poolAbsorbsNearDays],
+  );
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, TaskCard[]>();
-    for (const key of [todayKey, tomorrow, monday, PLANNING_POOL_DAY_KEY]) {
-      map.set(key, []);
-    }
+    const dayKeys = poolAbsorbsNearDays ? [todayKey] : [todayKey, tomorrow, nextWeek];
+    for (const key of dayKeys) map.set(key, []);
+
     for (const task of tasks) {
       if (!VISIBLE.has(task.status)) continue;
-      const key = findPlanningDayKey(task, todayKey);
+      const key = findPlanningDayKey(task, todayKey, poolAbsorbsNearDays);
+      // The pool is a date window, not a bucket — buildPlanningPool owns its contents.
+      if (key === PLANNING_POOL_DAY_KEY) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(task);
     }
@@ -80,8 +97,10 @@ export function usePlanningTaskBoard({
         return aOrder - bOrder;
       });
     }
+
+    map.set(PLANNING_POOL_DAY_KEY, pool.tasks);
     return map;
-  }, [tasks, todayKey, tomorrow, monday]);
+  }, [tasks, todayKey, tomorrow, nextWeek, pool, poolAbsorbsNearDays]);
 
   const findTaskColumnKey = useCallback(
     (taskId: string): string | null => {
@@ -102,7 +121,7 @@ export function usePlanningTaskBoard({
       setTasks((prev) => {
         const list = prev
           .filter((t) => VISIBLE.has(t.status))
-          .filter((t) => findPlanningDayKey(t, todayKey) === dayKey)
+          .filter((t) => findPlanningDayKey(t, todayKey, poolAbsorbsNearDays) === dayKey)
           .sort((a, b) => {
             const aDone = a.status === 'done' ? 1 : 0;
             const bDone = b.status === 'done' ? 1 : 0;
@@ -139,7 +158,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [todayKey, refresh, setTasks, onActionError],
+    [todayKey, poolAbsorbsNearDays, refresh, setTasks, onActionError],
   );
 
   const handleMoveToDay = useCallback(
@@ -150,19 +169,20 @@ export function usePlanningTaskBoard({
       if (sourceKey === dayKey) return;
 
       const isPool = dayKey === PLANNING_POOL_DAY_KEY;
-      const scheduleDayKey = isPool ? poolDayKey(todayKey) : dayKey;
+      // Dropping into the pool means "not today". With no dateless state in the model,
+      // the only non-arbitrary target is the nearest other day — tomorrow. (The old
+      // behaviour invented a day two-plus days out, which nothing in the UI implied.)
+      const scheduleDayKey = isPool ? tomorrow : dayKey;
 
       const existing = taskScheduleStart(task);
-      const resolved = isPool
-        ? scheduleTargetForPool(todayKey, tasks)
-        : resolveScheduleStart(
-            scheduleDayKey,
-            tasks,
-            existing
-              ? applyTimeFromDay(parseDayKey(scheduleDayKey), existing)
-              : buildDefaultScheduleDate(parseDayKey(scheduleDayKey)),
-            taskId,
-          );
+      const resolved = resolveScheduleStart(
+        scheduleDayKey,
+        tasks,
+        existing
+          ? applyTimeFromDay(parseDayKey(scheduleDayKey), existing)
+          : buildDefaultScheduleDate(parseDayKey(scheduleDayKey)),
+        taskId,
+      );
       const startIso = scheduleStartISO(resolved);
       const duration = Math.max(15, defaultDurationMin(task));
 
@@ -186,7 +206,7 @@ export function usePlanningTaskBoard({
         void refresh();
       }
     },
-    [tasks, todayKey, findTaskColumnKey, refresh, applyInsertOrder, setTasks, onActionError],
+    [tasks, tomorrow, findTaskColumnKey, refresh, applyInsertOrder, setTasks, onActionError],
   );
 
   const handleReorder = useCallback(
@@ -213,9 +233,16 @@ export function usePlanningTaskBoard({
   }, []);
 
   const columnKeys = useMemo(
-    () => [todayKey, tomorrow, monday, PLANNING_POOL_DAY_KEY],
-    [todayKey, tomorrow, monday],
+    () =>
+      poolAbsorbsNearDays
+        ? [todayKey, PLANNING_POOL_DAY_KEY]
+        : [todayKey, tomorrow, nextWeek, PLANNING_POOL_DAY_KEY],
+    [todayKey, tomorrow, nextWeek, poolAbsorbsNearDays],
   );
+
+  const extendPool = useCallback(() => {
+    setPoolExtraWeeks(pool.weeksAhead + 1);
+  }, [pool.weeksAhead]);
 
   const dnd = useDayTaskDnd({
     columnKeys,
@@ -389,7 +416,9 @@ export function usePlanningTaskBoard({
 
   return {
     tomorrow,
-    monday,
+    nextWeek,
+    pool,
+    extendPool,
     tasksByDay,
     dnd,
     handleTaskTap,

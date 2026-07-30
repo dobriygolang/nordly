@@ -63,11 +63,13 @@ describe('settings', () => {
     expect(settings.taskNotifications).toBe(true);
     expect(settings.notificationVolume).toBe(80);
     expect(settings.textScale).toBe('normal');
+    expect(settings.weekStartsOn).toBe('monday');
     expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!)).toMatchObject({
       calendarNotifications: true,
       taskNotifications: true,
       notificationVolume: 80,
       textScale: 'normal',
+      weekStartsOn: 'monday',
     });
   });
 });

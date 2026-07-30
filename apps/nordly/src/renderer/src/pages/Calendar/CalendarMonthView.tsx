@@ -7,6 +7,7 @@ import {
 } from '@features/calendar/api/calendar';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
 import type { Locale } from '@nordly-i18n';
+import { useWeekStartsOn } from '@shared/model/useWeekStartsOn';
 
 import { calendarEpicSurface } from './calendarEntrySurface';
 
@@ -30,7 +31,11 @@ export function CalendarMonthView({
   onEntryClick,
 }: CalendarMonthViewProps): JSX.Element {
   const { epics } = useTaskEpics();
-  const cells = useMemo(() => buildMonthGrid(monthDate, locale), [monthDate, locale]);
+  const weekStartsOn = useWeekStartsOn();
+  const cells = useMemo(
+    () => buildMonthGrid(monthDate, locale),
+    [monthDate, locale, weekStartsOn],
+  );
   const month = monthDate.getMonth();
   return (
     <div className="nordly-calendar-month">

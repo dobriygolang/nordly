@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
@@ -15,8 +15,12 @@ export interface BoardRowProps {
   active: boolean;
   cloudEnabled: boolean;
   menuOpen: boolean;
+  renaming: boolean;
   onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
+  onStartRename: (id: string) => void;
+  onCancelRename: () => void;
+  onRename: (id: string, title: string) => Promise<void>;
   onShare?: () => void;
   onPublish?: () => void;
   onDelete: (id: string) => Promise<void>;
@@ -27,21 +31,27 @@ export const BoardRow = memo(function BoardRow({
   active,
   cloudEnabled,
   menuOpen,
+  renaming,
   onMenuOpenChange,
   onSelect,
+  onStartRename,
+  onCancelRename,
+  onRename,
   onShare,
   onPublish,
   onDelete,
 }: BoardRowProps) {
   const t = useT();
   const [hover, setHover] = useState(false);
+  const [draftName, setDraftName] = useState(board.title);
   const closeMenu = useCallback(() => onMenuOpenChange(false), [onMenuOpenChange]);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const showMore = hover || menuOpen || active;
+  const showMore = hover || menuOpen || active || renaming;
   const rowLabel = board.title || t('nordly.whiteboard.untitled');
 
   const updateMenuPos = useCallback(() => {
@@ -57,7 +67,28 @@ export const BoardRow = memo(function BoardRow({
     }
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (renaming) setDraftName(board.title);
+  }, [renaming, board.title]);
+
+  useLayoutEffect(() => {
+    if (!renaming) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [renaming]);
+
   useVaultRowMenuDismiss(menuOpen, closeMenu, rowRef, menuRef, updateMenuPos);
+
+  const commitRename = useCallback(() => {
+    const next = draftName.trim();
+    if (!next || next === board.title) {
+      onCancelRename();
+      return;
+    }
+    void onRename(board.id, next).finally(() => onCancelRename());
+  }, [board.id, board.title, draftName, onCancelRename, onRename]);
 
   const handleDelete = useCallback(async () => {
     closeMenu();
@@ -75,14 +106,51 @@ export const BoardRow = memo(function BoardRow({
         className="nordly-note-row-wrap"
         data-active={active ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
+        data-renaming={renaming ? 'true' : 'false'}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onClick={() => onSelect(board.id)}
+        onClick={() => {
+          if (renaming) return;
+          onSelect(board.id);
+        }}
       >
         <span className="nordly-note-row__icon" aria-hidden>
           <Icon name="grid" size={16} strokeWidth={1.5} />
         </span>
-        <span className="nordly-note-row__label">{rowLabel}</span>
+        {renaming ? (
+          <input
+            ref={inputRef}
+            className="nordly-folder-row__input"
+            value={draftName}
+            aria-label={t('nordly.whiteboard.rename_aria')}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onCancelRename();
+              }
+            }}
+          />
+        ) : (
+          <span
+            className="nordly-note-row__label"
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              closeMenu();
+              onStartRename(board.id);
+            }}
+          >
+            {rowLabel}
+          </span>
+        )}
 
         <button
           ref={moreRef}
@@ -112,6 +180,19 @@ export const BoardRow = memo(function BoardRow({
             onClick={(e) => e.stopPropagation()}
             role="menu"
           >
+            <button
+              type="button"
+              className="nordly-note-menu__item"
+              onClick={() => {
+                closeMenu();
+                onStartRename(board.id);
+              }}
+            >
+              <span className="nordly-note-menu__icon" aria-hidden>
+                <Icon name="note" size={14} />
+              </span>
+              <span className="nordly-note-menu__text">{t('nordly.whiteboard.menu.rename')}</span>
+            </button>
             {cloudEnabled && active && onShare && (
               <button
                 type="button"
@@ -142,9 +223,7 @@ export const BoardRow = memo(function BoardRow({
                 <span className="nordly-note-menu__text">{t('nordly.whiteboard.publish')}</span>
               </button>
             )}
-            {cloudEnabled && active && (onShare || onPublish) && (
-              <div className="nordly-note-menu__divider" role="separator" />
-            )}
+            <div className="nordly-note-menu__divider" role="separator" />
             <button
               type="button"
               className="nordly-note-menu__item"

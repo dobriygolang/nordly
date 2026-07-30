@@ -38,6 +38,7 @@ import { refreshGoogleCalendarCache } from '@features/calendar/api/calendar';
 import { zIndex } from '@shared/lib/z-index';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isCloudEnabled } from '@shared/model/features';
+import { useWeekStartsOn } from '@shared/model/useWeekStartsOn';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMonthView } from './CalendarMonthView';
 import { CalendarYearView } from './CalendarYearView';
@@ -63,6 +64,7 @@ interface CalendarModalProps {
 export function CalendarModal({ onClose, closing = false }: CalendarModalProps): JSX.Element {
   const t = useT();
   const [locale] = useLocale();
+  const weekStartsOn = useWeekStartsOn();
   const [now, setNow] = useState(() => new Date());
   const todayKey = toDayKey(now);
   const [viewMode, setViewMode] = useState<ViewMode>('week');
@@ -90,7 +92,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   useEffect(() => {
     setWeekStart((prev) => startOfWeekMonday(prev, locale));
-  }, [locale]);
+  }, [locale, weekStartsOn]);
 
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
   const weekEntries = useMemo(() => entriesForWeek(entries, weekStart), [entries, weekStart]);

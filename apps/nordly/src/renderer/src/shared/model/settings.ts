@@ -17,6 +17,9 @@ export type GoogleCalendarPollMinutes = (typeof GOOGLE_CALENDAR_POLL_MINUTES)[nu
 export const APPLE_CALENDAR_POLL_MINUTES = GOOGLE_CALENDAR_POLL_MINUTES;
 export type AppleCalendarPollMinutes = GoogleCalendarPollMinutes;
 
+/** First column of week / month grids in the calendar. */
+export type WeekStartsOn = 'monday' | 'sunday';
+
 export interface NordlySettings {
   pomodoroMinutes: number;
   timerMode: TimerMode;
@@ -40,6 +43,8 @@ export interface NordlySettings {
   appleCalendarPollMinutes: AppleCalendarPollMinutes;
   /** UI preview — show plan meters as if limits are exhausted. */
   planPreviewExhausted: boolean;
+  /** Calendar week column order: Mon–Sun or Sun–Sat. */
+  weekStartsOn: WeekStartsOn;
 }
 
 export const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -72,7 +77,13 @@ export const DEFAULTS: NordlySettings = {
   appleCalendarIds: [],
   appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
+  weekStartsOn: 'monday',
 };
+
+function parseWeekStartsOn(v: unknown): WeekStartsOn {
+  if (v === 'monday' || v === 'sunday') return v;
+  throw new Error(`Invalid weekStartsOn: ${String(v)}`);
+}
 
 function parseTimerMode(v: unknown): TimerMode {
   if (v === 'pomodoro' || v === 'stopwatch') return v;
@@ -135,6 +146,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     typeof parsed.appleCalendarEnabled !== 'boolean' ||
     parsed.appleCalendarIds === undefined ||
     parsed.appleCalendarPollMinutes === undefined ||
+    parsed.weekStartsOn === undefined ||
     (parsed as { quickCaptureEnabled?: unknown }).quickCaptureEnabled !== undefined ||
     (parsed as { quickCaptureShortcut?: unknown }).quickCaptureShortcut !== undefined;
 
@@ -178,6 +190,10 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       typeof parsed.planPreviewExhausted === 'boolean'
         ? parsed.planPreviewExhausted
         : DEFAULTS.planPreviewExhausted,
+    weekStartsOn:
+      parsed.weekStartsOn === undefined
+        ? DEFAULTS.weekStartsOn
+        : parseWeekStartsOn(parsed.weekStartsOn),
   };
 
   return { settings, migrated };
@@ -246,6 +262,10 @@ export function readTaskRollover(): boolean {
 
 export function readDailyGoalMin(): number {
   return readSettings().dailyGoalMin;
+}
+
+export function readWeekStartsOn(): WeekStartsOn {
+  return readSettings().weekStartsOn;
 }
 
 export function themeLabelKey(id: string): string {

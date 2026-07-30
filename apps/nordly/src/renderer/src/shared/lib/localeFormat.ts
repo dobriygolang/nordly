@@ -1,5 +1,7 @@
 import { getLocale, localeToBcp47, type Locale } from '@nordly-i18n';
 
+import { readWeekStartsOn } from '@shared/model/settings';
+
 /** IANA timezone from the OS / browser (e.g. Europe/Moscow). */
 export function getUserTimeZone(): string {
   try {
@@ -70,19 +72,12 @@ export function formatLocaleDate(
   return date.toLocaleDateString(tag(locale), options);
 }
 
-/** JS `getDay()` value for the first column of a week (0 = Sun … 6 = Sat). */
-export function getFirstDayOfWeek(locale?: Locale): number {
-  const t = tag(locale);
-  try {
-    const info = (new Intl.Locale(t) as Intl.Locale & { weekInfo?: { firstDay?: number } }).weekInfo;
-    if (info?.firstDay != null) {
-      // ICU: 1 = Monday … 7 = Sunday
-      return info.firstDay === 7 ? 0 : info.firstDay;
-    }
-  } catch {
-    /* weekInfo unsupported */
-  }
-  return t.startsWith('ru') ? 1 : 0;
+/**
+ * JS `getDay()` value for the first column of a week (0 = Sun … 6 = Sat).
+ * Driven by Settings → week starts on (Monday or Sunday).
+ */
+export function getFirstDayOfWeek(_locale?: Locale): number {
+  return readWeekStartsOn() === 'sunday' ? 0 : 1;
 }
 
 export function startOfLocaleWeek(d: Date, locale?: Locale): Date {

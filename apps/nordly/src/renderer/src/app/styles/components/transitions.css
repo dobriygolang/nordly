@@ -45,6 +45,22 @@
 .nordly-canvas-shell[data-visible='false'],
 .nordly-chrome-shell[data-visible='false'] {
   opacity: 0;
+  /* Drop from paint once faded — otherwise WKWebView keeps compositing the
+     poster under transparent Notes/Settings scroll surfaces every frame. */
+  visibility: hidden;
+  transition:
+    opacity var(--motion-dur-poster) var(--motion-ease-poster),
+    filter var(--motion-dur-content) var(--motion-ease-content),
+    visibility 0s linear var(--motion-dur-poster);
+}
+.nordly-chrome-shell[data-visible='false'] {
+  transition:
+    opacity var(--motion-dur-content) var(--motion-ease-content),
+    visibility 0s linear var(--motion-dur-content);
+}
+.nordly-canvas-shell[data-visible='true'],
+.nordly-chrome-shell[data-visible='true'] {
+  visibility: visible;
 }
 
 .nordly-bg-poster-host {
@@ -110,6 +126,9 @@
   opacity: 1;
   transform: none;
   transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
+}
+.nordly-screen-layer[data-status='entering'],
+.nordly-screen-layer[data-status='leaving'] {
   will-change: opacity;
 }
 .nordly-screen-layer[data-status='entering'] {
@@ -142,9 +161,14 @@
   z-index: 1;
   opacity: 1;
   transition: opacity var(--motion-dur-page) var(--motion-ease-page-in);
-  contain: layout style paint;
-  will-change: opacity;
+  /* layout/style only — paint containment + permanent will-change made WKWebView
+     scroll feel like ~30Hz on high-refresh displays. */
+  contain: layout style;
   pointer-events: auto;
+}
+.nordly-page-layer[data-status='entering'],
+.nordly-page-layer[data-status='leaving'] {
+  will-change: opacity;
 }
 .nordly-page-layer[data-status='leaving'] {
   opacity: 0;

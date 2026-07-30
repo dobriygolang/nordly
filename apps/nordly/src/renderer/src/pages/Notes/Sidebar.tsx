@@ -167,8 +167,8 @@ export interface SidebarProps {
   /** Folder that receives new notes/folders; null = vault root. */
   createTargetFolderId: string | null;
   onSelect: (id: string) => void;
-  onCreateNote: () => void;
-  onCreateFolder: () => Promise<NoteFolder>;
+  onCreateNote: (folderId?: string | null) => void;
+  onCreateFolder: (parentId?: string | null) => Promise<NoteFolder>;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => Promise<void>;
   onMoveNote: (noteId: string, folderId: string | null) => Promise<void>;
@@ -974,6 +974,21 @@ export const Sidebar = memo(function Sidebar({
                 onRenameFolder(id, name);
               }}
               onCancelRename={() => setRenamingFolderId(null)}
+              onCreateNote={(folderId) => {
+                setOpenMenuId(null);
+                setOpenFolderIds((prev) => new Set(prev).add(folderId));
+                onFocusFolder(folderId);
+                onCreateNote(folderId);
+              }}
+              onCreateFolder={async (parentId) => {
+                setOpenMenuId(null);
+                setOpenFolderIds((prev) => new Set(prev).add(parentId));
+                onFocusFolder(parentId);
+                const folder = await onCreateFolder(parentId);
+                setRenamingFolderId(folder.id);
+                setOpenFolderIds((prev) => new Set(prev).add(folder.id));
+                return folder;
+              }}
               onDelete={onDeleteFolder}
             />
           }

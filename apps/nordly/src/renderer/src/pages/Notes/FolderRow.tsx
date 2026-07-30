@@ -8,7 +8,7 @@ import { Icon } from '@shared/ui/primitives/Icon';
 import { noteMenuPos } from '@shared/lib/noteMenuPos';
 import { useVaultRowMenuDismiss } from '@shared/lib/useVaultRowMenuDismiss';
 
-const MENU_W = 168;
+const MENU_W = 200;
 
 export interface FolderRowProps {
   folder: NoteFolder;
@@ -25,6 +25,8 @@ export interface FolderRowProps {
   onStartRename: (id: string) => void;
   onCommitRename: (id: string, name: string) => void;
   onCancelRename: () => void;
+  onCreateNote: (folderId: string) => void;
+  onCreateFolder: (parentId: string) => Promise<NoteFolder>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -43,6 +45,8 @@ export const FolderRow = memo(function FolderRow({
   onStartRename,
   onCommitRename,
   onCancelRename,
+  onCreateNote,
+  onCreateFolder,
   onDelete,
 }: FolderRowProps) {
   const t = useT();
@@ -87,6 +91,18 @@ export const FolderRow = memo(function FolderRow({
     }
     onCommitRename(folder.id, next);
   }, [draftName, folder.id, folder.name, onCancelRename, onCommitRename]);
+
+  const handleCreateNote = useCallback(() => {
+    closeMenu();
+    onCreateNote(folder.id);
+  }, [closeMenu, folder.id, onCreateNote]);
+
+  const handleCreateFolder = useCallback(() => {
+    closeMenu();
+    void onCreateFolder(folder.id).catch(() => {
+      /* surfaced in NotesPage */
+    });
+  }, [closeMenu, folder.id, onCreateFolder]);
 
   const handleDelete = useCallback(async () => {
     closeMenu();
@@ -194,6 +210,18 @@ export const FolderRow = memo(function FolderRow({
             onClick={(e) => e.stopPropagation()}
             role="menu"
           >
+            <button type="button" className="nordly-note-menu__item" onClick={handleCreateNote}>
+              <span className="nordly-note-menu__icon" aria-hidden>
+                <Icon name="file" size={14} strokeWidth={1.5} />
+              </span>
+              <span className="nordly-note-menu__text">{t('nordly.notes.new')}</span>
+            </button>
+            <button type="button" className="nordly-note-menu__item" onClick={handleCreateFolder}>
+              <span className="nordly-note-menu__icon" aria-hidden>
+                <Icon name="folder" size={14} strokeWidth={1.5} />
+              </span>
+              <span className="nordly-note-menu__text">{t('nordly.notes.new_folder')}</span>
+            </button>
             <button
               type="button"
               className="nordly-note-menu__item"

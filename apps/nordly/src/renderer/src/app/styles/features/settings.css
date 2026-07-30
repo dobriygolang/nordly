@@ -44,7 +44,8 @@
 .nordly-settings-group__body {
   border: 1px solid var(--ink-tint-08);
   border-radius: 14px;
-  background: rgb(var(--ink-rgb) / 0.03);
+  /* Opaque enough to avoid per-frame blend while scrolling the settings pane. */
+  background: color-mix(in srgb, var(--surface) 92%, rgb(var(--ink-rgb) / 0.08));
   overflow: hidden;
 }
 /* Light theme: lift the settings panel to a white card with a real border +
@@ -287,6 +288,7 @@ html.light .nordly-settings-group__body {
   inset: 0;
   display: flex;
   min-height: 0;
+  background: var(--bg);
 }
 
 .nordly-settings-nav {
@@ -361,6 +363,8 @@ html.light .nordly-settings-group__body {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
 }
 
 .nordly-settings-content__inner {
@@ -506,7 +510,7 @@ html.light .nordly-settings-group__body {
 .nordly-shortcuts-card {
   border: 1px solid var(--ink-tint-08);
   border-radius: 14px;
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: color-mix(in srgb, var(--surface) 92%, rgb(var(--ink-rgb) / 0.08));
   overflow: hidden;
 }
 

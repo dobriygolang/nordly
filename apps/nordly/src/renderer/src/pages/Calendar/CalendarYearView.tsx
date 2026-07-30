@@ -7,6 +7,7 @@ import {
 } from '@features/calendar/api/calendar';
 import type { Locale } from '@nordly-i18n';
 import { formatLocaleDate } from '@shared/lib/localeFormat';
+import { useWeekStartsOn } from '@shared/model/useWeekStartsOn';
 
 interface CalendarYearViewProps {
   year: number;
@@ -23,6 +24,7 @@ export function CalendarYearView({
   locale,
   onPickMonth,
 }: CalendarYearViewProps): JSX.Element {
+  const weekStartsOn = useWeekStartsOn();
   const months = useMemo(
     () =>
       Array.from({ length: 12 }, (_, monthIndex) => {
@@ -30,7 +32,7 @@ export function CalendarYearView({
         const grid = buildMonthGrid(viewMonth, locale);
         return { monthIndex, viewMonth, grid };
       }),
-    [year, locale],
+    [year, locale, weekStartsOn],
   );
 
   return (

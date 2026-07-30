@@ -14,6 +14,7 @@ export interface SidebarProps {
   cloudEnabled: boolean;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onRename: (id: string, title: string) => Promise<void>;
   onShare: () => void;
   onPublish: () => void;
   onDelete: (id: string) => Promise<void>;
@@ -25,12 +26,14 @@ export const Sidebar = memo(function Sidebar({
   cloudEnabled,
   onSelect,
   onCreate,
+  onRename,
   onShare,
   onPublish,
   onDelete,
 }: SidebarProps) {
   const t = useT();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   return (
     <aside className="nordly-vault-sidebar">
@@ -62,8 +65,18 @@ export const Sidebar = memo(function Sidebar({
             active={selectedId === b.id}
             cloudEnabled={cloudEnabled}
             menuOpen={openMenuId === b.id}
+            renaming={renamingId === b.id}
             onMenuOpenChange={(open) => setOpenMenuId(open ? b.id : null)}
-            onSelect={onSelect}
+            onSelect={(id) => {
+              setRenamingId(null);
+              onSelect(id);
+            }}
+            onStartRename={(id) => {
+              setOpenMenuId(null);
+              setRenamingId(id);
+            }}
+            onCancelRename={() => setRenamingId(null)}
+            onRename={onRename}
             onShare={onShare}
             onPublish={onPublish}
             onDelete={onDelete}

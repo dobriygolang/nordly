@@ -14,6 +14,7 @@ import {
   type NordlySettings,
   type TextScale,
   type TimerMode,
+  type WeekStartsOn,
 } from '@shared/model/settings';
 import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
 import { SettingRow, SettingsBlock } from '../primitives/SettingRow';
@@ -22,6 +23,7 @@ import { Toggle } from '../primitives/Toggle';
 import { WallpaperCarousel } from '../WallpaperCarousel';
 
 const LOCALES: Locale[] = ['ru', 'en'];
+const WEEK_STARTS: WeekStartsOn[] = ['monday', 'sunday'];
 
 interface GeneralSectionProps {
   theme: ThemeId;
@@ -105,6 +107,18 @@ export function GeneralSection({
     [t],
   );
 
+  const weekStartsOptions = useMemo(
+    () =>
+      WEEK_STARTS.map((day) => ({
+        value: day,
+        label:
+          day === 'monday'
+            ? t('nordly.settings.week_starts.monday')
+            : t('nordly.settings.week_starts.sunday'),
+      })),
+    [t],
+  );
+
   const textScaleOptions = useMemo(
     () =>
       TEXT_SCALES.map((scale) => ({
@@ -159,6 +173,18 @@ export function GeneralSection({
             value={locale}
             options={localeOptions}
             onChange={setLocale}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('nordly.settings.week_starts.label')}
+          hint={t('nordly.settings.week_starts.hint')}
+        >
+          <SegmentedControl
+            ariaLabel={t('nordly.settings.week_starts.label')}
+            value={settings.weekStartsOn}
+            options={weekStartsOptions}
+            onChange={(day) => update({ weekStartsOn: day })}
           />
         </SettingRow>
 

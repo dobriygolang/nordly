@@ -19,6 +19,8 @@ import { formatTime, type ListState } from './utils';
 export interface EditorProps {
   list: ListState;
   active: Note | null;
+  /** Bumps only on intentional note switch — keeps title focus across vault rename autosave. */
+  editorSessionKey: number;
   activeError: string | null;
   draftTitle: string;
   draftBody: string;
@@ -36,6 +38,7 @@ export interface EditorProps {
 export function Editor({
   list,
   active,
+  editorSessionKey,
   activeError,
   draftTitle,
   draftBody,
@@ -65,7 +68,7 @@ export function Editor({
           <VaultLockedPane />
         ) : (
           <ActiveEditor
-            key={active.id}
+            key={editorSessionKey}
             noteId={active.id}
             title={draftTitle}
             body={draftBody}

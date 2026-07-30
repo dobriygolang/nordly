@@ -575,7 +575,12 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate): void {
-      if (update.docChanged || update.selectionSet || update.viewportChanged) {
+      // Decorations depend on doc + selection (marker mute) and image resolver
+      // (vault note path after title rename). Not viewport — that caused scroll jank.
+      const resolverChanged =
+        update.startState.facet(imageHrefResolverFacet) !==
+        update.state.facet(imageHrefResolverFacet);
+      if (update.docChanged || update.selectionSet || resolverChanged) {
         this.decorations = buildLivePreview(update.state);
       }
     }
@@ -597,6 +602,7 @@ export const notesEditorTheme = EditorView.theme({
   },
   '.cm-scroller': {
     overflow: 'auto',
+    overscrollBehavior: 'contain',
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
   },
   '.cm-content': {

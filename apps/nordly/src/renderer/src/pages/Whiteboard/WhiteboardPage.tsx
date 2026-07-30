@@ -7,6 +7,7 @@ import {
   getBoard,
   createBoard,
   deleteBoard,
+  updateBoardTitle,
   type Board,
 } from '@features/whiteboard/api/whiteboardClient';
 import {
@@ -17,6 +18,7 @@ import { ensureCloudAuth } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 
 import { BoardCanvas, type BoardCanvasHandle } from './BoardCanvas';
@@ -182,6 +184,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isEditableKeyboardTarget(e.target)) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
@@ -202,6 +205,22 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     },
     [flushCanvas],
   );
+
+  const handleRename = useCallback(async (id: string, title: string) => {
+    try {
+      const updated = await updateBoardTitle(id, title);
+      setList((prev) => ({
+        ...prev,
+        boards: prev.boards.map((b) =>
+          b.id === id ? { id: updated.id, title: updated.title, updatedAt: updated.updatedAt } : b,
+        ),
+      }));
+      setActive((cur) => (cur?.id === id ? { ...cur, title: updated.title, updatedAt: updated.updatedAt } : cur));
+    } catch (err: unknown) {
+      setActiveError(errorMessage(err));
+      throw err;
+    }
+  }, []);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -312,6 +331,7 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
             cloudEnabled={isCloudEnabled()}
             onSelect={onSelectBoard}
             onCreate={() => void handleCreate()}
+            onRename={handleRename}
             onShare={() => void handleShareLive()}
             onPublish={() => void handlePublish()}
             onDelete={handleDelete}

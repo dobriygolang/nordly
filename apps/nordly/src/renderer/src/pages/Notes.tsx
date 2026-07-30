@@ -133,6 +133,11 @@ export function NotesPage({
   const [active, setActive] = useState<Note | null>(null);
   activeRef.current = active;
   selectedIdRef.current = selectedId;
+  /** Remount ActiveEditor only on intentional note switches — not vault path/id remap on title save. */
+  const [editorSessionKey, setEditorSessionKey] = useState(0);
+  const bumpEditorSession = useCallback(() => {
+    setEditorSessionKey((k) => k + 1);
+  }, []);
   const [activeError, setActiveError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [draftTitle, setDraftTitle] = useState('');
@@ -520,13 +525,14 @@ export function NotesPage({
     let cancelled = false;
     void (async () => {
       if (!(await flushNow()) || cancelled) return;
+      if (selectedIdRef.current !== openRequest.id) bumpEditorSession();
       setSelectedId(openRequest.id);
       onConsumeOpenRequest?.(openRequest.requestKey);
     })();
     return () => {
       cancelled = true;
     };
-  }, [openRequest, flushNow, onConsumeOpenRequest]);
+  }, [openRequest, flushNow, onConsumeOpenRequest, bumpEditorSession]);
 
   const prependAndSelectNote = useCallback((n: Note) => {
     setList((prev) => ({
@@ -547,13 +553,16 @@ export function NotesPage({
     setDraftTitle(n.title);
     setDraftBody(n.bodyMd);
     setActiveError(null);
-  }, []);
+    bumpEditorSession();
+  }, [bumpEditorSession]);
 
-  const handleCreate = useCallback(async () => {
+  const handleCreate = useCallback(async (folderId?: string | null) => {
     if (!(await flushNow())) return;
     try {
-      const folderId = focusFolderIdRef.current;
-      const n = await createNote(t('nordly.notes.untitled'), '', folderId);
+      const parent =
+        folderId === undefined ? focusFolderIdRef.current : folderId;
+      if (parent) setCreateTargetFolderId(parent);
+      const n = await createNote(t('nordly.notes.untitled'), '', parent);
       prependAndSelectNote(n);
     } catch (err: unknown) {
       setActiveError(errorMessage(err, t));
@@ -676,6 +685,7 @@ export function NotesPage({
           setActive(last);
           setDraftTitle(last.title);
           setDraftBody(last.bodyMd);
+          bumpEditorSession();
           if (missingImageCount > 0 || imageWarningCount > 0) {
             const parts: string[] = [];
             if (missingImageCount > 0) {
@@ -714,7 +724,7 @@ export function NotesPage({
         setActiveError(importErrorMessage(err));
       }
     },
-    [flushNow, importErrorMessage, t],
+    [bumpEditorSession, flushNow, importErrorMessage, t],
   );
 
   const onFileDragEnter = useCallback((e: ReactDragEvent) => {
@@ -878,13 +888,14 @@ export function NotesPage({
     };
   }, [clearFileDrop, importErrorMessage, importMarkdownDrafts, t]);
 
-  const handleCreateFolder = useCallback(async (): Promise<NoteFolder> => {
+  const handleCreateFolder = useCallback(async (parentId?: string | null): Promise<NoteFolder> => {
     try {
-      const parentId = createTargetFolderId;
+      const parent = parentId === undefined ? createTargetFolderId : parentId;
+      if (parentId !== undefined) setCreateTargetFolderId(parent);
       const base = t('nordly.notes.folder.default_name');
-      const siblings = folders.filter((f) => (f.parentId ?? null) === parentId);
+      const siblings = folders.filter((f) => (f.parentId ?? null) === parent);
       const name = nextUniqueFolderName(base, siblings.map((f) => f.name));
-      const folder = await createFolder(name, parentId);
+      const folder = await createFolder(name, parent);
       // Upsert by id — create_dir_all is idempotent; a stale self-parent row from a
       // buggy list must not duplicate and blow the tree walk stack.
       setFolders((prev) => {
@@ -977,6 +988,7 @@ export function NotesPage({
             setDraftTitle('');
             setDraftBody('');
             draftRef.current = { title: '', body: '', activeId: '' };
+            bumpEditorSession();
           }
           return { ...prev, notes };
         });
@@ -988,7 +1000,7 @@ export function NotesPage({
         throw err;
       }
     },
-    [createTargetFolderId, t],
+    [bumpEditorSession, createTargetFolderId, t],
   );
 
   const handleMoveNote = useCallback(
@@ -1113,10 +1125,12 @@ export function NotesPage({
   const onSelectNote = useCallback(
     (id: string) => {
       void (async () => {
-        if (await flushNow()) setSelectedId(id);
+        if (!(await flushNow())) return;
+        if (selectedIdRef.current !== id) bumpEditorSession();
+        setSelectedId(id);
       })();
     },
-    [flushNow],
+    [flushNow, bumpEditorSession],
   );
 
   const handlePublish = useCallback(
@@ -1210,6 +1224,7 @@ export function NotesPage({
           if (deletingOpen) {
             const next = notes[0]?.id ?? null;
             setSelectedId(next);
+            bumpEditorSession();
             if (!next) {
               setActive(null);
               setDraftTitle('');
@@ -1222,7 +1237,7 @@ export function NotesPage({
         setActiveError(errorMessage(err, t));
       }
     },
-    [t],
+    [bumpEditorSession, t],
   );
 
   const handleDeleteNote = useCallback(
@@ -1242,6 +1257,10 @@ export function NotesPage({
       if (!(await flushNow())) return;
       try {
         const { noteId, created } = await openWikiLink(linkText);
+        if (selectedIdRef.current === noteId) {
+          setActiveError(null);
+          return;
+        }
         const note = await getNote(noteId);
         if (created) {
           setList((prev) => ({
@@ -1258,6 +1277,7 @@ export function NotesPage({
             ],
           }));
         }
+        bumpEditorSession();
         setSelectedId(noteId);
         setActive(note);
         setDraftTitle(note.title);
@@ -1267,7 +1287,7 @@ export function NotesPage({
         setActiveError(errorMessage(err, t));
       }
     },
-    [flushNow, t],
+    [flushNow, t, bumpEditorSession],
   );
 
   const SIDEBAR_W = VAULT_SIDEBAR_W;
@@ -1346,6 +1366,7 @@ export function NotesPage({
         <Editor
           list={list}
           active={active}
+          editorSessionKey={editorSessionKey}
           activeError={activeError}
           draftTitle={draftTitle}
           draftBody={draftBody}

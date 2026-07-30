@@ -11,6 +11,7 @@ import {
   startOfLocaleWeek,
 } from '@shared/lib/localeFormat';
 import {
+  addDays,
   buildDefaultScheduleDate,
   defaultDurationMin,
   parseDayKey,
@@ -51,11 +52,57 @@ export function taskIsMeeting(task: { conferenceUrl?: string | null }): boolean 
 }
 
 export const CALENDAR_GRID_START_HOUR = 6;
-/** Exclusive end hour — daytime grid through 23:00 (labels 6 AM–11 PM). */
-export const CALENDAR_GRID_END_HOUR = 24;
+/**
+ * Exclusive end hour on the day grid (labels 6 AM … 1 AM).
+ * Hours 24–25 are the overnight spill (00:00–02:00 next morning).
+ */
+export const CALENDAR_GRID_END_HOUR = 26;
+/** Clock hour on the next calendar day still painted at the bottom of this day's grid. */
+export const CALENDAR_OVERNIGHT_END_HOUR = CALENDAR_GRID_END_HOUR - 24;
 export const CALENDAR_HOUR_HEIGHT_PX = 52;
 /** Click / drag snap on day grids — half-hour slots (:00 / :30), Google Calendar style. */
 export const CALENDAR_TIME_SNAP_MIN = 30;
+
+/** Instant for a grid minutes-of-day value (may be ≥ 24h for overnight slots). */
+export function dateFromGridMinutes(dayKey: string, totalMin: number): Date {
+  const out = parseDayKey(dayKey);
+  out.setHours(0, 0, 0, 0);
+  out.setMinutes(totalMin, 0, 0);
+  return out;
+}
+
+/**
+ * Minutes from grid day midnight for layout / editing.
+ * Early morning on day+1 (before {@link CALENDAR_OVERNIGHT_END_HOUR}) maps to 24h+.
+ */
+export function gridMinutesFromDate(dayKey: string, d: Date): number | null {
+  const startKey = toDayKey(d);
+  const clockMin = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  if (startKey === dayKey) return clockMin;
+  const nextKey = toDayKey(addDays(parseDayKey(dayKey), 1));
+  if (startKey === nextKey && clockMin < CALENDAR_OVERNIGHT_END_HOUR * 60) {
+    return clockMin + 24 * 60;
+  }
+  return null;
+}
+
+/** Timed event belongs on this day's column grid (same day or overnight spill). */
+export function isTimedOnDayGrid(d: Date, dayKey: string): boolean {
+  const min = gridMinutesFromDate(dayKey, d);
+  if (min == null) return false;
+  return min >= CALENDAR_GRID_START_HOUR * 60 && min < CALENDAR_GRID_END_HOUR * 60;
+}
+
+/**
+ * Keep a schedule instant inside the visible day grid for `dayKey`.
+ * Early-morning clock times (00:00–06:00 same day) sit above the grid and were
+ * dropped by layout after moving an overnight task onto that calendar day —
+ * snap them to the default daytime slot instead.
+ */
+export function clampScheduleToDayGrid(dayKey: string, when: Date, now = new Date()): Date {
+  if (isTimedOnDayGrid(when, dayKey)) return when;
+  return buildDefaultScheduleDate(parseDayKey(dayKey), now);
+}
 
 const VISIBLE_TASK_STATUSES = new Set(['todo', 'in_progress', 'in_review', 'done']);
 
@@ -154,6 +201,29 @@ export function tasksPlannedForDay(
     }
   }
   return out;
+}
+
+/** Planned blocks for a day grid, including overnight spill from the next morning. */
+export function tasksPlannedForDayGrid(
+  dayKey: string,
+  tasks: TaskCard[],
+  now = new Date(),
+): PlannedTaskBlock[] {
+  // 00:00–02:00 on this calendar day belong on yesterday's overnight spill —
+  // keep them out of today's main list so they are not painted twice.
+  const main = tasksPlannedForDay(dayKey, tasks, now).filter((block) => {
+    if (toDayKey(block.start) !== dayKey) return true;
+    const clockMin = block.start.getHours() * 60 + block.start.getMinutes();
+    return clockMin >= CALENDAR_OVERNIGHT_END_HOUR * 60;
+  });
+  const nextKey = toDayKey(addDays(parseDayKey(dayKey), 1));
+  const overnight = tasksPlannedForDay(nextKey, tasks, now).filter((block) => {
+    const min = gridMinutesFromDate(dayKey, block.start);
+    return min != null && min >= 24 * 60 && min < CALENDAR_GRID_END_HOUR * 60;
+  });
+  if (overnight.length === 0) return main;
+  const seen = new Set(main.map((block) => block.task.id));
+  return [...main, ...overnight.filter((block) => !seen.has(block.task.id))];
 }
 
 export function tasksToCalendarEntries(tasks: TaskCard[], now = new Date()): CalendarEntry[] {
@@ -304,7 +374,7 @@ export function allDayEntriesForDay(entries: CalendarEntry[], dayKey: string): C
 }
 
 export function timedEntriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {
-  return entries.filter((e) => !e.allDay && toDayKey(e.start) === dayKey);
+  return entries.filter((e) => !e.allDay && isTimedOnDayGrid(e.start, dayKey));
 }
 
 export function entriesForWeek(entries: CalendarEntry[], weekStart: Date): CalendarEntry[] {
@@ -331,12 +401,21 @@ export function eventBlockLayout(
   hourHeight = CALENDAR_HOUR_HEIGHT_PX,
   gridStartHour = CALENDAR_GRID_START_HOUR,
   gridEndHour = CALENDAR_GRID_END_HOUR,
+  gridDayKey?: string,
 ): { top: number; height: number } | null {
   if (entry.allDay) return null;
 
-  const startH = entry.start.getHours() + entry.start.getMinutes() / 60;
-  let endH = entry.end.getHours() + entry.end.getMinutes() / 60;
-  if (toDayKey(entry.end) !== toDayKey(entry.start) || endH <= startH) {
+  const dayKey = gridDayKey ?? toDayKey(entry.start);
+  const startKey = toDayKey(entry.start);
+  const startMin = gridMinutesFromDate(dayKey, entry.start);
+  if (startMin == null) return null;
+  const startH = startMin / 60;
+
+  let endH: number;
+  const endMin = gridMinutesFromDate(dayKey, entry.end);
+  if (endMin != null && endMin > startMin) {
+    endH = endMin / 60;
+  } else {
     endH = startH + Math.max(0.5, (entry.end.getTime() - entry.start.getTime()) / 3_600_000);
   }
 
@@ -350,7 +429,14 @@ export function eventBlockLayout(
     height += top;
     top = 0;
   }
-  if (height <= 0) return null;
+  // Never drop a same-day block that starts before the grid — keep a stub at the top
+  // so moved overnight (01:00) tasks stay visible until the user reschedules.
+  if (height <= 0) {
+    if (startKey === dayKey && startMin < gridStartHour * 60) {
+      return { top: 0, height: 12 };
+    }
+    return null;
+  }
   if (top >= maxTop) {
     top = Math.max(0, maxTop - 12);
     height = 12;
@@ -404,6 +490,7 @@ export function layoutTimedEntriesForDay(
   hourHeight = CALENDAR_HOUR_HEIGHT_PX,
   gridStartHour = CALENDAR_GRID_START_HOUR,
   gridEndHour = CALENDAR_GRID_END_HOUR,
+  gridDayKey?: string,
 ): TimedEventLayout[] {
   const timed = entries.filter((e) => !e.allDay);
   if (timed.length === 0) return [];
@@ -467,7 +554,13 @@ export function layoutTimedEntriesForDay(
 
     const columnCount = Math.max(1, columnEnds.length);
     for (const entry of group) {
-      const block = eventBlockLayout(entry, hourHeight, gridStartHour, gridEndHour);
+      const block = eventBlockLayout(
+        entry,
+        hourHeight,
+        gridStartHour,
+        gridEndHour,
+        gridDayKey ?? toDayKey(entry.start),
+      );
       if (!block) continue;
       out.push({
         entry,

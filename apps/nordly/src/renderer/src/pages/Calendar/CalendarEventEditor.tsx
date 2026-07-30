@@ -76,6 +76,7 @@ export function CalendarEventEditor({
           disabled={readOnly || saving}
           onChange={(event) => onTitleChange(event.target.value)}
           onKeyDown={(event) => {
+            event.stopPropagation();
             if (event.key === 'Enter' && !readOnly) {
               event.preventDefault();
               onSave();

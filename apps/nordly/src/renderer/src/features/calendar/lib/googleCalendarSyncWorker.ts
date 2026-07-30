@@ -43,7 +43,7 @@ async function runCycle(force = false): Promise<void> {
   running = true;
   try {
     const settings = await getTrackerSettings();
-    if (!settings.googleCalendarConnected || settings.googleReauthRequired) return;
+    if (!settings?.googleCalendarConnected || settings.googleReauthRequired) return;
 
     const { timeMin, timeMax } = defaultGoogleSyncWindow();
     await syncGoogleCalendarSnapshot(timeMin, timeMax, { force });

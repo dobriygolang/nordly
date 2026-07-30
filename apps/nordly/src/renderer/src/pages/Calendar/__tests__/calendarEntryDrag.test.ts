@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@features/calendar/api/calendar', () => ({
-  CALENDAR_GRID_START_HOUR: 6,
-  CALENDAR_TIME_SNAP_MIN: 30,
-  refreshGoogleCalendarCache: vi.fn(),
-  updateGoogleCalendarEvent: vi.fn(),
-}));
-vi.mock('@shared/lib/dates', () => ({
-  snapMinutes: (minutes: number, step = 30) => Math.round(minutes / step) * step,
-}));
+vi.mock('@features/calendar/api/calendar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@features/calendar/api/calendar')>();
+  return {
+    ...actual,
+    refreshGoogleCalendarCache: vi.fn(),
+    updateGoogleCalendarEvent: vi.fn(),
+  };
+});
+vi.mock('@shared/lib/dates', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/lib/dates')>();
+  return {
+    ...actual,
+    snapMinutes: (minutes: number, step = 30) => Math.round(minutes / step) * step,
+  };
+});
 
 import type {
   CalendarEntry,
@@ -55,7 +61,7 @@ describe('moveCalendarEntry', () => {
     };
 
     // Grid starts at 06:00 — 9:00 sits 3 hours down.
-    const result = await moveCalendarEntry(entry, 3 * 60, 60, deps);
+    const result = await moveCalendarEntry(entry, 3 * 60, 60, deps, '2026-07-15');
 
     expect(result).toBe('google');
     expect(deps.updateGoogleEvent).toHaveBeenCalledWith(
@@ -67,6 +73,28 @@ describe('moveCalendarEntry', () => {
       }),
     );
     expect(deps.refreshGoogleCache).toHaveBeenCalledOnce();
+  });
+
+  it('keeps overnight spill on the column dayKey, not entry.start calendar day', async () => {
+    const deps = dependencies();
+    // Friday 01:00 painted on Thursday's overnight spill.
+    const entry: CalendarEntry = {
+      id: 'task:t1',
+      source: 'task',
+      title: 'Late',
+      start: new Date(2026, 6, 31, 1, 0),
+      end: new Date(2026, 6, 31, 1, 30),
+      allDay: false,
+      taskId: 't1',
+    };
+    // Drop at Thursday 22:00 (16h after 06:00).
+    await moveCalendarEntry(entry, 16 * 60, 60, deps, '2026-07-30');
+
+    expect(deps.scheduleTask).toHaveBeenCalledWith(
+      't1',
+      new Date(2026, 6, 30, 22, 0),
+      30,
+    );
   });
 
   it('does not mutate read-only Google entries', async () => {
@@ -82,7 +110,7 @@ describe('moveCalendarEntry', () => {
       googleEditable: false,
     };
 
-    await expect(moveCalendarEntry(entry, 180, 60, deps)).resolves.toBeNull();
+    await expect(moveCalendarEntry(entry, 180, 60, deps, '2026-07-15')).resolves.toBeNull();
     expect(deps.updateGoogleEvent).not.toHaveBeenCalled();
   });
 });

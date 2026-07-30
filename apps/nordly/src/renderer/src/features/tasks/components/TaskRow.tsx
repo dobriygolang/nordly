@@ -189,6 +189,8 @@ export const TaskRow = memo(function TaskRow({
                   }}
                   onBlur={commit}
                   onKeyDown={(e) => {
+                    // Keep Space/letters in the field — parent sortable DnD listens on the card.
+                    e.stopPropagation();
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       commit();

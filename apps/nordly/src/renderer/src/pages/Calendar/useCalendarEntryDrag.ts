@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import {
   CALENDAR_GRID_START_HOUR,
   CALENDAR_TIME_SNAP_MIN,
+  dateFromGridMinutes,
   refreshGoogleCalendarCache,
   updateGoogleCalendarEvent,
   type CalendarEntry,
@@ -23,16 +24,21 @@ export interface CalendarEntryDragDependencies {
   refreshGoogleCache: () => Promise<unknown>;
 }
 
+/**
+ * Commit a vertical drag on a week/day column.
+ * `gridDayKey` must be the column the block was dragged in (overnight spill
+ * lives on the previous calendar day — never derive day from entry.start alone).
+ */
 export async function moveCalendarEntry(
   entry: CalendarEntry,
   finalTop: number,
   hourHeight: number,
   dependencies: CalendarEntryDragDependencies,
+  gridDayKey: string,
 ): Promise<'task' | 'google' | null> {
   const startHour = finalTop / hourHeight + CALENDAR_GRID_START_HOUR;
   const minutes = snapMinutes(startHour * 60, CALENDAR_TIME_SNAP_MIN);
-  const start = new Date(entry.start);
-  start.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  const start = dateFromGridMinutes(gridDayKey, minutes);
   const durationMin = Math.max(
     15,
     Math.round((entry.end.getTime() - entry.start.getTime()) / 60_000),
@@ -60,9 +66,9 @@ export function useCalendarEntryDrag(
   hourHeight: number,
   onError: (error: unknown) => void,
   onGoogleError: (error: unknown) => void,
-): (entry: CalendarEntry, finalTop: number) => Promise<void> {
+): (entry: CalendarEntry, finalTop: number, gridDayKey: string) => Promise<void> {
   return useCallback(
-    async (entry, finalTop) => {
+    async (entry, finalTop, gridDayKey) => {
       try {
         await moveCalendarEntry(entry, finalTop, hourHeight, {
           scheduleTask,
@@ -70,7 +76,7 @@ export function useCalendarEntryDrag(
           notifyTasksChanged: () =>
             window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged)),
           refreshGoogleCache: refreshGoogleCalendarCache,
-        });
+        }, gridDayKey);
       } catch (error) {
         if (entry.source === 'google') onGoogleError(error);
         else onError(error);

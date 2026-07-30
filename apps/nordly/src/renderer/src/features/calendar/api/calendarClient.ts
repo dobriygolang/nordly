@@ -59,8 +59,10 @@ export function listGoogleCalendars(): Promise<GoogleCalendarListEntry[]> {
   return remote.listGoogleCalendars();
 }
 
-export function getTrackerSettings(): Promise<TrackerSettings> {
-  requireCalendarCloudAccess();
+export async function getTrackerSettings(): Promise<TrackerSettings | null> {
+  // Optional integration: when LOCAL_ONLY or no cloud session, callers keep
+  // working offline — Google/Zoom UI stays hidden until cloud comes back.
+  if (!isCloudEnabled() || !isCloudApiAvailable()) return null;
   return remote.getTrackerSettings();
 }
 

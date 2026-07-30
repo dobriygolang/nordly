@@ -2,54 +2,59 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocale, useT } from '@nordly-i18n';
 
+import {
+  CALENDAR_GRID_END_HOUR,
+  CALENDAR_GRID_START_HOUR,
+  dateFromGridMinutes,
+  gridMinutesFromDate,
+} from '@features/calendar/api/calendar';
 import { formatLocaleTime } from '@shared/lib/localeFormat';
-
 import { zIndex } from '@shared/lib/z-index';
-import { formatTimeShort } from '@shared/lib/dates';
+import { formatTimeShort, toDayKey } from '@shared/lib/dates';
 import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 const DEFAULT_STEP_MIN = 30;
-const DEFAULT_START_H = 7;
-const DEFAULT_END_H = 21;
+/** Match the day/week calendar grid (06:00 → 02:00 next morning). */
+const DEFAULT_START_H = CALENDAR_GRID_START_HOUR;
+const DEFAULT_END_H = CALENDAR_GRID_END_HOUR;
 
 function buildTimeOptions(
   locale: 'en' | 'ru',
   stepMin: number,
   startHour: number,
   endHour: number,
-): Array<{ h: number; m: number; label: string }> {
-  const out: Array<{ h: number; m: number; label: string }> = [];
-  for (let h = startHour; h <= endHour; h++) {
-    for (let m = 0; m < 60; m += stepMin) {
-      const totalMin = h * 60 + m;
-      const maxMin = endHour * 60 + (stepMin < 60 ? 60 - stepMin : 0);
-      if (totalMin > maxMin) break;
-      const d = new Date(2000, 0, 1, h, m);
-      out.push({
-        h,
-        m,
-        label: formatLocaleTime(d, locale),
-      });
-    }
+): Array<{ gridMin: number; label: string }> {
+  const out: Array<{ gridMin: number; label: string }> = [];
+  const maxMin = endHour * 60;
+  for (let totalMin = startHour * 60; totalMin <= maxMin; totalMin += stepMin) {
+    const d = new Date(2000, 0, 1, 0, 0, 0, 0);
+    d.setMinutes(totalMin);
+    out.push({
+      gridMin: totalMin,
+      label: formatLocaleTime(d, locale),
+    });
   }
   return out;
 }
 
 function withSelectedTime(
-  options: Array<{ h: number; m: number; label: string }>,
+  options: Array<{ gridMin: number; label: string }>,
   value: Date | null,
+  day: Date,
   locale: 'en' | 'ru',
-): Array<{ h: number; m: number; label: string }> {
+): Array<{ gridMin: number; label: string }> {
   if (!value) return options;
-  const key = `${value.getHours()}:${value.getMinutes()}`;
-  if (options.some((o) => `${o.h}:${o.m}` === key)) return options;
-  const d = new Date(2000, 0, 1, value.getHours(), value.getMinutes());
+  const gridMin = gridMinutesFromDate(toDayKey(day), value);
+  if (gridMin == null) return options;
+  const snapped = Math.round(gridMin);
+  if (options.some((o) => o.gridMin === snapped)) return options;
+  const d = new Date(2000, 0, 1, 0, 0, 0, 0);
+  d.setMinutes(snapped);
   const extra = {
-    h: value.getHours(),
-    m: value.getMinutes(),
+    gridMin: snapped,
     label: formatLocaleTime(d, locale),
   };
-  return [...options, extra].sort((a, b) => a.h * 60 + a.m - (b.h * 60 + b.m));
+  return [...options, extra].sort((a, b) => a.gridMin - b.gridMin);
 }
 
 interface TimePickerProps {
@@ -58,7 +63,9 @@ interface TimePickerProps {
   disabled?: boolean;
   inline?: boolean;
   stepMin?: number;
+  /** Inclusive grid start hour (default: calendar grid start). */
   startHour?: number;
+  /** Inclusive grid end hour; values ≥ 24 are next-morning overnight (default: calendar grid end). */
   endHour?: number;
   onChange: (next: Date) => void;
 }
@@ -76,8 +83,8 @@ export function TimePicker({
   const t = useT();
   const [locale] = useLocale();
   const timeOptions = useMemo(
-    () => withSelectedTime(buildTimeOptions(locale, stepMin, startHour, endHour), value, locale),
-    [locale, stepMin, startHour, endHour, value],
+    () => withSelectedTime(buildTimeOptions(locale, stepMin, startHour, endHour), value, day, locale),
+    [locale, stepMin, startHour, endHour, value, day],
   );
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -87,8 +94,9 @@ export function TimePicker({
 
   const activeKey = useMemo(() => {
     if (!value) return null;
-    return `${value.getHours()}:${value.getMinutes()}`;
-  }, [value]);
+    const gridMin = gridMinutesFromDate(toDayKey(day), value);
+    return gridMin == null ? null : String(Math.round(gridMin));
+  }, [value, day]);
 
   useEscapeLayer(() => setOpen(false), open);
 
@@ -112,8 +120,8 @@ export function TimePicker({
   const timeAria = t('nordly.taskboard.time_aria');
 
   const renderOptions = () =>
-    timeOptions.map(({ h, m, label }) => {
-      const key = `${h}:${m}`;
+    timeOptions.map(({ gridMin, label }) => {
+      const key = String(gridMin);
       const active = activeKey === key;
       return (
         <button
@@ -124,9 +132,7 @@ export function TimePicker({
           aria-selected={active}
           onClick={(e) => {
             e.stopPropagation();
-            const next = new Date(day);
-            next.setHours(h, m, 0, 0);
-            onChange(next);
+            onChange(dateFromGridMinutes(toDayKey(day), gridMin));
             if (!inline) setOpen(false);
           }}
           className="mono"

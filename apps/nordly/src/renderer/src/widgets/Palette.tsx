@@ -181,8 +181,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
                   <TimePicker
                     inline
                     stepMin={30}
-                    startHour={8}
-                    endHour={20}
                     value={scheduleAt}
                     day={startOfLocalDay(scheduleAt)}
                     onChange={(next) => {

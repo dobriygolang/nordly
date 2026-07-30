@@ -23,6 +23,8 @@ import {
   CALENDAR_GRID_START_HOUR,
   CALENDAR_HOUR_HEIGHT_PX,
   CALENDAR_TIME_SNAP_MIN,
+  dateFromGridMinutes,
+  gridMinutesFromDate,
   type CalendarEntry,
 } from '@features/calendar/api/calendar';
 import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
@@ -127,17 +129,49 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
     return () => ro.disconnect();
   }, [gridSpan, viewMode]);
   const gridHeight = gridSpan * hourHeight;
-  const nowHour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-  const nowTop = (nowHour - CALENDAR_GRID_START_HOUR) * hourHeight;
-  const showNowLine =
-    viewMode === 'week' &&
-    nowHour >= CALENDAR_GRID_START_HOUR &&
-    nowHour <= CALENDAR_GRID_END_HOUR;
+  const nowGridDayKey = useMemo(() => {
+    const onToday = gridMinutesFromDate(todayKey, now);
+    if (
+      onToday != null &&
+      onToday >= CALENDAR_GRID_START_HOUR * 60 &&
+      onToday < CALENDAR_GRID_END_HOUR * 60
+    ) {
+      return todayKey;
+    }
+    // 00:00–02:00 → paint on yesterday's overnight extension
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    const yesterdayKey = toDayKey(y);
+    const onYesterday = gridMinutesFromDate(yesterdayKey, now);
+    if (
+      onYesterday != null &&
+      onYesterday >= CALENDAR_GRID_START_HOUR * 60 &&
+      onYesterday < CALENDAR_GRID_END_HOUR * 60
+    ) {
+      return yesterdayKey;
+    }
+    return null;
+  }, [now, todayKey]);
+  const nowTop =
+    nowGridDayKey != null
+      ? ((gridMinutesFromDate(nowGridDayKey, now) ?? 0) / 60 - CALENDAR_GRID_START_HOUR) *
+        hourHeight
+      : 0;
+  const showNowLine = viewMode === 'week' && nowGridDayKey != null;
 
   const weekTimedLayouts = useMemo(() => {
     const map = new Map<string, ReturnType<typeof layoutTimedEntriesForDay>>();
     for (const { dayKey } of weekDays) {
-      map.set(dayKey, layoutTimedEntriesForDay(timedEntriesForDay(weekEntries, dayKey), hourHeight));
+      map.set(
+        dayKey,
+        layoutTimedEntriesForDay(
+          timedEntriesForDay(weekEntries, dayKey),
+          hourHeight,
+          CALENDAR_GRID_START_HOUR,
+          CALENDAR_GRID_END_HOUR,
+          dayKey,
+        ),
+      );
     }
     return map;
   }, [weekDays, weekEntries, hourHeight]);
@@ -191,10 +225,9 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
 
   const createTaskFromWeekSlot = useCallback(
     (dayKey: string, offsetTop: number) => {
-      const [y, m, d] = dayKey.split('-').map(Number);
       const startH = offsetTop / hourHeight + CALENDAR_GRID_START_HOUR;
       const min = snapMinutes(startH * 60, CALENDAR_TIME_SNAP_MIN);
-      const start = new Date(y, m - 1, d, Math.floor(min / 60), min % 60, 0, 0);
+      const start = dateFromGridMinutes(dayKey, min);
       const end = new Date(start.getTime() + CALENDAR_TIME_SNAP_MIN * 60_000);
       openCreateTaskRange(start, end);
     },
@@ -410,7 +443,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                           aria-hidden
                         />
                       )}
-                      {showNowLine && dayKey === todayKey && (
+                      {showNowLine && dayKey === nowGridDayKey && (
                         <div
                           className="nordly-calendar-now-line"
                           style={{ top: nowTop }}
@@ -446,7 +479,7 @@ export function CalendarModal({ onClose, closing = false }: CalendarModalProps):
                                         baseTop: layoutTop,
                                         min: 0,
                                         max: maxTop,
-                                        onCommit: (ft) => void commitDrag(entry, ft),
+                                        onCommit: (ft) => void commitDrag(entry, ft, dayKey),
                                         onClick: () => onEntryClick(entry),
                                       })
                                   : undefined

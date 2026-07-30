@@ -73,7 +73,7 @@ export function GoogleCalendarSection({
     try {
       const s = await getTrackerSettings();
       setSettings(s);
-      void loadCalendars(s);
+      if (s) void loadCalendars(s);
     } catch (err) {
       console.error('[googleCalendar] load settings failed', err);
       setError(t('nordly.settings.google.error_load'));
@@ -115,7 +115,7 @@ export function GoogleCalendarSection({
       if (cancelled) return;
       try {
         const s = await getTrackerSettings();
-        if (s.googleCalendarConnected && !s.googleReauthRequired) {
+        if (s?.googleCalendarConnected && !s.googleReauthRequired) {
           setSettings(s);
           void loadCalendars(s);
           setOauthPending(false);

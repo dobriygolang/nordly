@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   getFirstCollision,
-  KeyboardSensor,
   PointerSensor,
   pointerWithin,
   rectIntersection,
@@ -15,7 +14,7 @@ import {
   type DragStartEvent,
   type Over,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { arrayMove } from '@dnd-kit/sortable';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
 
@@ -329,7 +328,6 @@ export function useDayTaskDnd({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const collisionDetection = useCallback<CollisionDetection>(

@@ -47,6 +47,14 @@ export function useGoogleCalendarConnection(): {
       return;
     }
     const s = await getTrackerSettings();
+    if (!s) {
+      markDisconnected();
+      setConnected(false);
+      setReauthRequired(false);
+      setReady(true);
+      setError(null);
+      return;
+    }
     settingsCache = {
       connected: s.googleCalendarConnected,
       reauthRequired: s.googleReauthRequired,

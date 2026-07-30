@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { dismissTopEscapeLayer } from '@shared/lib/escapeLayer';
+import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
 
 interface GlobalHotkeysDeps {
   page: PageId;
@@ -38,12 +39,7 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
     const onKey = (e: KeyboardEvent) => {
       const d = depsRef.current;
       const isMod = e.metaKey || e.ctrlKey;
-      const target = e.target as HTMLElement | null;
-      const isText =
-        target !== null &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
+      const isText = isEditableKeyboardTarget(e.target);
 
       if (isMod && e.key.toLowerCase() === 'k') {
         e.preventDefault();

@@ -251,8 +251,14 @@ export function resolveScheduleStart(
     })
     .sort((a, b) => a.startMs - b.startMs);
 
+  // Never nudge onto the next calendar day — that made late-evening creates
+  // (e.g. 22:30 with a full afternoon) jump to tomorrow's column.
+  const dayEnd = startOfLocalDay(parseDayKey(dayKey));
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
   let candidate = new Date(preferred);
   for (let i = 0; i < 48; i++) {
+    if (candidate.getTime() >= dayEnd.getTime()) return preferred;
     const candEnd = candidate.getTime() + defaultDurationMin({}) * 60_000;
     const conflict = blocks.some((b) => candidate.getTime() < b.endMs && candEnd > b.startMs);
     if (!conflict) return candidate;

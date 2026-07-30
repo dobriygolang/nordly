@@ -83,7 +83,7 @@ export function ZoomSection(): JSX.Element | null {
       if (cancelled) return;
       try {
         const s = await getTrackerSettings();
-        if (s.zoomConnected && !s.zoomReauthRequired) {
+        if (s?.zoomConnected && !s.zoomReauthRequired) {
           setSettings(s);
           setOauthPending(false);
           setError(null);

@@ -5,6 +5,7 @@ import {
   CALENDAR_GRID_END_HOUR,
   CALENDAR_GRID_START_HOUR,
   CALENDAR_TIME_SNAP_MIN,
+  dateFromGridMinutes,
 } from '@features/calendar/lib/events';
 import { snapMinutes } from '@shared/lib/dates';
 
@@ -41,8 +42,7 @@ function minutesToOffset(totalMin: number, hourHeight: number): number {
 }
 
 function dateFromMinutes(dayKey: string, totalMin: number): Date {
-  const [y, m, d] = dayKey.split('-').map(Number);
-  return new Date(y, m - 1, d, Math.floor(totalMin / 60), totalMin % 60, 0, 0);
+  return dateFromGridMinutes(dayKey, totalMin);
 }
 
 /**

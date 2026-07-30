@@ -17,6 +17,7 @@ import {
   type ConferenceProvider,
 } from '@features/tasks/api/tasks';
 import { getTrackerSettings, type TrackerSettings } from '@features/calendar/api/calendarClient';
+import { isCloudEnabled } from '@shared/model/features';
 import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
@@ -40,6 +41,7 @@ import {
   taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
+import { clampScheduleToDayGrid } from '@features/calendar/api/calendar';
 import { useTodayKey } from '@shared/hooks/useTodayKey';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
 
@@ -119,6 +121,10 @@ export function TaskBoardPage({
   );
 
   const loadSettings = useCallback(async () => {
+    if (!isCloudEnabled()) {
+      setTrackerSettings(null);
+      return;
+    }
     setTrackerSettings(await getTrackerSettings());
   }, []);
 
@@ -219,9 +225,12 @@ export function TaskBoardPage({
       if (sourceKey === dayKey) return;
 
       const existing = taskScheduleStart(task);
-      const start = existing
+      const rawStart = existing
         ? applyTimeFromDay(parseDayKey(dayKey), existing)
         : buildDefaultScheduleDate(parseDayKey(dayKey));
+      // Overnight creates land at 00:00–02:00 next calendar day; moving that
+      // clock onto the target day puts them above the 06:00 grid — snap back in.
+      const start = clampScheduleToDayGrid(dayKey, rawStart);
       const resolved = resolveScheduleStart(dayKey, tasks, start, taskId);
       const startIso = scheduleStartISO(resolved);
       const duration = Math.max(15, defaultDurationMin(task));

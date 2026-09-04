@@ -1,7 +1,7 @@
 -- +goose Up
 ALTER TABLE work_tasks
-  ADD COLUMN google_calendar_id TEXT,
-  ADD COLUMN zoom_meeting_id TEXT;
+  ADD COLUMN IF NOT EXISTS google_calendar_id TEXT,
+  ADD COLUMN IF NOT EXISTS zoom_meeting_id TEXT;
 
 -- Legacy rows did not record the containing calendar, so retaining their event
 -- id would make future patch/delete calls target a guessed calendar. Clear that

@@ -176,6 +176,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /usr/local/etc/haproxy
     security_opt:
       - no-new-privileges:true
     cap_drop:

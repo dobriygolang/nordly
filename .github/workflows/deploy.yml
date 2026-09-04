@@ -230,6 +230,8 @@ jobs:
               fi
             fi
             if [ "$RUN_MIGRATE" = 1 ]; then
+              echo "Starting postgres and redis before migrate..."
+              docker compose -f docker-compose.prod.yml --env-file .env up -d postgres redis --wait --wait-timeout 120
               echo "Running migrations..."
               bash scripts/ensure-prod-databases.sh
               docker compose -f docker-compose.prod.yml --env-file .env run --rm migrate

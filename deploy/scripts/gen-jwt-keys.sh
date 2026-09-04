@@ -23,7 +23,8 @@ load_deploy_ids() {
 
 apply_jwt_perms() {
   load_deploy_ids
-  chmod 700 "$DIR"
+  # 0755 so services running as nobody can read public.pem; private.pem stays 0600.
+  chmod 755 "$DIR"
   chmod 600 "$DIR/private.pem"
   chmod 644 "$DIR/public.pem"
   if [[ -n "${DEPLOY_UID:-}" && -n "${DEPLOY_GID:-}" ]]; then

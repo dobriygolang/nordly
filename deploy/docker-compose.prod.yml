@@ -173,10 +173,10 @@ services:
       POST: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    read_only: true
+    # Image sed's haproxy.cfg.template in-place. A tmpfs on that directory
+    # hides the template and crash-loops the proxy (`sed: no such file`).
     tmpfs:
       - /tmp
-      - /usr/local/etc/haproxy
     security_opt:
       - no-new-privileges:true
     cap_drop:

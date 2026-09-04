@@ -43,7 +43,7 @@ docker compose -f docker-compose.prod.yml logs -f identity tracker
 
 **sandbox timeout / go.mod not found** — `SANDBOX_DEFAULT_TIMEOUT_MS=10000`, host dir `/var/lib/sandbox-work` bind-mounted, `RUNNER_MODE=docker`.
 
-**sandbox Docker access** — the sandbox runs unprivileged and reaches Docker through `docker-socket-proxy`; it does not mount `/var/run/docker.sock`. Prepare the workspace with `sudo install -d -m 700 -o 65534 -g 65534 /var/lib/sandbox-work`. The proxy is still a privileged boundary: keep it on the internal `sandbox_docker` network and do not publish port 2375.
+**sandbox Docker access** — the sandbox runs unprivileged and reaches Docker through `docker-socket-proxy`; it does not mount `/var/run/docker.sock`. Prepare the workspace with `sudo install -d -m 700 -o 65534 -g 65534 /var/lib/sandbox-work`. Do **not** tmpfs `/usr/local/etc/haproxy` — that hides `haproxy.cfg.template` and crash-loops the proxy. The proxy is still a privileged boundary: keep it on the internal `sandbox_docker` network and do not publish port 2375.
 
 **JWT errors** — run `make keys`; `private.pem` must remain `0600` and be owned by the account identified by `DEPLOY_UID`/`DEPLOY_GID` in `.env`. `public.pem` is `0644` and shared with JWT consumers.
 

@@ -287,4 +287,88 @@ describe('pullVaultFiles', () => {
 
     expect(ipc.vaultWriteNote).not.toHaveBeenCalled();
   });
+
+  it('skips pull when a vault outbox put is pending', async () => {
+    remote.remoteListNotes.mockResolvedValue([
+      { id: 'note-1', title: 'A.md', updatedAt: new Date(50), sizeBytes: 1 },
+    ]);
+    remote.remoteGetNote.mockResolvedValue({
+      id: 'note-1',
+      title: 'A.md',
+      bodyMd: 'remote',
+      createdAt: new Date(1),
+      updatedAt: new Date(50),
+      sizeBytes: 6,
+      encrypted: false,
+    });
+    outbox.hasOutboxForEntity.mockImplementation(
+      async (_domain: string, _path: string, op: string) => op === OutboxOp.FilePut,
+    );
+
+    await pullVaultFiles();
+
+    expect(ipc.vaultWriteNote).not.toHaveBeenCalled();
+  });
+
+  it('maps an already-current local file without rewriting', async () => {
+    remote.remoteListNotes.mockResolvedValue([
+      { id: 'note-1', title: 'A.md', updatedAt: new Date(10), sizeBytes: 4 },
+    ]);
+    remote.remoteGetNote.mockResolvedValue({
+      id: 'note-1',
+      title: 'A.md',
+      bodyMd: 'same',
+      createdAt: new Date(1),
+      updatedAt: new Date(10),
+      sizeBytes: 4,
+      encrypted: false,
+    });
+    ipc.vaultReadNote.mockResolvedValue({
+      path: 'A.md',
+      title: 'A',
+      bodyMd: 'same',
+      folderPath: null,
+      updatedAtMs: 10,
+      sizeBytes: 4,
+    });
+
+    await pullVaultFiles();
+
+    expect(ipc.vaultWriteNote).not.toHaveBeenCalled();
+    expect(idMap.setServerId).toHaveBeenCalledWith(SyncDomain.Vault, 'A.md', 'note-1', 'user-1');
+  });
+
+  it('does not overwrite a newer local file', async () => {
+    remote.remoteListNotes.mockResolvedValue([
+      { id: 'note-1', title: 'A.md', updatedAt: new Date(10), sizeBytes: 4 },
+    ]);
+    remote.remoteGetNote.mockResolvedValue({
+      id: 'note-1',
+      title: 'A.md',
+      bodyMd: 'older-remote',
+      createdAt: new Date(1),
+      updatedAt: new Date(10),
+      sizeBytes: 12,
+      encrypted: false,
+    });
+    ipc.vaultReadNote.mockResolvedValue({
+      path: 'A.md',
+      title: 'A',
+      bodyMd: 'newer-local',
+      folderPath: null,
+      updatedAtMs: 50,
+      sizeBytes: 11,
+    });
+
+    await pullVaultFiles();
+
+    expect(ipc.vaultWriteNote).not.toHaveBeenCalled();
+    expect(idMap.setServerId).toHaveBeenCalledWith(SyncDomain.Vault, 'A.md', 'note-1', 'user-1');
+  });
+
+  it('skips pull when no vault folder is bound', async () => {
+    ipc.vaultGetConfig.mockResolvedValue(null);
+    await pullVaultFiles();
+    expect(remote.remoteListNotes).not.toHaveBeenCalled();
+  });
 });

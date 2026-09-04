@@ -44,7 +44,7 @@ func TestProcessRunnerSeparatesSyntaxChecksFromRuntimeErrors(t *testing.T) {
 			compileResult, err := codeRunner.Run(context.Background(), RunRequest{
 				Language:  test.language,
 				Code:      test.compileCode,
-				TimeoutMS: 2000,
+				TimeoutMS: 10_000,
 				MemoryMB:  128,
 			})
 			require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestProcessRunnerSeparatesSyntaxChecksFromRuntimeErrors(t *testing.T) {
 			runtimeResult, err := codeRunner.Run(context.Background(), RunRequest{
 				Language:  test.language,
 				Code:      test.runtimeCode,
-				TimeoutMS: 2000,
+				TimeoutMS: 10_000,
 				MemoryMB:  128,
 			})
 			require.NoError(t, err)

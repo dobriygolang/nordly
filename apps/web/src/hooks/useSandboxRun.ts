@@ -4,15 +4,15 @@ import { getCodeRun, isTerminalRunStatus, runCode } from '@/lib/api/sandbox'
 import { formatSandboxRunError } from '@/lib/sandbox/formatRunError'
 import type { CodeRun } from '@/lib/types'
 
-export function useSandboxRun(accessToken?: string | null) {
+export function useSandboxRun(accessToken: string | null | undefined, roomId: string) {
   const [runId, setRunId] = useState<string | null>(null)
   const [outputTab, setOutputTab] = useState<'stdout' | 'stderr'>('stdout')
   const [runError, setRunError] = useState<string | null>(null)
   const [triggeredBy, setTriggeredBy] = useState<string | null>(null)
 
   const runQ = useQuery({
-    queryKey: ['code-run', runId, accessToken ?? ''],
-    queryFn: () => getCodeRun(runId!, accessToken),
+    queryKey: ['code-run', runId, accessToken ?? '', roomId],
+    queryFn: () => getCodeRun(runId!, accessToken, roomId),
     enabled: !!runId,
     refetchOnWindowFocus: true,
     refetchInterval: (q) => {
@@ -39,7 +39,7 @@ export function useSandboxRun(accessToken?: string | null) {
     mutationFn: (input: {
       language: string
       code: string
-    }) => runCode(input, accessToken),
+    }) => runCode({ ...input, roomId }, accessToken),
     onSuccess: (data) => {
       setRunId(data.run.id)
       setRunError(null)

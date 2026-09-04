@@ -1,14 +1,13 @@
-import { Link } from 'react-router-dom'
 import { Code2, Moon, Settings, Sun, UserPlus, X } from 'lucide-react'
 import { RoomSessionTimer } from '@/components/live/RoomSessionTimer'
 import { brand } from '@/lib/brand/tokens'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
+import { marketingHomeHref } from '@/lib/site/brand'
 import { themeToggleOrigin, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { cn } from '@/lib/cn'
 import { useI18n } from '@/lib/i18n'
 
 type Props = {
-  closeTo: string
   onClose: () => void
   closeLoading?: boolean
   isOwner: boolean
@@ -28,7 +27,6 @@ type Props = {
 }
 
 export function LiveRoomTopBar({
-  closeTo,
   onClose,
   closeLoading,
   isOwner,
@@ -54,12 +52,12 @@ export function LiveRoomTopBar({
       style={{ borderColor: brand.hair }}
     >
       <div className="flex min-w-0 items-center gap-4">
-        <Link to={closeTo} className="inline-flex items-center gap-2 no-underline">
+        <a href={marketingHomeHref()} className="inline-flex items-center gap-2 no-underline">
           <Code2 className="h-[18px] w-[18px] text-text-primary" strokeWidth={2} />
           <span className="text-[15px] font-medium tracking-[-0.01em] text-text-primary">
             {t('live.brand')}
           </span>
-        </Link>
+        </a>
 
         <div className="hidden items-center gap-2 sm:flex">
           <TopBarButton

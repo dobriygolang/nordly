@@ -157,10 +157,10 @@
 
   @keyframes theme-circle-in {
     from {
-      clip-path: circle(0 at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+      clip-path: circle(0px at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
     }
     to {
-      clip-path: circle(var(--theme-toggle-r, 150vmax) at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+      clip-path: circle(var(--theme-toggle-r, 4000px) at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
     }
   }
 }

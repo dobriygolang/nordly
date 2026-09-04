@@ -165,7 +165,7 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|
 | notes | create, update, delete, attachment_put, attachment_delete (legacy IDB path only) | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
-| vault | file_put, file_delete stay in the outbox but do not push | no pull | server file-sync RPCs are not implemented |
+| vault | file_put, file_delete (markdown only) | list + get notes whose title is a vault path | notes CRUD (`title` = relative path) |
 | tasks | create, status, schedule, delete, patch | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
@@ -215,7 +215,7 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 
 Obsidian-style folder SoT after first bind (`features/notes/vault/`, Tauri `notes_vault_*`). Local files are **plaintext**. Soft-delete → `.trash/`. Settings → Files & Links. One-shot IDB export on first pick.
 
-While a filesystem vault is bound, notes cloud push/pull and publish/unpublish are blocked with `NotesCloudCapabilityError` (`filesystem_vault_cloud_unavailable`) until server file-sync RPCs exist. Existing notes outbox rows are left untouched. Tasks and focus sync continue. Pages import `@features/notes/api/vault`, not `@features/notes/vault`.
+Markdown files sync to the notes service (`POST/PUT/DELETE /v1/notes`) via outbox domain `vault`, keyed by relative path (stored as the remote title). Binary vault files stay local. IndexedDB note CRUD and publish/unpublish stay blocked with `NotesCloudCapabilityError` (`filesystem_vault_cloud_unavailable`) while a folder is bound — they would push the shadow IDB store, not the vault. Tasks and focus sync continue. Pages import `@features/notes/api/vault`, not `@features/notes/vault`.
 
 ## Encrypted vault (cloud E2EE)
 
@@ -302,13 +302,13 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 | Piece | Location |
 |-------|----------|
 | CI workflow | `.github/workflows/nordly-release.yml` — trigger: tag `nordly-v*` |
-| Updater endpoint | `https://github.com/dobriygolang/nordly/releases/latest/download/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
-| CDN sync | same workflow, job `sync-cdn` — **opt-in** via repo var `NORDLY_SYNC_CDN=true`; rewrites manifests + SCP to VPS. Skipped while VPS is offline (clients use GitHub Releases). |
+| Updater endpoint | `https://trynordly.app/desktop/latest.json` (`plugins.updater.endpoints` in `tauri.conf.json`) |
+| CDN sync | same workflow, job `sync-cdn` — SCP installers + rewritten manifests to VPS `deploy/data/cdn/desktop` |
 | Main version sync | job `sync-main-version` — commits `tauri.conf.json` / `Cargo.toml` / `package.json` after release |
 | Settings UI | `pages/Settings/sections/SoftwareSection.tsx` |
 | Updater helper | `shared/lib/updater.ts` — `@tauri-apps/plugin-updater` + `plugin-process` relaunch |
 
-Release flow: push `main` → tag `nordly-vX.Y.Z` → push tag → CI builds signed artifacts (`LOCAL_ONLY=false`), publishes GitHub Release (+ `latest.json`). Updates poll GitHub Releases.
+Release flow: push `main` → tag `nordly-vX.Y.Z` → push tag → CI builds artifacts (`LOCAL_ONLY=false`), publishes GitHub Release, copies installers to `https://trynordly.app/desktop`. Site `/download` and in-app updates both read that CDN.
 
 Default macOS bundle uses ad-hoc signing (`signingIdentity: "-"` in `tauri.conf.json`) so CI works without Apple certs. Set repo variable `NORDLY_CODE_SIGNING=true` + Apple secrets for Developer ID + notarization (see `SIGNING.md`).
 
@@ -318,8 +318,8 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 
 | Gap | Status |
 |-----|--------|
-| Note folders sync | FS vault: folders = dirs (path sync via vault domain later). IDB mode: nested local folders; `folderId` device-only |
-| Vault file sync RPCs | Client outbox `vault`/`file_put`/`file_delete` stubs; server List/Put/Get/DeleteVaultFile when VPS returns |
+| Note folders sync | FS vault: folders = dirs; rename/move enqueues path remaps to notes CRUD |
+| Vault markdown cloud | Markdown `.md` files push/pull via existing notes CRUD (`vaultFileSync.ts`). Images stay local. Dedicated List/Put/Get/DeleteVaultFile RPCs still not shipped |
 | Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
 | Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
 

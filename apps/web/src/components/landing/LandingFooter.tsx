@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
+import { NORDLY_DOWNLOAD_PAGE } from '@/lib/landing/nordlyRelease'
 import { publicLiveNewUrl } from '@/lib/live/liveRoomUrl'
+import { isLiveCodeHost } from '@/lib/site/brand'
 import { useI18n } from '@/lib/i18n'
 
 export function LandingFooter() {
@@ -12,9 +14,15 @@ export function LandingFooter() {
         <div className="flex flex-col items-center justify-between gap-4 font-mono text-xs text-site-muted md:flex-row">
           <div className="text-center md:text-left">{t('welcome.footerCopyright', { year })}</div>
           <div className="flex flex-wrap justify-center gap-6">
-            <Link to="/download" className="no-underline transition-colors hover:text-site-text">
-              {t('welcome.navDownload')}
-            </Link>
+            {isLiveCodeHost() ? (
+              <a href={NORDLY_DOWNLOAD_PAGE} className="no-underline transition-colors hover:text-site-text">
+                {t('welcome.navDownload')}
+              </a>
+            ) : (
+              <Link to="/download" className="no-underline transition-colors hover:text-site-text">
+                {t('welcome.navDownload')}
+              </Link>
+            )}
             <a href={publicLiveNewUrl()} className="no-underline transition-colors hover:text-site-text">
               {t('public.liveCoding')}
             </a>

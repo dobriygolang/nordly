@@ -1,10 +1,12 @@
+import { marketingOrigin } from '@/lib/site/brand'
+
 export const NORDLY_DESKTOP_BASE = (
   import.meta.env.VITE_NORDLY_DESKTOP_BASE ?? '/desktop'
 ).replace(/\/$/, '')
 
 export const NORDLY_DOWNLOAD_PATH = '/download'
 
-const SITE_ORIGIN = (import.meta.env.VITE_SITE_ORIGIN ?? 'https://trynordly.app').replace(/\/$/, '')
+const SITE_ORIGIN = marketingOrigin()
 
 export const NORDLY_DOWNLOAD_PAGE = `${SITE_ORIGIN}${NORDLY_DOWNLOAD_PATH}`
 
@@ -13,7 +15,7 @@ export const NORDLY_DESKTOP_PUBLIC_BASE = NORDLY_DESKTOP_BASE.startsWith('http')
   ? NORDLY_DESKTOP_BASE
   : `${SITE_ORIGIN}${NORDLY_DESKTOP_BASE}`
 
-const RELEASES_JSON_URL = `${NORDLY_DESKTOP_BASE}/releases.json`
+const RELEASES_JSON_URL = `${NORDLY_DESKTOP_PUBLIC_BASE}/releases.json`
 const CACHE_KEY = 'nordly:latest-release'
 const CACHE_MS = 15 * 60 * 1000
 

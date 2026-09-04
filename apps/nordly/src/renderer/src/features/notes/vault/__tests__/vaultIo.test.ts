@@ -54,6 +54,8 @@ describe('vaultIo writer safety', () => {
     vi.clearAllMocks();
     outbox.enqueueVaultFileDelete.mockResolvedValue(undefined);
     outbox.enqueueVaultFilePut.mockResolvedValue(undefined);
+    ipc.vaultListNotes.mockResolvedValue([]);
+    ipc.vaultListFolders.mockResolvedValue([]);
   });
 
   it('does not rename when writing the latest body fails', async () => {

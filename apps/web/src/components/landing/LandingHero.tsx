@@ -24,12 +24,12 @@ export function LandingHero() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6">
         <div className="max-w-3xl">
-          <div className="mb-8 inline-flex animate-[fadeInUp_0.8s_ease-out_forwards] items-center gap-2 rounded-full border border-site-border bg-site-card px-3 py-1">
+          <div className="mb-8 inline-flex animate-[fadeInUp_0.45s_ease-out_both] items-center gap-2 rounded-full border border-site-border bg-site-card px-3 py-1">
             <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
             <span className="font-mono text-xs text-site-muted">{t('welcome.pill')}</span>
           </div>
 
-          <h1 className="mb-8 animate-[fadeInUp_0.8s_ease-out_0.1s_forwards] text-5xl font-bold leading-[1.1] tracking-tight text-site-text opacity-0 md:text-7xl">
+          <h1 className="mb-8 animate-[fadeInUp_0.45s_ease-out_0.04s_both] text-5xl font-bold leading-[1.1] tracking-tight text-site-text md:text-7xl">
             {t('welcome.heroLine1')}{' '}
             <br />
             <span
@@ -44,11 +44,11 @@ export function LandingHero() {
             </span>
           </h1>
 
-          <p className="mb-10 max-w-xl animate-[fadeInUp_0.8s_ease-out_0.2s_forwards] text-lg leading-relaxed text-site-muted opacity-0 md:text-xl">
+          <p className="mb-10 max-w-xl animate-[fadeInUp_0.45s_ease-out_0.08s_both] text-lg leading-relaxed text-site-muted md:text-xl">
             {t('welcome.heroBody')}
           </p>
 
-          <div className="flex animate-[fadeInUp_0.8s_ease-out_0.3s_forwards] flex-col gap-4 opacity-0 sm:flex-row sm:items-center">
+          <div className="flex animate-[fadeInUp_0.45s_ease-out_0.12s_both] flex-col gap-4 sm:flex-row sm:items-center">
             <LandingDownloadButton />
             <a
               href={publicLiveNewUrl()}
@@ -60,7 +60,7 @@ export function LandingHero() {
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto mt-20 max-w-7xl animate-[fadeInUp_1s_ease-out_0.5s_forwards] px-6 opacity-0 md:mt-24">
+      <div className="relative z-10 mx-auto mt-20 max-w-7xl animate-[fadeInUp_0.5s_ease-out_0.16s_both] px-6 md:mt-24">
         <LandingHeroMedia />
       </div>
     </section>

@@ -41,7 +41,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 
 ### Nordly sync (when `LOCAL_ONLY=false`)
 
-IndexedDB outbox → notes/tasks/focus HTTP APIs. LWW merge by `updatedAt`. See [nordly AGENTS — Sync engine](../../apps/nordly/AGENTS.md#sync-engine).
+IndexedDB outbox → notes/tasks/focus HTTP APIs. Filesystem vault markdown also syncs through `/v1/notes` (path as title). LWW merge by `updatedAt`. See [nordly AGENTS — Sync engine](../../apps/nordly/AGENTS.md#sync-engine).
 
 ### Note publish
 

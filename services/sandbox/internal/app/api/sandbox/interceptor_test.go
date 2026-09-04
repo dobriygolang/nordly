@@ -115,6 +115,29 @@ func TestAuthInterceptorRejectsUserSessionRoomEscalation(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+func TestAuthInterceptorRequiresRoomIdForEditorToken(t *testing.T) {
+	t.Parallel()
+	key, validator := testValidator(t)
+	interceptor, err := NewAuthInterceptor(validator)
+	require.NoError(t, err)
+	roomID := uuid.NewString()
+	ctx := bearerContext(signToken(t, key, jwtlib.MapClaims{
+		"sub":  uuid.NewString(),
+		"exp":  time.Now().Add(time.Minute).Unix(),
+		"role": identityjwt.RoleGuest.String(),
+		"scp":  "editor:" + roomID,
+	}))
+
+	_, err = interceptor(ctx, &sandboxv1.RunCodeRequest{},
+		&grpc.UnaryServerInfo{FullMethod: sandboxv1.SandboxService_RunCode_FullMethodName},
+		func(context.Context, any) (any, error) {
+			t.Fatal("handler must not run")
+			return nil, nil
+		},
+	)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestAuthInterceptorRequiresCanonicalRoomForEditorAccess(t *testing.T) {
 	t.Parallel()
 	_, validator := testValidator(t)

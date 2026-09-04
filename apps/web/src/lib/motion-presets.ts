@@ -20,10 +20,10 @@ export const pageTransitionMotion: MotionProps = {
 }
 
 /** Matches landing hero `fadeInUp` — used by Reveal on other marketing pages. */
-export const revealStagger = 0.1
+export const revealStagger = 0.04
 
 export const revealItemTransition: Transition = {
-  duration: 0.8,
+  duration: 0.4,
   ease: 'easeOut',
 }
 

@@ -52,7 +52,6 @@ export {
 export {
   enqueueVaultFilePut,
   enqueueVaultFileDelete,
-  pushVaultOutbox,
   suppressVaultWatch,
   isVaultWatchSuppressed,
   deferVaultWatchReload,

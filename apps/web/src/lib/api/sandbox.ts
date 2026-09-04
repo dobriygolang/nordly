@@ -11,6 +11,14 @@ function requireBearer(accessToken?: string | null): string {
   return bearer
 }
 
+function requireRoomId(roomId?: string | null): string {
+  const id = roomId?.trim()
+  if (!id) {
+    throw new Error('sandbox requires roomId for editor access')
+  }
+  return id
+}
+
 function sandboxRequest<T>(
   path: string,
   init: RequestInit,
@@ -24,9 +32,11 @@ export function runCode(
     language: string
     code: string
     stdin?: string
+    roomId: string
   },
   accessToken?: string | null,
 ) {
+  const roomId = requireRoomId(input.roomId)
   return sandboxRequest<{ run: CodeRun }>(
     '/sandbox/code-runs',
     {
@@ -35,15 +45,17 @@ export function runCode(
         language: sandboxLanguageToWire(input.language),
         code: input.code,
         stdin: input.stdin,
+        roomId,
       }),
     },
     accessToken,
   ).then((res) => ({ run: normalizeCodeRun(res.run) }))
 }
 
-export function getCodeRun(id: string, accessToken?: string | null) {
+export function getCodeRun(id: string, accessToken: string | null | undefined, roomId: string) {
+  const room = requireRoomId(roomId)
   return sandboxRequest<{ run: CodeRun }>(
-    `/sandbox/code-runs/${id}`,
+    `/sandbox/code-runs/${encodeURIComponent(id)}?roomId=${encodeURIComponent(room)}`,
     {},
     accessToken,
   ).then((res) => ({
@@ -52,9 +64,10 @@ export function getCodeRun(id: string, accessToken?: string | null) {
 }
 
 export function formatCode(
-  input: { language: string; code: string },
+  input: { language: string; code: string; roomId: string },
   accessToken?: string | null,
 ) {
+  const roomId = requireRoomId(input.roomId)
   return sandboxRequest<{ code: string }>(
     '/sandbox/format',
     {
@@ -62,6 +75,7 @@ export function formatCode(
       body: JSON.stringify({
         language: sandboxLanguageToWire(input.language),
         code: input.code,
+        roomId,
       }),
     },
     accessToken,

@@ -304,14 +304,14 @@ export const ru = {
   'nordly.settings.update.version_available':
     'Текущая версия: {{version}} · доступно обновление: {{published}}',
   'nordly.settings.update.version_mismatch':
-    'На GitHub есть более новая сборка, но в манифесте обновлений указана та же версия. Выпустите релиз с тегом nordly-vX.Y.Z, где X.Y.Z выше установленной (например nordly-v0.0.1).',
+    'На CDN есть более новая сборка, но в манифесте обновлений указана та же версия. Выпустите релиз с тегом nordly-vX.Y.Z, где X.Y.Z выше установленной (например nordly-v0.0.1).',
   'nordly.settings.update.check': 'Проверить обновления',
   'nordly.settings.update.checking': 'Проверка…',
   'nordly.settings.update.downloading': 'Загрузка…',
   'nordly.settings.update.installing': 'Установка…',
   'nordly.settings.update.up_to_date': 'У вас установлена последняя версия.',
   'nordly.settings.update.no_release':
-    'Релиз ещё не опубликован. Запушьте тег nordly-v* на GitHub — обновления заработают после первого CI-релиза.',
+    'На https://trynordly.app/desktop ещё нет установщика. Запушьте тег nordly-v* — сайт и обновления в приложении берут файлы оттуда.',
   'nordly.settings.update.network_error': 'Не удалось связаться с сервером обновлений. Проверьте интернет и попробуйте снова.',
   'nordly.settings.update.installed': 'Обновлено до {{version}}. Перезапуск…',
   'nordly.settings.update.error': 'Не удалось обновить: {{message}}',

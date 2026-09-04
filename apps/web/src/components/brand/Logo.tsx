@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/cn'
-import { SITE_NAME } from '@/lib/site/brand'
+import { SITE_NAME, marketingHomeHref } from '@/lib/site/brand'
 
 type Props = {
   to?: string
@@ -8,8 +8,12 @@ type Props = {
   className?: string
 }
 
+function isAbsoluteHref(to: string): boolean {
+  return /^https?:\/\//i.test(to)
+}
+
 /** NORDLY wordmark — matches Nordly desktop Chrome header. */
-export function Logo({ to = '/', size = 'md', className }: Props) {
+export function Logo({ to = marketingHomeHref(), size = 'md', className }: Props) {
   const inner = (
     <span
       className={cn(
@@ -23,6 +27,13 @@ export function Logo({ to = '/', size = 'md', className }: Props) {
   )
 
   if (!to) return inner
+  if (isAbsoluteHref(to)) {
+    return (
+      <a href={to} className="no-underline transition-opacity hover:opacity-80" aria-label={`${SITE_NAME} home`}>
+        {inner}
+      </a>
+    )
+  }
   return (
     <Link to={to} className="no-underline transition-opacity hover:opacity-80" aria-label={`${SITE_NAME} home`}>
       {inner}

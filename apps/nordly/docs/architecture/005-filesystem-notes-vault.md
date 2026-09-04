@@ -14,7 +14,7 @@ IndexedDB note rows + `nordly-asset:` blobs diverge from how users expect a loca
 2. **Identity:** Note id = relative path from vault root (e.g. `projects/foo.md`). Title = filename stem. Move/rename remaps UI selection to the new path.
 3. **Migration:** On first bind, optionally export IndexedDB notes + attachments into the folder once (`migratedFromIdb`), rewriting `nordly-asset:` links to relative paths. After bind, UI does not use IDB as notes SoT. Skipping export leaves `migratedFromIdb=false`.
 4. **Local disk plaintext:** Like Obsidian, vault files are not encrypted at rest. Passphrase “Encrypted vault” settings apply to cloud payload encryption when sync is on — not to local files.
-5. **Sync shape:** Outbox domain `vault` with `file_put` / `file_delete` keyed by relative path (`hash`, `mtime`, `kind`). Enqueue gated by `VAULT_FILE_SYNC_READY` until server RPCs exist. Conflict: LWW by `(mtime, contentHash)`.
+5. **Sync shape:** Outbox domain `vault` with `file_put` / `file_delete` keyed by relative path (`hash`, `mtime`, `kind`). Markdown files sync through existing notes CRUD (`title` = relative path) until dedicated vault-file RPCs exist. Conflict: LWW by `(mtime, contentHash)`. Binary files are not enqueued.
 
 ## Server contract (follow-up)
 
@@ -23,7 +23,7 @@ When the notes service is available again, add path-keyed RPCs (user_id + relati
 - `ListVaultFiles` — index of path, hash, mtime, kind
 - `PutVaultFile` / `GetVaultFile` / `DeleteVaultFile` — utf-8 or binary blobs
 
-Optional: client encrypts bytes with existing vault salt before Put (server stores ciphertext only). Keep legacy note CRUD for web/publish until those callers migrate.
+Until those RPCs ship, the desktop client backs up `.md` files through `POST/PUT/DELETE /v1/notes` (relative path as title). Optional: client encrypts bytes with existing vault salt before Put (server stores ciphertext only). Keep legacy note CRUD for web/publish until those callers migrate.
 
 ## Consequences
 

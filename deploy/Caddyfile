@@ -67,6 +67,8 @@ http://trynordly.app, http://app.trynordly.app {
 		import api_ws
 		handle /desktop/* {
 			root * /cdn
+			header Access-Control-Allow-Origin *
+			header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
 			header Cache-Control "public, max-age=3600"
 			@manifest path /desktop/latest.json /desktop/releases.json
 			handle @manifest {
@@ -112,6 +114,8 @@ http://grafana.trynordly.app {
 http://cdn.trynordly.app {
 	encode gzip
 	root * /cdn
+	header Access-Control-Allow-Origin *
+	header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
 	header Cache-Control "public, max-age=3600"
 	@updater path /desktop/latest.json /desktop/releases.json
 	handle @updater {

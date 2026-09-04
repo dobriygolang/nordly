@@ -2,7 +2,7 @@ import { pullFocus, pushFocusOutbox, reconcileFocusOutbox } from '@features/focu
 import { resetGoogleCalendarConnection } from '@features/calendar/lib/googleCalendarConnectionStore';
 import { getNotesCloudCapability } from '@features/notes/api/notesCapabilities';
 import { pullNotes, pushNotesOutbox } from '@features/notes/sync/notesSync';
-import { pushVaultOutbox } from '@features/notes/vault';
+import { pullVaultFiles, pushVaultOutbox } from '@features/notes/sync/vaultFileSync';
 import { pullTasks, pushTasksOutbox, reconcileTasksOutbox } from '@features/tasks/sync/tasksSync';
 import { registerUserScopeResetHandler } from '@shared/model/userScopeLifecycle';
 import { SyncDeferredError } from '@shared/sync/errors';
@@ -30,15 +30,11 @@ export function installSyncRegistry(): void {
     pushNotesOutbox: pushNotesWhenAvailable,
     pushTasksOutbox,
     pushFocusOutbox,
-    pushVaultOutbox: async () => {
-      await pushVaultOutbox();
-    },
+    pushVaultOutbox,
     pullNotes: pullNotesWhenAvailable,
     pullTasks,
     pullFocus,
-    pullVault: async () => {
-      // Stub until ListVaultFiles / GetVaultFile exist on notes service.
-    },
+    pullVault: pullVaultFiles,
     reconcileOutbox: async () => {
       await reconcileTasksOutbox();
       await reconcileFocusOutbox();

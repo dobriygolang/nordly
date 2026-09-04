@@ -51,7 +51,7 @@ export default {
         },
       },
       animation: {
-        fadeInUp: 'fadeInUp 0.8s ease-out forwards',
+        fadeInUp: 'fadeInUp 0.45s ease-out both',
       },
     },
   },

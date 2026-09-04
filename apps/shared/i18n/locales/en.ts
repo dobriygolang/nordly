@@ -304,14 +304,14 @@ export const en = {
   'nordly.settings.update.version_available':
     'Current version: {{version}} · update available: {{published}}',
   'nordly.settings.update.version_mismatch':
-    'A newer build exists on GitHub but the updater manifest still lists the same version. Release with tag nordly-vX.Y.Z where X.Y.Z is higher than your installed app (e.g. nordly-v0.0.1).',
+    'A newer build exists on the CDN but the updater manifest still lists the same version. Release with tag nordly-vX.Y.Z where X.Y.Z is higher than your installed app (e.g. nordly-v0.0.1).',
   'nordly.settings.update.check': 'Check for Updates',
   'nordly.settings.update.checking': 'Checking…',
   'nordly.settings.update.downloading': 'Downloading…',
   'nordly.settings.update.installing': 'Installing…',
   'nordly.settings.update.up_to_date': 'You are on the latest version.',
   'nordly.settings.update.no_release':
-    'No release published yet. Push a nordly-v* tag to GitHub — updates work after the first CI release.',
+    'No installer is on https://trynordly.app/desktop yet. Push a nordly-v* tag — the site and in-app updater use that CDN.',
   'nordly.settings.update.network_error': 'Could not reach the update server. Check your connection and try again.',
   'nordly.settings.update.installed': 'Updated to {{version}}. Restarting…',
   'nordly.settings.update.error': 'Update failed: {{message}}',

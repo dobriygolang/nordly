@@ -152,8 +152,8 @@ export default function CollabRoomPage() {
   })
 
   const wsToken = guestToken
-  const run = useSandboxRun(wsToken)
-  const fmt = useFormatCode(wsToken)
+  const run = useSandboxRun(wsToken, roomId)
+  const fmt = useFormatCode(wsToken, roomId)
 
   const handleRoomExpired = useCallback(() => {
     clearGuestSession(roomId)
@@ -343,7 +343,6 @@ export default function CollabRoomPage() {
   return (
     <div className="flex h-[100dvh] flex-col bg-bg text-text-primary">
       <LiveRoomTopBar
-        closeTo={closeTo}
         onClose={handleClose}
         closeLoading={closeM.isPending}
         isOwner={isOwner}
@@ -489,7 +488,7 @@ function EditorShell({
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
-      <Logo to="/" />
+      <Logo />
       <p className="text-sm font-medium text-text-primary">{message}</p>
       {sub ? <p className="max-w-md text-sm leading-relaxed text-text-secondary">{sub}</p> : null}
       {action}

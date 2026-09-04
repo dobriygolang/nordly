@@ -103,7 +103,7 @@ Corrupt JSON, unknown kinds, missing Yjs/presence/`code_run` payloads, or invali
 
 Share URLs: `publicLiveRoomUrl(roomId)` — client-side short link; Invite button copies without `POST /invite`.
 
-Sandbox run/format should use guest token when in live room (same as room REST).
+Sandbox run/format send the guest JWT **and** `roomId` (editor-scoped tokens require `editor:{roomId}`).
 
 ## Live collab
 
@@ -138,7 +138,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
 | `VITE_IDENTITY_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
-Landing download: `lib/landing/nordlyRelease.ts` reads `/desktop/releases.json` (same origin; cached 15m in `sessionStorage`). Hero + header CTA; short link `/download` starts the installer or shows an OS picker (never self-redirects).
+Landing download: `lib/landing/nordlyRelease.ts` reads `https://trynordly.app/desktop/releases.json`. Hero + header CTA; short link `/download` starts the installer or shows an OS picker (never self-redirects). Logo on `code.trynordly.app` goes to `https://trynordly.app/`.
 
 ## Commands
 

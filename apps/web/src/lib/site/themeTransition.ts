@@ -40,7 +40,12 @@ function runCssThemeFallback(update: () => void): void {
 }
 
 export function runThemeTransition(update: () => void, origin?: ThemeToggleOrigin): void {
-  if (origin) setToggleOrigin(origin)
+  setToggleOrigin(
+    origin ?? {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    },
+  )
 
   if (prefersReducedMotion()) {
     update()

@@ -22,8 +22,8 @@ export type NotesCloudCapability =
     };
 
 const FS_VAULT_CLOUD_MESSAGE =
-  'Cloud sync and publishing are unavailable while the filesystem vault is active. ' +
-  'Your vault files remain the source of truth until vault file sync is available.';
+  'IndexedDB note sync and publishing are unavailable while the filesystem vault is active. ' +
+  'Vault markdown files sync to the notes service; local files remain the source of truth.';
 
 export class NotesCloudCapabilityError extends SyncDeferredError {
   readonly code = NOTES_FS_VAULT_CLOUD_UNAVAILABLE;

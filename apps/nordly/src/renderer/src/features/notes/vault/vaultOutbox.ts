@@ -1,7 +1,6 @@
-/** Path-keyed vault file sync outbox (stubs until notes service vault RPCs ship). */
+/** Path-keyed vault file sync outbox (markdown → notes CRUD). */
 
 import { enqueueOutbox } from '@shared/sync/outbox';
-import { SyncDeferredError } from '@shared/sync/errors';
 import { OutboxOp, SyncDomain } from '@shared/sync/types';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
@@ -16,10 +15,10 @@ export interface VaultFilePutPayload {
 }
 
 /**
- * Server List/Put/Get/DeleteVaultFile not shipped yet.
- * Keep false so we do not grow a stuck outbox while LOCAL_ONLY / stub push.
+ * Markdown vault files sync through notes CRUD (`vaultFileSync.ts`).
+ * Binary attachments stay local until dedicated vault-file RPCs exist.
  */
-export const VAULT_FILE_SYNC_READY = false;
+export const VAULT_FILE_SYNC_READY = true;
 
 let suppressWatchUntil = 0;
 let pendingReload: (() => void) | null = null;
@@ -69,6 +68,10 @@ async function contentHash(bytes: Uint8Array): Promise<string> {
     .join('');
 }
 
+function isMarkdownVaultPath(path: string): boolean {
+  return path.trim().toLowerCase().endsWith('.md');
+}
+
 export async function enqueueVaultFilePut(
   path: string,
   bodyUtf8OrBytes: string | Uint8Array,
@@ -76,6 +79,7 @@ export async function enqueueVaultFilePut(
   mtimeMs: number,
 ): Promise<void> {
   if (!VAULT_FILE_SYNC_READY || !isSyncQueueEnabled()) return;
+  if (kind !== 'md' || !isMarkdownVaultPath(path)) return;
   const bytes =
     typeof bodyUtf8OrBytes === 'string'
       ? new TextEncoder().encode(bodyUtf8OrBytes)
@@ -88,18 +92,9 @@ export async function enqueueVaultFilePut(
 
 export async function enqueueVaultFileDelete(path: string): Promise<void> {
   if (!VAULT_FILE_SYNC_READY || !isSyncQueueEnabled()) return;
+  if (!isMarkdownVaultPath(path)) return;
   await enqueueOutbox(SyncDomain.Vault, OutboxOp.FileDelete, path, { path });
   scheduleSync();
-}
-
-/**
- * Push stub — server vault RPCs are not shipped yet.
- * Entries stay in outbox until ListVaultFiles / PutVaultFile exist.
- */
-export async function pushVaultOutbox(): Promise<void> {
-  throw new SyncDeferredError(
-    'Filesystem vault sync is unavailable until vault file RPCs are implemented',
-  );
 }
 
 /** Remap a vault-relative path after a folder rename/move (`a` → `b`, `a/x.md` → `b/x.md`). */

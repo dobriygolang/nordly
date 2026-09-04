@@ -78,6 +78,17 @@ function resolveQueuedPath(path: string, sequence: number): string {
   return resolved;
 }
 
+async function enqueueNotesAfterFolderRemap(fromPath: string, toPath: string): Promise<void> {
+  const notes = await vaultListNotes();
+  for (const n of notes) {
+    if (n.path !== toPath && !n.path.startsWith(`${toPath}/`)) continue;
+    const oldPath = remapVaultPath(n.path, toPath, fromPath);
+    const content = await vaultReadNote(n.path);
+    await enqueueVaultFilePut(n.path, content.bodyMd, 'md', n.updatedAtMs);
+    if (oldPath !== n.path) await enqueueVaultFileDelete(oldPath);
+  }
+}
+
 function recordQueuedPathRemap(fromPath: string, toPath: string): void {
   if (fromPath === toPath) return;
   queuedPathRemaps.push({
@@ -276,6 +287,7 @@ export function vaultIoRenameFolder(id: string, name: string): Promise<VaultFold
     const currentId = resolveQueuedPath(id, sequence);
     const folder = toFolder(await vaultRenameFolder(currentId, name));
     recordQueuedPathRemap(currentId, folder.id);
+    await enqueueNotesAfterFolderRemap(currentId, folder.id);
     return { folder, fromPath: currentId, toPath: folder.id };
   });
 }
@@ -292,6 +304,7 @@ export function vaultIoMoveFolder(
       : null;
     const folder = toFolder(await vaultMoveFolder(currentId, currentParent));
     recordQueuedPathRemap(currentId, folder.id);
+    await enqueueNotesAfterFolderRemap(currentId, folder.id);
     return { folder, fromPath: currentId, toPath: folder.id };
   });
 }

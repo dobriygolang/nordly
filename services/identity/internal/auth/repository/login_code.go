@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	goredis "github.com/redis/go-redis/v9"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 const loginCodePrefix = "login_code:"
@@ -33,6 +33,14 @@ func NewLoginCodeRepository(client *Client) *LoginCodeRepository {
 }
 
 func (r *LoginCodeRepository) Save(ctx context.Context, code string, data *model.TelegramLoginCode, ttlSeconds int) error {
+	if code == "" ||
+		data == nil ||
+		ttlSeconds <= 0 ||
+		ttlSeconds > int(model.LoginCodeTTL/time.Second) {
+		return errors.New("save login code: invalid input")
+	}
+	ttl := time.Duration(ttlSeconds) * time.Second
+
 	payload, err := json.Marshal(loginCodePayload{
 		TelegramID: data.TelegramID,
 		FirstName:  data.FirstName,
@@ -46,8 +54,12 @@ func (r *LoginCodeRepository) Save(ctx context.Context, code string, data *model
 	}
 
 	key := loginCodePrefix + code
-	if err := r.client.Set(ctx, key, payload, time.Duration(ttlSeconds)*time.Second).Err(); err != nil {
+	stored, err := r.client.SetNX(ctx, key, payload, ttl).Result()
+	if err != nil {
 		return fmt.Errorf("save login code: %w", err)
+	}
+	if !stored {
+		return fmt.Errorf("save login code: %w", model.ErrLoginCodeCollision)
 	}
 	return nil
 }
@@ -66,7 +78,7 @@ func (r *LoginCodeRepository) Consume(ctx context.Context, code string) (*model.
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("unmarshal login code: %w", err)
 	}
-	if time.Now().UTC().After(payload.ExpiresAt) {
+	if !time.Now().UTC().Before(payload.ExpiresAt) {
 		return nil, ErrNotFound
 	}
 

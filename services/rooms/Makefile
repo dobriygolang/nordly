@@ -46,7 +46,7 @@ migrate-new: ## Create migration. Usage: make migrate-new NAME=add_foo
 start: start-deps migrate-up ## Deps + migrations + run API
 	@echo ""
 	@echo "  HTTP  http://localhost:$(HTTP_PORT)/healthz"
-	@echo "  WS    ws://localhost:$(HTTP_PORT)/ws/editor/{roomId}?token=JWT"
+	@echo "  WS    ws://localhost:$(HTTP_PORT)/ws/editor/{roomId}  (Authorization: Bearer or Sec-WebSocket-Protocol: access_token.<JWT>)"
 	@echo "  gRPC  localhost:$(GRPC_PORT)"
 	@echo ""
 	@JWT_PUBLIC_KEY_FILE=$(JWT_DIR)/public.pem \

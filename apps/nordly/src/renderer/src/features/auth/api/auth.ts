@@ -1,6 +1,8 @@
 import { API_BASE_URL } from '@shared/api/config';
+import { requireOk } from '@shared/api/errors';
 import { requireJsonObject, requireJsonString } from '@shared/api/json';
 import { apiFetch } from '@shared/api/http';
+import { jwtExpiryMs } from '@shared/lib/jwt';
 
 export type AuthConfig = {
   telegramBotUsername: string;
@@ -13,9 +15,7 @@ function apiPath(path: string): string {
 
 export async function getAuthConfig(): Promise<AuthConfig> {
   const res = await apiFetch(apiPath('/v1/auth/config'));
-  if (!res.ok) {
-    throw new Error(`auth config ${res.status}`);
-  }
+  requireOk(res, 'auth config');
   const body = (await res.json()) as Record<string, unknown>;
   return {
     telegramBotUsername: requireJsonString(body, 'telegramBotUsername'),
@@ -29,24 +29,13 @@ export type AuthTelegramResult = {
   expiresAt: number;
 };
 
-function readJwtExpMs(token: string): number {
-  const payload = token.split('.')[1];
-  if (!payload) throw new Error('invalid auth token: missing payload');
-  const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
-  if (typeof json.exp !== 'number') throw new Error('invalid auth token: missing exp');
-  return json.exp * 1000;
-}
-
 export async function authTelegram(code: string): Promise<AuthTelegramResult> {
   const res = await apiFetch(apiPath('/v1/auth/telegram'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code: code.trim() }),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `telegram auth ${res.status}`);
-  }
+  requireOk(res, 'telegram auth');
 
   const body = (await res.json()) as Record<string, unknown>;
   const accessToken = requireJsonString(body, 'accessToken');
@@ -54,6 +43,6 @@ export async function authTelegram(code: string): Promise<AuthTelegramResult> {
   const user = requireJsonObject(body, 'user');
   const userId = requireJsonString(user, 'id');
 
-  const expiresAt = readJwtExpMs(accessToken);
+  const expiresAt = jwtExpiryMs(accessToken);
   return { accessToken, refreshToken, userId, expiresAt };
 }

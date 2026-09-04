@@ -1,5 +1,7 @@
 /** Wiki-link extraction and resolution for Obsidian-style [[Title]] / [[Title|alias]] syntax. */
 
+import { normalizeWikiTitle } from '@shared/lib/wikiLinkText';
+
 export interface WikiLinkRef {
   linkText: string;
 }
@@ -19,12 +21,6 @@ export interface NoteTitleRef {
   title: string;
 }
 
-const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-
-export function normalizeWikiTitle(title: string): string {
-  return title.trim().toLowerCase();
-}
-
 function segmentsWithoutInlineCode(line: string): string[] {
   const parts = line.split('`');
   const out: string[] = [];
@@ -35,9 +31,7 @@ function segmentsWithoutInlineCode(line: string): string[] {
 }
 
 function extractFromText(text: string, seen: Set<string>, out: WikiLinkRef[]): void {
-  WIKI_LINK_RE.lastIndex = 0;
-  let match = WIKI_LINK_RE.exec(text);
-  while (match != null) {
+  for (const match of text.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)) {
     const linkText = match[1].trim();
     if (linkText) {
       const key = normalizeWikiTitle(linkText);
@@ -46,7 +40,6 @@ function extractFromText(text: string, seen: Set<string>, out: WikiLinkRef[]): v
         out.push({ linkText });
       }
     }
-    match = WIKI_LINK_RE.exec(text);
   }
 }
 
@@ -105,31 +98,4 @@ export function buildWikiLinksWire(bodyMd: string, notes: NoteTitleRef[]): WikiL
   const extracted = extractWikiLinks(bodyMd);
   const resolved = resolveWikiLinks(extracted, notes);
   return toWikiLinkWire(resolved);
-}
-
-export function noteTitlesSet(notes: NoteTitleRef[]): ReadonlySet<string> {
-  const out = new Set<string>();
-  for (const note of notes) {
-    const key = normalizeWikiTitle(note.title);
-    if (key) out.add(key);
-  }
-  return out;
-}
-
-/** Parse wiki link at click position in editor line text. */
-export function wikiLinkAtPosition(
-  lineText: string,
-  columnInLine: number,
-): { linkText: string } | null {
-  WIKI_LINK_RE.lastIndex = 0;
-  let match = WIKI_LINK_RE.exec(lineText);
-  while (match != null) {
-    const start = match.index;
-    const end = start + match[0].length;
-    if (columnInLine >= start && columnInLine <= end) {
-      return { linkText: match[1].trim() };
-    }
-    match = WIKI_LINK_RE.exec(lineText);
-  }
-  return null;
 }

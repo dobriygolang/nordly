@@ -1,15 +1,19 @@
 import { requireUserId } from '@shared/db/nordlyDb';
-import type { TaskCard, TaskStatus } from '@features/tasks/api/tasks';
-import { isOfflineEpicId } from '@features/tasks/api/epics';
+import { isApiHttpError } from '@shared/api/errors';
+import type { TaskCard } from '@features/tasks/model/task';
+import {
+  isConferenceProvider,
+  isTaskStatus,
+  type TaskStatus,
+} from '@features/tasks/model/status';
+import { isOfflineEpicId, pullEpicsCache } from '@features/tasks/api/epics';
 import { findEpicByColor } from '@features/tasks/lib/epicColor';
-import { pullEpicsCache } from '@features/tasks/lib/useTaskEpics';
 import {
   remoteCreateTask,
   remoteDeleteTask,
   remoteListTasks,
   remoteMoveTaskStatus,
   remoteScheduleTask,
-  remoteUnscheduleTask,
   remotePatchTask,
 } from '@features/tasks/remote/tasksRemote';
 import {
@@ -22,12 +26,10 @@ import {
 import { SyncDeferredError } from '@shared/sync/errors';
 import { getServerId, setServerId } from '@shared/sync/idMap';
 import { listOutbox, removeOutbox } from '@shared/sync/outbox';
-import type { OutboxEntry } from '@shared/sync/types';
-
-const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'in_review', 'done', 'dismissed']);
+import { OutboxOp, SyncDomain, type OutboxEntry } from '@shared/sync/types';
 
 function isRemoteNotFound(err: unknown): boolean {
-  return err instanceof Error && err.message.includes(': 404');
+  return isApiHttpError(err, 404);
 }
 
 function titleFromPayload(payload: Record<string, unknown>): string | null {
@@ -41,10 +43,10 @@ function titleFromPayload(payload: Record<string, unknown>): string | null {
 
 function requireTaskStatus(payload: Record<string, unknown>, entryId: string): TaskStatus {
   const status = payload.status;
-  if (typeof status !== 'string' || !TASK_STATUSES.has(status as TaskStatus)) {
+  if (typeof status !== 'string' || !isTaskStatus(status)) {
     throw new Error(`Invalid tasks status outbox (${entryId}): ${String(status)}`);
   }
-  return status as TaskStatus;
+  return status;
 }
 
 async function resolveTaskTitle(
@@ -58,7 +60,10 @@ async function resolveTaskTitle(
 
   const rows = queue ?? (await listOutbox(userId));
   const createEntry = rows.find(
-    (e) => e.domain === 'tasks' && e.entityId === entityId && e.op === 'create',
+    (e) =>
+      e.domain === SyncDomain.Tasks &&
+      e.entityId === entityId &&
+      e.op === OutboxOp.Create,
   );
   if (createEntry) {
     const fromCreate = titleFromPayload(createEntry.payload as Record<string, unknown>);
@@ -73,7 +78,9 @@ async function dropTasksOutboxForEntity(
   reason: string,
 ): Promise<number> {
   const rows = await listOutbox(userId);
-  const doomed = rows.filter((e) => e.domain === 'tasks' && e.entityId === entityId);
+  const doomed = rows.filter(
+    (e) => e.domain === SyncDomain.Tasks && e.entityId === entityId,
+  );
   for (const e of doomed) await removeOutbox(e.id, userId);
   if (doomed.length > 0) {
     console.warn(
@@ -84,7 +91,7 @@ async function dropTasksOutboxForEntity(
 }
 
 async function resolveTaskServerId(entry: OutboxEntry, userId: string): Promise<string | null> {
-  const mapped = await getServerId('tasks', entry.entityId, userId);
+  const mapped = await getServerId(SyncDomain.Tasks, entry.entityId, userId);
   if (mapped) return mapped;
 
   const local = await tasksStoreGet(entry.entityId, userId);
@@ -100,22 +107,23 @@ async function resolveTaskServerId(entry: OutboxEntry, userId: string): Promise<
   }
 
   const created = await remoteCreateTask({ title, kind: local.kind });
-  await setServerId('tasks', entry.entityId, created.id, userId);
+  await setServerId(SyncDomain.Tasks, entry.entityId, created.id, userId);
   await tasksStoreReplaceId(entry.entityId, created);
   return created.id;
 }
 
 async function runTaskRemote<T>(
   entry: OutboxEntry,
-  userId: string,
   fn: () => Promise<T>,
 ): Promise<T | null> {
   try {
     return await fn();
   } catch (err) {
     if (isRemoteNotFound(err)) {
-      await removeOutbox(entry.id, userId);
-      return null;
+      if (entry.op === OutboxOp.Delete) {
+        return null;
+      }
+      throw new Error(`tasks ${entry.op}: remote task missing for ${entry.entityId}`);
     }
     throw err;
   }
@@ -125,8 +133,12 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   const userId = requireUserId();
   const payload = entry.payload as Record<string, unknown>;
 
-  if (entry.op === 'create') {
-    const alreadyMapped = await getServerId('tasks', entry.entityId, userId);
+  if (entry.op === OutboxOp.Create) {
+    const alreadyMapped = await getServerId(
+      SyncDomain.Tasks,
+      entry.entityId,
+      userId,
+    );
     if (alreadyMapped) {
       await removeOutbox(entry.id, userId);
       return;
@@ -139,17 +151,15 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     }
     const title = await resolveTaskTitle(entry.entityId, userId, local);
     if (!title) {
-      await removeOutbox(entry.id, userId);
-      console.warn(
-        `[nordly:sync] Dropped tasks create outbox (${entry.id}): empty title for ${entry.entityId}`,
+      throw new Error(
+        `Invalid tasks create outbox (${entry.id}): empty title for ${entry.entityId}`,
       );
-      return;
     }
     const created = await remoteCreateTask({
       title,
       kind: local.kind,
     });
-    await setServerId('tasks', entry.entityId, created.id, userId);
+    await setServerId(SyncDomain.Tasks, entry.entityId, created.id, userId);
     await tasksStoreReplaceId(entry.entityId, created);
     await removeOutbox(entry.id, userId);
     return;
@@ -158,9 +168,9 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
   const serverId = await resolveTaskServerId(entry, userId);
   if (!serverId) return;
 
-  if (entry.op === 'status') {
+  if (entry.op === OutboxOp.Status) {
     const status = requireTaskStatus(payload, entry.id);
-    const updated = await runTaskRemote(entry, userId, () =>
+    const updated = await runTaskRemote(entry, () =>
       remoteMoveTaskStatus(serverId, status),
     );
     if (!updated) return;
@@ -169,24 +179,20 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     return;
   }
 
-  if (entry.op === 'schedule') {
+  if (entry.op === OutboxOp.Schedule) {
     if (typeof payload.startIso !== 'string' || payload.startIso.length === 0) {
-      await removeOutbox(entry.id, userId);
-      console.warn(
-        `[nordly:sync] Dropped tasks schedule outbox (${entry.id}): missing startIso`,
+      throw new Error(
+        `Invalid tasks schedule outbox (${entry.id}): missing startIso`,
       );
-      return;
     }
     if (typeof payload.durationMin !== 'number' || !Number.isFinite(payload.durationMin)) {
-      await removeOutbox(entry.id, userId);
-      console.warn(
-        `[nordly:sync] Dropped tasks schedule outbox (${entry.id}): missing durationMin`,
+      throw new Error(
+        `Invalid tasks schedule outbox (${entry.id}): missing durationMin`,
       );
-      return;
     }
     const startIso = payload.startIso;
     const durationMin = payload.durationMin;
-    const updated = await runTaskRemote(entry, userId, () =>
+    const updated = await runTaskRemote(entry, () =>
       remoteScheduleTask(serverId, startIso, durationMin),
     );
     if (!updated) return;
@@ -195,32 +201,49 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
     return;
   }
 
-  if (entry.op === 'unschedule') {
-    const updated = await runTaskRemote(entry, userId, () => remoteUnscheduleTask(serverId));
-    if (!updated) return;
-    await tasksStoreMergeRemote(updated);
+  if (entry.op === OutboxOp.Delete) {
+    await runTaskRemote(entry, () => remoteDeleteTask(serverId));
     await removeOutbox(entry.id, userId);
     return;
   }
 
-  if (entry.op === 'delete') {
-    await runTaskRemote(entry, userId, () => remoteDeleteTask(serverId));
-    await removeOutbox(entry.id, userId);
-    return;
-  }
-
-  if (entry.op === 'patch') {
+  if (entry.op === OutboxOp.Patch) {
     const patch: Parameters<typeof remotePatchTask>[1] = {};
     if (payload.clearEpic === true) patch.clearEpic = true;
     if (payload.clearConference === true) patch.clearConference = true;
     if (typeof payload.conferenceUrl === 'string' && payload.conferenceUrl.trim()) {
       patch.conferenceUrl = payload.conferenceUrl.trim();
     }
-    if (payload.conferenceProvider === 'meet' || payload.conferenceProvider === 'zoom') {
+    if (payload.conferenceProvider !== undefined) {
+      if (
+        typeof payload.conferenceProvider !== 'string' ||
+        !isConferenceProvider(payload.conferenceProvider)
+      ) {
+        throw new Error(
+          `Invalid tasks patch outbox (${entry.id}): invalid conferenceProvider`,
+        );
+      }
       patch.conferenceProvider = payload.conferenceProvider;
     }
-    if (payload.googleEventId === null) patch.googleEventId = null;
-    else if (typeof payload.googleEventId === 'string') patch.googleEventId = payload.googleEventId;
+    if (payload.googleEventId !== undefined || payload.googleCalendarId !== undefined) {
+      if (payload.googleEventId === null || payload.googleCalendarId === null) {
+        throw new Error(
+          `Invalid tasks patch outbox (${entry.id}): clear Google conference via clearConference`,
+        );
+      }
+      if (
+        typeof payload.googleEventId !== 'string' ||
+        !payload.googleEventId.trim() ||
+        typeof payload.googleCalendarId !== 'string' ||
+        !payload.googleCalendarId.trim()
+      ) {
+        throw new Error(
+          `Invalid tasks patch outbox (${entry.id}): googleEventId and googleCalendarId must be set together`,
+        );
+      }
+      patch.googleEventId = payload.googleEventId;
+      patch.googleCalendarId = payload.googleCalendarId;
+    }
     if (payload.zoomMeetingId === null) patch.zoomMeetingId = null;
     else if (typeof payload.zoomMeetingId === 'string') patch.zoomMeetingId = payload.zoomMeetingId;
     if (payload.epicId !== undefined) {
@@ -241,24 +264,38 @@ export async function pushTasksOutbox(entry: OutboxEntry): Promise<void> {
       }
       patch.epicId = match.id;
     }
-    const updated = await runTaskRemote(entry, userId, () => remotePatchTask(serverId, patch));
+    if (Object.keys(patch).length === 0) {
+      throw new Error(`Invalid tasks patch outbox (${entry.id}): empty patch`);
+    }
+    const updated = await runTaskRemote(entry, () => remotePatchTask(serverId, patch));
     if (!updated) return;
     await tasksStoreMergeRemote(updated);
     await removeOutbox(entry.id, userId);
+    return;
   }
+
+  throw new Error(`Unsupported tasks outbox operation: ${entry.op}`);
 }
 
-/** Drop tasks outbox entries that can never succeed (e.g. empty title). */
+/** Remove queued mutations only when their local task was intentionally deleted. */
 export async function reconcileTasksOutbox(): Promise<number> {
   const userId = requireUserId();
   const queue = await listOutbox(userId);
   let dropped = 0;
 
-  for (const entry of queue.filter((e) => e.domain === 'tasks')) {
+  for (const entry of queue.filter((e) => e.domain === SyncDomain.Tasks)) {
     const local = await tasksStoreGet(entry.entityId, userId);
-    if (entry.op === 'create' || !(await getServerId('tasks', entry.entityId, userId))) {
+    if (
+      entry.op === OutboxOp.Create ||
+      !(await getServerId(SyncDomain.Tasks, entry.entityId, userId))
+    ) {
       const title = await resolveTaskTitle(entry.entityId, userId, local, queue);
       if (!title) {
+        if (local) {
+          throw new Error(
+            `Invalid tasks outbox (${entry.id}): empty title for ${entry.entityId}`,
+          );
+        }
         await removeOutbox(entry.id, userId);
         dropped++;
       }
@@ -266,7 +303,7 @@ export async function reconcileTasksOutbox(): Promise<number> {
   }
 
   if (dropped > 0) {
-    console.warn(`[nordly:sync] Reconcile removed ${dropped} unrecoverable tasks outbox entries`);
+    console.info(`[nordly:sync] Reconcile removed ${dropped} tombstoned tasks outbox entries`);
   }
   return dropped;
 }

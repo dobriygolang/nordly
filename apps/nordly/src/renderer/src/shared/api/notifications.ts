@@ -50,9 +50,9 @@ export async function notify(title: string, body?: string, options?: NotifyOptio
   if (!readSettings().notifications) return;
 
   if (options?.sound === 'calendar') {
-    void playCalendarReminderSound();
+    await playCalendarReminderSound();
   } else if (options?.sound) {
-    void playSessionCompleteSound();
+    await playSessionCompleteSound();
   }
 
   if (isTauriRuntime()) {

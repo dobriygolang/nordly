@@ -1,33 +1,12 @@
 package model
 
-import (
-	"errors"
-	"time"
-)
-
-var (
-	ErrInvalidArgument = errors.New("invalid argument")
-	ErrNotFound        = errors.New("not found")
-	ErrForbidden       = errors.New("forbidden")
-	// ErrGoogleNotConnected is returned when a Google Calendar operation is
-	// attempted without a stored refresh token.
-	ErrGoogleNotConnected = errors.New("google calendar not connected")
-	// ErrGoogleReauthRequired is returned when the stored Google token was
-	// revoked/expired; the user must reconnect.
-	ErrGoogleReauthRequired = errors.New("google calendar reauthentication required")
-	// ErrZoomNotConnected is returned when a Zoom operation is attempted without
-	// a stored refresh token.
-	ErrZoomNotConnected = errors.New("zoom not connected")
-	// ErrZoomReauthRequired is returned when the stored Zoom token was
-	// revoked/expired; the user must reconnect.
-	ErrZoomReauthRequired = errors.New("zoom reauthentication required")
-)
+import "time"
 
 type WorkTask struct {
 	ID                   string
 	UserID               string
-	Status               string
-	Kind                 string
+	Status               WorkStatus
+	Kind                 WorkKind
 	Title                string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
@@ -35,9 +14,39 @@ type WorkTask struct {
 	ScheduledStart       *time.Time
 	ScheduledDurationMin *int
 	GoogleEventID        *string
+	GoogleCalendarID     *string
 	EpicID               *string
 	ConferenceURL        *string
-	ConferenceProvider   *string
+	ConferenceProvider   *ConferenceProvider
 	ZoomMeetingID        *string
 	ArchivedAt           *time.Time
+}
+
+// WorkTaskPatch describes an atomic partial update. Set fields only replace
+// their matching columns; clear flags only clear their matching nullable group.
+// When a clear flag and a matching set field are both present, the set wins so
+// callers can replace a schedule or conference in one UPDATE.
+type WorkTaskPatch struct {
+	Title                *string
+	Status               *WorkStatus
+	Kind                 *WorkKind
+	ScheduledStart       *time.Time
+	ScheduledDurationMin *int
+	GoogleEventID        *string
+	GoogleCalendarID     *string
+	EpicID               *string
+	ConferenceURL        *string
+	ConferenceProvider   *ConferenceProvider
+	ZoomMeetingID        *string
+	ClearSchedule        bool
+	ClearGoogleEvent     bool
+	ClearEpic            bool
+	ClearConference      bool
+	Archived             bool
+}
+
+// GoogleEventRef identifies the exact remote calendar event linked to a task.
+type GoogleEventRef struct {
+	CalendarID string
+	EventID    string
 }

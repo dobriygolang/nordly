@@ -1,9 +1,9 @@
 package roomsapi
 
 import (
-	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 	roomservice "github.com/dobriygolang/project-nordly/services/rooms/internal/room/service"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/ws"
+	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 	"google.golang.org/grpc"
 )
 

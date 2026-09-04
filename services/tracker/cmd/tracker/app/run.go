@@ -53,13 +53,18 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init token cipher: %w", err)
 	}
-	svc := trackerservice.New(trackerservice.Deps{
+	svc, err := trackerservice.New(trackerservice.Deps{
 		Repo:         repo,
 		Google:       googleClient,
 		Zoom:         zoomClient,
 		Cipher:       cipher,
 		CallbackBase: cfg.CallbackURL,
+		Now:          time.Now,
 	})
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init tracker service: %w", err)
+	}
 	return &App{Config: cfg, Logger: log, Postgres: pg, JWT: jwtValidator, Service: svc}, nil
 }
 
@@ -80,10 +85,7 @@ func RunAPI(ctx context.Context, a *App) error {
 	if err != nil {
 		return fmt.Errorf("listen grpc %s: %w", listenAddr, err)
 	}
-	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		trackerapi.AuthInterceptor(a.JWT),
-		trackerapi.InternalAuthInterceptor(a.Config.InternalAPIToken),
-	))
+	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(trackerapi.AuthInterceptor(a.JWT)))
 	trackerapi.NewRegisteredImplementation(grpcSrv, a.Service)
 	reflection.Register(grpcSrv)
 	go func() {

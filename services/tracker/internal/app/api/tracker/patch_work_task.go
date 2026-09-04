@@ -25,12 +25,19 @@ func (i *Implementation) PatchWorkTask(ctx context.Context, req *trackerv1.Patch
 		params.ConferenceURL = &v
 	}
 	if req.ConferenceProvider != nil {
-		v := req.GetConferenceProvider()
-		params.ConferenceProvider = &v
+		provider, err := conferenceProviderFromProto(*req.ConferenceProvider)
+		if err != nil {
+			return nil, invalidArgument(err.Error())
+		}
+		params.ConferenceProvider = &provider
 	}
 	if req.GoogleEventId != nil {
 		v := req.GetGoogleEventId()
 		params.GoogleEventID = &v
+	}
+	if req.GoogleCalendarId != nil {
+		v := req.GetGoogleCalendarId()
+		params.GoogleCalendarID = &v
 	}
 	if req.ZoomMeetingId != nil {
 		v := req.GetZoomMeetingId()
@@ -40,5 +47,9 @@ func (i *Implementation) PatchWorkTask(ctx context.Context, req *trackerv1.Patch
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.PatchWorkTaskResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.PatchWorkTaskResponse{Task: pb}, nil
 }

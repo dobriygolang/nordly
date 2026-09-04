@@ -15,5 +15,9 @@ func (i *Implementation) ScheduleWorkTask(ctx context.Context, req *trackerv1.Sc
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.ScheduleWorkTaskResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.ScheduleWorkTaskResponse{Task: pb}, nil
 }

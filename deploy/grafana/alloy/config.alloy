@@ -17,12 +17,6 @@ prometheus.scrape "identity" {
   job_name   = "identity"
 }
 
-prometheus.scrape "billing" {
-  targets    = [{ __address__ = "billing:8085" }]
-  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
-  job_name   = "billing"
-}
-
 prometheus.scrape "sandbox" {
   targets    = [{ __address__ = "sandbox:8086" }]
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]

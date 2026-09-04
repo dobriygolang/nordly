@@ -15,10 +15,13 @@ type Props = {
   onRun?: () => void
 }
 
-function isRunnerError(status: string): boolean {
-  if (!status) return false
-  const s = status.toLowerCase()
-  return s.includes('failed') || s.includes('error') || s === 'internal_error'
+function isRunnerError(status: CodeRun['status']): boolean {
+  return (
+    status === 'compile_error' ||
+    status === 'runtime_error' ||
+    status === 'timeout' ||
+    status === 'internal_error'
+  )
 }
 
 function panelBody({
@@ -33,9 +36,6 @@ function panelBody({
   if (tab === 'stdout') {
     const out = run.stdout?.trim()
     if (out) return out
-    if (run.tests_total > 0) {
-      return `tests: ${run.tests_passed}/${run.tests_total}`
-    }
     return '(no stdout)'
   }
   const err =

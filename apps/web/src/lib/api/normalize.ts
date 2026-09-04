@@ -1,14 +1,16 @@
 import type { CodeRun } from '@/lib/types'
+import { runStatusFromWire, sandboxLanguageFromWire } from '@/lib/api/wireEnums'
 
-function requireNumber(value: unknown, label: string): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
+function requireString(value: unknown, label: string): string {
+  if (typeof value === 'string' && value) return value
   throw new Error(`Invalid code run response: missing ${label}`)
 }
 
 export function normalizeCodeRun(raw: CodeRun): CodeRun {
   return {
     ...raw,
-    tests_total: requireNumber(raw.tests_total, 'testsTotal'),
-    tests_passed: requireNumber(raw.tests_passed, 'testsPassed'),
+    id: requireString(raw.id, 'id'),
+    language: sandboxLanguageFromWire(raw.language),
+    status: runStatusFromWire(raw.status),
   }
 }

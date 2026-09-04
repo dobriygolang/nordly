@@ -1,4 +1,5 @@
 import { requireUserId } from '@shared/db/nordlyDb';
+import { isApiHttpError } from '@shared/api/errors';
 import {
   decryptNoteFromRemote,
   encryptNoteForRemote,
@@ -21,11 +22,11 @@ import {
   notesStoreApplyRemoteAbsences,
 } from '@features/notes/repository/notesStore';
 import { isVaultUnlocked } from '@shared/crypto/vault';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { areVaultPrefsReady, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { getServerId, resolveEntityId, resolveNotesServerId, setServerId } from '@shared/sync/idMap';
 import { SyncDeferredError } from '@shared/sync/errors';
 import { hasOutboxForEntity, removeOutbox, removeOutboxForEntity } from '@shared/sync/outbox';
-import type { OutboxEntry } from '@shared/sync/types';
+import { OutboxOp, SyncDomain, type OutboxEntry } from '@shared/sync/types';
 import { mapPool } from '@shared/lib/mapPool';
 import {
   remoteDeleteAttachment,
@@ -43,6 +44,11 @@ import {
   attachmentsStoreSoftDelete,
 } from '@features/notes/repository/attachmentsStore';
 import { revokeAttachmentBlobUrl } from '@features/notes/api/attachmentsClient';
+import {
+  NotesCloudOperation,
+  requireNotesCloudCapability,
+} from '@features/notes/lib/notesCloudPolicy';
+import { vaultGetConfig } from '@features/notes/vault/ipc';
 
 const NOTE_PULL_CONCURRENCY = 6;
 const ATTACHMENT_PULL_CONCURRENCY = 4;
@@ -67,7 +73,7 @@ export async function withNotesRemoteMutation<T>(fn: () => Promise<T>): Promise<
 }
 
 function isRemoteNotFound(err: unknown): boolean {
-  return err instanceof Error && err.message.includes(': 404');
+  return isApiHttpError(err, 404);
 }
 
 function requireOutboxString(payload: Record<string, unknown>, key: string, entryId: string): string {
@@ -106,10 +112,10 @@ async function resolveNoteServerId(
   wikiLinks: WikiLinkWire[],
   e2ee: boolean,
 ): Promise<string | null> {
-  const mapped = await getServerId('notes', entry.entityId, userId);
+  const mapped = await getServerId(SyncDomain.Notes, entry.entityId, userId);
   if (mapped) return mapped;
 
-  if (entry.op === 'delete') {
+  if (entry.op === OutboxOp.Delete) {
     return resolveNotesServerId(entry.entityId, userId);
   }
 
@@ -124,7 +130,7 @@ async function resolveNoteServerId(
     const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
     // Persist the mapping before follow-up calls so a retry updates this note
     // instead of issuing another create after a partial success.
-    await setServerId('notes', entry.entityId, created.id, userId);
+    await setServerId(SyncDomain.Notes, entry.entityId, created.id, userId);
     await remoteEncryptNoteBody(created.id, encBody);
     const plain = await decryptNoteFromRemote({ ...created, encrypted: true });
     await notesStoreReplaceId(entry.entityId, plain);
@@ -133,17 +139,34 @@ async function resolveNoteServerId(
   }
 
   const created = await remoteCreateNote(title, bodyMd, wikiLinks);
-  await setServerId('notes', entry.entityId, created.id, userId);
+  await setServerId(SyncDomain.Notes, entry.entityId, created.id, userId);
   await notesStoreReplaceId(entry.entityId, created);
   await attachmentsStoreRemapNoteId(entry.entityId, created.id, userId);
   return created.id;
 }
 
+function requireVaultPrefsReady(): void {
+  if (!areVaultPrefsReady()) {
+    throw new SyncDeferredError('Vault prefs not loaded');
+  }
+}
+
+async function requireNotesSyncCapability(
+  operation:
+    | typeof NotesCloudOperation.SyncPush
+    | typeof NotesCloudOperation.SyncPull,
+): Promise<void> {
+  const config = await vaultGetConfig();
+  requireNotesCloudCapability(operation, Boolean(config?.root.trim()));
+}
+
 /** Create remote note + id_map when a local note has never been synced (e.g. publish). */
 export async function ensureNoteServerId(localId: string): Promise<string | null> {
+  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
   return withNotesRemoteMutation(async () => {
+    requireVaultPrefsReady();
     const userId = requireUserId();
-    const mapped = await getServerId('notes', localId, userId);
+    const mapped = await getServerId(SyncDomain.Notes, localId, userId);
     if (mapped) return mapped;
 
     const local = await notesStoreGet(localId, userId);
@@ -163,8 +186,8 @@ export async function ensureNoteServerId(localId: string): Promise<string | null
       {
         id: 'ensure',
         userId,
-        domain: 'notes',
-        op: 'update',
+        domain: SyncDomain.Notes,
+        op: OutboxOp.Update,
         entityId: localId,
         payload: { title: local.title, bodyMd: local.bodyMd, wikiLinks },
         createdAt: Date.now(),
@@ -204,18 +227,19 @@ async function pushPlainNote(
 }
 
 async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
+  requireVaultPrefsReady();
   const userId = requireUserId();
 
-  if (entry.op === 'attachment_put') {
+  if (entry.op === OutboxOp.AttachmentPut) {
     await pushAttachmentPut(entry, userId);
     return;
   }
-  if (entry.op === 'attachment_delete') {
+  if (entry.op === OutboxOp.AttachmentDelete) {
     await pushAttachmentDelete(entry, userId);
     return;
   }
 
-  if (entry.op === 'delete') {
+  if (entry.op === OutboxOp.Delete) {
     const serverId = await resolveNotesServerId(entry.entityId, userId);
     try {
       await remoteDeleteNote(serverId);
@@ -240,7 +264,7 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
     throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
   }
 
-  if (entry.op === 'create') {
+  if (entry.op === OutboxOp.Create) {
     const serverId = await resolveNoteServerId(
       entry,
       userId,
@@ -250,7 +274,12 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
       e2ee,
     );
     if (!serverId) {
-      await removeOutboxForEntity('notes', entry.entityId, 'create', userId);
+      await removeOutboxForEntity(
+        SyncDomain.Notes,
+        entry.entityId,
+        OutboxOp.Create,
+        userId,
+      );
       return;
     }
 
@@ -267,14 +296,19 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
         await notesStoreMergeRemote(noteToStored(wire, userId, false));
       }
     }
-    await removeOutboxForEntity('notes', entry.entityId, 'create', userId);
+    await removeOutboxForEntity(
+      SyncDomain.Notes,
+      entry.entityId,
+      OutboxOp.Create,
+      userId,
+    );
     return;
   }
 
   const serverId = await resolveNoteServerId(entry, userId, title, bodyMd, wikiLinks, e2ee);
   if (!serverId) return;
 
-  if (entry.op === 'update') {
+  if (entry.op === OutboxOp.Update) {
     try {
       if (e2ee) {
         await pushEncryptedNote(serverId, title, bodyMd, wikiLinks);
@@ -288,8 +322,7 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
       }
     } catch (err) {
       if (isRemoteNotFound(err)) {
-        await removeOutbox(entry.id, userId);
-        return;
+        throw new Error(`notes update: remote note missing for ${entry.entityId}`);
       }
       throw err;
     }
@@ -305,12 +338,21 @@ async function resolveAttachmentNoteServerId(
   noteId: string,
   userId: string,
 ): Promise<string | 'defer' | 'drop'> {
-  const mapped = await getServerId('notes', noteId, userId);
+  const mapped = await getServerId(SyncDomain.Notes, noteId, userId);
   if (mapped) return mapped;
 
   const noteRow = await notesStoreGetRow(noteId, userId);
   if (!noteRow || noteRow.deleted) return 'drop';
-  if (await hasOutboxForEntity('notes', noteId, 'create', userId)) return 'defer';
+  if (
+    await hasOutboxForEntity(
+      SyncDomain.Notes,
+      noteId,
+      OutboxOp.Create,
+      userId,
+    )
+  ) {
+    return 'defer';
+  }
   // Local note exists, no create pending, no map → id is already the server id (post-remap/pull).
   return noteId;
 }
@@ -414,7 +456,14 @@ async function pullAttachmentsForNote(localNoteId: string, serverNoteId: string,
   const locals = await attachmentsStoreListByNote(localNoteId, userId);
   for (const local of locals) {
     if (remoteIds.has(local.id)) continue;
-    if (await hasOutboxForEntity('notes', local.id, 'attachment_put', userId)) {
+    if (
+      await hasOutboxForEntity(
+        SyncDomain.Notes,
+        local.id,
+        OutboxOp.AttachmentPut,
+        userId,
+      )
+    ) {
       continue;
     }
     await attachmentsStoreSoftDelete(local.id, userId);
@@ -423,10 +472,13 @@ async function pullAttachmentsForNote(localNoteId: string, serverNoteId: string,
 }
 
 export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
+  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
   return withNotesRemoteMutation(() => pushNotesOutboxLocked(entry));
 }
 
 export async function pullNotes(): Promise<void> {
+  await requireNotesSyncCapability(NotesCloudOperation.SyncPull);
+  requireVaultPrefsReady();
   const userId = requireUserId();
   const vaultEnabled = isVaultEnabledSync();
   const vaultLocked = vaultEnabled && !isVaultUnlocked();
@@ -458,13 +510,19 @@ export async function pullNotes(): Promise<void> {
     const attIds = await attachmentsStoreDeleteForNote(noteId, userId);
     for (const attId of attIds) {
       revokeAttachmentBlobUrl(attId);
-      await removeOutboxForEntity('notes', attId, undefined, userId);
+      await removeOutboxForEntity(
+        SyncDomain.Notes,
+        attId,
+        undefined,
+        userId,
+      );
     }
   }
 }
 
 /** Re-push all local notes as encrypted after enabling vault. */
 export async function pushAllNotesEncrypted(): Promise<void> {
+  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
   if (!isVaultEnabledSync() || !isVaultUnlocked()) return;
   const { notesStoreAll, decryptAtRest } = await import('@features/notes/repository/notesStore');
   const userId = requireUserId();
@@ -472,7 +530,11 @@ export async function pushAllNotesEncrypted(): Promise<void> {
   for (const row of rows) {
     if (row.deleted) continue;
     const plain = await decryptAtRest(row);
-    const serverId = await resolveEntityId('notes', row.id, userId);
+    const serverId = await resolveEntityId(
+      SyncDomain.Notes,
+      row.id,
+      userId,
+    );
     await pushEncryptedNote(
       serverId,
       plain.title,

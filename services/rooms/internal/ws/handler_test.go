@@ -39,8 +39,94 @@ func TestHandlerRejectsExpiredRoomBeforeUpgrade(t *testing.T) {
 		logger.Nop(),
 		[]string{"https://app.example.com"},
 	)
+	request := httptest.NewRequest(http.MethodGet, "/ws/editor/"+roomID.String(), nil)
+	request.SetPathValue("roomId", roomID.String())
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	require.Equal(t, http.StatusGone, response.Code)
+}
+
+func TestHandlerRejectsGuestTokenWithoutPersistedParticipant(t *testing.T) {
+	t.Parallel()
+
+	roomID := uuid.New()
+	userID := uuid.New()
+	key, validator := wsTestValidator(t)
+	token := wsTestAccessToken(t, key, userID.String(), "editor:"+roomID.String())
+	store := wsmocks.NewRoomStore(t)
+	store.EXPECT().
+		GetRoom(mock.Anything, roomID).
+		Return(model.Room{
+			ID:         roomID,
+			Visibility: model.VisibilityShared,
+			ExpiresAt:  time.Now().Add(time.Minute),
+		}, nil)
+	store.EXPECT().
+		GetRole(mock.Anything, roomID, userID).
+		Return(model.Role(""), model.ErrNotFound)
+
+	handler := NewHandler(
+		NewHub(logger.Nop()),
+		validator,
+		store,
+		logger.Nop(),
+		[]string{"https://app.example.com"},
+	)
+	request := httptest.NewRequest(http.MethodGet, "/ws/editor/"+roomID.String(), nil)
+	request.SetPathValue("roomId", roomID.String())
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	require.Equal(t, http.StatusForbidden, response.Code)
+}
+
+func TestHandlerIgnoresQueryToken(t *testing.T) {
+	t.Parallel()
+
+	roomID := uuid.New()
+	key, validator := wsTestValidator(t)
+	token := wsTestAccessToken(t, key, uuid.NewString(), "editor:"+roomID.String())
+	store := wsmocks.NewRoomStore(t)
+
+	handler := NewHandler(
+		NewHub(logger.Nop()),
+		validator,
+		store,
+		logger.Nop(),
+		[]string{"https://app.example.com"},
+	)
 	request := httptest.NewRequest(http.MethodGet, "/ws/editor/"+roomID.String()+"?token="+token, nil)
 	request.SetPathValue("roomId", roomID.String())
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	require.Equal(t, http.StatusUnauthorized, response.Code)
+}
+
+func TestHandlerAcceptsAccessTokenSubprotocol(t *testing.T) {
+	t.Parallel()
+
+	roomID := uuid.New()
+	key, validator := wsTestValidator(t)
+	token := wsTestAccessToken(t, key, uuid.NewString(), "editor:"+roomID.String())
+	store := wsmocks.NewRoomStore(t)
+	store.EXPECT().
+		GetRoom(mock.Anything, roomID).
+		Return(model.Room{ID: roomID, ExpiresAt: time.Now().Add(-time.Minute)}, nil)
+
+	handler := NewHandler(
+		NewHub(logger.Nop()),
+		validator,
+		store,
+		logger.Nop(),
+		[]string{"https://app.example.com"},
+	)
+	request := httptest.NewRequest(http.MethodGet, "/ws/editor/"+roomID.String(), nil)
+	request.SetPathValue("roomId", roomID.String())
+	request.Header.Set("Sec-WebSocket-Protocol", "access_token."+token)
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -61,9 +147,10 @@ func wsTestValidator(t *testing.T) (*rsa.PrivateKey, *jwt.Validator) {
 func wsTestAccessToken(t *testing.T, key *rsa.PrivateKey, subject, scope string) string {
 	t.Helper()
 	token := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, jwtlib.MapClaims{
-		"sub": subject,
-		"scp": scope,
-		"exp": time.Now().Add(time.Minute).Unix(),
+		"sub":  subject,
+		"role": jwt.RoleGuest.String(),
+		"scp":  scope,
+		"exp":  time.Now().Add(time.Minute).Unix(),
 	})
 	raw, err := token.SignedString(key)
 	require.NoError(t, err)

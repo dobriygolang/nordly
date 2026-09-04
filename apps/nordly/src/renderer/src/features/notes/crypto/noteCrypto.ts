@@ -1,9 +1,6 @@
 import { decryptText, encryptText } from '@shared/crypto/vault';
 
-import type { Note } from '../api/notesClient';
-
-/** Wire note with optional server encryption flag. */
-export type WireNote = Note & { encrypted?: boolean };
+import type { Note, WireNote } from '../model/note';
 
 export async function encryptNoteFields(
   title: string,

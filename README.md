@@ -8,7 +8,6 @@ Monorepo of **independent microservices**. Each service is self-contained — op
 | Service  | Path                                     | Prod               |
 | -------- | ---------------------------------------- | ------------------ |
 | identity | [services/identity/](services/identity/) | yes                |
-| billing  | [services/billing/](services/billing/)   | yes                |
 | sandbox  | [services/sandbox/](services/sandbox/)   | yes                |
 | rooms    | [services/rooms/](services/rooms/)       | yes                |
 | tracker  | [services/tracker/](services/tracker/)   | yes                |
@@ -25,7 +24,6 @@ Ports and DB names: [AGENTS.md](AGENTS.md#port-allocation-defaults).
 | Doc                                                              | For                                 |
 | ---------------------------------------------------------------- | ----------------------------------- |
 | [AGENTS.md](AGENTS.md)                                           | Monorepo index, service template    |
-| [docs/billing-features.md](docs/billing-features.md)               | Billing feature entitlements        |
 | [docs/onboarding/](docs/onboarding/)                             | Cross-service architecture map      |
 | [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md) | First prod deploy                   |
 | [deploy/RUNBOOK.md](deploy/RUNBOOK.md)                           | Ops, incidents, monitoring          |

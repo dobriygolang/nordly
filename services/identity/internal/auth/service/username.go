@@ -38,9 +38,7 @@ func AllocateUsername(ctx context.Context, users UsernameExistsChecker, candidat
 			}
 			return "", err
 		}
-		if username != "" {
-			return username, nil
-		}
+		return username, nil
 	}
 
 	for i := 0; i < 8; i++ {
@@ -56,9 +54,7 @@ func AllocateUsername(ctx context.Context, users UsernameExistsChecker, candidat
 			}
 			return "", err
 		}
-		if username != "" {
-			return username, nil
-		}
+		return username, nil
 	}
 
 	return "", fmt.Errorf("allocate username: exhausted candidates")
@@ -69,10 +65,6 @@ func isUsernameBaseExhausted(err error) bool {
 }
 
 func ensureUnique(ctx context.Context, users UsernameExistsChecker, base string) (string, error) {
-	if base == "" {
-		return "", nil
-	}
-
 	exists, err := users.UsernameExists(ctx, base)
 	if err != nil {
 		return "", err

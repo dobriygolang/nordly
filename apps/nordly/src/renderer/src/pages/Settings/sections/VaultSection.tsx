@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -26,6 +26,7 @@ import {
   setVaultEnabled,
 } from '@shared/crypto/vaultPrefs';
 import { useSessionStore } from '@shared/model/session';
+import { useDialogFocus } from '@shared/hooks/useDialogFocus';
 
 import { SettingRow, SettingsGroup } from '../primitives/SettingRow';
 import { Toggle } from '../primitives/Toggle';
@@ -37,6 +38,10 @@ type Modal =
   | { kind: 'recovery' }
   | { kind: 'disable' }
   | { kind: 'show-recovery'; phrase: string };
+
+export function canDismissVaultModal(kind: Modal['kind'], busy: boolean): boolean {
+  return !busy && kind !== 'show-recovery';
+}
 
 export function VaultSection() {
   const t = useT();
@@ -52,6 +57,7 @@ export function VaultSection() {
   const [enableAfterUnlock, setEnableAfterUnlock] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -71,8 +77,9 @@ export function VaultSection() {
   }, []);
 
   useEscapeLayer(() => {
-    if (!busy) setModal(null);
+    if (modal && canDismissVaultModal(modal.kind, busy)) setModal(null);
   }, Boolean(modal));
+  useDialogFocus(modalRef, Boolean(modal));
 
   const finishEnable = useCallback(
     async (passphrase: string, recoveryPhrase: string) => {
@@ -99,9 +106,13 @@ export function VaultSection() {
       if (!userId) return;
       setError(null);
       if (next) {
-        const salt = await fetchVaultSalt();
-        setEnableAfterUnlock(true);
-        setModal(salt ? { kind: 'unlock' } : { kind: 'setup' });
+        try {
+          const salt = await fetchVaultSalt();
+          setEnableAfterUnlock(true);
+          setModal(salt ? { kind: 'unlock' } : { kind: 'setup' });
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
         return;
       }
       // Tauri WebView often returns false from window.confirm — use in-app dialog.
@@ -277,16 +288,26 @@ export function VaultSection() {
       </SettingsGroup>
 
       {modal && (
-        <div className="nordly-vault-modal-backdrop fadein" onClick={() => !busy && setModal(null)}>
+        <div
+          className="nordly-vault-modal-backdrop fadein"
+          onClick={() => {
+            if (canDismissVaultModal(modal.kind, busy)) setModal(null);
+          }}
+        >
           <div
+            ref={modalRef}
             className="nordly-vault-modal"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="nordly-vault-modal-title"
+            tabIndex={-1}
           >
             {modal.kind === 'setup' && (
               <>
-                <h2 className="nordly-vault-modal__title">{t('nordly.vault.setup.headline')}</h2>
+                <h2 id="nordly-vault-modal-title" className="nordly-vault-modal__title">
+                  {t('nordly.vault.setup.headline')}
+                </h2>
                 <p className="nordly-vault-modal__body">{t('nordly.settings.vault.setup_hint')}</p>
                 <VaultPassForm
                   pwd1={pwd1}
@@ -303,7 +324,9 @@ export function VaultSection() {
 
             {modal.kind === 'unlock' && (
               <>
-                <h2 className="nordly-vault-modal__title">{t('nordly.vault.unlock.headline')}</h2>
+                <h2 id="nordly-vault-modal-title" className="nordly-vault-modal__title">
+                  {t('nordly.vault.unlock.headline')}
+                </h2>
                 <p className="nordly-vault-modal__body">{t('nordly.vault.unlock.body')}</p>
                 <VaultPassForm
                   pwd1={pwd1}
@@ -317,7 +340,9 @@ export function VaultSection() {
 
             {modal.kind === 'show-recovery' && (
               <>
-                <h2 className="nordly-vault-modal__title">{t('nordly.settings.vault.recovery_save_title')}</h2>
+                <h2 id="nordly-vault-modal-title" className="nordly-vault-modal__title">
+                  {t('nordly.settings.vault.recovery_save_title')}
+                </h2>
                 <p className="nordly-vault-modal__body">{t('nordly.settings.vault.recovery_save_body')}</p>
                 <pre className="nordly-vault-modal__phrase mono">{modal.phrase}</pre>
                 <label className="nordly-vault-modal__check">
@@ -333,11 +358,12 @@ export function VaultSection() {
                   type="button"
                   className="nordly-vault-modal__primary"
                   disabled={!recoverySaved || busy}
-                  onClick={() =>
-                    void finishEnable(pwd1, modal.phrase).catch((e) =>
-                      setError(e instanceof Error ? e.message : String(e)),
-                    )
-                  }
+                  onClick={() => {
+                    setBusy(true);
+                    void finishEnable(pwd1, modal.phrase)
+                      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                      .finally(() => setBusy(false));
+                  }}
                 >
                   {t('nordly.settings.vault.recovery_done')}
                 </button>
@@ -346,7 +372,9 @@ export function VaultSection() {
 
             {modal.kind === 'disable' && (
               <>
-                <h2 className="nordly-vault-modal__title">{t('nordly.settings.vault.disable_title')}</h2>
+                <h2 id="nordly-vault-modal-title" className="nordly-vault-modal__title">
+                  {t('nordly.settings.vault.disable_title')}
+                </h2>
                 <p className="nordly-vault-modal__body">{t('nordly.settings.vault.disable_confirm')}</p>
                 {error && <p className="nordly-vault-modal__error mono">{error}</p>}
                 <div className="nordly-vault-modal__actions">
@@ -372,7 +400,9 @@ export function VaultSection() {
 
             {modal.kind === 'recovery' && (
               <>
-                <h2 className="nordly-vault-modal__title">{t('nordly.settings.vault.recovery_title')}</h2>
+                <h2 id="nordly-vault-modal-title" className="nordly-vault-modal__title">
+                  {t('nordly.settings.vault.recovery_title')}
+                </h2>
                 <p className="nordly-vault-modal__body">{t('nordly.settings.vault.recovery_body')}</p>
                 <textarea
                   className="nordly-vault-modal__textarea mono"

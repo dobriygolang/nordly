@@ -4,13 +4,15 @@ import { API_BASE_URL } from '@shared/api/config';
 import { requireJsonString } from '@shared/api/json';
 import { isNativeHttpInTauri } from '@platform/runtime';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { jwtExpiryMs } from '@shared/lib/jwt';
+import { canReachNetwork } from '@shared/lib/network';
 import { isCloudEnabled } from '@shared/model/features';
-import { useSessionStore } from '@shared/model/session';
+import {
+  AuthKind,
+  AuthStatus,
+  useSessionStore,
+} from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
-
-function canReachNetwork(): boolean {
-  return typeof navigator !== 'undefined' && navigator.onLine;
-}
 
 const REFRESH_SKEW_MS = 60_000;
 
@@ -28,14 +30,6 @@ function apiPath(path: string): string {
   return base ? `${base}${path}` : path;
 }
 
-function readJwtExpMs(token: string): number {
-  const payload = token.split('.')[1];
-  if (!payload) throw new Error('invalid auth token: missing payload');
-  const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
-  if (typeof json.exp !== 'number') throw new Error('invalid auth token: missing exp');
-  return json.exp * 1000;
-}
-
 /** Raw HTTP for auth endpoints — bypasses 401 handler to avoid refresh loops. */
 async function rawAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   return isNativeHttpInTauri() ? tauriFetch(input, init) : fetch(input, init);
@@ -49,10 +43,6 @@ function setSessionReauthRequired(required: boolean): void {
 export function resetAuthRefreshState(): void {
   refreshRejected = false;
   setSessionReauthRequired(false);
-  useSyncStore.getState().setCloudSyncBlocked(false);
-  void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
-    resetDeviceRegisterCache();
-  });
   void import('@shared/sync/SyncEngine').then(({ resetSyncDeviceSession }) => {
     resetSyncDeviceSession();
   });
@@ -71,18 +61,23 @@ export function isAccessTokenExpiringSoon(): boolean {
 
 export function canUseLocalApp(): boolean {
   const { status, userId } = useSessionStore.getState();
-  return status === 'signed_in' && Boolean(userId);
+  return status === AuthStatus.SignedIn && Boolean(userId);
 }
 
 export function isLocalAuthProfile(): boolean {
   const { status, authKind } = useSessionStore.getState();
-  return status === 'signed_in' && authKind === 'local';
+  return status === AuthStatus.SignedIn && authKind === AuthKind.Local;
 }
 
 /** True when cloud JWT/session can call authenticated APIs (or refresh soon). */
 export function hasCloudAuthSession(): boolean {
   const { status, authKind, accessToken, refreshToken } = useSessionStore.getState();
-  if (status !== 'signed_in' || authKind !== 'cloud') return false;
+  if (
+    status !== AuthStatus.SignedIn ||
+    authKind !== AuthKind.Cloud
+  ) {
+    return false;
+  }
   return Boolean(accessToken || refreshToken);
 }
 
@@ -119,9 +114,9 @@ export async function ensureCloudAuth(): Promise<boolean> {
   if (!isCloudEnabled()) return false;
 
   const { status, authKind, accessToken, refreshToken } = useSessionStore.getState();
-  if (status !== 'signed_in') return false;
+  if (status !== AuthStatus.SignedIn) return false;
 
-  if (authKind === 'cloud') {
+  if (authKind === AuthKind.Cloud) {
     if (accessToken && !isSessionExpired()) return true;
     if (refreshToken && canReachNetwork()) {
       if (await refreshAccessToken()) return true;
@@ -171,7 +166,7 @@ export async function refreshAccessToken(): Promise<boolean> {
   const refreshPromise = (async () => {
     try {
       const { userId, refreshToken, authKind } = useSessionStore.getState();
-      if (authKind === 'local') return false;
+      if (authKind === AuthKind.Local) return false;
       if (!refreshToken) {
         // Cannot recover without interactive login — even offline.
         if (isSessionExpired()) markReauthRequired();
@@ -198,7 +193,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       const accessToken = requireJsonString(body, 'accessToken');
       const nextRefresh = requireJsonString(body, 'refreshToken');
 
-      const expiresAt = readJwtExpMs(accessToken);
+      const expiresAt = jwtExpiryMs(accessToken);
       await persistRefreshedTokens(
         { accessToken, refreshToken: nextRefresh, expiresAt },
         userId,
@@ -223,7 +218,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 export async function ensureAccessTokenForSync(): Promise<boolean> {
   const { accessToken, refreshToken, authKind } = useSessionStore.getState();
   // Local profiles may enqueue outbox; push waits until cloud auth exists.
-  if (authKind === 'local') return false;
+  if (authKind === AuthKind.Local) return false;
   if (!accessToken && !refreshToken) return false;
   if (accessToken && !isSessionExpired() && !isAccessTokenExpiringSoon()) {
     refreshRejected = false;
@@ -247,7 +242,7 @@ export async function ensureAccessTokenForSync(): Promise<boolean> {
 /** Sign out on explicit logout only; failed refresh keeps local session for offline use. */
 export async function handleUnauthorized(): Promise<void> {
   const { status } = useSessionStore.getState();
-  if (status !== 'signed_in') return;
+  if (status !== AuthStatus.SignedIn) return;
 
   if (refreshRejected) {
     setSessionReauthRequired(true);
@@ -270,10 +265,11 @@ export async function handleUnauthorized(): Promise<void> {
 
 export function startSessionRefreshLoop(): () => void {
   const tick = (): void => {
+    if (document.hidden) return;
     const { status, authKind } = useSessionStore.getState();
-    if (status !== 'signed_in') return;
+    if (status !== AuthStatus.SignedIn) return;
     // Tokenless local profile — never hammer refresh or raise reauth from the loop.
-    if (authKind === 'local') return;
+    if (authKind === AuthKind.Local) return;
 
     if (!canReachNetwork()) {
       // Stay silent offline — local app keeps working with an expired access JWT.
@@ -295,16 +291,22 @@ export function startSessionRefreshLoop(): () => void {
     });
   };
 
+  const onVisible = (): void => {
+    if (document.visibilityState === 'visible') tick();
+  };
+
   tick();
   const startupTimer = window.setTimeout(tick, 2_000);
   const intervalId = window.setInterval(tick, 60_000);
   window.addEventListener('focus', tick);
   window.addEventListener('online', tick);
+  document.addEventListener('visibilitychange', onVisible);
 
   return () => {
     window.clearTimeout(startupTimer);
     window.clearInterval(intervalId);
     window.removeEventListener('focus', tick);
     window.removeEventListener('online', tick);
+    document.removeEventListener('visibilitychange', onVisible);
   };
 }

@@ -4,172 +4,171 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
+	"math"
 	"time"
 
-	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
-	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 )
 
-// RunStore updates a code run after execution.
+// RunStore atomically completes the caller's active lease.
 type RunStore interface {
-	Update(ctx context.Context, run *model.CodeRun) error
+	Complete(ctx context.Context, run *model.CodeRun) error
+}
+
+// Executor is the narrow runner port required by execution commands.
+type Executor interface {
+	Run(ctx context.Context, req runner.RunRequest) (*runner.RunResult, error)
+	Name() string
 }
 
 // Defaults are runner limits wired at process start.
 type Defaults struct {
-	TimeoutMS int
-	MemoryMB  int
+	TimeoutMS      int
+	MemoryMB       int
+	MaxOutputBytes int
+	LeaseDuration  time.Duration
 }
 
-// GateCodeRun consumes one code-run quota unit for the subject.
-func GateCodeRun(ctx context.Context, billing billingadapter.Client, subject string) error {
-	if err := billing.CheckAndConsumeUsage(ctx, subject, billingadapter.EntitlementCodeRunsPerDay, 1); err != nil {
-		if errors.Is(err, billingadapter.ErrQuotaExceeded) {
-			return model.ErrQuotaExceeded
-		}
-		return err
+// Validate rejects incomplete runner wiring.
+func (d Defaults) Validate() error {
+	if d.TimeoutMS <= 0 || d.MemoryMB <= 0 || d.MaxOutputBytes <= 0 || d.LeaseDuration < time.Millisecond {
+		return fmt.Errorf("runner defaults must be greater than zero and lease must be at least 1ms")
+	}
+	if int64(d.TimeoutMS) > math.MaxInt64/int64(time.Millisecond) {
+		return fmt.Errorf("runner timeout is too large")
+	}
+	if d.LeaseDuration <= time.Duration(d.TimeoutMS)*time.Millisecond {
+		return fmt.Errorf("runner lease must exceed execution timeout")
 	}
 	return nil
 }
 
-// QuotaSubject prefers the stable room id when present.
-func QuotaSubject(userID, roomID string) string {
-	if roomID != "" {
-		return roomID
-	}
-	return userID
-}
-
-// NormalizeLanguage maps aliases to canonical language ids.
-func NormalizeLanguage(lang string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(lang)) {
-	case model.LangGo, "golang":
-		return model.LangGo, nil
-	case model.LangPython, "py":
-		return model.LangPython, nil
-	case model.LangJavaScript, "js", "node":
-		return model.LangJavaScript, nil
-	default:
-		return "", fmt.Errorf("unsupported language %q: %w", lang, model.ErrInvalidInput)
-	}
-}
-
 // CanReadCodeRun reports whether the caller may view the run.
-func CanReadCodeRun(run *model.CodeRun, userID, scope string) bool {
-	if run.UserID == userID {
-		return true
-	}
-	if run.RoomID == "" {
+func CanReadCodeRun(run *model.CodeRun, userID, editorRoomID string) bool {
+	if run == nil {
 		return false
 	}
-	roomID, ok := identityjwt.EditorRoomID(scope)
-	return ok && roomID == run.RoomID
+	if editorRoomID != "" {
+		return run.RoomID != "" && editorRoomID == run.RoomID
+	}
+	return run.UserID == userID
 }
 
 // ExecuteRun runs one code run through the runner and persists the result.
 func ExecuteRun(
 	ctx context.Context,
 	store RunStore,
-	codeRunner runner.CodeRunner,
+	codeRunner Executor,
 	defaults Defaults,
+	now func() time.Time,
 	run *model.CodeRun,
 	stdin string,
 ) (*model.CodeRun, error) {
+	if run == nil {
+		return nil, fmt.Errorf("execute run: run is required")
+	}
+	if run.Status != model.StatusRunning || run.ClaimToken == "" || run.LeaseExpiresAt == nil {
+		return nil, fmt.Errorf("execute run: active claim is required")
+	}
 	result, runErr := codeRunner.Run(ctx, runner.RunRequest{
 		Language:  run.Language,
 		Code:      run.Code,
 		Stdin:     stdin,
 		TimeoutMS: defaults.TimeoutMS,
 		MemoryMB:  defaults.MemoryMB,
-		RunType:   model.RunTypeCustom,
 	})
 
-	run.UpdatedAt = time.Now().UTC()
+	run.UpdatedAt = now().UTC()
 	if runErr != nil {
-		msg := runErr.Error()
+		if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+			return nil, runErr
+		}
+		msg, err := runner.LimitText(runErr.Error(), defaults.MaxOutputBytes)
+		if err != nil {
+			return nil, err
+		}
 		run.Status = model.StatusInternalError
 		run.Error = &msg
 		run.Runner = StrPtr(codeRunner.Name())
-		if err := store.Update(ctx, run); err != nil {
+		if err := store.Complete(ctx, run); err != nil {
 			return nil, err
 		}
-		return SanitizeRunResponse(run), nil
+		clearClaim(run)
+		return run, nil
 	}
 
-	ApplyRunResult(run, result)
-	if err := store.Update(ctx, run); err != nil {
+	if err := ApplyRunResult(run, result, defaults.MaxOutputBytes); err != nil {
+		msg, limitErr := runner.LimitText(err.Error(), defaults.MaxOutputBytes)
+		if limitErr != nil {
+			return nil, limitErr
+		}
+		run.Status = model.StatusInternalError
+		run.Error = &msg
+		run.Runner = StrPtr(codeRunner.Name())
+	}
+	if err := store.Complete(ctx, run); err != nil {
 		return nil, err
 	}
-	return SanitizeRunResponse(run), nil
+	clearClaim(run)
+	return run, nil
 }
 
 // ApplyRunResult copies runner output onto the persisted run.
-func ApplyRunResult(run *model.CodeRun, result *runner.RunResult) {
-	run.Status = result.Status
-	if result.Stdout != "" {
-		run.Stdout = &result.Stdout
-	}
-	if result.Stderr != "" {
-		run.Stderr = &result.Stderr
-	}
-	if result.CompileOutput != "" {
-		run.CompileOutput = &result.CompileOutput
-	}
-	if result.Error != "" {
-		run.Error = &result.Error
-	}
-	run.ExitCode = result.ExitCode
-	if result.TimeMS > 0 {
-		run.TimeMS = &result.TimeMS
-	}
-	if result.MemoryKB > 0 {
-		run.MemoryKB = &result.MemoryKB
-	}
-	run.Runner = StrPtr(result.RunnerName)
-	run.TestResults = SanitizeTestResults(result.TestResults)
-	run.TestsTotal = len(run.TestResults)
-	run.TestsPassed = CountPassed(run.TestResults)
-}
-
-// SanitizeTestResults redacts outputs for hidden failed tests.
-func SanitizeTestResults(results []model.TestResult) []model.TestResult {
-	if results == nil {
-		return []model.TestResult{}
-	}
-	out := slices.Clone(results)
-	for i := range out {
-		if out[i].Status == model.TestStatusFailed && out[i].IsHidden() {
-			out[i].ExpectedOutput = nil
-			out[i].ActualOutput = nil
-			out[i].Stdout = nil
-		}
-	}
-	return out
-}
-
-// SanitizeRunResponse returns a copy safe for API responses.
-func SanitizeRunResponse(run *model.CodeRun) *model.CodeRun {
+func ApplyRunResult(run *model.CodeRun, result *runner.RunResult, maxOutputBytes int) error {
 	if run == nil {
-		return nil
+		return fmt.Errorf("run is required")
 	}
-	out := *run
-	out.TestResults = SanitizeTestResults(run.TestResults)
-	return &out
+	if result == nil {
+		return fmt.Errorf("runner returned nil result")
+	}
+	if maxOutputBytes <= 0 {
+		return fmt.Errorf("max output bytes must be > 0")
+	}
+	if !run.Status.CanTransitionTo(result.Status) {
+		return fmt.Errorf("invalid run status transition %q -> %q", run.Status, result.Status)
+	}
+	if result.TimeMS < 0 {
+		return fmt.Errorf("runner returned negative time")
+	}
+	if result.RunnerName == "" {
+		return fmt.Errorf("runner returned empty name")
+	}
+	stdout, err := runner.LimitText(result.Stdout, maxOutputBytes)
+	if err != nil {
+		return err
+	}
+	stderr, err := runner.LimitText(result.Stderr, maxOutputBytes)
+	if err != nil {
+		return err
+	}
+	compileOutput, err := runner.LimitText(result.CompileOutput, maxOutputBytes)
+	if err != nil {
+		return err
+	}
+	resultError, err := runner.LimitText(result.Error, maxOutputBytes)
+	if err != nil {
+		return err
+	}
+	run.Status = result.Status
+	run.Stdout = StrPtr(stdout)
+	run.Stderr = StrPtr(stderr)
+	run.CompileOutput = StrPtr(compileOutput)
+	run.Error = StrPtr(resultError)
+	run.ExitCode = result.ExitCode
+	run.TimeMS = &result.TimeMS
+	run.Runner = StrPtr(result.RunnerName)
+	return nil
 }
 
-// CountPassed counts passed test results.
-func CountPassed(results []model.TestResult) int {
-	n := 0
-	for _, tr := range results {
-		if tr.Status == model.TestStatusPassed {
-			n++
-		}
-	}
-	return n
+// SanitizeRunResponse removes source, stdin, and lease data from a read result.
+func SanitizeRunResponse(run *model.CodeRun) *model.CodeRun {
+	copy := *run
+	copy.Code = ""
+	copy.Stdin = ""
+	copy.ClaimToken = ""
+	copy.LeaseExpiresAt = nil
+	return &copy
 }
 
 // StrPtr returns a pointer to s, or nil when empty.
@@ -178,4 +177,9 @@ func StrPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func clearClaim(run *model.CodeRun) {
+	run.ClaimToken = ""
+	run.LeaseExpiresAt = nil
 }

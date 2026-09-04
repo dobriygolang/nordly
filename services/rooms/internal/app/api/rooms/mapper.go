@@ -1,6 +1,8 @@
 package roomsapi
 
 import (
+	"errors"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -9,17 +11,27 @@ import (
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 )
 
-func toProtoRoom(view *roomservice.RoomView) *roomsv1.Room {
+func toProtoRoom(view *roomservice.RoomView) (*roomsv1.Room, error) {
+	if view == nil {
+		return nil, errors.New("map room: room view is required")
+	}
 	room := view.Room
-	out := &roomsv1.Room{
+	roomType, err := roomTypeToProto(room.Type)
+	if err != nil {
+		return nil, err
+	}
+	language, err := roomLanguageToProto(room.Language)
+	if err != nil {
+		return nil, err
+	}
+	return &roomsv1.Room{
 		Id:        room.ID.String(),
 		OwnerId:   room.OwnerID.String(),
-		RoomType:  room.Type.String(),
-		Language:  room.Language.String(),
+		RoomType:  roomType,
+		Language:  language,
 		ExpiresAt: timestamppb.New(room.ExpiresAt),
 		CreatedAt: timestamppb.New(room.CreatedAt),
-	}
-	return out
+	}, nil
 }
 
 func mapServiceError(err error) error {
@@ -31,6 +43,12 @@ func mapServiceError(err error) error {
 	}
 	if roomservice.IsForbidden(err) {
 		return permissionDenied("forbidden")
+	}
+	if roomservice.IsInvalidArgument(err) {
+		return invalidArgument(err.Error())
+	}
+	if roomservice.IsGone(err) {
+		return gone("room expired")
 	}
 	return status.Errorf(codes.Internal, "internal error")
 }

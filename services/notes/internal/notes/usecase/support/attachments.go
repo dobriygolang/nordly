@@ -2,17 +2,13 @@ package support
 
 import (
 	"encoding/base64"
+	"net/http"
 	"regexp"
 	"strings"
 
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	"github.com/google/uuid"
 )
-
-const maxAttachmentBytes = 5 << 20
-
-// MaxPrivateEmbedBytes caps total raw bytes when password-protected publishes inline data URLs.
-const MaxPrivateEmbedBytes = 15 << 20
 
 var allowedAttachmentMIMEs = map[string]struct{}{
 	"image/png":  {},
@@ -27,14 +23,17 @@ var assetRefPattern = regexp.MustCompile(`nordly-asset:([0-9a-fA-F-]{36})`)
 func NormalizeAttachmentInput(input notesmodel.AttachmentInput) (notesmodel.NoteAttachment, error) {
 	id := strings.TrimSpace(input.ID)
 	mime := strings.ToLower(strings.TrimSpace(input.MIME))
-	if !isUUID(id) || strings.TrimSpace(input.FileName) == "" {
+	if !IsUUID(id) || strings.TrimSpace(input.FileName) == "" {
 		return notesmodel.NoteAttachment{}, notesmodel.ErrInvalidArgument
 	}
 	if _, ok := allowedAttachmentMIMEs[mime]; !ok {
 		return notesmodel.NoteAttachment{}, notesmodel.ErrInvalidArgument
 	}
 	data, err := base64.StdEncoding.DecodeString(input.DataB64)
-	if err != nil || len(data) == 0 || len(data) > maxAttachmentBytes {
+	if err != nil || len(data) == 0 || len(data) > notesmodel.MaxAttachmentBytes {
+		return notesmodel.NoteAttachment{}, notesmodel.ErrInvalidArgument
+	}
+	if !input.Encrypted && http.DetectContentType(data) != mime {
 		return notesmodel.NoteAttachment{}, notesmodel.ErrInvalidArgument
 	}
 	return notesmodel.NoteAttachment{
@@ -49,6 +48,9 @@ func NormalizeAttachmentInput(input notesmodel.AttachmentInput) (notesmodel.Note
 
 // NormalizePublishedAttachments validates a publish-time attachment batch (unique IDs).
 func NormalizePublishedAttachments(inputs []notesmodel.AttachmentInput) ([]notesmodel.PublishedAttachment, error) {
+	if len(inputs) > notesmodel.MaxNoteAttachments {
+		return nil, notesmodel.ErrInvalidArgument
+	}
 	out := make([]notesmodel.PublishedAttachment, 0, len(inputs))
 	seen := make(map[string]struct{}, len(inputs))
 	for _, input := range inputs {
@@ -93,7 +95,7 @@ func RewritePrivateAssetRefs(plaintext string, attachments []notesmodel.Publishe
 	total := 0
 	for _, attachment := range attachments {
 		total += len(attachment.Data)
-		if total > MaxPrivateEmbedBytes {
+		if total > notesmodel.MaxPrivatePublishAssetBytes {
 			return "", notesmodel.ErrInvalidArgument
 		}
 	}
@@ -107,7 +109,8 @@ func RewritePrivateAssetRefs(plaintext string, attachments []notesmodel.Publishe
 	return plaintext, nil
 }
 
-func isUUID(value string) bool {
+// IsUUID reports whether value is a UUID (after trim).
+func IsUUID(value string) bool {
 	_, err := uuid.Parse(strings.TrimSpace(value))
 	return err == nil
 }

@@ -9,7 +9,7 @@ const budgets = {
   // Shared shell + device OAuth helpers (PKCE/keychain) ride the main graph.
   main: { source: 'index.html', bytes: 420 * 1024 },
   // Notes cold graph: Esc/vault shell + attachments + multi-select + filesystem vault (ADR 005).
-  Notes: { source: 'src/pages/Notes.tsx', bytes: 1360 * 1024 },
+  Notes: { source: 'src/pages/Notes/index.ts', bytes: 1360 * 1024 },
   // Excalidraw route; shared-chunk drift from vault/OAuth shared deps.
   Whiteboard: { entry: 'whiteboard', bytes: 1865 * 1024 },
 };

@@ -1,10 +1,19 @@
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard } from '@features/tasks/model/task';
+import { compareTaskDayOrder } from '@features/tasks/lib/taskOrder';
+import {
+  sumTaskDurationMin,
+  taskDurationMin,
+} from '@features/tasks/model/duration';
+import {
+  isTaskDone,
+  isVisibleTaskStatus,
+  VISIBLE_TASK_STATUSES,
+} from '@features/tasks/model/status';
 import {
   addDays,
-  defaultDurationMin,
   parseDayKey,
+  formatDuration,
   startOfLocalDay,
-  sumDurationMin,
   taskDayKey,
   taskScheduleStart,
   toDayKey,
@@ -14,12 +23,7 @@ import { startOfLocaleWeek } from '@shared/lib/localeFormat';
 /** Synthetic day key for the "all other tasks" pool column — not a real schedule target. */
 export const PLANNING_POOL_DAY_KEY = '__planning_pool__';
 
-export const VISIBLE_TASK_STATUSES = new Set<TaskCard['status']>([
-  'todo',
-  'in_progress',
-  'in_review',
-  'done',
-]);
+export { VISIBLE_TASK_STATUSES };
 
 export function taskColumnKey(task: TaskCard, todayKey: string): string {
   if (!task.scheduledStart) return todayKey;
@@ -27,24 +31,14 @@ export function taskColumnKey(task: TaskCard, todayKey: string): string {
 }
 
 export function isVisibleTask(task: TaskCard): boolean {
-  return VISIBLE_TASK_STATUSES.has(task.status);
+  return isVisibleTaskStatus(task.status);
 }
 
 export function tasksForToday(tasks: TaskCard[], todayKey: string): TaskCard[] {
   return tasks
     .filter(isVisibleTask)
     .filter((task) => taskColumnKey(task, todayKey) === todayKey)
-    .sort(sortPlanningTasks);
-}
-
-/** Order inside a real day column: unfinished first, then the manual `order` index. */
-function sortPlanningTasks(a: TaskCard, b: TaskCard): number {
-  const aDone = a.status === 'done' ? 1 : 0;
-  const bDone = b.status === 'done' ? 1 : 0;
-  if (aDone !== bDone) return aDone - bDone;
-  const aOrder = a.order ?? taskScheduleStart(a)?.getTime() ?? new Date(a.createdAt).getTime();
-  const bOrder = b.order ?? taskScheduleStart(b)?.getTime() ?? new Date(b.createdAt).getTime();
-  return aOrder - bOrder;
+    .sort(compareTaskDayOrder);
 }
 
 /**
@@ -66,14 +60,22 @@ export function findPlanningDayKey(
   task: TaskCard,
   todayKey: string,
   poolAbsorbsNearDays = false,
-): string {
+): string | null {
   if (!task.scheduledStart) return todayKey;
   const key = taskDayKey(task);
   if (key === todayKey) return todayKey;
   if (poolAbsorbsNearDays) return PLANNING_POOL_DAY_KEY;
   if (key === tomorrowKey(todayKey)) return key;
   if (key === nextWeekStartKey(todayKey)) return key;
-  return PLANNING_POOL_DAY_KEY;
+  return null;
+}
+
+export function planningColumnKeys(
+  todayKey: string,
+  poolAbsorbsNearDays: boolean,
+): string[] {
+  if (poolAbsorbsNearDays) return [todayKey, PLANNING_POOL_DAY_KEY];
+  return [todayKey, tomorrowKey(todayKey), nextWeekStartKey(todayKey)];
 }
 
 /** Start of the week after the one holding `from`, honouring Settings → week starts on. */
@@ -139,7 +141,7 @@ export function buildPlanningPool(
   const candidates = tasks.filter(
     (task) =>
       isVisibleTask(task) &&
-      task.status !== 'done' &&
+      !isTaskDone(task.status) &&
       Boolean(task.scheduledStart) &&
       !skipped.has(taskDayKey(task)),
   );
@@ -179,18 +181,9 @@ export function buildPlanningPool(
 }
 
 export function totalDurationLabel(tasks: TaskCard[]): string {
-  return formatPlanningDuration(sumDurationMin(tasks));
-}
-
-export function formatPlanningDuration(totalMin: number): string {
-  if (totalMin <= 0) return '0m';
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  return formatDuration(sumTaskDurationMin(tasks));
 }
 
 export function durationLabel(task: TaskCard): string {
-  return formatPlanningDuration(defaultDurationMin(task));
+  return formatDuration(taskDurationMin(task));
 }

@@ -52,18 +52,20 @@ func GuestRateLimit(next http.Handler) http.Handler {
 }
 
 func guestClientIP(r *http.Request) string {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		if comma := strings.IndexByte(forwarded, ','); comma >= 0 {
-			forwarded = forwarded[:comma]
-		}
-		return strings.TrimSpace(forwarded)
-	}
-	if realIP := strings.TrimSpace(r.Header.Get("X-Real-Ip")); realIP != "" {
-		return realIP
+	if ip := rightmostForwardedIP(r.Header.Get("X-Forwarded-For")); ip != "" {
+		return ip
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
 		return host
 	}
 	return r.RemoteAddr
+}
+
+func rightmostForwardedIP(forwarded string) string {
+	if forwarded == "" {
+		return ""
+	}
+	parts := strings.Split(forwarded, ",")
+	return strings.TrimSpace(parts[len(parts)-1])
 }

@@ -1,8 +1,8 @@
 package templateapi
 
 import (
-	templatev1 "github.com/dobriygolang/project-nordly/services/template/pkg/api/template/v1"
 	exampleservice "github.com/dobriygolang/project-nordly/services/template/internal/example/service"
+	templatev1 "github.com/dobriygolang/project-nordly/services/template/pkg/api/template/v1"
 	"google.golang.org/grpc"
 )
 

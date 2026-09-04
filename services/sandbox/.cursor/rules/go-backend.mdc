@@ -16,9 +16,12 @@ internal/app/api/sandbox/     transport (1 RPC = 1 file)
 internal/sandbox/service/     thin orchestrator → usecase handlers
 internal/sandbox/usecase/     command|query/<op> + support helpers
 internal/sandbox/repository/  Store port + Postgres
-internal/adapter/billing|runner/
+internal/adapter/runner/
 ```
 
-- Billing gRPC + JWT validator always wired; LSP handler gets logger at startup.
-- `service.New()` / usecase `New` panic on missing required deps — no mid-path invent defaults.
+- JWT validator always wired. User sessions omit `room_id`; editor tokens are
+  validated against the request's exact `editor:{room_id}` scope.
+- `service.New()` / usecase `New` return an error on missing required deps — no mid-path invent defaults.
 - Persistence: `repository.Store` (mockery), not concrete `*Repository` in service/usecase.
+- Running rows require a unique claim token + lease; only token-matched terminal
+  updates may clear a claim. Runner process output always uses bounded draining writers.

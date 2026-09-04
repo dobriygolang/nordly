@@ -21,8 +21,12 @@ func (i *Implementation) ListNoteAttachments(
 	out := &notesv1.ListNoteAttachmentsResponse{
 		Attachments: make([]*notesv1.NoteAttachmentSummary, 0, len(attachments)),
 	}
-	for _, attachment := range attachments {
-		out.Attachments = append(out.Attachments, toProtoNoteAttachmentSummary(&attachment))
+	for i := range attachments {
+		summary, err := toProtoNoteAttachmentSummary(&attachments[i])
+		if err != nil {
+			return nil, err
+		}
+		out.Attachments = append(out.Attachments, summary)
 	}
 	return out, nil
 }

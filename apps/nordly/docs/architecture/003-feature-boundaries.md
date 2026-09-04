@@ -15,7 +15,7 @@ The renderer combines local persistence, remote transport, synchronization, and 
 - `sync` coordinates repository and remote operations.
 - `api` is the public local-first façade.
 
-Pages and widgets compose public feature APIs and do not import feature `repository`, `remote`, or `sync` internals. The existing vault settings notes-sync import remains the documented exception. Task and planning code consume calendar only through `features/calendar/api`.
+Pages and widgets compose public feature APIs and do not import feature `repository`, `remote`, or `sync` internals. Calendar cache, connection, and sync-worker stores are also internals — pages use `features/calendar/api/googleCalendarState` and `features/calendar/api/appleCalendarClient`. The existing vault settings notes-sync import remains the documented exception. Task and planning code consume calendar only through `features/calendar/api`.
 
 Aliases (`@shared`, `@features`, `@pages`, `@widgets`, `@app`, and `@platform`) express these boundaries. Architecture tests enforce the reliable public-import rules; ESLint and TypeScript enforce the remaining static constraints.
 

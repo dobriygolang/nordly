@@ -1,6 +1,8 @@
 /** Path-keyed vault file sync outbox (stubs until notes service vault RPCs ship). */
 
 import { enqueueOutbox } from '@shared/sync/outbox';
+import { SyncDeferredError } from '@shared/sync/errors';
+import { OutboxOp, SyncDomain } from '@shared/sync/types';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 
@@ -49,6 +51,14 @@ export function deferVaultWatchReload(cb: () => void): void {
   }, wait);
 }
 
+export function cancelDeferredVaultWatchReload(): void {
+  pendingReload = null;
+  if (pendingReloadTimer !== null) {
+    clearTimeout(pendingReloadTimer);
+    pendingReloadTimer = null;
+  }
+}
+
 async function contentHash(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
@@ -72,13 +82,13 @@ export async function enqueueVaultFilePut(
       : bodyUtf8OrBytes;
   const hash = await contentHash(bytes);
   const payload: VaultFilePutPayload = { path, hash, mtimeMs, kind };
-  await enqueueOutbox('vault', 'file_put', path, payload);
+  await enqueueOutbox(SyncDomain.Vault, OutboxOp.FilePut, path, payload);
   scheduleSync();
 }
 
 export async function enqueueVaultFileDelete(path: string): Promise<void> {
   if (!VAULT_FILE_SYNC_READY || !isSyncQueueEnabled()) return;
-  await enqueueOutbox('vault', 'file_delete', path, { path });
+  await enqueueOutbox(SyncDomain.Vault, OutboxOp.FileDelete, path, { path });
   scheduleSync();
 }
 
@@ -87,15 +97,18 @@ export async function enqueueVaultFileDelete(path: string): Promise<void> {
  * Entries stay in outbox until ListVaultFiles / PutVaultFile exist.
  */
 export async function pushVaultOutbox(): Promise<void> {
-  // Intentionally no-op: do not invent a dual-write to legacy note CRUD.
+  throw new SyncDeferredError(
+    'Filesystem vault sync is unavailable until vault file RPCs are implemented',
+  );
 }
 
 /** Remap a vault-relative path after a folder rename/move (`a` → `b`, `a/x.md` → `b/x.md`). */
 export function remapVaultPath(path: string, fromPrefix: string, toPrefix: string): string {
-  if (path === fromPrefix) return toPrefix;
-  const needle = fromPrefix.endsWith('/') ? fromPrefix : `${fromPrefix}/`;
-  if (path.startsWith(needle)) {
-    return `${toPrefix}${path.slice(fromPrefix.length)}`;
+  const from = fromPrefix.replace(/\/+$/, '');
+  const to = toPrefix.replace(/\/+$/, '');
+  if (path === fromPrefix || path === from) return to;
+  if (path.startsWith(`${from}/`)) {
+    return `${to}/${path.slice(from.length + 1)}`;
   }
   return path;
 }

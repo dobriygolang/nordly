@@ -59,7 +59,6 @@ export const Toggle = memo(function Toggle({
       onClick={handleClick}
       role="switch"
       aria-checked={value}
-      aria-pressed={value}
       aria-label={label}
       aria-disabled={disabled}
       disabled={disabled}

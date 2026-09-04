@@ -42,11 +42,18 @@ type Deps struct {
 }
 
 // New constructs the domain service and wires usecase handlers.
-func New(deps Deps) Service {
+func New(deps Deps) (Service, error) {
+	if deps.Repo == nil {
+		return nil, errors.New("example service: Repo is required")
+	}
+	getItem, err := get_item.New(deps.Repo)
+	if err != nil {
+		return nil, err
+	}
 	return &exampleService{
 		repo:    deps.Repo,
-		getItem: get_item.New(deps.Repo),
-	}
+		getItem: getItem,
+	}, nil
 }
 
 func (s *exampleService) Ping(_ context.Context) (string, error) {

@@ -2,15 +2,23 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { useT } from '@nordly-i18n';
 
-import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
 import { isCloudEnabled } from '@shared/model/features';
 import { openExternalUrl, type TrackerSettings } from '@features/calendar/api/calendarClient';
 import { isEpicActive, tagDisplayName, taskHasEpic } from '@features/tasks/lib/epicColor';
+import {
+  TaskActionError,
+  TaskActionErrorCode,
+} from '@features/tasks/lib/taskActionErrors';
 import { conferenceProvider } from '@features/tasks/lib/taskUi';
+import { ConferenceProvider } from '@features/tasks/model/status';
+import type {
+  TaskCard,
+  TaskEpicSelection,
+} from '@features/tasks/model/task';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
+import { useDialogSurface } from '@shared/hooks/useDialogSurface';
 
 function openConferenceLink(url: string): void {
   void navigator.clipboard.writeText(url).catch((err) => {
@@ -57,7 +65,7 @@ export function TaskDetailPopover({
   const zoomReady =
     isCloudEnabled() && Boolean(settings?.zoomConnected && !settings.zoomReauthRequired);
 
-  useEscapeLayer(onClose, !closing);
+  useDialogSurface(rootRef, onClose, { active: !closing });
 
   useEffect(() => {
     if (closing) return;
@@ -78,11 +86,11 @@ export function TaskDetailPopover({
       setError(t('nordly.taskboard.detail_cloud_required'));
       return;
     }
-    if (p === 'meet' && !googleReady) {
+    if (p === ConferenceProvider.Meet && !googleReady) {
       setError(t('nordly.taskboard.detail_connect_google'));
       return;
     }
-    if (p === 'zoom' && !zoomReady) {
+    if (p === ConferenceProvider.Zoom && !zoomReady) {
       setError(t('nordly.taskboard.detail_connect_zoom'));
       return;
     }
@@ -91,14 +99,24 @@ export function TaskDetailPopover({
     try {
       await onCreateConference(p);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (msg.includes('google_not_connected') || msg.includes('google_reauth_required')) {
+      const code = e instanceof TaskActionError ? e.code : null;
+      if (
+        code === TaskActionErrorCode.GoogleNotConnected ||
+        code === TaskActionErrorCode.GoogleReauthRequired
+      ) {
         setError(t('nordly.taskboard.detail_connect_google'));
-      } else if (msg.includes('zoom_not_connected') || msg.includes('zoom_reauth_required')) {
+      } else if (
+        code === TaskActionErrorCode.ZoomNotConnected ||
+        code === TaskActionErrorCode.ZoomReauthRequired
+      ) {
         setError(t('nordly.taskboard.detail_connect_zoom'));
-      } else if (msg.includes('task_not_synced')) setError(t('nordly.taskboard.detail_sync_task_first'));
-      else if (msg.includes('conference_not_available')) setError(t('nordly.taskboard.detail_conference_unavailable'));
-      else setError(t('nordly.taskboard.detail_conference_error'));
+      } else if (code === TaskActionErrorCode.TaskNotSynced) {
+        setError(t('nordly.taskboard.detail_sync_task_first'));
+      } else if (code === TaskActionErrorCode.ConferenceNotAvailable) {
+        setError(t('nordly.taskboard.detail_conference_unavailable'));
+      } else {
+        setError(t('nordly.taskboard.detail_conference_error'));
+      }
     } finally {
       setBusy(null);
     }
@@ -123,7 +141,9 @@ export function TaskDetailPopover({
       className="nordly-task-detail-pop"
       data-closing={closing ? 'true' : undefined}
       role="dialog"
+      aria-modal="true"
       aria-label={t('nordly.taskboard.detail_aria')}
+      tabIndex={-1}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="nordly-task-detail-pop__toolbar" role="toolbar" aria-label={t('nordly.taskboard.detail_aria')}>
@@ -189,9 +209,9 @@ export function TaskDetailPopover({
               title={t('nordly.taskboard.detail_add_meet')}
               aria-label={t('nordly.taskboard.detail_add_meet')}
               disabled={busy !== null}
-              onClick={() => void handleCreate('meet')}
+              onClick={() => void handleCreate(ConferenceProvider.Meet)}
             >
-              {busy === 'meet'
+              {busy === ConferenceProvider.Meet
                 ? t('nordly.taskboard.detail_creating')
                 : t('nordly.taskboard.detail_create_meet')}
             </button>
@@ -201,9 +221,9 @@ export function TaskDetailPopover({
               title={t('nordly.taskboard.detail_add_zoom')}
               aria-label={t('nordly.taskboard.detail_add_zoom')}
               disabled={busy !== null}
-              onClick={() => void handleCreate('zoom')}
+              onClick={() => void handleCreate(ConferenceProvider.Zoom)}
             >
-              {busy === 'zoom'
+              {busy === ConferenceProvider.Zoom
                 ? t('nordly.taskboard.detail_creating')
                 : t('nordly.taskboard.detail_create_zoom')}
             </button>

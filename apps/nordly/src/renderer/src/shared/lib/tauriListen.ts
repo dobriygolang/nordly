@@ -1,5 +1,11 @@
 import { listen, type EventCallback, type UnlistenFn } from '@tauri-apps/api/event';
 
+import { trackAsyncDisposer } from '@shared/lib/asyncDisposer';
+
+function logListenError(event: string, error: unknown): void {
+  console.error(`[nordly:tauri] ${event} listener failed`, error);
+}
+
 /**
  * Subscribe to a Tauri event and return an effect cleanup that always
  * unregisters — even when unmount races the listen() promise.
@@ -8,36 +14,21 @@ export function listenEffect<T>(
   event: string,
   handler: EventCallback<T>,
 ): () => void {
-  let cancelled = false;
-  let unlisten: UnlistenFn | undefined;
-  void listen<T>(event, handler).then((off) => {
-    if (cancelled) {
-      off();
-      return;
-    }
-    unlisten = off;
-  });
-  return () => {
-    cancelled = true;
-    unlisten?.();
-  };
+  return trackAsyncDisposer(
+    listen<T>(event, handler),
+    (error) => logListenError(event, error),
+  );
 }
 
 /** Same race-safe cleanup for multiple listen() promises. */
 export function listenEffects(setup: (track: (p: Promise<UnlistenFn>) => void) => void): () => void {
-  let cancelled = false;
-  const offs: UnlistenFn[] = [];
+  const cleanups: Array<() => void> = [];
   setup((p) => {
-    void p.then((off) => {
-      if (cancelled) {
-        off();
-        return;
-      }
-      offs.push(off);
-    });
+    cleanups.push(
+      trackAsyncDisposer(p, (error) => logListenError('grouped Tauri event', error)),
+    );
   });
   return () => {
-    cancelled = true;
-    for (const off of offs) off();
+    for (const cleanup of cleanups) cleanup();
   };
 }

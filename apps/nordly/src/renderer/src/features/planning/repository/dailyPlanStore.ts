@@ -24,6 +24,33 @@ interface DailyPlanMetaRow extends DailyPlanRecord {
   updatedAt: number;
 }
 
+let writeTail: Promise<void> = Promise.resolve();
+
+function enqueueDailyPlanWrite(write: () => Promise<void>): Promise<void> {
+  const result = writeTail.then(write);
+  writeTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+export function sameDailyPlan(a: DailyPlanRecord, b: DailyPlanRecord): boolean {
+  if (a.obstacles !== b.obstacles || a.finalizedAt !== b.finalizedAt) return false;
+  const left = a.snapshot;
+  const right = b.snapshot;
+  if (left === right) return true;
+  if (!left || !right) return false;
+  if (left.activeCount !== right.activeCount || left.totalDurationMin !== right.totalDurationMin) {
+    return false;
+  }
+  if (left.taskIds.length !== right.taskIds.length) return false;
+  for (let i = 0; i < left.taskIds.length; i++) {
+    if (left.taskIds[i] !== right.taskIds[i]) return false;
+  }
+  return true;
+}
+
 function rowToRecord(row: DailyPlanMetaRow | null | undefined): DailyPlanRecord {
   if (!row) return {};
   return {
@@ -44,15 +71,18 @@ export async function saveDailyPlanObstacles(
   dayKey = toDayKey(new Date()),
 ): Promise<void> {
   const userId = requireUserId();
-  const prev = await loadDailyPlan(dayKey);
-  await dbPut('meta', {
-    key: metaKey(userId, dayKey),
-    userId,
-    dayKey,
-    obstacles,
-    finalizedAt: prev.finalizedAt,
-    snapshot: prev.snapshot,
-    updatedAt: Date.now(),
+  return enqueueDailyPlanWrite(async () => {
+    const row = await dbGet<DailyPlanMetaRow>('meta', metaKey(userId, dayKey));
+    const prev = rowToRecord(row);
+    await dbPut('meta', {
+      key: metaKey(userId, dayKey),
+      userId,
+      dayKey,
+      obstacles,
+      finalizedAt: prev.finalizedAt,
+      snapshot: prev.snapshot,
+      updatedAt: Date.now(),
+    });
   });
 }
 
@@ -62,13 +92,15 @@ export async function finalizeDailyPlan(
   dayKey = toDayKey(new Date()),
 ): Promise<void> {
   const userId = requireUserId();
-  await dbPut('meta', {
-    key: metaKey(userId, dayKey),
-    userId,
-    dayKey,
-    obstacles,
-    snapshot,
-    finalizedAt: new Date().toISOString(),
-    updatedAt: Date.now(),
+  return enqueueDailyPlanWrite(async () => {
+    await dbPut('meta', {
+      key: metaKey(userId, dayKey),
+      userId,
+      dayKey,
+      obstacles,
+      snapshot,
+      finalizedAt: new Date().toISOString(),
+      updatedAt: Date.now(),
+    });
   });
 }

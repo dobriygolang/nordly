@@ -56,6 +56,7 @@ export {
   suppressVaultWatch,
   isVaultWatchSuppressed,
   deferVaultWatchReload,
+  cancelDeferredVaultWatchReload,
   remapVaultPath,
   VAULT_FILE_SYNC_READY,
 } from './vaultOutbox';

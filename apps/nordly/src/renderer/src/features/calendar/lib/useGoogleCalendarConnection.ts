@@ -1,89 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
-import { getTrackerSettings } from '@features/calendar/api/calendarClient';
-import { isCloudEnabled } from '@shared/model/features';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import {
+  getGoogleCalendarConnection,
+  GoogleCalendarConnectionStatus,
+  refreshGoogleCalendarConnection,
+  subscribeGoogleCalendarConnection,
+} from './googleCalendarConnectionStore';
+import type { CalendarProviderError } from '../model/provider';
 
-let settingsCache: {
-  connected: boolean;
-  reauthRequired: boolean;
-  fetchedAt: number;
-} | null = null;
-
-const SETTINGS_TTL_MS = 30_000;
-
-function markDisconnected(): void {
-  settingsCache = {
-    connected: false,
-    reauthRequired: false,
-    fetchedAt: Date.now(),
-  };
+export function canReadGoogleCalendarCache(
+  status: GoogleCalendarConnectionStatus,
+): boolean {
+  return status !== GoogleCalendarConnectionStatus.Disconnected;
 }
 
 export function useGoogleCalendarConnection(): {
+  status: GoogleCalendarConnectionStatus;
   connected: boolean;
   reauthRequired: boolean;
   ready: boolean;
+  cachedEventsAvailable: boolean;
+  error: CalendarProviderError | null;
   refresh: () => Promise<void>;
 } {
-  const [connected, setConnected] = useState(
-    () => settingsCache?.connected ?? false,
+  const snapshot = useSyncExternalStore(
+    subscribeGoogleCalendarConnection,
+    getGoogleCalendarConnection,
+    getGoogleCalendarConnection,
   );
-  const [reauthRequired, setReauthRequired] = useState(
-    () => settingsCache?.reauthRequired ?? false,
-  );
-  const [ready, setReady] = useState(
-    () => Boolean(settingsCache && Date.now() - settingsCache.fetchedAt < SETTINGS_TTL_MS),
-  );
-  const [error, setError] = useState<Error | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!isCloudEnabled()) {
-      markDisconnected();
-      setConnected(false);
-      setReauthRequired(false);
-      setReady(true);
-      setError(null);
-      return;
-    }
-    const s = await getTrackerSettings();
-    if (!s) {
-      markDisconnected();
-      setConnected(false);
-      setReauthRequired(false);
-      setReady(true);
-      setError(null);
-      return;
-    }
-    settingsCache = {
-      connected: s.googleCalendarConnected,
-      reauthRequired: s.googleReauthRequired,
-      fetchedAt: Date.now(),
-    };
-    setConnected(s.googleCalendarConnected);
-    setReauthRequired(s.googleReauthRequired);
-    setReady(true);
-    setError(null);
-  }, []);
-
-  useEffect(() => {
-    void refresh().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
-  }, [refresh]);
-
-  useEffect(() => {
-    const onOAuth = () =>
-      void refresh().catch((err: unknown) =>
-        setError(err instanceof Error ? err : new Error(String(err))),
-      );
-    window.addEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
-    window.addEventListener(NORDLY_EVENTS.googleCalendarChanged, onOAuth);
-    return () => {
-      window.removeEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
-      window.removeEventListener(NORDLY_EVENTS.googleCalendarChanged, onOAuth);
-    };
-  }, [refresh]);
-
-  if (error) throw error;
-
-  return { connected, reauthRequired, ready, refresh };
+  return {
+    status: snapshot.status,
+    connected: snapshot.connected,
+    reauthRequired: snapshot.reauthRequired,
+    ready: snapshot.ready,
+    cachedEventsAvailable: canReadGoogleCalendarCache(snapshot.status),
+    error: snapshot.error,
+    refresh: () => refreshGoogleCalendarConnection({ force: true }),
+  };
 }

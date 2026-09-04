@@ -24,7 +24,8 @@ type Service interface {
 	StartFocusSession(
 		ctx context.Context,
 		userID string,
-		mode, pinnedTitle, taskID, clientSessionID string,
+		mode focusmodel.SessionMode,
+		pinnedTitle, taskID, clientSessionID string,
 		startedAt *time.Time,
 	) (*focusmodel.Session, error)
 	EndFocusSession(
@@ -33,7 +34,7 @@ type Service interface {
 		secondsFocused, pomodorosCompleted int,
 		endedAt *time.Time,
 	) (*focusmodel.Session, error)
-	CleanupAbandonedSessions(ctx context.Context, now time.Time) (int64, error)
+	CleanupAbandonedSessions(ctx context.Context) (int64, error)
 	GetStats(ctx context.Context, userID, upToDate string) (*focusmodel.Stats, error)
 }
 
@@ -42,29 +43,53 @@ type focusService struct {
 	endSession   *end_focus_session.Handler
 	cleanup      *cleanup_abandoned_sessions.Handler
 	getStats     *get_stats.Handler
+	now          func() time.Time
 }
 
 // Deps holds service dependencies.
 type Deps struct {
 	Repo focusrepo.Store
+	Now  func() time.Time
 }
 
 // New constructs the domain service.
-func New(deps Deps) Service {
+func New(deps Deps) (Service, error) {
 	if deps.Repo == nil {
-		panic("focus service: Repo is required")
+		return nil, errors.New("focus service: Repo is required")
+	}
+	if deps.Now == nil {
+		return nil, errors.New("focus service: Now is required")
+	}
+	startSession, err := start_focus_session.New(deps.Repo)
+	if err != nil {
+		return nil, err
+	}
+	endSession, err := end_focus_session.New(deps.Repo)
+	if err != nil {
+		return nil, err
+	}
+	cleanup, err := cleanup_abandoned_sessions.New(deps.Repo)
+	if err != nil {
+		return nil, err
+	}
+	getStats, err := get_stats.New(deps.Repo)
+	if err != nil {
+		return nil, err
 	}
 	return &focusService{
-		startSession: start_focus_session.New(deps.Repo),
-		endSession:   end_focus_session.New(deps.Repo),
-		cleanup:      cleanup_abandoned_sessions.New(deps.Repo),
-		getStats:     get_stats.New(deps.Repo),
-	}
+		startSession: startSession,
+		endSession:   endSession,
+		cleanup:      cleanup,
+		getStats:     getStats,
+		now:          deps.Now,
+	}, nil
 }
 
 func (s *focusService) StartFocusSession(
 	ctx context.Context,
-	userID, mode, pinnedTitle, taskID, clientSessionID string,
+	userID string,
+	mode focusmodel.SessionMode,
+	pinnedTitle, taskID, clientSessionID string,
 	startedAt *time.Time,
 ) (*focusmodel.Session, error) {
 	return s.startSession.Handle(ctx, start_focus_session.Command{
@@ -74,6 +99,7 @@ func (s *focusService) StartFocusSession(
 		TaskID:          taskID,
 		ClientSessionID: clientSessionID,
 		StartedAt:       startedAt,
+		Now:             s.now().UTC(),
 	})
 }
 
@@ -89,15 +115,16 @@ func (s *focusService) EndFocusSession(
 		SecondsFocused:     secondsFocused,
 		PomodorosCompleted: pomodorosCompleted,
 		EndedAt:            endedAt,
+		Now:                s.now().UTC(),
 	})
 }
 
-func (s *focusService) CleanupAbandonedSessions(ctx context.Context, now time.Time) (int64, error) {
-	return s.cleanup.Handle(ctx, cleanup_abandoned_sessions.Command{Now: now})
+func (s *focusService) CleanupAbandonedSessions(ctx context.Context) (int64, error) {
+	return s.cleanup.Handle(ctx, cleanup_abandoned_sessions.Command{Now: s.now().UTC()})
 }
 
 func (s *focusService) GetStats(ctx context.Context, userID, upToDate string) (*focusmodel.Stats, error) {
-	return s.getStats.Handle(ctx, get_stats.Query{UserID: userID, UpToDate: upToDate})
+	return s.getStats.Handle(ctx, get_stats.Query{UserID: userID, UpToDate: upToDate, Now: s.now().UTC()})
 }
 
 // IsNotFound reports whether err is a not-found error.

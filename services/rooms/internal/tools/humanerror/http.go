@@ -44,7 +44,7 @@ func runtimeHTTPStatus(code codes.Code) int {
 	case codes.NotFound:
 		return http.StatusNotFound
 	case codes.FailedPrecondition:
-		return http.StatusPreconditionFailed
+		return http.StatusGone
 	case codes.ResourceExhausted:
 		return http.StatusTooManyRequests
 	default:

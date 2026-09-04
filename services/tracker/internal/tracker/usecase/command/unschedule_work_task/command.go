@@ -15,8 +15,8 @@ type Command struct {
 
 // Validate checks required identifiers.
 func (c Command) Validate() error {
-	if strings.TrimSpace(c.UserID) == "" || strings.TrimSpace(c.TaskID) == "" {
-		return fmt.Errorf("%w: user_id and task_id required", model.ErrInvalidArgument)
+	if strings.TrimSpace(c.UserID) == "" {
+		return fmt.Errorf("%w: user_id required", model.ErrInvalidArgument)
 	}
-	return nil
+	return model.ValidateUUID("task_id", c.TaskID)
 }

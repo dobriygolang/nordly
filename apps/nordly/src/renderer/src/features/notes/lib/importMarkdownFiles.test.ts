@@ -14,6 +14,8 @@ import {
   shouldSkipDirName,
   splitRelativeDir,
   titleFromMarkdownFilename,
+  joinImportRelative,
+  parentDirFromPath,
 } from './importMarkdownFiles';
 
 describe('isMarkdownFilename', () => {
@@ -47,6 +49,19 @@ describe('titleFromMarkdownFilename', () => {
       expect(err).toBeInstanceOf(MarkdownImportError);
       expect((err as MarkdownImportError).code).toBe('empty_title');
     }
+  });
+});
+
+describe('parentDirFromPath / joinImportRelative', () => {
+  it('splits POSIX and Windows absolute files', () => {
+    expect(parentDirFromPath('/Users/me/Notes/Hello.md')).toBe('/Users/me/Notes');
+    expect(parentDirFromPath('C:\\docs\\plan.md')).toBe('C:\\docs');
+  });
+
+  it('joins listed import entries without a leading slash', () => {
+    expect(joinImportRelative('', 'Hello.md')).toBe('Hello.md');
+    expect(joinImportRelative('a/b', 'n.md')).toBe('a/b/n.md');
+    expect(joinImportRelative('a\\b', 'n.md')).toBe('a/b/n.md');
   });
 });
 

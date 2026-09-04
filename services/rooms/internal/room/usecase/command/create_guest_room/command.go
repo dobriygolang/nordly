@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 )
 
 // Command creates an unauthenticated guest collab room.
@@ -19,13 +18,13 @@ type Command struct {
 func (c Command) Validate() error {
 	if c.RoomType != model.RoomTypePractice && c.RoomType != model.RoomTypeSystemDesign {
 		return fmt.Errorf("guest rooms support only %q and %q: %w",
-			model.RoomTypePractice, model.RoomTypeSystemDesign, repository.ErrInvalidState)
+			model.RoomTypePractice, model.RoomTypeSystemDesign, model.ErrInvalidArgument)
 	}
 	if err := model.ValidateCreate(c.RoomType, c.Language); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", model.ErrInvalidArgument, err)
 	}
 	if strings.TrimSpace(c.DisplayName) == "" {
-		return fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
+		return fmt.Errorf("display name is required: %w", model.ErrInvalidArgument)
 	}
 	return nil
 }

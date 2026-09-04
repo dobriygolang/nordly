@@ -6,8 +6,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-
-	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
 // Validator verifies RS256 access tokens issued by identity service.
@@ -22,33 +20,6 @@ func NewValidator(publicKeyPEM []byte) (*Validator, error) {
 		return nil, err
 	}
 	return &Validator{publicKey: publicKey}, nil
-}
-
-// UserID validates token and returns subject user ID.
-func (v *Validator) UserID(tokenString string) (string, error) {
-	token, err := jwtlib.Parse(tokenString, func(token *jwtlib.Token) (any, error) {
-		if token.Method != jwtlib.SigningMethodRS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return v.publicKey, nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("parse access token: %w", err)
-	}
-	if !token.Valid {
-		return "", errors.New("invalid access token")
-	}
-
-	claims, ok := token.Claims.(jwtlib.MapClaims)
-	if !ok {
-		return "", errors.New("invalid token claims")
-	}
-
-	sub, err := claims.GetSubject()
-	if err != nil || sub == "" {
-		return "", errors.New("missing token subject")
-	}
-	return sub, nil
 }
 
 func parsePublicKey(pemBytes []byte) (*rsa.PublicKey, error) {

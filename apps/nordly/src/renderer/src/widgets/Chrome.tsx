@@ -48,11 +48,20 @@ const VERSION_BADGE_STYLE: CSSProperties = {
 
 export const AppVersionBadge = memo(function AppVersionBadge() {
   const [version, setVersion] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
   useEffect(() => {
-    void readAppVersion().then(setVersion);
+    void readAppVersion()
+      .then(setVersion)
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err : new Error(String(err)));
+      });
   }, []);
 
+  if (loadError) {
+    console.warn('[nordly:chrome] app version unavailable', loadError);
+    return null;
+  }
   if (!version) return null;
 
   const label = formatVersionLabel(version);

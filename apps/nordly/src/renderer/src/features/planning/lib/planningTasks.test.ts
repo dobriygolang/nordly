@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
+import { TaskKind, TaskStatus } from '@features/tasks/model/status';
 import { scheduleStartISO } from '@shared/lib/dates';
 import { patchSettings } from '@shared/model/settings';
 
 import {
   buildPlanningPool,
+  findPlanningDayKey,
   nextWeekStartKey,
+  planningColumnKeys,
+  PLANNING_POOL_DAY_KEY,
   tomorrowKey,
   weekWindowEndKey,
 } from './planningTasks';
@@ -18,8 +22,8 @@ function task(id: string, dayKey: string, extra: Partial<TaskCard> = {}): TaskCa
   const [y, m, d] = dayKey.split('-').map(Number);
   return {
     id,
-    status: 'todo',
-    kind: 'custom',
+    status: TaskStatus.Todo,
+    kind: TaskKind.Custom,
     title: id,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -133,8 +137,8 @@ describe('buildPlanningPool', () => {
     const pool = buildPlanningPool(
       [
         task('today', TODAY),
-        task('done', '2026-07-30', { status: 'done' }),
-        task('dismissed', '2026-07-31', { status: 'dismissed' }),
+        task('done', '2026-07-30', { status: TaskStatus.Done }),
+        task('dismissed', '2026-07-31', { status: TaskStatus.Dismissed }),
         task('dateless', '2026-07-30', { scheduledStart: undefined }),
         task('thu', '2026-07-30'),
       ],
@@ -152,5 +156,20 @@ describe('buildPlanningPool', () => {
       'tomorrow',
     ]);
     expect(ids(buildPlanningPool(tasks, TODAY, { poolAbsorbsNearDays: false }).tasks)).toEqual([]);
+  });
+
+  it('does not create an invisible pool target during Defer', () => {
+    const farTask = task('far', '2026-08-12');
+
+    expect(planningColumnKeys(TODAY, false)).toEqual([
+      TODAY,
+      tomorrowKey(TODAY),
+      nextWeekStartKey(TODAY),
+    ]);
+    expect(planningColumnKeys(TODAY, false)).not.toContain(PLANNING_POOL_DAY_KEY);
+    expect(findPlanningDayKey(farTask, TODAY, false)).toBeNull();
+    expect(findPlanningDayKey(farTask, TODAY, true)).toBe(
+      PLANNING_POOL_DAY_KEY,
+    );
   });
 });

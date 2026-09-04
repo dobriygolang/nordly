@@ -22,18 +22,3 @@ func (i *Implementation) GetPublishedNote(
 		PasswordRequired: note.PasswordRequired,
 	}, nil
 }
-
-func (i *Implementation) AccessPublishedNote(
-	ctx context.Context,
-	req *notesv1.AccessPublishedNoteRequest,
-) (*notesv1.AccessPublishedNoteResponse, error) {
-	note, err := i.service.AccessPublishedNote(ctx, req.GetSlug(), req.GetPassword())
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	return &notesv1.AccessPublishedNoteResponse{
-		Title:       note.Title,
-		BodyMd:      note.BodyMD,
-		PublishedAt: timestamppb.New(note.PublishedAt),
-	}, nil
-}

@@ -11,7 +11,8 @@ export function normalizeEditorLang(language: string | undefined): EditorLangSho
   if (s.includes('python')) return 'python'
   if (s.includes('typescript')) return 'typescript'
   if (s.includes('javascript')) return 'javascript'
-  return 'go'
+  if (s === 'go' || s.includes('golang')) return 'go'
+  throw new Error(`Unknown editor language: ${language ?? ''}`)
 }
 
 function baseLanguageExt(language: string): Extension {

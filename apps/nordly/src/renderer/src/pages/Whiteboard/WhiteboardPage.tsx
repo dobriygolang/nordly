@@ -8,13 +8,11 @@ import {
   createBoard,
   deleteBoard,
   updateBoardTitle,
+  shareWhiteboard,
+  publishWhiteboard,
   type Board,
 } from '@features/whiteboard/api/whiteboardClient';
-import {
-  remotePublishWhiteboard,
-  remoteShareWhiteboard,
-} from '@features/whiteboard/api/whiteboardRemote';
-import { ensureCloudAuth } from '@shared/api/authSession';
+import { requireCloudCta } from '@shared/api/cloudCta';
 import { isCloudEnabled } from '@shared/model/features';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -22,14 +20,24 @@ import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 
 import { BoardCanvas, type BoardCanvasHandle } from './BoardCanvas';
+import {
+  BoardLoadStatus,
+  INITIAL_BOARD_LOAD_STATE,
+  boardLoadStateForSelection,
+  failBoardLoad,
+  finishBoardLoad,
+  startBoardLoad,
+} from './boardLoadState';
 import { Sidebar } from './Sidebar';
 import {
+  BoardListStatus,
   INITIAL_LIST,
   SIDEBAR_COLLAPSED_KEY,
   errorMessage,
+  sameBoardSummaries,
   type ListState,
 } from './utils';
-import { VAULT_SIDEBAR_W } from '../vaultSidebar';
+import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 
 const SIDEBAR_W = VAULT_SIDEBAR_W;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
@@ -38,23 +46,25 @@ async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {
   try {
     await navigator.clipboard.writeText(url);
     return 'copied';
-  } catch {
-    /* clipboard denied or unavailable */
+  } catch (err) {
+    console.warn('[nordly:whiteboard] clipboard write failed', err);
   }
   const open = window.nordly?.shell.openExternal;
   if (open) {
     await open(url);
   } else {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) throw new Error('The browser blocked the whiteboard link');
   }
   return 'opened';
 }
 
 interface WhiteboardPageProps {
   boardCanvas: BoardCanvasTheme;
+  onRegisterFlush: (flush: (() => Promise<boolean>) | null) => void;
 }
 
-export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
+export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageProps) {
   const t = useT();
   const [list, setList] = useState<ListState>(INITIAL_LIST);
   const listRef = useRef(list);
@@ -64,15 +74,31 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
-  const [active, setActive] = useState<Board | null>(null);
+  const [boardLoad, setBoardLoad] = useState(INITIAL_BOARD_LOAD_STATE);
+  const visibleBoardLoad = boardLoadStateForSelection(boardLoad, selectedId);
+  const active =
+    visibleBoardLoad.status === BoardLoadStatus.Ready
+      ? visibleBoardLoad.board
+      : null;
   const activeRef = useRef<Board | null>(null);
   activeRef.current = active;
 
   const [activeError, setActiveError] = useState<string | null>(null);
+  const [activeLoadAttempt, setActiveLoadAttempt] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   const canvasRef = useRef<BoardCanvasHandle>(null);
+
+  const flushPage = useCallback(async (): Promise<boolean> => {
+    if (!canvasRef.current) return true;
+    return canvasRef.current.flush();
+  }, []);
+
+  useEffect(() => {
+    onRegisterFlush(flushPage);
+    return () => onRegisterFlush(null);
+  }, [flushPage, onRegisterFlush]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -115,15 +141,21 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   const loadList = useCallback(() => {
     void listBoards()
       .then((boards) => {
-        setList({ status: 'ok', boards, error: null });
+        setList((prev) =>
+          prev.status === BoardListStatus.Ready &&
+          sameBoardSummaries(prev.boards, boards)
+            ? prev
+            : { status: BoardListStatus.Ready, boards },
+        );
         const firstId = boards[0]?.id ?? null;
         if (firstId) setSelectedId((cur) => cur ?? firstId);
       })
       .catch((err: unknown) => {
-        setList((prev) => {
-          if (prev.status === 'ok' && prev.boards.length > 0) return prev;
-          return { status: 'error', boards: [], error: errorMessage(err) };
-        });
+        setList((prev) => ({
+          status: BoardListStatus.Failed,
+          boards: prev.boards,
+          error: errorMessage(err),
+        }));
       });
   }, []);
 
@@ -133,48 +165,46 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
 
   useEffect(() => {
     if (!selectedId) {
-      setActive(null);
+      setBoardLoad(INITIAL_BOARD_LOAD_STATE);
       return;
     }
     if (activeRef.current?.id === selectedId) return;
 
     let cancelled = false;
     setActiveError(null);
+    setBoardLoad(startBoardLoad(selectedId));
 
     void getBoard(selectedId)
       .then((b) => {
         if (cancelled) return;
         if (selectedIdRef.current !== selectedId) return;
-        setActive(b);
+        setBoardLoad(finishBoardLoad(b));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        if (!activeRef.current) {
-          setActiveError(errorMessage(err));
-          setActive(null);
-        }
+        if (selectedIdRef.current !== selectedId) return;
+        setBoardLoad(failBoardLoad(selectedId, errorMessage(err)));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, activeLoadAttempt]);
 
-  const flushCanvas = useCallback(async () => {
-    await canvasRef.current?.flush();
+  const flushCanvas = useCallback(async (): Promise<boolean> => {
+    return (await canvasRef.current?.flush()) ?? true;
   }, []);
 
   const handleCreate = useCallback(async () => {
-    await flushCanvas();
+    if (!(await flushCanvas())) return;
     try {
       const b = await createBoard(t('nordly.whiteboard.untitled'));
       setList((prev) => ({
-        ...prev,
-        status: 'ok',
+        status: BoardListStatus.Ready,
         boards: [{ id: b.id, title: b.title, updatedAt: b.updatedAt }, ...prev.boards],
       }));
       setSelectedId(b.id);
-      setActive(b);
+      setBoardLoad(finishBoardLoad(b));
       setActiveError(null);
       setSaveError(null);
     } catch (err: unknown) {
@@ -198,8 +228,10 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   const onSelectBoard = useCallback(
     (id: string) => {
       void (async () => {
-        await flushCanvas();
+        if (!(await flushCanvas())) return;
+        setBoardLoad(startBoardLoad(id));
         setSelectedId(id);
+        setActiveError(null);
         setSaveError(null);
       })();
     },
@@ -215,7 +247,16 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
           b.id === id ? { id: updated.id, title: updated.title, updatedAt: updated.updatedAt } : b,
         ),
       }));
-      setActive((cur) => (cur?.id === id ? { ...cur, title: updated.title, updatedAt: updated.updatedAt } : cur));
+      setBoardLoad((current) =>
+        current.status === BoardLoadStatus.Ready &&
+        current.board.id === id
+          ? finishBoardLoad({
+              ...current.board,
+              title: updated.title,
+              updatedAt: updated.updatedAt,
+            })
+          : current,
+      );
     } catch (err: unknown) {
       setActiveError(errorMessage(err));
       throw err;
@@ -227,24 +268,28 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       const deletingSelected = selectedIdRef.current === id;
       try {
         if (deletingSelected) {
+          if (!(await flushCanvas())) return;
           canvasRef.current?.prepareDelete();
-          setActive(null);
+          setBoardLoad(INITIAL_BOARD_LOAD_STATE);
           setSaveError(null);
         }
         await deleteBoard(id);
-        let nextId: string | null = null;
+        const nextId = deletingSelected
+          ? (listRef.current.boards.find((board) => board.id !== id)?.id ?? null)
+          : null;
         setList((prev) => {
           const boards = prev.boards.filter((b) => b.id !== id);
-          if (deletingSelected) nextId = boards[0]?.id ?? null;
-          return { ...prev, status: 'ok', boards };
+          return { status: BoardListStatus.Ready, boards };
         });
         if (deletingSelected) setSelectedId(nextId);
       } catch (err: unknown) {
-        setActiveError(errorMessage(err));
+        const message = errorMessage(err);
+        setActiveError(message);
+        if (deletingSelected) setBoardLoad(failBoardLoad(id, message));
         loadList();
       }
     },
-    [loadList],
+    [flushCanvas, loadList],
   );
 
   const handleSaved = useCallback(() => {
@@ -260,7 +305,9 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, []);
 
   const getScenePayload = useCallback(async (): Promise<string> => {
-    await flushCanvas();
+    if (!(await flushCanvas())) {
+      throw new Error('Whiteboard could not be saved');
+    }
     const sceneJson = canvasRef.current?.getSceneJson() ?? activeRef.current?.sceneJson;
     if (!sceneJson?.trim()) {
       throw new Error('Whiteboard scene is empty');
@@ -269,14 +316,19 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, [flushCanvas]);
 
   const handleShareLive = useCallback(async () => {
-    if (!isCloudEnabled()) return;
+    const cta = await requireCloudCta();
+    if (!cta.ok) {
+      if (cta.reason !== 'cancelled') {
+        setShareMsg(t('nordly.whiteboard.share_requires_cloud'));
+      }
+      return;
+    }
     setShareMsg(null);
     try {
-      if (!(await ensureCloudAuth())) return;
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title?.trim();
       if (!title) throw new Error('Board title is required');
-      const res = await remoteShareWhiteboard(sceneJson, title);
+      const res = await shareWhiteboard(sceneJson, title);
       const url = res.inviteUrl;
       const outcome = await copyLinkAndOpen(url);
       if (outcome === 'copied') {
@@ -294,14 +346,19 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
   }, [getScenePayload, t]);
 
   const handlePublish = useCallback(async () => {
-    if (!isCloudEnabled()) return;
+    const cta = await requireCloudCta();
+    if (!cta.ok) {
+      if (cta.reason !== 'cancelled') {
+        setShareMsg(t('nordly.whiteboard.share_requires_cloud'));
+      }
+      return;
+    }
     setShareMsg(null);
     try {
-      if (!(await ensureCloudAuth())) return;
       const sceneJson = await getScenePayload();
       const title = activeRef.current?.title?.trim();
       if (!title) throw new Error('Board title is required');
-      const res = await remotePublishWhiteboard(sceneJson, title);
+      const res = await publishWhiteboard(sceneJson, title);
       const outcome = await copyLinkAndOpen(res.url);
       if (outcome === 'copied') {
         const open = window.nordly?.shell.openExternal;
@@ -317,8 +374,19 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
     }
   }, [getScenePayload, t]);
 
+  const retryActive = useCallback(() => {
+    const id = selectedIdRef.current;
+    setActiveError(null);
+    if (!id) {
+      loadList();
+      return;
+    }
+    setBoardLoad(startBoardLoad(id));
+    setActiveLoadAttempt((attempt) => attempt + 1);
+  }, [loadList]);
+
   return (
-    <div className="nordly-vault">
+    <div className="nordly-vault nordly-whiteboard">
       <aside
         className="nordly-vault-sidebar-wrap"
         data-collapsed={sidebarCollapsed ? 'true' : 'false'}
@@ -347,15 +415,18 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
       <div className="nordly-vault-main nordly-whiteboard-main">
         {sidebarCollapsed && <NotesSidebarEdge onExpand={() => setSidebarCollapsed(false)} />}
 
-        {list.status === 'error' ? (
-          <EmptyPane message={list.error ?? ''} onRetry={loadList} />
-        ) : !active && list.status === 'ok' && list.boards.length === 0 ? (
-          <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} />
-        ) : !active ? (
-          <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} dim />
+        {list.status === BoardListStatus.Failed ? (
+          <EmptyPane message={list.error} onRetry={loadList} />
         ) : activeError ? (
-          <EmptyPane message={activeError} onRetry={loadList} />
-        ) : (
+          <EmptyPane message={activeError} onRetry={retryActive} />
+        ) : list.status === BoardListStatus.Ready &&
+          list.boards.length === 0 ? (
+          <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} />
+        ) : visibleBoardLoad.status === BoardLoadStatus.Failed ? (
+          <EmptyPane message={visibleBoardLoad.error} onRetry={retryActive} />
+        ) : visibleBoardLoad.status === BoardLoadStatus.Loading ? (
+          <EmptyPane message={t('nordly.app.loading')} dim />
+        ) : active ? (
           <BoardCanvas
             ref={canvasRef}
             boardId={active.id}
@@ -364,40 +435,18 @@ export function WhiteboardPage({ boardCanvas }: WhiteboardPageProps) {
             onSaved={handleSaved}
             onSaveError={setSaveError}
           />
+        ) : (
+          <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} dim />
         )}
 
         {shareMsg && (
-          <div
-            className="mono"
-            style={{
-              position: 'absolute',
-              bottom: saveError ? 48 : 24,
-              left: 24,
-              fontSize: 10,
-              color: 'var(--ink-40)',
-              letterSpacing: '.12em',
-              zIndex: 20,
-              pointerEvents: 'none',
-            }}
-          >
+          <div className={`mono nordly-whiteboard-toast${saveError ? ' nordly-whiteboard-toast--raised' : ''}`}>
             {shareMsg}
           </div>
         )}
 
         {saveError && (
-          <div
-            className="mono"
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              left: 24,
-              fontSize: 10,
-              color: 'var(--ink-40)',
-              letterSpacing: '.12em',
-              zIndex: 20,
-              pointerEvents: 'none',
-            }}
-          >
+          <div className="mono nordly-whiteboard-toast">
             {t('nordly.whiteboard.save_failed', { msg: saveError })}
           </div>
         )}

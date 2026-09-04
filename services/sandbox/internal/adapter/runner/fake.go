@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
@@ -16,50 +15,18 @@ type FakeCodeRunner struct {
 func (r *FakeCodeRunner) Name() string { return "fake" }
 
 func (r *FakeCodeRunner) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if r.Hook != nil {
 		return r.Hook(ctx, req)
 	}
 	start := time.Now()
-	if len(req.Tests) == 0 {
-		return &RunResult{
-			Status:     model.StatusSuccess,
-			Stdout:     req.Stdin,
-			TimeMS:     int(time.Since(start).Milliseconds()),
-			RunnerName: r.Name(),
-		}, nil
-	}
-
-	results := make([]model.TestResult, 0, len(req.Tests))
-	passed := 0
-	status := model.StatusSuccess
-	for i, tc := range req.Tests {
-		name := tc.Name
-		if name == "" {
-			name = fmt.Sprintf("test %d", i+1)
-		}
-		tr := model.TestResult{Name: name, TimeMS: intPtr(1)}
-		if outputsMatch(tc.Input, tc.ExpectedOutput) || outputsMatch("", tc.ExpectedOutput) && tc.ExpectedOutput == "" {
-			tr.Status = model.TestStatusPassed
-			if !tc.IsHidden {
-				tr.ExpectedOutput = strPtr(tc.ExpectedOutput)
-			}
-			passed++
-		} else {
-			tr.Status = model.TestStatusFailed
-			if !tc.IsHidden {
-				tr.ExpectedOutput = strPtr(tc.ExpectedOutput)
-				tr.ActualOutput = strPtr(tc.Input)
-			}
-			status = model.StatusFailed
-		}
-		results = append(results, tr)
-	}
-	_ = passed
 	return &RunResult{
-		Status:      status,
-		TimeMS:      int(time.Since(start).Milliseconds()),
-		TestResults: results,
-		RunnerName:  r.Name(),
+		Status:     model.StatusSuccess,
+		Stdout:     req.Stdin,
+		TimeMS:     int(time.Since(start).Milliseconds()),
+		RunnerName: r.Name(),
 	}, nil
 }
 
@@ -68,43 +35,13 @@ func DefaultFakeRunner() *FakeCodeRunner {
 	return &FakeCodeRunner{
 		Hook: func(_ context.Context, req RunRequest) (*RunResult, error) {
 			start := time.Now()
-			if len(req.Tests) == 0 {
-				out := req.Stdin
-				if out == "" {
-					out = "fake-run-ok"
-				}
-				return &RunResult{
-					Status: model.StatusSuccess, Stdout: out,
-					TimeMS: int(time.Since(start).Milliseconds()), RunnerName: "fake",
-				}, nil
-			}
-			results := make([]model.TestResult, 0, len(req.Tests))
-			status := model.StatusSuccess
-			for i, tc := range req.Tests {
-				name := tc.Name
-				if name == "" {
-					name = fmt.Sprintf("test %d", i+1)
-				}
-				tr := model.TestResult{Name: name, TimeMS: intPtr(1)}
-				actual := tc.Input
-				if outputsMatch(actual, tc.ExpectedOutput) {
-					tr.Status = model.TestStatusPassed
-					if !tc.IsHidden {
-						tr.ExpectedOutput = strPtr(tc.ExpectedOutput)
-					}
-				} else {
-					tr.Status = model.TestStatusFailed
-					if !tc.IsHidden {
-						tr.ExpectedOutput = strPtr(tc.ExpectedOutput)
-						tr.ActualOutput = strPtr(actual)
-					}
-					status = model.StatusFailed
-				}
-				results = append(results, tr)
+			out := req.Stdin
+			if out == "" {
+				out = "fake-run-ok"
 			}
 			return &RunResult{
-				Status: status, TimeMS: int(time.Since(start).Milliseconds()),
-				TestResults: results, RunnerName: "fake",
+				Status: model.StatusSuccess, Stdout: out,
+				TimeMS: int(time.Since(start).Milliseconds()), RunnerName: "fake",
 			}, nil
 		},
 	}

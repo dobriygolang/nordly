@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
 import {
   disconnectGoogleCalendar,
   getGoogleCalendarAuthURL,
-  getTrackerSettings,
   listGoogleCalendars,
   openExternalUrl,
   updateTrackerSettings,
@@ -14,21 +13,17 @@ import {
 } from '@features/calendar/api/calendarClient';
 import { ensureCloudAuth } from '@shared/api/authSession';
 import { isCloudEnabled } from '@shared/model/features';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { invalidateGoogleCalendarCache } from '@features/calendar/api/calendar';
+import {
+  invalidateGoogleCalendarCache,
+  markGoogleCalendarDisconnected,
+} from '@features/calendar/api/googleCalendarState';
 import {
   GOOGLE_CALENDAR_POLL_MINUTES,
   type GoogleCalendarPollMinutes,
 } from '@shared/model/settings';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { SettingRow } from '../primitives/SettingRow';
-
-const OAUTH_POLL_MS = 2_000;
-const OAUTH_POLL_MAX_MS = 3 * 60_000;
-
-function InlineSpinner(): JSX.Element {
-  return <span className="nordly-inline-spinner" aria-hidden />;
-}
+import { InlineOAuthSpinner, useIntegrationOAuth } from '../useIntegrationOAuth';
 
 export function GoogleCalendarSection({
   pollMinutes,
@@ -38,110 +33,47 @@ export function GoogleCalendarSection({
   onPollMinutesChange: (minutes: GoogleCalendarPollMinutes) => void;
 }): JSX.Element | null {
   const t = useT();
-  const [settings, setSettings] = useState<TrackerSettings | null>(null);
   const [calendars, setCalendars] = useState<GoogleCalendarListEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [oauthPending, setOauthPending] = useState(false);
+  const [calendarsError, setCalendarsError] = useState<string | null>(null);
 
   const loadCalendars = useCallback(async (s: TrackerSettings | null) => {
     if (!s?.googleCalendarConnected || s.googleReauthRequired) {
       setCalendars([]);
+      setCalendarsError(null);
       return;
     }
     try {
       setCalendars(await listGoogleCalendars());
+      setCalendarsError(null);
     } catch (err) {
       console.error('[googleCalendar] list calendars failed', err);
       setCalendars([]);
-      setError(err instanceof Error ? err.message : t('nordly.settings.google.error_load'));
+      setCalendarsError(err instanceof Error ? err.message : t('nordly.settings.google.error_load'));
     }
   }, [t]);
 
-  const load = useCallback(async () => {
-    if (!isCloudEnabled()) return;
-    if (!isCloudApiAvailable()) {
-      setSettings(null);
-      setCalendars([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const s = await getTrackerSettings();
-      setSettings(s);
-      if (s) void loadCalendars(s);
-    } catch (err) {
-      console.error('[googleCalendar] load settings failed', err);
-      setError(t('nordly.settings.google.error_load'));
-    } finally {
-      setLoading(false);
-    }
-  }, [t, loadCalendars]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const onOAuth = (e: Event): void => {
-      const detail = (e as CustomEvent<{ status?: string; detail?: string | null }>).detail;
-      if (!detail?.status) return;
-      setOauthPending(false);
-      if (detail.status === 'connected') {
-        void load();
-        return;
-      }
-      setError(
-        detail.detail
-          ? t('nordly.settings.google.error_detail', { detail: detail.detail })
-          : t('nordly.settings.google.error_oauth'),
-      );
-    };
-    window.addEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
-    return () => window.removeEventListener(NORDLY_EVENTS.googleCalendarOAuth, onOAuth);
-  }, [load, t]);
-
-  useEffect(() => {
-    if (!oauthPending) return;
-
-    let cancelled = false;
-    const started = Date.now();
-
-    const poll = async (): Promise<void> => {
-      if (cancelled) return;
-      try {
-        const s = await getTrackerSettings();
-        if (s?.googleCalendarConnected && !s.googleReauthRequired) {
-          setSettings(s);
-          void loadCalendars(s);
-          setOauthPending(false);
-          setError(null);
-          return;
-        }
-      } catch (err) {
-        console.warn('[googleCalendar] oauth poll settings failed', err);
-      }
-      if (Date.now() - started >= OAUTH_POLL_MAX_MS) {
-        setOauthPending(false);
-      }
-    };
-
-    void poll();
-    const id = window.setInterval(() => void poll(), OAUTH_POLL_MS);
-    const onFocus = (): void => {
-      void poll();
-    };
-    window.addEventListener('focus', onFocus);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [oauthPending, loadCalendars]);
+  const {
+    settings,
+    setSettings,
+    loading,
+    busy,
+    setBusy,
+    error,
+    setError,
+    oauthPending,
+    setOauthPending,
+  } = useIntegrationOAuth({
+    event: NORDLY_EVENTS.googleCalendarOAuth,
+    isConnected: (s) => s.googleCalendarConnected === true && !s.googleReauthRequired,
+    afterLoad: loadCalendars,
+    errorKeys: {
+      load: 'nordly.settings.google.error_load',
+      oauth: 'nordly.settings.google.error_oauth',
+      oauthTimeout: 'nordly.settings.google.error_oauth_timeout',
+      oauthDetail: 'nordly.settings.google.error_detail',
+    },
+    logPrefix: 'googleCalendar',
+  });
 
   if (!isCloudEnabled()) return null;
 
@@ -185,6 +117,7 @@ export function GoogleCalendarSection({
     try {
       setSettings(await disconnectGoogleCalendar());
       invalidateGoogleCalendarCache();
+      markGoogleCalendarDisconnected();
       window.dispatchEvent(new Event(NORDLY_EVENTS.googleCalendarChanged));
     } catch (err) {
       console.error('[googleCalendar] disconnect failed', err);
@@ -229,7 +162,7 @@ export function GoogleCalendarSection({
       <SettingRow label={t('nordly.settings.google.account_label')} hint={t('nordly.settings.google.account_hint')}>
         <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
           <span className="mono nordly-settings-google-status" data-loading={loading ? 'true' : undefined}>
-            {loading ? <InlineSpinner /> : null}
+            {loading ? <InlineOAuthSpinner /> : null}
             {statusLabel}
           </span>
           {connected ? (
@@ -241,7 +174,7 @@ export function GoogleCalendarSection({
             >
               {busy ? (
                 <>
-                  <InlineSpinner />
+                  <InlineOAuthSpinner />
                   {t('nordly.vault.cta.working')}
                 </>
               ) : (
@@ -257,7 +190,7 @@ export function GoogleCalendarSection({
             >
               {busy ? (
                 <>
-                  <InlineSpinner />
+                  <InlineOAuthSpinner />
                   {t('nordly.settings.google.connecting')}
                 </>
               ) : (
@@ -292,7 +225,9 @@ export function GoogleCalendarSection({
         </SettingRow>
       )}
 
-      {error && <p className="nordly-settings-google-error mono">{error}</p>}
+      {(error || calendarsError) && (
+        <p className="nordly-settings-google-error mono">{error ?? calendarsError}</p>
+      )}
     </>
   );
 }

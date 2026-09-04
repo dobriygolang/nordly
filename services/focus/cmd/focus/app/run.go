@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/dobriygolang/project-nordly/services/focus/internal/config"
 	focusrepo "github.com/dobriygolang/project-nordly/services/focus/internal/focus/repository"
 	focusservice "github.com/dobriygolang/project-nordly/services/focus/internal/focus/service"
-	"github.com/dobriygolang/project-nordly/services/focus/internal/config"
 	"github.com/dobriygolang/project-nordly/services/focus/internal/tools/logger"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
@@ -43,7 +44,14 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	repo := focusrepo.New(pg)
-	svc := focusservice.New(focusservice.Deps{Repo: repo})
+	svc, err := focusservice.New(focusservice.Deps{
+		Repo: repo,
+		Now:  time.Now,
+	})
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init focus service: %w", err)
+	}
 
 	return &App{
 		Config:   cfg,

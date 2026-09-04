@@ -83,7 +83,7 @@ export function formatApiError(err: unknown): string {
   if (err instanceof ApiError) {
     const trimmed = err.body.trim()
     if (trimmed.startsWith('<')) {
-      return 'API вернул HTML вместо JSON — проверь роутинг /v1 на прокси (Caddy).'
+      return 'API returned HTML instead of JSON — check /v1 routing on the proxy.'
     }
     try {
       const parsed = JSON.parse(trimmed) as { message?: string }
@@ -95,7 +95,46 @@ export function formatApiError(err: unknown): string {
     return err.message
   }
   if (err instanceof Error) return err.message
-  return 'Неизвестная ошибка'
+  return 'Unknown error'
+}
+
+export async function parseGuestAuthResponse(path: string, res: Response): Promise<{
+  accessToken: string
+  body: Record<string, unknown>
+}> {
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    throw new Error(`${path} misrouted — check room URL`)
+  }
+  if (!res.ok) {
+    let body = ''
+    try {
+      body = await res.text()
+    } catch (err) {
+      console.warn('[apiClient] failed to read error body', res.status, err)
+    }
+    throw new ApiError(res.status, body)
+  }
+  const text = await res.text()
+  if (!text || text.trimStart().startsWith('<')) {
+    throw new ApiError(
+      res.status,
+      `API returned HTML instead of JSON for ${path} — check /v1 routing on reverse proxy`,
+    )
+  }
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new ApiError(res.status, text.slice(0, 500))
+  }
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid guest auth response')
+  }
+  const record = raw as Record<string, unknown>
+  return {
+    accessToken: parseGuestAccessToken(record),
+    body: normalizeProtoJson(record) as Record<string, unknown>,
+  }
 }
 
 /** API call with explicit bearer (e.g. guest scoped JWT). */

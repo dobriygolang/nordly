@@ -3,17 +3,15 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 // GetGoogleCalendarSyncToken returns the stored incremental sync token for a calendar.
 func (r *Repository) GetGoogleCalendarSyncToken(ctx context.Context, userID, calendarID string) (string, error) {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return "", fmt.Errorf("invalid user_id: %w", err)
+		return "", err
 	}
 	var token *string
 	err = r.conn(ctx).QueryRow(ctx, `
@@ -34,9 +32,9 @@ func (r *Repository) GetGoogleCalendarSyncToken(ctx context.Context, userID, cal
 
 // SaveGoogleCalendarSyncToken persists the incremental sync token for one calendar.
 func (r *Repository) SaveGoogleCalendarSyncToken(ctx context.Context, userID, calendarID, syncToken string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		INSERT INTO google_calendar_sync_state (user_id, calendar_id, sync_token, synced_at)
@@ -50,9 +48,9 @@ func (r *Repository) SaveGoogleCalendarSyncToken(ctx context.Context, userID, ca
 
 // ClearAllGoogleCalendarSyncState removes per-calendar sync tokens for a user.
 func (r *Repository) ClearAllGoogleCalendarSyncState(ctx context.Context, userID string) error {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+		return err
 	}
 	_, err = r.conn(ctx).Exec(ctx, `DELETE FROM google_calendar_sync_state WHERE user_id = $1`, uid)
 	return err

@@ -77,7 +77,8 @@ deploy: keys audit-env ensure-pkg-api ## Pull-less prod update: build changed im
 	elif [ "$$PREV" = "$$CUR" ]; then \
 	  echo "No image rebuild needed (same commit)."; \
 	else \
-	  TARGETS=$$(bash scripts/changed-services.sh "$$PREV" "$$CUR" | xargs || true); \
+	  if ! TARGETS=$$(bash scripts/changed-services.sh "$$PREV" "$$CUR"); then echo "ERROR: changed-services.sh failed"; exit 1; fi; \
+	  TARGETS=$$(printf '%s' "$$TARGETS" | xargs); \
 	  if [ -n "$$TARGETS" ]; then \
 	    echo "Incremental build: $$TARGETS"; \
 	    bash scripts/build-images.sh $$TARGETS; \
@@ -85,10 +86,21 @@ deploy: keys audit-env ensure-pkg-api ## Pull-less prod update: build changed im
 	    echo "No image rebuild needed (no service changes)."; \
 	  fi; \
 	fi; \
-	if [ -z "$$PREV" ] || [ "$$PREV" = "$$CUR" ] || (source scripts/services.conf.sh && migrations_changed "$$PREV" "$$CUR"); then \
+	if [ -z "$$PREV" ] || [ "$$PREV" = "$$CUR" ]; then \
 	  $(COMPOSE) run --rm migrate; \
 	else \
-	  echo "Skipping migrate (no migration changes)."; \
+	  set +e; \
+	  (source scripts/services.conf.sh && migrations_changed "$$PREV" "$$CUR"); \
+	  mc=$$?; \
+	  set -e; \
+	  if [ $$mc -eq 0 ]; then \
+	    $(COMPOSE) run --rm migrate; \
+	  elif [ $$mc -ge 2 ]; then \
+	    echo "ERROR: could not detect migration changes"; \
+	    exit 1; \
+	  else \
+	    echo "Skipping migrate (no migration changes)."; \
+	  fi; \
 	fi; \
 	$(COMPOSE) --profile monitoring up -d --remove-orphans --wait --wait-timeout 300; \
 	echo $$CUR > .last-deploy-sha; \

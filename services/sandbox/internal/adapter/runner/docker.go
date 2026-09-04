@@ -1,8 +1,8 @@
 package runner
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
+	"github.com/google/uuid"
 )
 
 // DockerRunner executes code in an isolated Docker container.
@@ -19,36 +20,51 @@ type DockerRunner struct {
 	PythonImage     string
 	JavaScriptImage string
 	MaxOutputBytes  int
+	MaxCodeBytes    int
+	DefaultMemoryMB int
 	CPUs            string
 	// WorkRoot is a host-visible directory for bind mounts when sandbox uses
 	// docker.sock from inside a container (must match a bind-mounted path).
 	WorkRoot string
-	// GoCacheDir is a host-visible persistent Go build cache (optional).
+	// GoCacheDir is a host-visible persistent Go build cache.
 	GoCacheDir string
 }
 
 func (r *DockerRunner) Name() string { return "docker" }
 
 func (r *DockerRunner) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
-	return runWithTests(ctx, req, r.Name(), r.runOnce)
-}
-
-func (r *DockerRunner) runOnce(ctx context.Context, req RunRequest, stdin, _ string) (*RunResult, error) {
 	start := time.Now()
-	workRoot := r.WorkRoot
-	if workRoot == "" {
-		workRoot = os.TempDir()
+	if r.MaxOutputBytes <= 0 {
+		return nil, fmt.Errorf("docker runner: MaxOutputBytes must be > 0")
 	}
-	if err := os.MkdirAll(workRoot, 0o700); err != nil {
+	if !req.Language.IsValid() {
+		return nil, fmt.Errorf("docker runner: unsupported language %q", req.Language)
+	}
+	if req.TimeoutMS <= 0 {
+		return nil, fmt.Errorf("docker runner: TimeoutMS must be > 0")
+	}
+	if req.MemoryMB <= 0 {
+		return nil, fmt.Errorf("docker runner: MemoryMB must be > 0")
+	}
+	if strings.TrimSpace(r.CPUs) == "" {
+		return nil, fmt.Errorf("docker runner: CPUs must be set")
+	}
+	if strings.TrimSpace(r.WorkRoot) == "" {
+		return nil, fmt.Errorf("docker runner: WorkRoot must be set")
+	}
+
+	if err := os.MkdirAll(r.WorkRoot, 0o700); err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp(workRoot, "sandbox-docker-*")
+	dir, err := os.MkdirTemp(r.WorkRoot, "sandbox-docker-*")
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	filename, image, cmd, err := dockerLanguageSpec(req.Language, r)
+	compileMarker := ".compile-error-" + uuid.NewString()
+	runtimeMarker := ".runtime-started-" + uuid.NewString()
+	filename, image, cmd, err := dockerLanguageSpec(req.Language, r, compileMarker, runtimeMarker)
 	if err != nil {
 		return &RunResult{Status: model.StatusInternalError, Error: err.Error(), RunnerName: r.Name()}, nil
 	}
@@ -62,59 +78,91 @@ func (r *DockerRunner) runOnce(ctx context.Context, req RunRequest, stdin, _ str
 	}
 
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
-	if timeout <= 0 {
-		return nil, fmt.Errorf("docker run: TimeoutMS must be > 0")
-	}
-	if req.MemoryMB <= 0 {
-		return nil, fmt.Errorf("docker run: MemoryMB must be > 0")
-	}
-	if strings.TrimSpace(r.CPUs) == "" {
-		return nil, fmt.Errorf("docker run: CPUs must be set")
-	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	containerName := fmt.Sprintf("sbx-%d", time.Now().UnixNano())
-	// Killing the container on timeout/cleanup prevents orphaned containers when
-	// the docker CLI process is terminated by the context.
-	defer killContainer(containerName)
+	containerName := "sbx-" + uuid.NewString()
+	// Removing the named container prevents orphans when the Docker CLI is
+	// terminated before --rm can finish.
+	defer removeContainer(containerName)
 
-	args := dockerRunArgs(containerName, image, dir, goCacheDirForRun(r, req.Language), req.MemoryMB, r.CPUs, cmd...)
-	command := exec.CommandContext(runCtx, "docker", args...)
-	command.Stdin = strings.NewReader(stdin)
+	args, err := dockerRunArgs(containerName, image, dir, goCacheDirForRun(r, req.Language), req.MemoryMB, r.CPUs, cmd...)
+	if err != nil {
+		return nil, err
+	}
+	command := commandContext(runCtx, "docker", args...)
+	command.Stdin = strings.NewReader(req.Stdin)
 
-	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
+	stdout, err := newCappedWriter(r.MaxOutputBytes)
+	if err != nil {
+		return nil, err
+	}
+	stderr, err := newCappedWriter(r.MaxOutputBytes)
+	if err != nil {
+		return nil, err
+	}
+	command.Stdout = stdout
+	command.Stderr = stderr
 	runErr := command.Run()
 
 	res := &RunResult{
-		Stdout:     truncateOutput(stdout.String(), r.MaxOutputBytes),
-		Stderr:     truncateOutput(stderr.String(), r.MaxOutputBytes),
+		Stdout:     stdout.String(),
+		Stderr:     stderr.String(),
 		TimeMS:     int(time.Since(start).Milliseconds()),
 		RunnerName: r.Name(),
 	}
 
-	if runCtx.Err() == context.DeadlineExceeded {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
+	if executionTimedOut(ctx, runCtx) {
 		res.Status = model.StatusTimeout
 		return res, nil
 	}
 	if runErr != nil {
-		combined := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
-		if looksLikeCompileError(combined, req.Language) {
+		var startErr *exec.Error
+		if errors.As(runErr, &startErr) {
+			return nil, fmt.Errorf("start Docker runtime: %w", runErr)
+		}
+		combined, err := combineOutput(r.MaxOutputBytes, res.Stdout, res.Stderr)
+		if err != nil {
+			return nil, err
+		}
+		combined = strings.TrimSpace(combined)
+		compileFailed, err := pathExists(filepath.Join(dir, compileMarker))
+		if err != nil {
+			return nil, fmt.Errorf("inspect compile marker: %w", err)
+		}
+		runtimeStarted, err := pathExists(filepath.Join(dir, runtimeMarker))
+		if err != nil {
+			return nil, fmt.Errorf("inspect runtime marker: %w", err)
+		}
+		if compileFailed {
 			res.Status = model.StatusCompileError
-			res.CompileOutput = truncateOutput(combined, r.MaxOutputBytes)
+			res.CompileOutput = combined
 			return res, nil
+		}
+		if !runtimeStarted {
+			if combined == "" {
+				combined, err = LimitText(runErr.Error(), r.MaxOutputBytes)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return nil, fmt.Errorf("docker runtime failed: %s", combined)
 		}
 		if exitErr, ok := runErr.(*exec.ExitError); ok {
 			code := exitErr.ExitCode()
 			res.ExitCode = &code
 		}
 		res.Status = model.StatusRuntimeError
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			res.Error = msg
+		if msg := strings.TrimSpace(res.Stderr); msg != "" {
+			res.Error, err = LimitText(msg, r.MaxOutputBytes)
 		} else {
-			res.Error = runErr.Error()
+			res.Error, err = LimitText(runErr.Error(), r.MaxOutputBytes)
+		}
+		if err != nil {
+			return nil, err
 		}
 		return res, nil
 	}
@@ -124,19 +172,19 @@ func (r *DockerRunner) runOnce(ctx context.Context, req RunRequest, stdin, _ str
 	return res, nil
 }
 
-func goCacheDirForRun(r *DockerRunner, language string) string {
+func goCacheDirForRun(r *DockerRunner, language model.Language) string {
 	if !isGoLanguage(language) || r.GoCacheDir == "" {
 		return ""
 	}
 	return r.GoCacheDir
 }
 
-func dockerRunArgs(name, image, workDir, goCacheDir string, memoryMB int, cpus string, cmd ...string) []string {
+func dockerRunArgs(name, image, workDir, goCacheDir string, memoryMB int, cpus string, cmd ...string) ([]string, error) {
 	if memoryMB <= 0 {
-		panic("dockerRunArgs: memoryMB must be > 0")
+		return nil, fmt.Errorf("dockerRunArgs: memoryMB must be > 0")
 	}
 	if strings.TrimSpace(cpus) == "" {
-		panic("dockerRunArgs: cpus must be set")
+		return nil, fmt.Errorf("dockerRunArgs: cpus must be set")
 	}
 	mem := fmt.Sprintf("%dm", memoryMB)
 	gocacheEnv := "/work/.gocache"
@@ -151,6 +199,7 @@ func dockerRunArgs(name, image, workDir, goCacheDir string, memoryMB int, cpus s
 		"--memory-swap", mem,
 		"--cpus", cpus,
 		"--pids-limit", "64",
+		"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
 		// Read-only root with a small writable tmpfs; the code dir is the only
@@ -165,46 +214,59 @@ func dockerRunArgs(name, image, workDir, goCacheDir string, memoryMB int, cpus s
 		args = append(args, "-v", goCacheDir+":"+goCacheDir+":rw")
 	}
 	args = append(args, "-w", "/work", image)
-	return append(args, cmd...)
+	return append(args, cmd...), nil
 }
 
-// killContainer best-effort removes a container that may have outlived the run.
-func killContainer(name string) {
+// removeContainer best-effort force-removes a container that may have outlived
+// the Docker CLI process.
+func removeContainer(name string) {
 	killCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = exec.CommandContext(killCtx, "docker", "kill", name).Run()
+	_ = commandContext(killCtx, "docker", "rm", "-f", name).Run()
 }
 
-func dockerLanguageSpec(language string, r *DockerRunner) (filename, image string, cmd []string, err error) {
-	switch strings.ToLower(strings.TrimSpace(language)) {
-	case model.LangGo, "golang":
-		return "main.go", r.GoImage, []string{"go", "run", "main.go"}, nil
+func dockerLanguageSpec(
+	language model.Language,
+	r *DockerRunner,
+	compileMarker string,
+	runtimeMarker string,
+) (filename, image string, cmd []string, err error) {
+	markCompileError := fmt.Sprintf("touch /work/%s; exit 1", compileMarker)
+	markRuntimeStarted := fmt.Sprintf("touch /work/%s || exit 126", runtimeMarker)
+	switch language {
+	case model.LangGo:
+		script := fmt.Sprintf(
+			"go build -o /tmp/program main.go || { %s; }; %s; exec /tmp/program",
+			markCompileError,
+			markRuntimeStarted,
+		)
+		return "main.go", r.GoImage, []string{"sh", "-c", script}, nil
 	case model.LangPython:
-		return "main.py", r.PythonImage, []string{"python3", "main.py"}, nil
+		script := fmt.Sprintf(
+			"python3 -m py_compile main.py || { %s; }; %s; exec python3 main.py",
+			markCompileError,
+			markRuntimeStarted,
+		)
+		return "main.py", r.PythonImage, []string{"sh", "-c", script}, nil
 	case model.LangJavaScript:
-		return "main.js", r.JavaScriptImage, []string{"node", "main.js"}, nil
+		script := fmt.Sprintf(
+			"node --check main.js || { %s; }; %s; exec node main.js",
+			markCompileError,
+			markRuntimeStarted,
+		)
+		return "main.js", r.JavaScriptImage, []string{"sh", "-c", script}, nil
 	default:
 		return "", "", nil, fmt.Errorf("unsupported language: %s", language)
 	}
 }
 
-func looksLikeCompileError(output, language string) bool {
-	lower := strings.ToLower(output)
-	switch strings.ToLower(strings.TrimSpace(language)) {
-	case model.LangGo, "golang":
-		return strings.Contains(lower, "syntax error") ||
-			strings.Contains(lower, "cannot find") ||
-			strings.Contains(lower, "undefined:") ||
-			strings.Contains(lower, "build constraints exclude") ||
-			strings.Contains(lower, "go.mod file not found")
-	case model.LangPython:
-		return strings.Contains(lower, "syntaxerror") ||
-			strings.Contains(lower, "indentationerror") ||
-			strings.Contains(lower, "nameerror")
-	case model.LangJavaScript:
-		return strings.Contains(lower, "syntaxerror") ||
-			strings.Contains(lower, "referenceerror")
-	default:
-		return false
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
 	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
 }

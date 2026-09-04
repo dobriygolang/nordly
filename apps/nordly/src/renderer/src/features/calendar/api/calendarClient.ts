@@ -49,7 +49,7 @@ export function updateGoogleCalendarEvent(
   return remote.updateGoogleCalendarEvent(eventId, input);
 }
 
-export function deleteGoogleCalendarEvent(eventId: string, calendarId?: string): Promise<void> {
+export function deleteGoogleCalendarEvent(eventId: string, calendarId: string): Promise<void> {
   requireCalendarCloudAccess();
   return remote.deleteGoogleCalendarEvent(eventId, calendarId);
 }

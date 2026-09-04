@@ -1,29 +1,37 @@
 package mint_scoped_access_token
 
 import (
-	"strings"
+	"time"
 
 	authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
+	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
 
 // Command mints a scoped guest access token.
 type Command struct {
-	Role        string
-	Scope       string
+	Role        authmodel.ScopedRole
+	Scope       identityjwt.EditorScope
 	DisplayName string
 	TTLSeconds  int32
+	UserID      string
 }
 
 // Validate checks required fields.
 func (c Command) Validate() error {
-	if strings.TrimSpace(c.Scope) == "" {
+	if !c.Scope.IsValid() {
 		return authmodel.ErrInvalidArgument
 	}
-	if strings.TrimSpace(c.Role) == "" {
+	if !c.Role.IsValid() {
 		return authmodel.ErrInvalidArgument
 	}
-	if c.TTLSeconds <= 0 {
+	ttl := time.Duration(c.TTLSeconds) * time.Second
+	if ttl <= 0 || ttl > authmodel.MaxScopedAccessTokenTTL {
 		return authmodel.ErrInvalidArgument
+	}
+	if c.UserID != "" {
+		if err := identityjwt.ValidateSubject(c.UserID); err != nil {
+			return authmodel.ErrInvalidArgument
+		}
 	}
 	return nil
 }

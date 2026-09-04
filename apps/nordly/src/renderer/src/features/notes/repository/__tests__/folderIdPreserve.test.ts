@@ -20,6 +20,7 @@ vi.mock('@shared/crypto/vault', () => ({
 }));
 
 vi.mock('@shared/crypto/vaultPrefs', () => ({
+  areVaultPrefsReady: () => true,
   isVaultEnabledSync: () => false,
 }));
 

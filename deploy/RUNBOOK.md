@@ -4,12 +4,12 @@
 
 1. `postgres`, `redis`
 2. `migrate` (after schema change only)
-3. `identity` → `billing` → `sandbox` → `rooms` → `tracker` → `notes` → `focus`
+3. `identity` → `sandbox` → `rooms` → `tracker` → `notes` → `focus`
 4. `identity-bot`, `caddy`
 
 ```bash
 cd deploy
-docker compose -f docker-compose.prod.yml --env-file .env restart identity billing sandbox rooms tracker notes focus caddy
+docker compose -f docker-compose.prod.yml --env-file .env restart identity sandbox rooms tracker notes focus caddy
 ```
 
 ## Health
@@ -53,7 +53,7 @@ Empty prod (no users):
 
 ```bash
 cd deploy
-docker compose -f docker-compose.prod.yml stop identity billing sandbox rooms tracker notes focus identity-bot caddy
+docker compose -f docker-compose.prod.yml stop identity sandbox rooms tracker notes focus identity-bot caddy
 make reset-db
 docker compose -f docker-compose.prod.yml run --rm migrate
 docker compose -f docker-compose.prod.yml up -d
@@ -102,14 +102,13 @@ Grafana: https://grafana.trynordly.app — configure alert notification channels
 |------|-------|
 | `nordly-platform.json` | Platform |
 | `nordly-http-routes.json` | HTTP routes |
-| `nordly-billing.json` | Billing |
 | `nordly-product.json` | Product |
 
 Key metrics: `up`, `http_requests_total`, `http_request_duration_seconds`.
 
 Metrics endpoints are not published on host ports; Prometheus scrapes service names over the Compose network. Do not add a public `/metrics` route. A dedicated scrape-only network and bearer authentication should be added before any external metrics consumer is introduced; retain the current internal scrape path so Prometheus continues to work.
 
-**Business counters:** `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total`, `billing_usage_consume_total`, `billing_subscriptions_total`, `billing_webhook_events_total` — see Product dashboard and [grafana/README.md](grafana/README.md).
+**Business counters:** `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total` — see Product dashboard and [grafana/README.md](grafana/README.md).
 
 ## Rooms scale
 
@@ -117,13 +116,13 @@ Single replica by default. Multiple pods need sticky `/ws/*` — see [services/r
 
 ## Secret rotation
 
-**INTERNAL_API_TOKEN** — update `.env`, restart services that use `x-internal-token` (tracker, billing adapters, etc.).
+**INTERNAL_API_TOKEN** — update `.env`, restart services that use `x-internal-token` (tracker, rooms, etc.).
 
 **JWT keys** — maintenance window; redeploy all JWT consumers.
 
 ## Pre-deploy security check
 
-Run `make audit-env` before a manual deployment (it is also a prerequisite of `make up` and `make deploy`). For production-like environments it rejects `CHANGE_ME` placeholders, missing Redis/Grafana/Tribute secrets, unset deploy UID/GID, and absent JWT key files.
+Run `make audit-env` before a manual deployment (it is also a prerequisite of `make up` and `make deploy`). For production-like environments it rejects `CHANGE_ME` placeholders, missing Redis/Grafana secrets, unset deploy UID/GID, and absent JWT key files.
 
 ## Deploy from CI
 

@@ -34,17 +34,20 @@ describe('initializeCloudWorkers', () => {
       }),
     });
     const setVaultGateActive = vi.fn();
+    const onVaultPrefsReady = vi.fn();
 
     await initializeCloudWorkers({
       userId: 'user-1',
       isCancelled: () => false,
       setVaultGateActive,
+      onVaultPrefsReady,
       dependencies: deps,
     });
 
     expect(calls).toEqual(['vault', 'calendar']);
     expect(deps.startWorkers).not.toHaveBeenCalled();
     expect(setVaultGateActive).toHaveBeenCalledWith(true);
+    expect(onVaultPrefsReady).toHaveBeenCalledTimes(1);
   });
 
   it('does not hydrate calendar after cancellation', async () => {
@@ -90,5 +93,30 @@ describe('initializeCloudWorkers', () => {
     expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
     expect(deps.startWorkers).not.toHaveBeenCalled();
     expect(setVaultGateActive).toHaveBeenCalledWith(true);
+  });
+
+  it('unblocks the vault gate when prefs load fails', async () => {
+    const failure = new Error('IDB open failed');
+    const deps = dependencies({
+      loadVaultPrefs: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+    const setVaultGateActive = vi.fn();
+    const onVaultPrefsReady = vi.fn();
+
+    await expect(
+      initializeCloudWorkers({
+        userId: 'user-1',
+        isCancelled: () => false,
+        setVaultGateActive,
+        onVaultPrefsReady,
+        dependencies: deps,
+      }),
+    ).rejects.toThrow(/vault prefs load failed: IDB open failed/);
+
+    expect(setVaultGateActive).toHaveBeenCalledWith(false);
+    expect(onVaultPrefsReady).toHaveBeenCalledTimes(1);
+    expect(deps.hydrateCalendarCache).not.toHaveBeenCalled();
   });
 });

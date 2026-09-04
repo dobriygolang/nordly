@@ -28,16 +28,16 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 |-------|------|------|
 | `/` | `WelcomePage` on `trynordly.app`; `LiveNewPage` on `code.trynordly.app` | — |
 | `/welcome` | → `/` | legacy redirect |
-| `/download` | `NordlyDownloadPage` | redirects to latest OS installer |
-| `/oauth/google-calendar` | `GoogleCalendarOAuthPage` | OAuth bridge → `nordly://settings?google_calendar=…` |
-| `/oauth/zoom` | `ZoomOAuthPage` | OAuth bridge → `nordly://settings?zoom=…` |
+| `/download` | `NordlyDownloadPage` | starts latest OS installer, or shows an OS picker if none matches |
+| `/oauth/google-calendar` | `OAuthBridgePage` (`google_calendar`) | OAuth bridge → `nordly://settings?google_calendar=…` |
+| `/oauth/zoom` | `OAuthBridgePage` (`zoom`) | OAuth bridge → `nordly://settings?zoom=…` |
 | `/notes/:slug` | `PublishedNotePage` — Nordly-flavored markdown via `lib/markdown/renderNordlyMarkdown.ts` + `styles/published-note.css` | — |
 | `/n/:slug` | → `/notes/:slug` | — |
 | `/board/:slug` | `PublishedBoardPage` | — |
-| `/live/new` | `LiveNewPage` | legacy path (still works) |
+| `/live/new` | `pages/LiveNewPage` | legacy path (still works) |
 | `/live/:roomId` | `CollabRoomPage` | guest JWT (legacy path) |
 | `/:roomId` | `CollabRoomPage` when UUID | short share link (canonical on `code.trynordly.app`) |
-| `/pricing`, `/checkout`, `/checkout/:planSlug`, `/billing/welcome` | → `/` | retired |
+| `/pricing`, `/checkout`, `/checkout/:planSlug`, `/billing/welcome` | → `/` | retired monetization paths |
 | `/legal/terms` | `LegalTermsPage` | — |
 | `/legal/privacy` | `LegalPrivacyPage` | — |
 | `/login`, `/profile`, `/settings`, `/auth/callback` | → `/` | retired |
@@ -50,7 +50,7 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 | Service | Port | Proxy prefix |
 |---------|------|--------------|
 | identity | 8080 | `/v1/auth` |
-| sandbox | 8086 | `/v1/sandbox`, `/ws/lsp` |
+| sandbox | 8086 | `/v1/sandbox` |
 | rooms | 8087 | `/v1/rooms`, `/ws` |
 | notes | 8090 | `/v1/notes` |
 
@@ -75,6 +75,8 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 | GET | `/v1/sandbox/code-runs/{id}` | run polling |
 | POST | `/v1/sandbox/format` | Go format |
 
+Wire `RUN_STATUS_*`: `QUEUED` / `RUNNING` / `SUCCESS` / `COMPILE_ERROR` / `RUNTIME_ERROR` / `TIMEOUT` / `INTERNAL_ERROR`. `RUN_STATUS_FAILED` is reserved and rejected.
+
 **notes** — `lib/api/publicNotes.ts`
 
 | Method | Path | Used by |
@@ -86,17 +88,18 @@ Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-o
 
 | Path | Service | Client |
 |------|---------|--------|
-| `WS /ws/editor/{roomId}?token=JWT` | rooms | `lib/ws/collabEditor.ts` |
-| `WS /ws/lsp/go?token=JWT` | sandbox | not wired in editor (future) |
+| `WS /ws/editor/{roomId}` (`Sec-WebSocket-Protocol: access_token.<JWT>`) | rooms | `lib/ws/collabEditor.ts` |
 
 WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_closed`.
+Corrupt JSON, unknown kinds, missing Yjs/presence/`code_run` payloads, or invalid Yjs payload types fail the socket (`status: failed`, no retry). `cursor` / `room_closed` / `code_run` are side-effect kinds (not applied to the Y.Doc). Close 1000 (room closed) and 1008 (policy) are terminal; 1001/1006/1011 may retry. Expired rooms return HTTP 410 on REST and WS upgrade.
 
 ## Guest JWT flow
 
 1. `code.trynordly.app/` (or `/live/new`) → `POST /v1/rooms/guest-create` → scoped JWT + room
-2. Token stored: `sessionStorage['nordly_guest_token_{roomId}']`
-3. Room REST + WS use guest token via `readGuestToken(roomId)`
-4. Joining is open: `/{roomId}` (or `/live/:roomId`) shows a name prompt → `POST guest-join` → guest token. Canonical share URLs: `{LIVE_PUBLIC_BASE_URL}/{roomId}` (`lib/live/liveRoomUrl.ts`).
+2. Token stored: `sessionStorage['nordly_guest_token_{roomId}']` plus optional `expiresAt` from `expires_in`
+3. Room REST + WS use guest token via `readGuestToken(roomId)` (expired local sessions are treated as missing)
+4. Transient `getRoom` errors keep the stored token; 401/403/404/410 clear it and navigate home with `liveExpired`
+5. Joining is open: `/{roomId}` (or `/live/:roomId`) shows a name prompt → `POST guest-join` → guest token. Canonical share URLs: `{LIVE_PUBLIC_BASE_URL}/{roomId}` (`lib/live/liveRoomUrl.ts`).
 
 Share URLs: `publicLiveRoomUrl(roomId)` — client-side short link; Invite button copies without `POST /invite`.
 
@@ -133,9 +136,9 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_SITE_ORIGIN` | current origin | Canonical SEO origin |
 | `VITE_LIVE_ORIGIN` | `https://code.trynordly.app` (prod); current origin in Vite dev | Live share / create links |
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
-| `VITE_IDENTITY_URL`, `VITE_BILLING_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
+| `VITE_IDENTITY_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
-Landing download: `lib/landing/nordlyRelease.ts` reads `/desktop/releases.json` (same origin; cached 15m in `sessionStorage`). Hero + header CTA; short link `/download`.
+Landing download: `lib/landing/nordlyRelease.ts` reads `/desktop/releases.json` (same origin; cached 15m in `sessionStorage`). Hero + header CTA; short link `/download` starts the installer or shows an OS picker (never self-redirects).
 
 ## Commands
 
@@ -150,7 +153,6 @@ Local stack for live rooms:
 
 ```bash
 cd services/identity && make start
-cd services/billing && make start
 cd services/sandbox && make start
 cd services/rooms && make start
 cd services/notes && make start   # published notes
@@ -164,7 +166,7 @@ apps/web/src/
 ├── components/
 │   ├── AnimatedRoutes.tsx     # route table
 │   └── …                      # landing, collab editors, shell
-├── pages/                     # Welcome, CollabRoom, Pricing, Legal, Published*, OAuth bridges
+├── pages/                     # Welcome, CollabRoom, Legal, Published*, OAuth bridges
 ├── lib/
 │   ├── api/                   # REST clients
 │   ├── ws/                    # collab WebSocket

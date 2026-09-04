@@ -54,7 +54,7 @@ func (r *Repository) PutNoteAttachment(
 		`, attachment.UserID, attachment.NoteID).Scan(&count); err != nil {
 			return nil, err
 		}
-		if count >= 50 {
+		if count >= notesmodel.MaxNoteAttachments {
 			return nil, notesmodel.ErrInvalidArgument
 		}
 	}

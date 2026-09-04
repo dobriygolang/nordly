@@ -3,18 +3,26 @@ package repository
 import (
 	"errors"
 
+	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrNotFound is returned when a requested entity does not exist.
-var ErrNotFound = errors.New("not found")
+const (
+	usersUsernameConstraint   = "users_username_key"
+	usersTelegramIDConstraint = "users_telegram_id_key"
+)
 
-// ErrAlreadyExists is returned when an insert violates a unique constraint
-// (e.g. concurrent first login for the same telegram_id).
-var ErrAlreadyExists = errors.New("already exists")
+// Repository sentinels alias domain errors for existing callers.
+var (
+	ErrNotFound                = model.ErrNotFound
+	ErrUsernameAlreadyExists   = model.ErrUsernameAlreadyExists
+	ErrTelegramIDAlreadyExists = model.ErrTelegramIDAlreadyExists
+)
 
-// uniqueViolation reports whether err is a Postgres unique_violation (23505).
-func uniqueViolation(err error) bool {
+func uniqueViolationConstraint(err error) (string, bool) {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return "", false
+	}
+	return pgErr.ConstraintName, true
 }

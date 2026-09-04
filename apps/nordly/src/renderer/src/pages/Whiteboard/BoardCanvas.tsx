@@ -32,6 +32,7 @@ import {
   canonicalizeElementsForStorage,
   remapDisplayElementsForBoardTheme,
 } from '@shared/lib/excalidraw/excalidrawBoardColors';
+import { createLatestOnlyWriter } from '@shared/lib/latestOnlyWriter';
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -46,7 +47,7 @@ type ExcalidrawApi = {
 };
 
 export type BoardCanvasHandle = {
-  flush: () => Promise<void>;
+  flush: () => Promise<boolean>;
   /** Cancel pending autosave — call before deleting the open board. */
   prepareDelete: () => void;
   getSceneJson: () => string;
@@ -100,27 +101,37 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     [sceneJson],
   );
 
-  const flushSave = useCallback(async () => {
-    if (skipSaveRef.current) return;
-    const scene = sceneRef.current;
-    if (!scene) return;
-    const { updateBoardScene } = await import('@features/whiteboard/api/whiteboardClient');
-    try {
-      await updateBoardScene(boardId, serializeScene(scene));
-      onSavedRef.current();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      onSaveErrorRef.current(msg);
-    }
-  }, [boardId]);
+  const sceneWriter = useMemo(
+    () =>
+      createLatestOnlyWriter<WhiteboardScene>({
+        async write(scene) {
+          const scenePayload = serializeScene(scene);
+          const { updateBoardScene } = await import(
+            '@features/whiteboard/api/whiteboardClient'
+          );
+          await updateBoardScene(boardId, scenePayload);
+        },
+        onSaved: () => onSavedRef.current(),
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          onSaveErrorRef.current(message);
+        },
+      }),
+    [boardId],
+  );
+
+  const flushSave = useCallback((): Promise<boolean> => {
+    return skipSaveRef.current ? Promise.resolve(true) : sceneWriter.flush();
+  }, [sceneWriter]);
 
   const prepareDelete = useCallback(() => {
     skipSaveRef.current = true;
+    sceneWriter.discardPending();
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-  }, []);
+  }, [sceneWriter]);
 
   useImperativeHandle(
     ref,
@@ -154,7 +165,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         };
       }
 
-      if (themeApplyTimerRef.current) window.clearTimeout(themeApplyTimerRef.current);
+      if (themeApplyTimerRef.current !== null) {
+        window.clearTimeout(themeApplyTimerRef.current);
+        themeApplyTimerRef.current = null;
+      }
       applyingThemeRef.current = true;
       try {
         api.updateScene({
@@ -192,7 +206,15 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     }, 120);
     return () => {
       window.clearTimeout(readyTimer);
-      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (themeApplyTimerRef.current !== null) {
+        window.clearTimeout(themeApplyTimerRef.current);
+        themeApplyTimerRef.current = null;
+      }
+      applyingThemeRef.current = false;
       void flushSave();
     };
   }, [boardId, sceneJson, flushSave]);
@@ -213,15 +235,24 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
 
     if (excalidrawApi.getAppState().isLoading) {
       const poll = window.setInterval(() => {
-        if (cancelled) return;
+        if (cancelled || document.hidden) return;
         if (!excalidrawApi.getAppState().isLoading) {
           window.clearInterval(poll);
           patch();
         }
       }, 50);
+      const onVisible = (): void => {
+        if (document.visibilityState !== 'visible' || cancelled) return;
+        if (!excalidrawApi.getAppState().isLoading) {
+          window.clearInterval(poll);
+          patch();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisible);
       return () => {
         cancelled = true;
         window.clearInterval(poll);
+        document.removeEventListener('visibilitychange', onVisible);
       };
     }
 
@@ -250,12 +281,14 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         files: (files as Record<string, unknown> | null | undefined) ?? {},
         appState: appStateRef.current,
       };
+      sceneWriter.update(sceneRef.current);
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
         void flushSave();
       }, SAVE_DEBOUNCE_MS);
     },
-    [boardTheme, flushSave],
+    [boardTheme, flushSave, sceneWriter],
   );
 
   return (

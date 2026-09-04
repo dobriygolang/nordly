@@ -156,8 +156,9 @@ export async function exportIdbNotesToVault(
         let plain: Awaited<ReturnType<typeof attachmentsStoreGetPlainBytes>>;
         try {
           plain = await attachmentsStoreGetPlainBytes(id);
-        } catch {
-          continue;
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          throw new Error(`Failed to export attachment ${id} for note ${note.id}: ${detail}`);
         }
         if (!plain) continue;
         const ext = extFromMime(plain.mime, plain.fileName);

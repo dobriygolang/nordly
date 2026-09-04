@@ -11,9 +11,17 @@ func (i *Implementation) UpdateWorkTaskStatus(ctx context.Context, req *trackerv
 	if err != nil {
 		return nil, err
 	}
-	task, err := i.svc.UpdateWorkTaskStatus(ctx, userID, req.GetId(), req.GetStatus())
+	status, err := workStatusFromProto(req.GetStatus())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
+	task, err := i.svc.UpdateWorkTaskStatus(ctx, userID, req.GetId(), status)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.UpdateWorkTaskStatusResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.UpdateWorkTaskStatusResponse{Task: pb}, nil
 }

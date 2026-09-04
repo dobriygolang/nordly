@@ -1,6 +1,8 @@
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
+
 /** Notes editor zoom (Obsidian-like ⌘+/⌘−) — device-local, Notes page only. */
 
-export const NOTES_EDITOR_ZOOM_KEY = 'nordly:notes:editor-zoom';
+export const NOTES_EDITOR_ZOOM_KEY = STORAGE_KEYS.notesEditorZoom;
 
 export const NOTES_ZOOM_DEFAULT = 1;
 export const NOTES_ZOOM_MIN = 0.7;
@@ -15,23 +17,14 @@ export function clampNotesEditorZoom(value: number): number {
 
 export function loadNotesEditorZoom(): number {
   if (typeof window === 'undefined') return NOTES_ZOOM_DEFAULT;
-  try {
-    const raw = window.localStorage.getItem(NOTES_EDITOR_ZOOM_KEY);
-    if (raw == null) return NOTES_ZOOM_DEFAULT;
-    return clampNotesEditorZoom(Number.parseFloat(raw));
-  } catch (err) {
-    console.warn('[notesEditorZoom] load failed', err);
-    return NOTES_ZOOM_DEFAULT;
-  }
+  const raw = window.localStorage.getItem(NOTES_EDITOR_ZOOM_KEY);
+  if (raw == null) return NOTES_ZOOM_DEFAULT;
+  return clampNotesEditorZoom(Number.parseFloat(raw));
 }
 
 export function saveNotesEditorZoom(value: number): void {
   if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(NOTES_EDITOR_ZOOM_KEY, String(clampNotesEditorZoom(value)));
-  } catch (err) {
-    console.warn('[notesEditorZoom] save failed', err);
-  }
+  window.localStorage.setItem(NOTES_EDITOR_ZOOM_KEY, String(clampNotesEditorZoom(value)));
 }
 
 export function stepNotesEditorZoom(current: number, direction: 1 | -1): number {

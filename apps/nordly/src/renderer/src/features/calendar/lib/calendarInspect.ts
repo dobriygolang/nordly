@@ -1,11 +1,12 @@
 import type { CalendarEntry } from './events';
+import { CalendarEntrySource } from '../model/entry';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
 
 export type CalendarInspectPayload =
-  | { source: 'apple'; eventId: string }
+  | { source: typeof CalendarEntrySource.Apple; eventId: string }
   | {
-      source: 'google';
+      source: typeof CalendarEntrySource.Google;
       title: string;
       start: string;
       end: string;
@@ -16,7 +17,7 @@ export type CalendarInspectPayload =
       calendarId?: string;
     }
   | {
-      source: 'task';
+      source: typeof CalendarEntrySource.Task;
       title: string;
       start: string;
       end: string;
@@ -33,13 +34,19 @@ export function inspectCalendarPayload(payload: CalendarInspectPayload): void {
 
 /** Open the in-app detail sheet for a calendar entry (Apple / Google / meeting-task). */
 export function inspectCalendarEntry(entry: CalendarEntry): void {
-  if (entry.source === 'apple' && entry.appleEventId) {
-    inspectCalendarPayload({ source: 'apple', eventId: entry.appleEventId });
+  if (
+    entry.source === CalendarEntrySource.Apple &&
+    entry.appleEventId
+  ) {
+    inspectCalendarPayload({
+      source: CalendarEntrySource.Apple,
+      eventId: entry.appleEventId,
+    });
     return;
   }
-  if (entry.source === 'google') {
+  if (entry.source === CalendarEntrySource.Google) {
     inspectCalendarPayload({
-      source: 'google',
+      source: CalendarEntrySource.Google,
       title: entry.title,
       start: scheduleStartISO(entry.start),
       end: scheduleStartISO(entry.end),
@@ -51,9 +58,12 @@ export function inspectCalendarEntry(entry: CalendarEntry): void {
     });
     return;
   }
-  if (entry.source === 'task' && entry.conferenceUrl) {
+  if (
+    entry.source === CalendarEntrySource.Task &&
+    entry.conferenceUrl
+  ) {
     inspectCalendarPayload({
-      source: 'task',
+      source: CalendarEntrySource.Task,
       title: entry.title,
       start: scheduleStartISO(entry.start),
       end: scheduleStartISO(entry.end),

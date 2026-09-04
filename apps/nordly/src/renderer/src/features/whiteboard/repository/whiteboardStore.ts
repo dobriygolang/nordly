@@ -8,6 +8,7 @@ import {
 } from '@shared/db/nordlyDb';
 import { mergePersistedAppState } from '@shared/lib/excalidraw/excalidrawPersist';
 import { nordlyExcalidrawInitialAppState } from '@shared/lib/excalidraw/nordlyTheme';
+import { parseOptionalDate } from '@shared/lib/dates';
 
 export interface StoredWhiteboard {
   userId: string;
@@ -36,12 +37,6 @@ export interface Board extends BoardSummary {
   createdAt: Date | null;
 }
 
-function parseTs(raw: string | undefined): Date | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function rowFrom(
   userId: string,
   partial: Omit<StoredWhiteboard, 'key' | 'userId'>,
@@ -53,7 +48,10 @@ function toSummary(row: StoredWhiteboard): BoardSummary {
   return {
     id: row.id,
     title: row.title,
-    updatedAt: parseTs(row.updatedAt),
+    updatedAt: parseOptionalDate(
+      row.updatedAt,
+      'stored whiteboard updatedAt',
+    ),
   };
 }
 
@@ -64,7 +62,10 @@ function toBoard(row: StoredWhiteboard): Board {
   return {
     ...toSummary(row),
     sceneJson: row.sceneJson,
-    createdAt: parseTs(row.createdAt),
+    createdAt: parseOptionalDate(
+      row.createdAt,
+      'stored whiteboard createdAt',
+    ),
   };
 }
 

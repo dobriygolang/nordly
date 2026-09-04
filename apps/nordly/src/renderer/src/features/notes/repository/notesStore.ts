@@ -7,15 +7,17 @@ import {
   requireUserId,
 } from '@shared/db/nordlyDb';
 import { isVaultUnlocked } from '@shared/crypto/vault';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { areVaultPrefsReady, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { parseOptionalDate } from '@shared/lib/dates';
 import { getServerId, setServerId } from '@shared/sync/idMap';
+import { SyncDomain } from '@shared/sync/types';
 import {
   shouldAcceptRemoteEntity,
   syncedIdsAbsentFromRemote,
 } from '@shared/sync/tombstone';
 
 import { decryptNoteFields, encryptNoteFields } from '../crypto/noteCrypto';
-import type { Note, NoteSummary } from '../api/notesClient';
+import type { Note, NoteSummary } from '../model/note';
 import type { WikiLinkWire } from '../lib/wikiLinks';
 import { foldersStoreList } from './foldersStore';
 
@@ -41,12 +43,6 @@ export interface StoredNote {
   folderId?: string | null;
 }
 
-function parseTs(raw: string | undefined): Date | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function bodySize(bodyMd: string): number {
   return new TextEncoder().encode(bodyMd).length;
 }
@@ -56,8 +52,8 @@ function toNote(row: StoredNote & { vaultLocked?: boolean }): Note {
     id: row.id,
     title: row.title,
     bodyMd: row.bodyMd,
-    createdAt: parseTs(row.createdAt),
-    updatedAt: parseTs(row.updatedAt),
+    createdAt: parseOptionalDate(row.createdAt, 'stored note createdAt'),
+    updatedAt: parseOptionalDate(row.updatedAt, 'stored note updatedAt'),
     sizeBytes: bodySize(row.bodyMd),
     vaultLocked: row.vaultLocked,
     folderId: row.folderId ?? null,
@@ -68,7 +64,7 @@ function toSummary(row: StoredNote & { vaultLocked?: boolean }): NoteSummary {
   return {
     id: row.id,
     title: row.title,
-    updatedAt: parseTs(row.updatedAt),
+    updatedAt: parseOptionalDate(row.updatedAt, 'stored note updatedAt'),
     sizeBytes: bodySize(row.bodyMd),
     vaultLocked: row.vaultLocked,
     folderId: row.folderId ?? null,
@@ -84,6 +80,9 @@ async function encryptAtRest(
   partial: Omit<StoredNote, 'key' | 'userId' | 'atRestEncrypted'>,
 ): Promise<StoredNote> {
   const base = rowFrom(userId, partial);
+  if (!areVaultPrefsReady()) {
+    throw new Error('Vault prefs not loaded');
+  }
   if (!isVaultEnabledSync()) {
     return { ...base, atRestEncrypted: false };
   }
@@ -253,7 +252,7 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
     });
     await dbPut('notes', row);
   }
-  await setServerId('notes', remote.id, remote.id, userId);
+  await setServerId(SyncDomain.Notes, remote.id, remote.id, userId);
 }
 
 export async function notesStoreBulkImport(
@@ -308,7 +307,7 @@ export async function notesStoreApplyRemoteAbsences(
   const candidates: { id: string; serverId: string | null }[] = [];
   for (const row of rows) {
     if (row.deleted) continue;
-    const serverId = await getServerId('notes', row.id, uid);
+    const serverId = await getServerId(SyncDomain.Notes, row.id, uid);
     candidates.push({ id: row.id, serverId });
   }
   const absent = syncedIdsAbsentFromRemote(candidates, remoteIds);

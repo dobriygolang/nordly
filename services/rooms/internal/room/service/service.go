@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 )
 
 var (
-	ErrNotFound = repository.ErrNotFound
+	ErrNotFound = model.ErrNotFound
 )
 
 type (
@@ -44,6 +43,7 @@ type Service interface {
 
 type roomService struct {
 	repo              repository.Store
+	now               func() time.Time
 	createGuestRoom   *create_guest_room.Handler
 	guestJoin         *guest_join.Handler
 	shareWhiteboard   *share_whiteboard.Handler
@@ -56,52 +56,72 @@ type Deps struct {
 	PublicBaseURL     string
 	LivePublicBaseURL string
 	GuestRoomTTL      time.Duration
+	Now               func() time.Time
 }
 
-func New(deps Deps) Service {
+func New(deps Deps) (Service, error) {
 	if deps.Repo == nil {
-		panic("rooms service: Repo is required")
+		return nil, errors.New("rooms service: Repo is required")
 	}
 	if deps.Identity == nil {
-		panic("rooms service: Identity is required")
+		return nil, errors.New("rooms service: Identity is required")
 	}
 	if strings.TrimSpace(deps.PublicBaseURL) == "" {
-		panic("rooms service: PublicBaseURL is required")
+		return nil, errors.New("rooms service: PublicBaseURL is required")
 	}
 	if strings.TrimSpace(deps.LivePublicBaseURL) == "" {
-		panic("rooms service: LivePublicBaseURL is required")
+		return nil, errors.New("rooms service: LivePublicBaseURL is required")
 	}
 	if deps.GuestRoomTTL < time.Second {
-		panic("rooms service: GuestRoomTTL must be >= 1s")
+		return nil, errors.New("rooms service: GuestRoomTTL must be >= 1s")
 	}
-	now := time.Now
-	handlerCfg := create_guest_room.Config{
+	if deps.Now == nil {
+		return nil, errors.New("rooms service: Now is required")
+	}
+	now := deps.Now
+	createGuestRoom, err := create_guest_room.New(create_guest_room.Config{
 		Store:             deps.Repo,
 		Identity:          deps.Identity,
 		LivePublicBaseURL: deps.LivePublicBaseURL,
 		GuestRoomTTL:      deps.GuestRoomTTL,
 		Now:               now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	guestJoin, err := guest_join.New(guest_join.Config{
+		Store:    deps.Repo,
+		Identity: deps.Identity,
+		Now:      now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	shareWhiteboard, err := share_whiteboard.New(share_whiteboard.Config{
+		Store:             deps.Repo,
+		Identity:          deps.Identity,
+		LivePublicBaseURL: deps.LivePublicBaseURL,
+		GuestRoomTTL:      deps.GuestRoomTTL,
+		Now:               now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	publishWhiteboard, err := publish_whiteboard.New(publish_whiteboard.Config{
+		Store:         deps.Repo,
+		PublicBaseURL: deps.PublicBaseURL,
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &roomService{
-		repo:            deps.Repo,
-		createGuestRoom: create_guest_room.New(handlerCfg),
-		guestJoin: guest_join.New(guest_join.Config{
-			Store:    deps.Repo,
-			Identity: deps.Identity,
-			Now:      now,
-		}),
-		shareWhiteboard: share_whiteboard.New(share_whiteboard.Config{
-			Store:             deps.Repo,
-			Identity:          deps.Identity,
-			LivePublicBaseURL: deps.LivePublicBaseURL,
-			GuestRoomTTL:      deps.GuestRoomTTL,
-			Now:               now,
-		}),
-		publishWhiteboard: publish_whiteboard.New(publish_whiteboard.Config{
-			Store:         deps.Repo,
-			PublicBaseURL: deps.PublicBaseURL,
-		}),
-	}
+		repo:              deps.Repo,
+		now:               now,
+		createGuestRoom:   createGuestRoom,
+		guestJoin:         guestJoin,
+		shareWhiteboard:   shareWhiteboard,
+		publishWhiteboard: publishWhiteboard,
+	}, nil
 }
 
 func (s *roomService) CreateGuestRoom(
@@ -118,31 +138,34 @@ func (s *roomService) CreateGuestRoom(
 }
 
 func (s *roomService) GetRoom(ctx context.Context, userID, roomID string) (*RoomView, error) {
-	uid, _, room, participants, err := s.loadRoom(ctx, userID, roomID)
+	uid, rid, room, err := s.loadRoom(ctx, userID, roomID)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureAccess(uid, room, participants); err != nil {
+	if err := s.ensureAccess(ctx, uid, rid, room); err != nil {
 		return nil, err
 	}
-	return dto.NewRoomView(room, participants), nil
+	return dto.NewRoomView(room), nil
 }
 
 func (s *roomService) CloseRoom(ctx context.Context, userID, roomID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
-		return fmt.Errorf("invalid user id: %w", err)
+		return fmt.Errorf("invalid user id: %w", model.ErrInvalidArgument)
 	}
 	rid, err := uuid.Parse(roomID)
 	if err != nil {
-		return fmt.Errorf("invalid room id: %w", err)
+		return fmt.Errorf("invalid room id: %w", model.ErrInvalidArgument)
 	}
 	room, err := s.repo.GetRoom(ctx, rid)
 	if err != nil {
 		return err
 	}
+	if room.IsExpired(s.now().UTC()) {
+		return model.ErrGone
+	}
 	if uid != room.OwnerID {
-		return repository.ErrForbidden
+		return model.ErrForbidden
 	}
 	return s.repo.DeleteRoom(ctx, rid, uid)
 }
@@ -155,52 +178,60 @@ func (s *roomService) GuestJoin(ctx context.Context, roomID, displayName string)
 }
 
 func (s *roomService) ShareWhiteboard(ctx context.Context, userID, sceneJSON, title string) (*GuestCreateResult, error) {
-	_ = userID // JWT auth enforced at transport; share mints a scoped owner identity
 	return s.shareWhiteboard.Handle(ctx, share_whiteboard.Command{
+		UserID:    userID,
 		SceneJSON: sceneJSON,
 		Title:     title,
 	})
 }
 
-func (s *roomService) loadRoom(ctx context.Context, userID, roomID string) (uuid.UUID, uuid.UUID, model.Room, []model.Participant, error) {
+func (s *roomService) loadRoom(ctx context.Context, userID, roomID string) (uuid.UUID, uuid.UUID, model.Room, error) {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
-		return uuid.Nil, uuid.Nil, model.Room{}, nil, fmt.Errorf("invalid user id: %w", err)
+		return uuid.Nil, uuid.Nil, model.Room{}, fmt.Errorf("invalid user id: %w", model.ErrInvalidArgument)
 	}
 	rid, err := uuid.Parse(roomID)
 	if err != nil {
-		return uuid.Nil, uuid.Nil, model.Room{}, nil, fmt.Errorf("invalid room id: %w", err)
+		return uuid.Nil, uuid.Nil, model.Room{}, fmt.Errorf("invalid room id: %w", model.ErrInvalidArgument)
 	}
 	room, err := s.repo.GetRoom(ctx, rid)
 	if err != nil {
-		return uuid.Nil, uuid.Nil, model.Room{}, nil, err
+		return uuid.Nil, uuid.Nil, model.Room{}, err
 	}
-	participants, err := s.repo.ListParticipants(ctx, rid)
-	if err != nil {
-		return uuid.Nil, uuid.Nil, model.Room{}, nil, err
+	if room.IsExpired(s.now().UTC()) {
+		return uuid.Nil, uuid.Nil, model.Room{}, model.ErrGone
 	}
-	return uid, rid, room, participants, nil
+	return uid, rid, room, nil
 }
 
-func (s *roomService) ensureAccess(uid uuid.UUID, room model.Room, participants []model.Participant) error {
+func (s *roomService) ensureAccess(ctx context.Context, uid, rid uuid.UUID, room model.Room) error {
 	if uid == room.OwnerID {
-		return nil
-	}
-	if slices.ContainsFunc(participants, func(p model.Participant) bool {
-		return p.UserID == uid
-	}) {
 		return nil
 	}
 	if room.Visibility == model.VisibilityShared {
 		return nil
 	}
-	return repository.ErrForbidden
+	if _, err := s.repo.GetRole(ctx, rid, uid); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return model.ErrForbidden
+		}
+		return err
+	}
+	return nil
 }
 
 func IsNotFound(err error) bool {
-	return errors.Is(err, repository.ErrNotFound)
+	return errors.Is(err, model.ErrNotFound)
 }
 
 func IsForbidden(err error) bool {
-	return errors.Is(err, repository.ErrForbidden)
+	return errors.Is(err, model.ErrForbidden)
+}
+
+func IsGone(err error) bool {
+	return errors.Is(err, model.ErrGone)
+}
+
+func IsInvalidArgument(err error) bool {
+	return errors.Is(err, model.ErrInvalidArgument)
 }

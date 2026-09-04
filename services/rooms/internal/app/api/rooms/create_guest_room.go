@@ -9,10 +9,13 @@ import (
 )
 
 func (i *Implementation) CreateGuestRoom(ctx context.Context, req *roomsv1.CreateGuestRoomRequest) (*roomsv1.CreateGuestRoomResponse, error) {
-	roomType := model.RoomType(strings.TrimSpace(req.GetRoomType()))
-	language := model.Language(strings.TrimSpace(req.GetLanguage()))
-	if roomType == "" || language == "" {
-		return nil, invalidArgument("roomType and language are required")
+	roomType, err := roomTypeFromProto(req.GetRoomType())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
+	language, err := roomLanguageFromProto(req.GetLanguage())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
 	}
 	if strings.TrimSpace(req.GetDisplayName()) == "" {
 		return nil, invalidArgument("displayName is required")
@@ -27,9 +30,13 @@ func (i *Implementation) CreateGuestRoom(ctx context.Context, req *roomsv1.Creat
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	room, err := toProtoRoom(result.Room)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	resp := &roomsv1.CreateGuestRoomResponse{
 		AccessToken: result.AccessToken,
-		Room:        toProtoRoom(result.Room),
+		Room:        room,
 		ExpiresIn:   result.ExpiresIn,
 		Invite: &roomsv1.InviteLink{
 			Url: result.Invite.URL,

@@ -1,34 +1,26 @@
-export interface PlanEntitlementSpec {
-  type: string
-  limit?: number
-  unlimited?: boolean
-  period?: string
-  value?: boolean
-}
+export const CODE_RUN_STATUSES = [
+  'queued',
+  'running',
+  'success',
+  'compile_error',
+  'runtime_error',
+  'timeout',
+  'internal_error',
+] as const
 
-export interface PlanCatalogEntry {
-  slug: string
-  name: string
-  tagline: string
-  features?: Record<string, boolean>
-  limits?: Record<string, PlanEntitlementSpec>
-}
+export type CodeRunStatus = (typeof CODE_RUN_STATUSES)[number]
 
 export interface CodeRun {
   id: string
   user_id: string
   language: string
-  status: string
-  run_type: string
+  status: CodeRunStatus
   stdout?: string
   stderr?: string
   compile_output?: string
   error?: string
   exit_code?: number
   time_ms?: number
-  memory_kb?: number
-  tests_total: number
-  tests_passed: number
   runner?: string
   created_at?: string
   updated_at?: string

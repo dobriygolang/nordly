@@ -16,6 +16,7 @@ export const Slider = memo(function Slider({
   value,
   onChange,
   unit,
+  label,
 }: {
   min: number;
   max: number;
@@ -23,6 +24,7 @@ export const Slider = memo(function Slider({
   value: number;
   onChange: (v: number) => void;
   unit: string;
+  label: string;
 }) {
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => onChange(parseInt(e.target.value, 10)),
@@ -36,6 +38,8 @@ export const Slider = memo(function Slider({
         max={max}
         step={step}
         value={value}
+        aria-label={label}
+        aria-valuetext={`${value} ${unit}`}
         onChange={handleChange}
         style={inputStyle}
       />

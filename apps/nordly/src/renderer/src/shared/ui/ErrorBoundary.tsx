@@ -31,6 +31,41 @@ interface State {
   error: Error | null;
 }
 
+interface ErrorFallbackProps {
+  error: Error;
+  section?: string;
+  onRetry: () => void;
+}
+
+export function ErrorFallback({
+  error,
+  section,
+  onRetry,
+}: ErrorFallbackProps): JSX.Element {
+  return (
+    <div className="data-loader-error" role="alert" style={{ margin: '12px 0' }}>
+      <div className="data-loader-error-stripe" />
+      <div className="data-loader-error-body">
+        <div className="data-loader-error-label">
+          {translate('nordly.error.fell', {
+            section: section ?? translate('nordly.error.unknown_section'),
+          })}
+        </div>
+        <div className="data-loader-error-detail">
+          {error.message || translate('nordly.error.unknown')}
+        </div>
+        <button
+          type="button"
+          className="data-loader-error-retry focus-ring motion-press"
+          onClick={onRetry}
+        >
+          {translate('nordly.error.retry')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -56,24 +91,11 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback(this.state.error, this.retry);
       }
       return (
-        <div className="data-loader-error" role="alert" style={{ margin: '12px 0' }}>
-          <div className="data-loader-error-stripe" />
-          <div className="data-loader-error-body">
-            <div className="data-loader-error-label">
-              {translate('nordly.error.fell', { section: this.props.section ?? translate('nordly.error.unknown_section') })}
-            </div>
-            <div className="data-loader-error-detail">
-              {this.state.error.message || translate('nordly.error.unknown')}
-            </div>
-            <button
-              type="button"
-              className="data-loader-error-retry focus-ring motion-press"
-              onClick={this.retry}
-            >
-              retry
-            </button>
-          </div>
-        </div>
+        <ErrorFallback
+          error={this.state.error}
+          section={this.props.section}
+          onRetry={this.retry}
+        />
       );
     }
     return this.props.children;

@@ -41,10 +41,6 @@ function minutesToOffset(totalMin: number, hourHeight: number): number {
   return ((totalMin - CALENDAR_GRID_START_HOUR * 60) / 60) * hourHeight;
 }
 
-function dateFromMinutes(dayKey: string, totalMin: number): Date {
-  return dateFromGridMinutes(dayKey, totalMin);
-}
-
 /**
  * Google Calendar style: snap the preview to the time grid while dragging
  * so the highlight matches the times that will be committed.
@@ -148,8 +144,8 @@ export function useCalendarRangeSelect(options: {
       const layout = rangeLayout(s.anchorTop, currentTop, hh, gh);
       onCommitRef.current({
         dayKey: s.dayKey,
-        start: dateFromMinutes(s.dayKey, layout.startMin),
-        end: dateFromMinutes(s.dayKey, layout.endMin),
+        start: dateFromGridMinutes(s.dayKey, layout.startMin),
+        end: dateFromGridMinutes(s.dayKey, layout.endMin),
       });
     };
 

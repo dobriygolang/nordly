@@ -23,12 +23,12 @@ export function peersFromAwareness(awareness: Awareness): CollabPeer[] {
   const peers: CollabPeer[] = []
   awareness.getStates().forEach((state, clientId) => {
     const user = state.user as AwarenessUser | undefined
-    if (!user?.name) return
+    if (!user?.name || !user.userId || !user.color) return
     peers.push({
       clientId,
-      userId: requirePeerString(user.userId, 'userId'),
+      userId: user.userId,
       name: user.name,
-      color: requirePeerString(user.color, 'color'),
+      color: user.color,
       isSelf: clientId === selfId,
       active: user.active === true,
     })
@@ -38,11 +38,4 @@ export function peersFromAwareness(awareness: Awareness): CollabPeer[] {
     return a.name.localeCompare(b.name)
   })
   return peers
-}
-
-function requirePeerString(value: string | undefined, field: string): string {
-  if (typeof value !== 'string' || !value) {
-    throw new Error(`Invalid collab peer: missing ${field}`)
-  }
-  return value
 }

@@ -29,5 +29,9 @@ func (i *Implementation) EndFocusSession(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &focusv1.EndFocusSessionResponse{Session: toProtoSession(sess)}, nil
+	pb, err := toProtoSession(sess)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &focusv1.EndFocusSessionResponse{Session: pb}, nil
 }

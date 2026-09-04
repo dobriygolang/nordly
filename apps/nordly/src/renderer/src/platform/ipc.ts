@@ -1,4 +1,5 @@
 // Shared IPC types — narrow surface for the Nordly Tauri shell.
+import type { TimerMode } from '@shared/model/settings';
 
 export const eventChannels = {
   deepLink: 'app:deep-link',
@@ -47,7 +48,7 @@ export interface PomodoroSnapshot {
   remainSec: number;
   running: boolean;
   savedAt: number;
-  mode?: 'pomodoro' | 'stopwatch';
+  mode?: TimerMode;
 }
 
 export interface EventPayload {

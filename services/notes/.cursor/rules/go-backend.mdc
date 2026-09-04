@@ -9,8 +9,8 @@ alwaysApply: false
 Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../../.cursor/rules/fail-fast-no-fallbacks.mdc),
 [architecture-standard.mdc](../../../../.cursor/rules/architecture-standard.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
 
-- `PUBLIC_BASE_URL`, `INTERNAL_API_TOKEN`, billing gRPC required at startup.
-- `service.New` panics if `Repo`, `Billing`, or `PublicBaseURL` missing — no mid-request invents.
-- Ports (`repository.Store`, `billing.Client`) use mockery; service tests use generated mocks only.
+- `PUBLIC_BASE_URL` required at startup.
+- `service.New` returns an error if `Repo` or `PublicBaseURL` missing — no mid-request invents.
+- Ports (`repository.Store`) use mockery; service tests use generated mocks only.
 - Transport: 1 RPC = 1 file under `internal/app/api/notes/`.
 - No unused DTO fields; no `SELECT` columns discarded after scan.

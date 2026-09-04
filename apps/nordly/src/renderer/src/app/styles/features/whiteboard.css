@@ -1,0 +1,14 @@
+.nordly-whiteboard-toast {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  font-size: 10px;
+  color: var(--ink-40);
+  letter-spacing: 0.12em;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.nordly-whiteboard-toast--raised {
+  bottom: 48px;
+}

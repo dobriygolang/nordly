@@ -532,13 +532,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   font-size: 12px;
   line-height: 1.25;
 }
-.nordly-note-menu__toggle-pro {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-40);
-}
 .nordly-note-menu__password {
   display: flex;
   flex-direction: column;

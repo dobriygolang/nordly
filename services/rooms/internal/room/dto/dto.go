@@ -6,16 +6,12 @@ import (
 
 // RoomView is the in-process room snapshot for service and transport mappers.
 type RoomView struct {
-	Room         model.Room
-	Participants []model.Participant
+	Room model.Room
 }
 
 // NewRoomView builds a room view.
-func NewRoomView(room model.Room, participants []model.Participant) *RoomView {
-	return &RoomView{
-		Room:         room,
-		Participants: participants,
-	}
+func NewRoomView(room model.Room) *RoomView {
+	return &RoomView{Room: room}
 }
 
 // GuestJoinResult is returned after a guest joins a shared room.

@@ -29,12 +29,25 @@ export function NotificationOverlayApp(): JSX.Element {
   const [payload, setPayload] = useState<NotificationPayload>({ title: '', body: '' });
 
   const dismissTimerRef = useRef<number | undefined>(undefined);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+  const swipeTimerRef = useRef<number | undefined>(undefined);
   const dragRef = useRef({ startX: 0, offsetX: 0, moved: false });
 
   const clearDismissTimer = useCallback(() => {
     if (dismissTimerRef.current !== undefined) {
       window.clearTimeout(dismissTimerRef.current);
       dismissTimerRef.current = undefined;
+    }
+  }, []);
+
+  const clearAnimationTimers = useCallback(() => {
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+    if (swipeTimerRef.current !== undefined) {
+      window.clearTimeout(swipeTimerRef.current);
+      swipeTimerRef.current = undefined;
     }
   }, []);
 
@@ -56,6 +69,7 @@ export function NotificationOverlayApp(): JSX.Element {
     const stop = listenEffects((track) => {
       track(
         listen<NotificationPayload>('notification:show', (event) => {
+          clearAnimationTimers();
           applyTheme(readStoredTheme());
           setPayload(event.payload);
           setClosing(false);
@@ -71,8 +85,10 @@ export function NotificationOverlayApp(): JSX.Element {
       track(
         listen('notification:hide', () => {
           clearDismissTimer();
+          clearAnimationTimers();
           setClosing(true);
-          window.setTimeout(() => {
+          closeTimerRef.current = window.setTimeout(() => {
+            closeTimerRef.current = undefined;
             setVisible(false);
             setClosing(false);
             setSwipeOut(false);
@@ -90,9 +106,10 @@ export function NotificationOverlayApp(): JSX.Element {
     });
     return () => {
       clearDismissTimer();
+      clearAnimationTimers();
       stop();
     };
-  }, [clearDismissTimer, scheduleAutoDismiss]);
+  }, [clearAnimationTimers, clearDismissTimer, scheduleAutoDismiss]);
 
   const openApp = () => {
     if (dragRef.current.moved) return;
@@ -124,7 +141,11 @@ export function NotificationOverlayApp(): JSX.Element {
     if (dx >= SWIPE_DISMISS_PX) {
       setSwipeOut(true);
       setClosing(true);
-      window.setTimeout(() => requestDismiss(), 220);
+      clearAnimationTimers();
+      swipeTimerRef.current = window.setTimeout(() => {
+        swipeTimerRef.current = undefined;
+        requestDismiss();
+      }, 220);
       return;
     }
 

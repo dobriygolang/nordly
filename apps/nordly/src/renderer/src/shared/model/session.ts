@@ -8,16 +8,26 @@ import { setDbUserId } from '@shared/db/nordlyDb';
 import { lockVault } from '@shared/crypto/vault';
 import { clearVaultPrefsCache } from '@shared/crypto/vaultPrefs';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
-import { useFeatureUsageStore } from '@shared/model/featureUsage';
+import { useDeviceRegistrationStore } from '@shared/model/deviceRegistration';
 import { useSyncStore } from '@shared/model/sync';
+import { resetUserScope } from '@shared/model/userScopeLifecycle';
 
-export type AuthStatus = 'unknown' | 'guest' | 'signed_in';
+export const AuthStatus = {
+  Unknown: 'unknown',
+  Guest: 'guest',
+  SignedIn: 'signed_in',
+} as const;
+export type AuthStatus = (typeof AuthStatus)[keyof typeof AuthStatus];
 /** local = offline profile (no tokens); cloud = identity session (keychain tokens). */
-export type AuthKind = 'local' | 'cloud';
+export const AuthKind = {
+  Local: 'local',
+  Cloud: 'cloud',
+} as const;
+export type AuthKind = (typeof AuthKind)[keyof typeof AuthKind];
 
 // Browser-dev session persistence only. Native sessions live exclusively in the
 // OS keychain; a missing bridge in a production build must never persist tokens.
-const BROWSER_PERSIST_KEY = 'nordly:dev-session:v1';
+const BROWSER_PERSIST_KEY = STORAGE_KEYS.devSession;
 
 /** Bumped on sign-out so in-flight native persist cannot restore keychain session. */
 let sessionPersistEpoch = 0;
@@ -44,21 +54,17 @@ interface PersistedSession {
 }
 
 function readStoredLocalProfileId(): string | null {
-  try {
-    const id = window.localStorage.getItem(STORAGE_KEYS.localProfileUserId);
-    if (id && isPersistedUserId(id)) return id;
-  } catch (err) {
-    console.warn('[nordly:session] local profile read failed', err);
-  }
+  const id = window.localStorage.getItem(STORAGE_KEYS.localProfileUserId);
+  if (id && isPersistedUserId(id)) return id;
   return null;
 }
 
 function writeStoredLocalProfileId(userId: string): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEYS.localProfileUserId, userId);
-  } catch (err) {
-    console.warn('[nordly:session] local profile write failed', err);
-  }
+  window.localStorage.setItem(STORAGE_KEYS.localProfileUserId, userId);
+}
+
+function resetUserScopedCaches(persistUserId?: string | null): void {
+  resetUserScope(persistUserId ?? undefined);
 }
 
 function clearLocalAuthBannerDismissed(): void {
@@ -113,11 +119,16 @@ function queueNativePersist(session: PersistedSession): Promise<void> {
   const epoch = sessionPersistEpoch;
   const pending = persistSessionToNative(session, epoch).catch((err: unknown) => {
     console.error('[nordly:session] native session persistence failed', err);
+    throw err;
   });
   pendingNativePersist = pending;
-  void pending.finally(() => {
-    if (pendingNativePersist === pending) pendingNativePersist = null;
-  });
+  void pending
+    .finally(() => {
+      if (pendingNativePersist === pending) pendingNativePersist = null;
+    })
+    .catch(() => {
+      /* rejection is observed by hydrate/applyTokens awaiters */
+    });
   return pending;
 }
 
@@ -194,7 +205,7 @@ const BOOTSTRAP_IPC_TIMEOUT_MS = 30_000;
 
 export const useSessionStore = create<SessionState>((set, get) => ({
 
-  status: 'unknown',
+  status: AuthStatus.Unknown,
   authKind: null,
   userId: null,
   accessToken: null,
@@ -211,11 +222,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (prev !== null && prev !== userId) {
       lockVault();
       clearVaultPrefsCache();
+      resetUserScopedCaches(prev);
     }
     setDbUserId(userId);
     set({
-      status: 'signed_in',
-      authKind: 'local',
+      status: AuthStatus.SignedIn,
+      authKind: AuthKind.Local,
       userId,
       accessToken: null,
       refreshToken: null,
@@ -227,18 +239,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const applyCloudSession = (s: PersistedSession): boolean => {
       if (!isPersistedUserId(s.userId)) {
         clearBrowserPersist();
-        get().ensureLocalProfile();
-        return false;
+        throw new Error('Invalid cloud session: userId');
       }
-      if (get().userId !== s.userId) {
+      const previousUserId = get().userId;
+      if (previousUserId !== s.userId) {
         lockVault();
         clearVaultPrefsCache();
+        resetUserScopedCaches(previousUserId);
       }
       writeStoredLocalProfileId(s.userId);
       setDbUserId(s.userId);
       set({
-        status: 'signed_in',
-        authKind: 'cloud',
+        status: AuthStatus.SignedIn,
+        authKind: AuthKind.Cloud,
         userId: s.userId,
         accessToken: s.accessToken,
         refreshToken: s.refreshToken,
@@ -278,7 +291,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         native = await withTimeout(bridge.auth.session(), BOOTSTRAP_IPC_TIMEOUT_MS);
       } catch (retryErr) {
         console.error('[nordly:session] native session bootstrap retry failed', retryErr);
-        native = null;
+        throw retryErr;
       }
     }
 
@@ -316,40 +329,49 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (current.userId && current.userId !== userId) {
       lockVault();
       clearVaultPrefsCache();
+      resetUserScopedCaches(current.userId);
     }
 
+    await queueNativePersist(session);
     writeStoredLocalProfileId(userId);
     clearLocalAuthBannerDismissed();
     setDbUserId(userId);
     set({
-      status: 'signed_in',
-      authKind: 'cloud',
+      status: AuthStatus.SignedIn,
+      authKind: AuthKind.Cloud,
       userId,
       accessToken,
       refreshToken: session.refreshToken,
       expiresAt,
     });
     writeBrowserPersist(session);
-    await queueNativePersist(session);
   },
 
   applyTokens: async ({ userId, accessToken, refreshToken, expiresAt }) => {
     const current = get();
-    if (current.authKind !== 'cloud' || current.userId !== userId) {
+    if (
+      current.authKind !== AuthKind.Cloud ||
+      current.userId !== userId
+    ) {
       lockVault();
       clearVaultPrefsCache();
       throw new Error('Cannot apply tokens for a different session user');
     }
-    setDbUserId(userId);
     const session: PersistedSession = {
       userId,
       accessToken,
       refreshToken: normalizeRefreshToken(refreshToken),
       expiresAt,
     };
-    set({ accessToken, refreshToken: session.refreshToken, expiresAt, authKind: 'cloud' });
-    writeBrowserPersist(session);
     await queueNativePersist(session);
+    setDbUserId(userId);
+    set({
+      accessToken,
+      refreshToken: session.refreshToken,
+      expiresAt,
+      authKind: AuthKind.Cloud,
+    });
+    writeBrowserPersist(session);
   },
 
   clear: async (opts) => {
@@ -357,9 +379,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     clearBrowserPersist();
     lockVault();
     clearVaultPrefsCache();
+    resetUserScopedCaches(get().userId);
     useSyncStore.getState().setSessionReauthRequired(false);
-    useSyncStore.getState().setCloudSyncBlocked(false);
-    useFeatureUsageStore.getState().setDeviceRegistration(null);
+    useDeviceRegistrationStore.getState().setDeviceRegistration(null);
     clearLocalAuthBannerDismissed();
     try {
       const { resetAuthRefreshState, rejectPendingCloudAuth } = await import('@shared/api/authSession');
@@ -376,9 +398,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (err) {
       console.error('[nordly:session] native logout failed', err);
     }
-    void import('@shared/api/registerSyncDevice').then(({ resetDeviceRegisterCache }) => {
-      resetDeviceRegisterCache();
-    });
     // New local profile id — do not leave the previous cloud/local IDB scope active
     // for the next person who signs in on this Mac.
     writeStoredLocalProfileId(crypto.randomUUID());

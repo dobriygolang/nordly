@@ -3,7 +3,6 @@ module github.com/dobriygolang/project-nordly/services/notes
 go 1.25.12
 
 require (
-	github.com/dobriygolang/project-nordly/services/billing v0.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/prometheus/client_golang v1.23.2
@@ -48,5 +47,3 @@ require (
 )
 
 replace github.com/dobriygolang/project-nordly/services/identity => ../identity
-
-replace github.com/dobriygolang/project-nordly/services/billing => ../billing

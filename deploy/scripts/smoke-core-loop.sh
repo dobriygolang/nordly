@@ -24,12 +24,7 @@ for svc in "${PROD_APP_SERVICES[@]}"; do
   fi
 done
 
-if [[ -n "$INTERNAL_TOKEN" ]]; then
-  echo "== smoke: billing service health =="
-  billing_port="$(service_http_port billing)"
-  curl -sf "http://127.0.0.1:${billing_port}/healthz" >/dev/null
-  echo "ok"
-else
+if [[ -z "$INTERNAL_TOKEN" ]]; then
   echo "== smoke: skip authenticated flow (set INTERNAL_API_TOKEN for full check) =="
 fi
 

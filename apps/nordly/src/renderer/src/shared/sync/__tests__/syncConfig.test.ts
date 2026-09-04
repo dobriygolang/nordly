@@ -6,8 +6,7 @@ vi.mock('@shared/model/features', () => ({
 
 import { isCloudEnabled } from '@shared/model/features';
 import { useSessionStore } from '@shared/model/session';
-import { useFeatureUsageStore } from '@shared/model/featureUsage';
-import { useSyncStore } from '@shared/model/sync';
+import { useDeviceRegistrationStore } from '@shared/model/deviceRegistration';
 
 import { isCloudApiAvailable, isSyncEnabled, isSyncQueueEnabled } from '../syncConfig';
 
@@ -17,8 +16,7 @@ const CLOUD_USER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 describe('sync gates for deferred auth', () => {
   beforeEach(() => {
     vi.mocked(isCloudEnabled).mockReturnValue(true);
-    useSyncStore.getState().setCloudSyncBlocked(false);
-    useFeatureUsageStore.getState().setDeviceRegistration(null);
+    useDeviceRegistrationStore.getState().setDeviceRegistration(null);
   });
 
   afterEach(() => {
@@ -49,7 +47,7 @@ describe('sync gates for deferred auth', () => {
       refreshToken: 'refresh',
       expiresAt: Date.now() + 60_000,
     });
-    useFeatureUsageStore.getState().setDeviceRegistration({
+    useDeviceRegistrationStore.getState().setDeviceRegistration({
       deviceId: 'dev-1',
       devicesRegistered: 1,
       deviceLimit: 3,
@@ -61,6 +59,41 @@ describe('sync gates for deferred auth', () => {
     expect(isSyncEnabled()).toBe(true);
   });
 
+  it('keeps cloud API available but blocks sync until this device is registered', () => {
+    useSessionStore.setState({
+      status: 'signed_in',
+      authKind: 'cloud',
+      userId: CLOUD_USER,
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    expect(isCloudApiAvailable()).toBe(true);
+    expect(isSyncQueueEnabled()).toBe(true);
+    expect(isSyncEnabled()).toBe(false);
+  });
+
+  it('blocks sync when the registration explicitly disables cloud sync', () => {
+    useSessionStore.setState({
+      status: 'signed_in',
+      authKind: 'cloud',
+      userId: CLOUD_USER,
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: Date.now() + 60_000,
+    });
+    useDeviceRegistrationStore.getState().setDeviceRegistration({
+      deviceId: 'dev-1',
+      devicesRegistered: 3,
+      deviceLimit: 3,
+      cloudSyncEnabled: false,
+    });
+
+    expect(isCloudApiAvailable()).toBe(true);
+    expect(isSyncEnabled()).toBe(false);
+  });
+
   it('still queues outbox when cloud access is expired (push waits for refresh)', () => {
     useSessionStore.setState({
       status: 'signed_in',
@@ -70,7 +103,7 @@ describe('sync gates for deferred auth', () => {
       refreshToken: 'refresh',
       expiresAt: Date.now() - 1,
     });
-    useFeatureUsageStore.getState().setDeviceRegistration({
+    useDeviceRegistrationStore.getState().setDeviceRegistration({
       deviceId: 'dev-1',
       devicesRegistered: 1,
       deviceLimit: 3,

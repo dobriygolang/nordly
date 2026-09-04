@@ -718,66 +718,6 @@ func (_c *Store_InitVault_Call) RunAndReturn(run func(context.Context, string) (
 	return _c
 }
 
-// ListBacklinks provides a mock function with given fields: ctx, userID, targetNoteID
-func (_m *Store) ListBacklinks(ctx context.Context, userID string, targetNoteID string) ([]model.BacklinkEntry, error) {
-	ret := _m.Called(ctx, userID, targetNoteID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListBacklinks")
-	}
-
-	var r0 []model.BacklinkEntry
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]model.BacklinkEntry, error)); ok {
-		return rf(ctx, userID, targetNoteID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) []model.BacklinkEntry); ok {
-		r0 = rf(ctx, userID, targetNoteID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]model.BacklinkEntry)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, userID, targetNoteID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Store_ListBacklinks_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListBacklinks'
-type Store_ListBacklinks_Call struct {
-	*mock.Call
-}
-
-// ListBacklinks is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - targetNoteID string
-func (_e *Store_Expecter) ListBacklinks(ctx interface{}, userID interface{}, targetNoteID interface{}) *Store_ListBacklinks_Call {
-	return &Store_ListBacklinks_Call{Call: _e.mock.On("ListBacklinks", ctx, userID, targetNoteID)}
-}
-
-func (_c *Store_ListBacklinks_Call) Run(run func(ctx context.Context, userID string, targetNoteID string)) *Store_ListBacklinks_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ListBacklinks_Call) Return(_a0 []model.BacklinkEntry, _a1 error) *Store_ListBacklinks_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *Store_ListBacklinks_Call) RunAndReturn(run func(context.Context, string, string) ([]model.BacklinkEntry, error)) *Store_ListBacklinks_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // ListNoteAttachments provides a mock function with given fields: ctx, userID, noteID
 func (_m *Store) ListNoteAttachments(ctx context.Context, userID string, noteID string) ([]model.NoteAttachmentSummary, error) {
 	ret := _m.Called(ctx, userID, noteID)
@@ -893,55 +833,6 @@ func (_c *Store_ListNotes_Call) Return(_a0 []model.NoteSummary, _a1 error) *Stor
 }
 
 func (_c *Store_ListNotes_Call) RunAndReturn(run func(context.Context, string) ([]model.NoteSummary, error)) *Store_ListNotes_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// MakeNotePrivate provides a mock function with given fields: ctx, userID, noteID, ciphertext
-func (_m *Store) MakeNotePrivate(ctx context.Context, userID string, noteID string, ciphertext string) error {
-	ret := _m.Called(ctx, userID, noteID, ciphertext)
-
-	if len(ret) == 0 {
-		panic("no return value specified for MakeNotePrivate")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
-		r0 = rf(ctx, userID, noteID, ciphertext)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_MakeNotePrivate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MakeNotePrivate'
-type Store_MakeNotePrivate_Call struct {
-	*mock.Call
-}
-
-// MakeNotePrivate is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - noteID string
-//   - ciphertext string
-func (_e *Store_Expecter) MakeNotePrivate(ctx interface{}, userID interface{}, noteID interface{}, ciphertext interface{}) *Store_MakeNotePrivate_Call {
-	return &Store_MakeNotePrivate_Call{Call: _e.mock.On("MakeNotePrivate", ctx, userID, noteID, ciphertext)}
-}
-
-func (_c *Store_MakeNotePrivate_Call) Run(run func(ctx context.Context, userID string, noteID string, ciphertext string)) *Store_MakeNotePrivate_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
-	})
-	return _c
-}
-
-func (_c *Store_MakeNotePrivate_Call) Return(_a0 error) *Store_MakeNotePrivate_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_MakeNotePrivate_Call) RunAndReturn(run func(context.Context, string, string, string) error) *Store_MakeNotePrivate_Call {
 	_c.Call.Return(run)
 	return _c
 }

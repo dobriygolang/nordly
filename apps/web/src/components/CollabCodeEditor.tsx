@@ -354,8 +354,4 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   return <div ref={mountRef} className="absolute inset-0 always-show-cursor-labels" />
 })
 
-export function wsStatusColor(status: string): string {
-  if (status === 'open') return 'rgb(var(--ink))'
-  if (status === 'failed') return 'var(--red)'
-  return 'var(--ink-60)'
-}
+export { wsStatusColor } from '@/lib/live/wsStatusColor'

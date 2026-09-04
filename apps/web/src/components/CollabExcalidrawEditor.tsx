@@ -112,6 +112,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const pendingLocalRef = useRef<ScenePayload | null>(null)
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
+    const displayNameRef = useRef(displayName)
+    displayNameRef.current = displayName
 
     const [ready, setReady] = useState(false)
     const [seedError, setSeedError] = useState<string | null>(null)
@@ -264,7 +266,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         })
 
       if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
-      const label = displayName?.trim() || userId.slice(0, 8)
+      const label = displayNameRef.current?.trim() || userId.slice(0, 8)
       const colors = collabUserColors(userId)
       const syncLocalUser = (active = isTabActive()) => {
         awareness.setLocalStateField('user', {
@@ -370,24 +372,43 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         canPublishLocalRef.current = false
         setReady(false)
       }
-    }, [roomId, token, displayName, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
+    }, [roomId, token, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
 
     useEffect(() => {
-      if (status !== 'open' || !ydocRef.current) return
+      const awareness = awarenessRef.current
+      if (!awareness) return
+      if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
+      const label = displayName?.trim() || userId.slice(0, 8)
+      const colors = collabUserColors(userId)
+      const prev = awareness.getLocalState()?.user as Record<string, unknown> | undefined
+      awareness.setLocalStateField('user', {
+        ...prev,
+        name: label,
+        color: colors.color,
+        colorLight: colors.colorLight,
+        userId,
+      })
+    }, [displayName, userId])
 
-      flushPendingEnvelopes()
+    useEffect(() => {
+      if (status === 'open') flushPendingEnvelopes()
+    }, [status, flushPendingEnvelopes])
 
+    useEffect(() => {
       const ydoc = ydocRef.current
+      if (!ydoc) return
+
       const mount = () => {
         setReady(true)
       }
 
       if (gotRemoteRef.current || sceneHasContent(ydoc)) {
         mount()
-        return () => setReady(false)
+        return
       }
 
       const poll = window.setInterval(() => {
+        if (document.hidden) return
         if (gotRemoteRef.current || sceneHasContent(ydoc)) {
           window.clearInterval(poll)
           mount()
@@ -399,12 +420,21 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         mount()
       }, 3000)
 
+      const onVisible = (): void => {
+        if (document.visibilityState !== 'visible') return
+        if (gotRemoteRef.current || sceneHasContent(ydoc)) {
+          window.clearInterval(poll)
+          mount()
+        }
+      }
+      document.addEventListener('visibilitychange', onVisible)
+
       return () => {
         window.clearInterval(poll)
         window.clearTimeout(giveUp)
-        setReady(false)
+        document.removeEventListener('visibilitychange', onVisible)
       }
-    }, [status, roomId, token, flushPendingEnvelopes])
+    }, [roomId, token])
 
     // Freeze initial scene at mount; theme toggles are applied imperatively below.
     const excalidrawInitialData = useMemo(() => {

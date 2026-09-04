@@ -6,7 +6,7 @@ import { useOnlineStatus } from '@shared/hooks/useOnlineStatus';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
-import { useSessionStore } from '@shared/model/session';
+import { AuthKind, useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 
 function readLocalBannerDismissed(): boolean {
@@ -35,8 +35,10 @@ export function SyncStatusBanner(): JSX.Element | null {
 
   if (!isCloudEnabled()) return null;
 
-  const needsLocalSignIn = authKind === 'local' && !localDismissed;
-  const needsReauth = sessionReauthRequired && authKind === 'cloud';
+  const needsLocalSignIn =
+    authKind === AuthKind.Local && !localDismissed;
+  const needsReauth =
+    sessionReauthRequired && authKind === AuthKind.Cloud;
   if (!needsLocalSignIn && !needsReauth) return null;
 
   const text = needsReauth

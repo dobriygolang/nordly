@@ -7,7 +7,7 @@ import {
   CALENDAR_GRID_START_HOUR,
   dateFromGridMinutes,
   gridMinutesFromDate,
-} from '@features/calendar/api/calendar';
+} from '@features/calendar/lib/events';
 import { formatLocaleTime } from '@shared/lib/localeFormat';
 import { zIndex } from '@shared/lib/z-index';
 import { formatTimeShort, toDayKey } from '@shared/lib/dates';

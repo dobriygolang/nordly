@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
+import type { EditorWsStatus } from '@/lib/ws/collabEditor'
 import { en } from './locales/en'
 
 function getByPath(obj: Record<string, unknown>, path: string): string | undefined {
@@ -12,8 +13,12 @@ function getByPath(obj: Record<string, unknown>, path: string): string | undefin
 }
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
-  if (!vars) return template
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(vars[key] ?? ''))
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    if (!vars || vars[key] === undefined) {
+      throw new Error(`Missing i18n param: ${key}`)
+    }
+    return String(vars[key])
+  })
 }
 
 type I18nContextValue = {
@@ -29,7 +34,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback((key: string, vars?: Record<string, string | number>) => {
     const dict = en as unknown as Record<string, unknown>
-    const text = getByPath(dict, key) ?? key
+    const text = getByPath(dict, key)
+    if (text === undefined) {
+      throw new Error(`Missing i18n key: ${key}`)
+    }
     return interpolate(text, vars)
   }, [])
 
@@ -46,7 +54,7 @@ export function useI18n(): I18nContextValue {
 
 export function liveWsStatusLabel(
   t: I18nContextValue['t'],
-  status: string,
+  status: EditorWsStatus,
 ): string {
   switch (status) {
     case 'open':
@@ -57,7 +65,9 @@ export function liveWsStatusLabel(
       return t('live.wsReconnecting')
     case 'connecting':
       return t('live.wsConnecting')
+    case 'closed':
+      return t('live.wsClosed')
     default:
-      return status.toUpperCase()
+      throw new Error(`Unknown live WS status: ${status}`)
   }
 }

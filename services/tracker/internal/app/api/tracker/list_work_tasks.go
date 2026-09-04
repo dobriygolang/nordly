@@ -15,9 +15,15 @@ func (i *Implementation) ListWorkTasks(ctx context.Context, _ *trackerv1.ListWor
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := &trackerv1.ListWorkTasksResponse{}
+	out := &trackerv1.ListWorkTasksResponse{
+		Tasks: make([]*trackerv1.WorkTask, 0, len(tasks)),
+	}
 	for _, t := range tasks {
-		out.Tasks = append(out.Tasks, workTaskToProto(t))
+		pb, err := workTaskToProto(t)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		out.Tasks = append(out.Tasks, pb)
 	}
 	return out, nil
 }

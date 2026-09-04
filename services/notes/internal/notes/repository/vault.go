@@ -23,11 +23,21 @@ func (r *Repository) InitVault(ctx context.Context, userID string) (string, bool
 	if _, err := rand.Read(salt); err != nil {
 		return "", false, err
 	}
-	_, err = r.pg.Exec(ctx, `INSERT INTO vault_salts (user_id, salt) VALUES ($1, $2)`, userID, salt)
+	tag, err := r.pg.Exec(ctx, `
+		INSERT INTO vault_salts (user_id, salt) VALUES ($1, $2)
+		ON CONFLICT (user_id) DO NOTHING
+	`, userID, salt)
 	if err != nil {
 		return "", false, err
 	}
-	return base64.StdEncoding.EncodeToString(salt), false, nil
+	if tag.RowsAffected() == 1 {
+		return base64.StdEncoding.EncodeToString(salt), false, nil
+	}
+	err = r.pg.QueryRow(ctx, `SELECT salt FROM vault_salts WHERE user_id = $1`, userID).Scan(&existing)
+	if err != nil {
+		return "", false, err
+	}
+	return base64.StdEncoding.EncodeToString(existing), true, nil
 }
 
 func (r *Repository) GetVaultSalt(ctx context.Context, userID string) (string, bool, error) {

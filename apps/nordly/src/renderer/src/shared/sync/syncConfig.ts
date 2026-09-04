@@ -1,23 +1,17 @@
 import { isCloudEnabled } from '@shared/model/features';
 import { canUseLocalApp, isSessionExpired } from '@shared/api/authSession';
+import { useDeviceRegistrationStore } from '@shared/model/deviceRegistration';
 import { useSessionStore } from '@shared/model/session';
-import { useFeatureUsageStore } from '@shared/model/featureUsage';
-import { useSyncStore } from '@shared/model/sync';
-
-export function canReachNetwork(): boolean {
-  return typeof navigator !== 'undefined' && navigator.onLine;
-}
 
 export { canUseLocalApp } from '@shared/api/authSession';
 export { isCloudEnabled } from '@shared/model/features';
 
-/** Signed in with a usable session — notes API, publish, billing. */
+/** Signed in with a usable session — notes API, publish. */
 export function isCloudApiAvailable(): boolean {
   if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;
 
-  const { accessToken, refreshToken } = useSessionStore.getState();
-  if (!accessToken && !refreshToken) return false;
+  const { accessToken } = useSessionStore.getState();
   if (!accessToken) return false;
   if (isSessionExpired()) return false;
 
@@ -27,7 +21,8 @@ export function isCloudApiAvailable(): boolean {
 /** Multi-device sync (tasks, focus, notes outbox) — registered device required. */
 export function isSyncEnabled(): boolean {
   if (!isCloudApiAvailable()) return false;
-  return isSyncQueueEnabled();
+  const registration = useDeviceRegistrationStore.getState().deviceRegistration;
+  return Boolean(registration?.cloudSyncEnabled && registration.deviceId);
 }
 
 /** Queue local mutations even when the access token must be refreshed first.
@@ -35,10 +30,5 @@ export function isSyncEnabled(): boolean {
 export function isSyncQueueEnabled(): boolean {
   if (!isCloudEnabled()) return false;
   if (!canUseLocalApp()) return false;
-  if (useSyncStore.getState().cloudSyncBlocked) return false;
-
-  const reg = useFeatureUsageStore.getState().deviceRegistration;
-  if (reg != null && !reg.cloudSyncEnabled) return false;
-
   return true;
 }

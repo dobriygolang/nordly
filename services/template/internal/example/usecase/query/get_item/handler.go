@@ -2,6 +2,7 @@ package get_item
 
 import (
 	"context"
+	"errors"
 
 	examplemodel "github.com/dobriygolang/project-nordly/services/template/internal/example/model"
 )
@@ -20,8 +21,11 @@ type Handler struct {
 }
 
 // New constructs the get-item query handler.
-func New(reader ItemReader) *Handler {
-	return &Handler{reader: reader}
+func New(reader ItemReader) (*Handler, error) {
+	if reader == nil {
+		return nil, errors.New("get_item: ItemReader is required")
+	}
+	return &Handler{reader: reader}, nil
 }
 
 // Handle executes the query.

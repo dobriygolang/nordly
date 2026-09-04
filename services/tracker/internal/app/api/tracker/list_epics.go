@@ -15,7 +15,9 @@ func (i *Implementation) ListEpics(ctx context.Context, _ *trackerv1.ListEpicsRe
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := &trackerv1.ListEpicsResponse{}
+	out := &trackerv1.ListEpicsResponse{
+		Epics: make([]*trackerv1.Epic, 0, len(epics)),
+	}
 	for _, e := range epics {
 		out.Epics = append(out.Epics, epicToProto(e))
 	}

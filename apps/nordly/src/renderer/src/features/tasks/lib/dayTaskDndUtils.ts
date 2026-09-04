@@ -1,6 +1,6 @@
 import type { ClientRect } from '@dnd-kit/core';
 
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard } from '@features/tasks/model/task';
 
 export type ColumnItems = Record<string, string[]>;
 

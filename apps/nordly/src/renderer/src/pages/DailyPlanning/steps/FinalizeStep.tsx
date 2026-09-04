@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
+import { isTaskDone } from '@features/tasks/model/status';
 
+import { parseObstacleLines } from '@features/planning/lib/planningProgress';
 import { durationLabel } from '@features/planning/lib/planningTasks';
 
 interface FinalizeStepProps {
@@ -17,29 +19,52 @@ interface FinalizeStepProps {
   obstacles: string;
   onObstaclesChange: (value: string) => void;
   onObstaclesBlur: () => void;
+  onObstaclesPersist: (value: string) => void;
 }
 
-function parseObstacles(value: string): string[] {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
+export type FinalizeStepHandle = {
+  flush: () => string;
+};
 
-export function FinalizeStep({
-  todayTasks,
-  epics,
-  activeCount,
-  doneCount,
-  totalLabel,
-  obstacles,
-  onObstaclesChange,
-  onObstaclesBlur,
-}: FinalizeStepProps): JSX.Element {
+export const FinalizeStep = forwardRef<FinalizeStepHandle, FinalizeStepProps>(function FinalizeStep(
+  {
+    todayTasks,
+    epics,
+    activeCount,
+    doneCount,
+    totalLabel,
+    obstacles,
+    onObstaclesChange,
+    onObstaclesBlur,
+    onObstaclesPersist,
+  },
+  ref,
+) {
   const t = useT();
   const [draft, setDraft] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const items = parseObstacles(obstacles);
+  const items = parseObstacleLines(obstacles);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const obstaclesLiveRef = useRef(obstacles);
+  obstaclesLiveRef.current = obstacles;
+  const changeRef = useRef(onObstaclesChange);
+  changeRef.current = onObstaclesChange;
+
+  const flush = useCallback((): string => {
+    const extra = draftRef.current.trim();
+    const nextItems = parseObstacleLines(obstaclesLiveRef.current);
+    if (extra) {
+      nextItems.push(extra);
+      draftRef.current = '';
+      setDraft('');
+    }
+    const next = nextItems.join('\n');
+    changeRef.current(next);
+    return next;
+  }, []);
+
+  useImperativeHandle(ref, () => ({ flush }), [flush]);
 
   const summaryKey =
     doneCount > 0 ? 'nordly.planning.finalize_summary_with_done' : 'nordly.planning.finalize_summary';
@@ -53,8 +78,7 @@ export function FinalizeStep({
   }, []);
 
   const commit = (next: string[]) => {
-    onObstaclesChange(next.join('\n'));
-    onObstaclesBlur();
+    onObstaclesPersist(next.join('\n'));
   };
 
   const updateItem = (index: number, value: string) => {
@@ -147,7 +171,7 @@ export function FinalizeStep({
       {todayTasks.length > 0 ? (
         <ul className="nordly-planning-finalize__tasks">
           {todayTasks.map((task) => {
-            const done = task.status === 'done';
+            const done = isTaskDone(task.status);
             const epicColor = resolveTaskEpicColor(task, epics);
             return (
               <li
@@ -216,4 +240,4 @@ export function FinalizeStep({
       </section>
     </div>
   );
-}
+});

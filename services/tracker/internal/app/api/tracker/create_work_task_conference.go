@@ -11,9 +11,17 @@ func (i *Implementation) CreateWorkTaskConference(ctx context.Context, req *trac
 	if err != nil {
 		return nil, err
 	}
-	task, err := i.svc.CreateWorkTaskConference(ctx, userID, req.GetId(), req.GetProvider())
+	provider, err := conferenceProviderFromProto(req.GetProvider())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
+	task, err := i.svc.CreateWorkTaskConference(ctx, userID, req.GetId(), provider)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.CreateWorkTaskConferenceResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.CreateWorkTaskConferenceResponse{Task: pb}, nil
 }

@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/google/uuid"
@@ -10,9 +10,9 @@ import (
 )
 
 func (r *Repository) ListEpicsByUser(ctx context.Context, userID string) ([]model.Epic, error) {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return nil, err
 	}
 	rows, err := r.conn(ctx).Query(ctx, `
 		SELECT id, user_id, name, color, created_at, updated_at, archived_at
@@ -36,26 +36,30 @@ func (r *Repository) ListEpicsByUser(ctx context.Context, userID string) ([]mode
 }
 
 func (r *Repository) GetEpic(ctx context.Context, epicID, userID string) (*model.Epic, error) {
-	eid, err := uuid.Parse(epicID)
+	eid, err := parseID("epic_id", epicID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid epic_id: %w", err)
+		return nil, err
 	}
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return nil, err
 	}
 	row := r.conn(ctx).QueryRow(ctx, `
 		SELECT id, user_id, name, color, created_at, updated_at, archived_at
 		FROM epics
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
 	`, eid, uid)
-	return scanEpic(row)
+	epic, err := scanEpic(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return epic, err
 }
 
 func (r *Repository) CreateEpic(ctx context.Context, userID, name, color string) (*model.Epic, error) {
-	uid, err := uuid.Parse(userID)
+	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return nil, err
 	}
 	id, err := uuid.NewRandom()
 	if err != nil {
@@ -69,6 +73,34 @@ func (r *Repository) CreateEpic(ctx context.Context, userID, name, color string)
 		RETURNING id, user_id, name, color, created_at, updated_at, archived_at
 	`, id, uid, name, color)
 	return scanEpic(row)
+}
+
+// CreateDefaultEpics seeds the complete default set in one transaction. A
+// concurrent first read converges through the active-name unique index.
+func (r *Repository) CreateDefaultEpics(
+	ctx context.Context,
+	userID string,
+	seeds []model.EpicSeed,
+) ([]model.Epic, error) {
+	var out []model.Epic
+	err := r.WithTx(ctx, func(txCtx context.Context) error {
+		existing, err := r.ListEpicsByUser(txCtx, userID)
+		if err != nil {
+			return err
+		}
+		if len(existing) > 0 {
+			out = existing
+			return nil
+		}
+		for _, seed := range seeds {
+			if _, err := r.CreateEpic(txCtx, userID, seed.Name, seed.Color); err != nil {
+				return err
+			}
+		}
+		out, err = r.ListEpicsByUser(txCtx, userID)
+		return err
+	})
+	return out, err
 }
 
 func scanEpic(row pgx.Row) (*model.Epic, error) {

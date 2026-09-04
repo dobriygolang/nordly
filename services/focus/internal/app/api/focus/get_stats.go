@@ -18,16 +18,9 @@ func (i *Implementation) GetStats(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := &focusv1.GetStatsResponse{
-		CurrentStreakDays:   int32(stats.CurrentStreakDays),
-		LongestStreakDays:   int32(stats.LongestStreakDays),
-		TotalFocusedSeconds: int32(stats.TotalFocusedSeconds),
-	}
-	for _, d := range stats.Heatmap {
-		out.Heatmap = append(out.Heatmap, toProtoFocusDay(d))
-	}
-	for _, d := range stats.LastSevenDays {
-		out.LastSevenDays = append(out.LastSevenDays, toProtoFocusDay(d))
+	out, err := toProtoStats(stats)
+	if err != nil {
+		return nil, mapServiceError(err)
 	}
 	return out, nil
 }

@@ -4,76 +4,52 @@ import (
 	"context"
 	"strings"
 
-	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"google.golang.org/grpc/metadata"
 )
 
 type ctxKey int
 
-const (
-	userIDKey ctxKey = 1
-	tokenKey  ctxKey = 2
-	scopeKey  ctxKey = 3
-)
+const principalKey ctxKey = 1
 
-// WithUserID stores authenticated user ID in context.
-func WithUserID(ctx context.Context, userID string) context.Context {
-	return context.WithValue(ctx, userIDKey, userID)
+// Principal is the strictly classified caller identity.
+type Principal struct {
+	UserID       string
+	EditorRoomID string
 }
 
-// WithBearerToken stores the raw bearer token for downstream forwarding.
-func WithBearerToken(ctx context.Context, token string) context.Context {
-	return context.WithValue(ctx, tokenKey, token)
+func withPrincipal(ctx context.Context, principal Principal) context.Context {
+	return context.WithValue(ctx, principalKey, principal)
 }
 
-// UserIDFromContext returns authenticated user ID from context.
-func UserIDFromContext(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value(userIDKey).(string)
-	return userID, ok && userID != ""
+func principalFromContext(ctx context.Context) (Principal, bool) {
+	principal, ok := ctx.Value(principalKey).(Principal)
+	return principal, ok && principal.UserID != ""
 }
 
-// WithTokenScope stores JWT scope claim (e.g. editor:{roomID}) in context.
-func WithTokenScope(ctx context.Context, scope string) context.Context {
-	return context.WithValue(ctx, scopeKey, scope)
-}
-
-// TokenScopeFromContext returns JWT scope claim when present.
-func TokenScopeFromContext(ctx context.Context) string {
-	scope, _ := ctx.Value(scopeKey).(string)
-	return scope
-}
-
-func BearerTokenFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(tokenKey).(string); ok && v != "" {
-		return v
-	}
+func bearerTokenFromMetadata(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
 	}
 	values := md.Get("authorization")
-	if len(values) == 0 {
+	if len(values) != 1 {
 		return ""
 	}
 	value := strings.TrimSpace(values[0])
 	if len(value) < 8 || !strings.EqualFold(value[:7], "bearer ") {
 		return ""
 	}
-	return strings.TrimSpace(value[7:])
-}
-
-func requireUserID(ctx context.Context) (string, error) {
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
-		return "", unauthorized()
-	}
-	return userID, nil
-}
-
-func editorRoomIDFromContext(ctx context.Context) string {
-	roomID, ok := jwt.EditorRoomID(TokenScopeFromContext(ctx))
-	if !ok {
+	token := strings.TrimSpace(value[7:])
+	if token == "" || strings.ContainsAny(token, " \t\r\n") {
 		return ""
 	}
-	return roomID
+	return token
+}
+
+func requirePrincipal(ctx context.Context) (Principal, error) {
+	principal, ok := principalFromContext(ctx)
+	if !ok {
+		return Principal{}, unauthorized()
+	}
+	return principal, nil
 }

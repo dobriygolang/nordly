@@ -1,22 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GoogleCalendarEvent } from '@features/calendar/model/calendar';
-import type { TaskCard } from '@features/tasks/api/tasks';
+import { ConferenceProvider, TaskKind, TaskStatus } from '@features/tasks/model/status';
+import type { TaskCard } from '@features/tasks/model/task';
 import { googleToCalendarEntries, linkedGoogleEventIds } from '../events';
 
 function task(partial: Partial<TaskCard> & Pick<TaskCard, 'id' | 'title'>): TaskCard {
   return {
-    status: 'todo',
-    kind: 'custom',
+    status: TaskStatus.Todo,
+    kind: TaskKind.Custom,
     createdAt: '2026-07-15T10:00:00+03:00',
     updatedAt: '2026-07-15T10:00:00+03:00',
     ...partial,
   };
 }
 
+function hourAfter(iso: string): string {
+  return new Date(new Date(iso).getTime() + 60 * 60 * 1000).toISOString();
+}
+
 function googleEvent(partial: Partial<GoogleCalendarEvent> & Pick<GoogleCalendarEvent, 'id' | 'title' | 'start'>): GoogleCalendarEvent {
   return {
-    end: partial.end ?? '2026-07-15T12:00:00+03:00',
+    end: partial.end ?? hourAfter(partial.start),
     allDay: false,
     calendarId: 'primary',
     htmlLink: 'https://calendar.google.com',
@@ -32,7 +37,7 @@ describe('googleToCalendarEntries Meet dedupe', () => {
         id: 't1',
         title: 'Boss review',
         googleEventId: 'g-1',
-        conferenceProvider: 'meet',
+        conferenceProvider: ConferenceProvider.Meet,
         conferenceUrl: 'https://meet.google.com/abc',
         scheduledStart: '2026-07-15T11:30:00+03:00',
         scheduledDurationMin: 30,
@@ -51,7 +56,7 @@ describe('googleToCalendarEntries Meet dedupe', () => {
       task({
         id: 't1',
         title: 'Boss review',
-        conferenceProvider: 'meet',
+        conferenceProvider: ConferenceProvider.Meet,
         conferenceUrl: 'https://meet.google.com/abc',
         scheduledStart: '2026-07-15T11:30:00+03:00',
         scheduledDurationMin: 30,
@@ -69,7 +74,7 @@ describe('googleToCalendarEntries Meet dedupe', () => {
       task({
         id: 't1',
         title: 'Boss review',
-        conferenceProvider: 'meet',
+        conferenceProvider: ConferenceProvider.Meet,
         conferenceUrl: 'https://meet.google.com/abc',
         scheduledStart: '2026-07-15T11:30:00+03:00',
         scheduledDurationMin: 30,

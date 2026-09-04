@@ -2,7 +2,11 @@ import { memo, useMemo, type HTMLAttributes } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
+import type { ConferenceProvider } from '@features/tasks/model/status';
+import type {
+  TaskCard,
+  TaskEpicSelection,
+} from '@features/tasks/model/task';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 

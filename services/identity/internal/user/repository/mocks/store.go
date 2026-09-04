@@ -199,65 +199,6 @@ func (_c *Store_GetByTelegramID_Call) RunAndReturn(run func(context.Context, int
 	return _c
 }
 
-// GetByUsername provides a mock function with given fields: ctx, username
-func (_m *Store) GetByUsername(ctx context.Context, username string) (*model.User, error) {
-	ret := _m.Called(ctx, username)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetByUsername")
-	}
-
-	var r0 *model.User
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*model.User, error)); ok {
-		return rf(ctx, username)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *model.User); ok {
-		r0 = rf(ctx, username)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*model.User)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, username)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Store_GetByUsername_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByUsername'
-type Store_GetByUsername_Call struct {
-	*mock.Call
-}
-
-// GetByUsername is a helper method to define mock.On call
-//   - ctx context.Context
-//   - username string
-func (_e *Store_Expecter) GetByUsername(ctx interface{}, username interface{}) *Store_GetByUsername_Call {
-	return &Store_GetByUsername_Call{Call: _e.mock.On("GetByUsername", ctx, username)}
-}
-
-func (_c *Store_GetByUsername_Call) Run(run func(ctx context.Context, username string)) *Store_GetByUsername_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *Store_GetByUsername_Call) Return(_a0 *model.User, _a1 error) *Store_GetByUsername_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *Store_GetByUsername_Call) RunAndReturn(run func(context.Context, string) (*model.User, error)) *Store_GetByUsername_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Update provides a mock function with given fields: ctx, user
 func (_m *Store) Update(ctx context.Context, user *model.User) (*model.User, error) {
 	ret := _m.Called(ctx, user)

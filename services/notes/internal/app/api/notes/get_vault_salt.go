@@ -15,5 +15,5 @@ func (i *Implementation) GetVaultSalt(ctx context.Context, _ *notesv1.GetVaultSa
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &notesv1.GetVaultSaltResponse{SaltB64: salt, Initialized: true}, nil
+	return &notesv1.GetVaultSaltResponse{SaltB64: salt}, nil
 }

@@ -3,13 +3,18 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useMemo, Fragment, type ReactNode } from 'react';
 import { useT } from '@nordly-i18n';
 
-import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
+import type { ConferenceProvider } from '@features/tasks/model/status';
+import type {
+  TaskCard,
+  TaskEpicSelection,
+} from '@features/tasks/model/task';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { SortableTaskRow } from '@features/tasks/components/SortableTaskRow';
 import { DayTaskInsertSlot } from '@features/tasks/components/DayTaskInsertSlot';
 import { resolveTasksForColumn, uniqueTaskIds } from '@features/tasks/lib/dayTaskDndUtils';
-import { formatDuration, sumDurationMin } from '@shared/lib/dates';
+import { sumTaskDurationMin } from '@features/tasks/model/duration';
+import { formatDuration } from '@shared/lib/dates';
 
 const COL_W = 270;
 
@@ -79,7 +84,7 @@ export function PlanningTaskColumn({
     () => resolveTasksForColumn(columnTaskIds, taskById),
     [columnTaskIds, taskById],
   );
-  const total = formatDuration(sumDurationMin(tasks));
+  const total = formatDuration(sumTaskDurationMin(tasks));
 
   const { setNodeRef } = useDroppable({ id: dayKey, disabled: noDrop });
 

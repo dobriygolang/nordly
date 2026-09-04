@@ -19,4 +19,11 @@ export const STORAGE_KEYS = {
   theme: 'nordly:theme',
   /** Last background update check + notified version. */
   updateCheck: 'nordly:update-check',
+  lastPage: 'nordly:lastPage:v1',
+  notesSidebarCollapsed: 'nordly:notes:sidebar-collapsed',
+  whiteboardSidebarCollapsed: 'nordly:whiteboard:sidebar-collapsed',
+  notesFoldersOpen: 'nordly:notes:folders-open',
+  notesEditorZoom: 'nordly:notes:editor-zoom',
+  taskRolloverDay: 'nordly:task-rollover-day',
+  devSession: 'nordly:dev-session:v1',
 } as const;

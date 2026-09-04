@@ -4,7 +4,7 @@ export function trySetPointerCapture(el: Element, pointerId: number): void {
     el.setPointerCapture(pointerId)
   } catch (err) {
     if (err instanceof DOMException && err.name === 'InvalidStateError') return
-    console.warn('[pointer] setPointerCapture failed', err)
+    throw err
   }
 }
 
@@ -13,6 +13,6 @@ export function tryReleasePointerCapture(el: Element, pointerId: number): void {
     el.releasePointerCapture(pointerId)
   } catch (err) {
     if (err instanceof DOMException && err.name === 'InvalidStateError') return
-    console.warn('[pointer] releasePointerCapture failed', err)
+    throw err
   }
 }

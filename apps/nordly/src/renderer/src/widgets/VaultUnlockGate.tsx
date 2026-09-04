@@ -207,7 +207,12 @@ export function VaultUnlockGate({ children }: VaultUnlockGateProps) {
   };
 
   if (state.kind === 'loading') {
-    return <>{children}</>;
+    return (
+      <GateShell>
+        <Eyebrow text={t('nordly.vault.cta.working')} />
+        <Headline text={t('nordly.app.loading')} />
+      </GateShell>
+    );
   }
   if (state.kind === 'unlocked') {
     return <>{children}</>;

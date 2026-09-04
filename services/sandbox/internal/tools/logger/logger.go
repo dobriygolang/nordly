@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -25,7 +27,7 @@ func New(level string) (Logger, error) {
 
 	lvl, err := zapcore.ParseLevel(level)
 	if err != nil {
-		lvl = zapcore.InfoLevel
+		return nil, fmt.Errorf("parse log level: %w", err)
 	}
 	cfg.Level = zap.NewAtomicLevelAt(lvl)
 

@@ -1,4 +1,5 @@
 import { requireUserId } from '@shared/db/nordlyDb';
+import { parseScheduleInstant } from '@shared/lib/dates';
 import {
   remoteEndFocusSession,
   remoteStartFocusSession,
@@ -12,20 +13,26 @@ import {
 } from '@shared/sync/outbox';
 import { SyncDeferredError } from '@shared/sync/errors';
 import { isSyncEnabled } from '@shared/sync/syncConfig';
-import type { OutboxEntry } from '@shared/sync/types';
+import { OutboxOp, SyncDomain, type OutboxEntry } from '@shared/sync/types';
+import { isTimerMode } from '@shared/model/settings';
 
 export async function pushFocusOutbox(entry: OutboxEntry): Promise<void> {
   const userId = requireUserId();
   const payload = entry.payload as Record<string, unknown>;
 
-  if (entry.op === 'session_start') {
-    const existingId = await getServerId('focus', entry.entityId, userId);
+  if (entry.op === OutboxOp.SessionStart) {
+    const existingId = await getServerId(SyncDomain.Focus, entry.entityId, userId);
     if (existingId) {
-      await removeOutboxForEntity('focus', entry.entityId, 'session_start', userId);
+      await removeOutboxForEntity(
+        SyncDomain.Focus,
+        entry.entityId,
+        OutboxOp.SessionStart,
+        userId,
+      );
       return;
     }
     const mode = payload.mode;
-    if (mode !== 'pomodoro' && mode !== 'stopwatch') {
+    if (!isTimerMode(mode)) {
       throw new Error(`Invalid focus start mode (${entry.id})`);
     }
     const session = await remoteStartFocusSession({
@@ -35,22 +42,32 @@ export async function pushFocusOutbox(entry: OutboxEntry): Promise<void> {
       clientSessionId: requirePayloadEntityId(payload, 'clientSessionId', entry),
       startedAt: requirePayloadTimestamp(payload, 'startedAt', entry.id),
     });
-    await setServerId('focus', entry.entityId, session.id, userId);
+    await setServerId(SyncDomain.Focus, entry.entityId, session.id, userId);
     const local = await focusStoreGet(entry.entityId, userId);
     if (local) {
       await focusStorePut({ ...local, synced: false });
     }
-    await removeOutboxForEntity('focus', entry.entityId, 'session_start', userId);
+    await removeOutboxForEntity(
+      SyncDomain.Focus,
+      entry.entityId,
+      OutboxOp.SessionStart,
+      userId,
+    );
     return;
   }
 
-  if (entry.op === 'session_end') {
+  if (entry.op === OutboxOp.SessionEnd) {
     const localBefore = await focusStoreGet(entry.entityId, userId);
     if (localBefore?.synced) {
-      await removeOutboxForEntity('focus', entry.entityId, 'session_end', userId);
+      await removeOutboxForEntity(
+        SyncDomain.Focus,
+        entry.entityId,
+        OutboxOp.SessionEnd,
+        userId,
+      );
       return;
     }
-    const serverId = await getServerId('focus', entry.entityId, userId);
+    const serverId = await getServerId(SyncDomain.Focus, entry.entityId, userId);
     if (!serverId) {
       throw new SyncDeferredError(`Focus session ${entry.entityId} not started on server yet`);
     }
@@ -64,7 +81,12 @@ export async function pushFocusOutbox(entry: OutboxEntry): Promise<void> {
     if (local) {
       await focusStorePut({ ...local, synced: true });
     }
-    await removeOutboxForEntity('focus', entry.entityId, 'session_end', userId);
+    await removeOutboxForEntity(
+      SyncDomain.Focus,
+      entry.entityId,
+      OutboxOp.SessionEnd,
+      userId,
+    );
   }
 }
 
@@ -110,7 +132,9 @@ function requirePayloadTimestamp(
   entryId: string,
 ): string {
   const value = requirePayloadString(payload, key, entryId);
-  if (!Number.isFinite(Date.parse(value))) {
+  try {
+    parseScheduleInstant(value);
+  } catch {
     throw new Error(`Invalid focus outbox payload: ${key} (${entryId})`);
   }
   return value;
@@ -128,27 +152,47 @@ export async function reconcileFocusOutbox(): Promise<number> {
   let added = 0;
 
   for (const session of unsynced) {
-    const serverId = await getServerId('focus', session.id, userId);
-    const hasStart = await hasOutboxForEntity('focus', session.id, 'session_start', userId);
-    const hasEnd = await hasOutboxForEntity('focus', session.id, 'session_end', userId);
+    const serverId = await getServerId(SyncDomain.Focus, session.id, userId);
+    const hasStart = await hasOutboxForEntity(
+      SyncDomain.Focus,
+      session.id,
+      OutboxOp.SessionStart,
+      userId,
+    );
+    const hasEnd = await hasOutboxForEntity(
+      SyncDomain.Focus,
+      session.id,
+      OutboxOp.SessionEnd,
+      userId,
+    );
 
     if (!serverId && !hasStart) {
-      const enqueued = await enqueueOutboxOnce('focus', 'session_start', session.id, {
-        planItemId: session.planItemId,
-        pinnedTitle: session.pinnedTitle,
-        mode: session.mode,
-        clientSessionId: session.id,
-        startedAt: session.startedAt,
-      });
+      const enqueued = await enqueueOutboxOnce(
+        SyncDomain.Focus,
+        OutboxOp.SessionStart,
+        session.id,
+        {
+          planItemId: session.planItemId,
+          pinnedTitle: session.pinnedTitle,
+          mode: session.mode,
+          clientSessionId: session.id,
+          startedAt: session.startedAt,
+        },
+      );
       if (enqueued) added++;
     }
 
-    if (!hasEnd) {
-      const enqueued = await enqueueOutboxOnce('focus', 'session_end', session.id, {
-        pomodorosCompleted: session.pomodorosCompleted,
-        secondsFocused: session.secondsFocused,
-        endedAt: session.endedAt,
-      });
+    if (session.endedAt && !hasEnd) {
+      const enqueued = await enqueueOutboxOnce(
+        SyncDomain.Focus,
+        OutboxOp.SessionEnd,
+        session.id,
+        {
+          pomodorosCompleted: session.pomodorosCompleted,
+          secondsFocused: session.secondsFocused,
+          endedAt: session.endedAt,
+        },
+      );
       if (enqueued) added++;
     }
   }

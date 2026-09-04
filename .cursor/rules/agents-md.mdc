@@ -16,7 +16,6 @@ Update the relevant docs when you change:
 - Env vars, ports, DB name
 - Background workers (poll interval, claimed events)
 - Outbox event names, producers, consumers
-- Billing entitlements or consume/release semantics
 - Adapter dependencies (service A → service B)
 - Directory layout or CQRS usecase packages
 

@@ -1,4 +1,12 @@
-import { dbGet, dbGetAllByUser, dbPut, entityKey, requireUserId } from '@shared/db/nordlyDb';
+import {
+  dbGet,
+  dbGetAllByUser,
+  dbPut,
+  dbPutMany,
+  entityKey,
+  requireUserId,
+} from '@shared/db/nordlyDb';
+import type { FocusTimerMode } from '@shared/model/pomodoro';
 
 export interface StoredFocusSession {
   userId: string;
@@ -10,7 +18,7 @@ export interface StoredFocusSession {
   endedAt: string | null;
   pomodorosCompleted: number;
   secondsFocused: number;
-  mode: string;
+  mode: FocusTimerMode;
   synced?: boolean;
 }
 
@@ -19,6 +27,29 @@ function rowFrom(
   partial: Omit<StoredFocusSession, 'key' | 'userId'>,
 ): StoredFocusSession {
   return { ...partial, userId, key: entityKey(partial.id, userId) };
+}
+
+export function sameFocusSessions(a: StoredFocusSession[], b: StoredFocusSession[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (
+      left.id !== right.id ||
+      left.planItemId !== right.planItemId ||
+      left.pinnedTitle !== right.pinnedTitle ||
+      left.startedAt !== right.startedAt ||
+      left.endedAt !== right.endedAt ||
+      left.secondsFocused !== right.secondsFocused ||
+      left.pomodorosCompleted !== right.pomodorosCompleted ||
+      left.mode !== right.mode ||
+      left.synced !== right.synced
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export async function focusStorePut(session: StoredFocusSession): Promise<void> {
@@ -39,9 +70,10 @@ export async function focusStoreBulkImport(
   userId: string,
   records: Record<string, Omit<StoredFocusSession, 'key' | 'userId'>>,
 ): Promise<void> {
-  for (const s of Object.values(records)) {
-    await dbPut('focus_sessions', rowFrom(userId, s));
-  }
+  await dbPutMany(
+    'focus_sessions',
+    Object.values(records).map((session) => rowFrom(userId, session)),
+  );
 }
 
 export async function focusStoreUnsynced(userId?: string): Promise<StoredFocusSession[]> {

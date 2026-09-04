@@ -3,6 +3,7 @@ package notesapi
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/dobriygolang/project-nordly/services/notes/internal/tools/humanerror"
 	notesv1 "github.com/dobriygolang/project-nordly/services/notes/pkg/api/notes/v1"
@@ -13,6 +14,7 @@ import (
 
 func newGatewayMux(ctx context.Context, endpoint string) (http.Handler, error) {
 	mux := runtime.NewServeMux(
+		runtime.WithIncomingHeaderMatcher(incomingHeaderMatcher),
 		runtime.WithErrorHandler(func(
 			ctx context.Context,
 			_ *runtime.ServeMux,
@@ -31,6 +33,13 @@ func newGatewayMux(ctx context.Context, endpoint string) (http.Handler, error) {
 	}
 
 	return mux, nil
+}
+
+func incomingHeaderMatcher(key string) (string, bool) {
+	if strings.EqualFold(key, "X-Forwarded-For") {
+		return "x-forwarded-for", true
+	}
+	return runtime.DefaultHeaderMatcher(key)
 }
 
 // RegisterGateway mounts generated grpc-gateway handlers via local gRPC endpoint.

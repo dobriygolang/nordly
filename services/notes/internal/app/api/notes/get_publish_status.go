@@ -20,11 +20,15 @@ func (i *Implementation) GetPublishStatus(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	accessMode, err := toProtoPublishAccessMode(st.AccessMode)
+	if err != nil {
+		return nil, err
+	}
 	out := &notesv1.GetPublishStatusResponse{
-		Published:         st.Published,
-		Slug:              st.Slug,
-		Url:               st.URL,
-		PasswordProtected: st.PasswordProtected,
+		Published:  st.Published,
+		Slug:       st.Slug,
+		Url:        st.URL,
+		AccessMode: accessMode,
 	}
 	if st.PublishedAt != nil {
 		out.PublishedAt = timestamppb.New(*st.PublishedAt)

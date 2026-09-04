@@ -5,8 +5,7 @@ import { useT } from '@nordly-i18n';
 import { zIndex } from '@shared/lib/z-index';
 import { formatDurationShort } from '@shared/lib/dates';
 import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
-
-export const DURATION_PRESETS_MIN = [15, 20, 30, 45, 60, 120, 180, 240, 360, 480] as const;
+import { TASK_DURATION_PRESETS_MIN } from '@features/tasks/model/duration';
 
 interface DurationPickerProps {
   valueMin: number;
@@ -84,7 +83,7 @@ export function DurationPicker({
             zIndex: zIndex.dropdown,
           }}
         >
-          {DURATION_PRESETS_MIN.map((min) => {
+          {TASK_DURATION_PRESETS_MIN.map((min) => {
             const active = min === valueMin;
             return (
               <button

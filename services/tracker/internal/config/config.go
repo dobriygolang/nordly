@@ -15,7 +15,6 @@ type Config struct {
 	GRPCHost           string
 	PostgresDSN        string
 	JWTPublicKeyPEM    []byte
-	InternalAPIToken   string
 	CORSAllowedOrigins []string
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -41,10 +40,6 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
-	internalToken := os.Getenv("INTERNAL_API_TOKEN")
-	if internalToken == "" {
-		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
-	}
 	tokenKey := os.Getenv("TOKEN_ENCRYPTION_KEY")
 	if tokenKey == "" {
 		return nil, fmt.Errorf("TOKEN_ENCRYPTION_KEY is required")
@@ -62,7 +57,6 @@ func Load() (*Config, error) {
 		GRPCHost:           grpcListenHost(),
 		PostgresDSN:        getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5441/nordly_tracker?sslmode=disable"),
 		JWTPublicKeyPEM:    publicKey,
-		InternalAPIToken:   internalToken,
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURI:  os.Getenv("GOOGLE_REDIRECT_URI"),

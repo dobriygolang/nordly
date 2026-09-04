@@ -22,10 +22,11 @@ type Client struct {
 	config *oauth2.Config
 }
 
-// NewClient builds a Google OAuth client. Returns nil when not configured.
+// NewClient builds a Google OAuth client. The client remains wired when the
+// optional integration is not configured; Configured reports availability.
 func NewClient(clientID, clientSecret, redirectURI string) *Client {
 	if clientID == "" || clientSecret == "" || redirectURI == "" {
-		return nil
+		return &Client{}
 	}
 	return &Client{
 		config: &oauth2.Config{

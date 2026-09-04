@@ -1,7 +1,16 @@
 import type { AppleCalendarEvent } from '@features/calendar/api/appleCalendarClient';
-import type { GoogleCalendarEvent } from '@features/calendar/model/calendar';
-import type { TaskCard } from '@features/tasks/api/tasks';
+import {
+  googleEventDisplayDate,
+  type GoogleCalendarEvent,
+} from '@features/calendar/model/calendar';
 import { displayTaskTitle } from '@features/tasks/api/tasks';
+import {
+  ConferenceProvider,
+  isTaskDone,
+  isVisibleTaskStatus,
+} from '@features/tasks/model/status';
+import type { TaskCard } from '@features/tasks/model/task';
+import { TASK_DURATION_DEFAULT, taskDurationMin } from '@features/tasks/model/duration';
 import { translate, type Locale } from '@nordly-i18n';
 import {
   formatLocaleDate,
@@ -13,15 +22,17 @@ import {
 import {
   addDays,
   buildDefaultScheduleDate,
-  defaultDurationMin,
   parseDayKey,
+  parseScheduleInstant,
   resolveScheduleStart,
   taskDayKey,
   taskScheduleStart,
   toDayKey,
 } from '@shared/lib/dates';
 
-export type CalendarEntrySource = 'task' | 'google' | 'apple';
+import { CalendarEntrySource } from '../model/entry';
+
+export { CalendarEntrySource };
 
 export interface CalendarEntry {
   id: string;
@@ -104,8 +115,6 @@ export function clampScheduleToDayGrid(dayKey: string, when: Date, now = new Dat
   return buildDefaultScheduleDate(parseDayKey(dayKey), now);
 }
 
-const VISIBLE_TASK_STATUSES = new Set(['todo', 'in_progress', 'in_review', 'done']);
-
 export function startOfWeekMonday(d: Date, locale?: Locale): Date {
   return startOfLocaleWeek(d, locale);
 }
@@ -116,18 +125,16 @@ export interface WeekDay {
 }
 
 export function buildWeekDays(weekStart: Date): WeekDay[] {
+  const start = parseDayKey(toDayKey(weekStart));
   return Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(weekStart);
-    date.setDate(weekStart.getDate() + i);
+    const date = addDays(start, i);
     return { dayKey: toDayKey(date), date };
   });
 }
 
 export function weekRange(weekStart: Date): { start: Date; end: Date } {
-  const start = new Date(weekStart);
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 7);
-  return { start, end };
+  const start = parseDayKey(toDayKey(weekStart));
+  return { start, end: addDays(start, 7) };
 }
 
 export function yearRange(year: number): { start: Date; end: Date } {
@@ -135,10 +142,10 @@ export function yearRange(year: number): { start: Date; end: Date } {
 }
 
 function taskEntry(task: TaskCard, start: Date): CalendarEntry {
-  const mins = defaultDurationMin(task);
+  const mins = taskDurationMin(task);
   return {
     id: `task:${task.id}`,
-    source: 'task',
+    source: CalendarEntrySource.Task,
     title: displayTaskTitle(task.title, task.id),
     start,
     end: new Date(start.getTime() + mins * 60_000),
@@ -148,6 +155,7 @@ function taskEntry(task: TaskCard, start: Date): CalendarEntry {
     epicId: task.epicId,
     epicColor: task.epicColor,
     googleEventId: task.googleEventId,
+    googleCalendarId: task.googleCalendarId,
     conferenceUrl: task.conferenceUrl,
     conferenceProvider: task.conferenceProvider,
   };
@@ -168,14 +176,14 @@ export function tasksPlannedForDay(
   const todayKey = toDayKey(now);
   const day = parseDayKey(dayKey);
   const dayTasks = tasks.filter((task) => {
-    if (!VISIBLE_TASK_STATUSES.has(task.status)) return false;
+    if (!isVisibleTaskStatus(task.status)) return false;
     const key = task.scheduledStart ? taskDayKey(task) : todayKey;
     return key === dayKey;
   });
 
   const sorted = [...dayTasks].sort((a, b) => {
-    const aDone = a.status === 'done' ? 1 : 0;
-    const bDone = b.status === 'done' ? 1 : 0;
+    const aDone = isTaskDone(a.status) ? 1 : 0;
+    const bDone = isTaskDone(b.status) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
     const aStart = taskScheduleStart(a)?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const bStart = taskScheduleStart(b)?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -190,7 +198,7 @@ export function tasksPlannedForDay(
       scheduled && toDayKey(scheduled) === dayKey
         ? scheduled
         : resolveScheduleStart(dayKey, sorted, preferred, task.id);
-    const mins = defaultDurationMin(task);
+    const mins = taskDurationMin(task);
     out.push({
       task,
       start,
@@ -228,7 +236,7 @@ export function tasksPlannedForDayGrid(
 
 export function tasksToCalendarEntries(tasks: TaskCard[], now = new Date()): CalendarEntry[] {
   const todayKey = toDayKey(now);
-  const visible = tasks.filter((task) => VISIBLE_TASK_STATUSES.has(task.status));
+  const visible = tasks.filter((task) => isVisibleTaskStatus(task.status));
   const dayKeys = new Set<string>();
   for (const task of visible) {
     dayKeys.add(task.scheduledStart ? taskDayKey(task) : todayKey);
@@ -250,14 +258,14 @@ export function googleToCalendarEntries(
   const out: CalendarEntry[] = [];
   for (const ev of events) {
     if (shouldHideGoogleEvent(ev, linkedGoogleIds, tasks)) continue;
-    const start = new Date(ev.start);
-    if (Number.isNaN(start.getTime())) continue;
-    if (!ev.end) continue;
-    const end = new Date(ev.end);
-    if (Number.isNaN(end.getTime())) continue;
+    const start = googleEventDate(ev.start, ev.allDay, ev.id, 'start');
+    const end = googleEventDate(ev.end, ev.allDay, ev.id, 'end');
+    if (end <= start) {
+      throw new Error(`Invalid Google Calendar event range: ${ev.id}`);
+    }
     out.push({
       id: `google:${ev.id}`,
-      source: 'google',
+      source: CalendarEntrySource.Google,
       title: ev.title,
       start,
       end,
@@ -269,6 +277,19 @@ export function googleToCalendarEntries(
     });
   }
   return out;
+}
+
+function googleEventDate(
+  value: string,
+  allDay: boolean,
+  eventId: string,
+  field: 'start' | 'end',
+): Date {
+  try {
+    return googleEventDisplayDate(value, allDay);
+  } catch {
+    throw new Error(`Invalid Google Calendar event ${field}: ${eventId}`);
+  }
 }
 
 export function linkedGoogleEventIds(tasks: TaskCard[]): Set<string> {
@@ -286,7 +307,12 @@ function shouldHideGoogleEvent(
   if (Number.isNaN(evStart)) return false;
   const evTitle = normalizeMeetingTitle(ev.title);
   for (const task of tasks) {
-    if (task.conferenceProvider !== 'meet' || !task.conferenceUrl?.trim()) continue;
+    if (
+      task.conferenceProvider !== ConferenceProvider.Meet ||
+      !task.conferenceUrl?.trim()
+    ) {
+      continue;
+    }
     if (task.googleEventId === ev.id) return true;
     const start = taskScheduleStart(task);
     if (!start) continue;
@@ -303,14 +329,14 @@ function normalizeMeetingTitle(title: string): string {
 export function appleToCalendarEntries(events: AppleCalendarEvent[]): CalendarEntry[] {
   const out: CalendarEntry[] = [];
   for (const ev of events) {
-    const start = new Date(ev.start);
-    if (Number.isNaN(start.getTime())) continue;
-    if (!ev.end) continue;
-    const end = new Date(ev.end);
-    if (Number.isNaN(end.getTime())) continue;
+    const start = parseScheduleInstant(ev.start);
+    const end = parseScheduleInstant(ev.end);
+    if (end <= start) {
+      throw new Error(`Invalid Apple Calendar event range: ${ev.id}`);
+    }
     out.push({
       id: `apple:${ev.id}`,
-      source: 'apple',
+      source: CalendarEntrySource.Apple,
       title: ev.title,
       start,
       end,
@@ -334,8 +360,15 @@ export function upcomingHomeMeetings(
   return entries
     .filter((entry) => {
       if (entry.allDay || entry.end.getTime() <= nowMs) return false;
-      if (entry.source === 'google' || entry.source === 'apple') return true;
-      return entry.source === 'task' && Boolean(entry.conferenceUrl?.trim());
+      if (
+        entry.source === CalendarEntrySource.Google ||
+        entry.source === CalendarEntrySource.Apple
+      ) {
+        return true;
+      }
+      return (
+        entry.source === CalendarEntrySource.Task && Boolean(entry.conferenceUrl?.trim())
+      );
     })
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 }
@@ -355,15 +388,30 @@ export function mergeCalendarEntries(
   );
 }
 
+/** Local midnight bounds for a day; calendar arithmetic keeps DST days at 23/25 hours. */
+export function localDayRange(dayKey: string): { start: number; end: number } {
+  const start = parseDayKey(dayKey);
+  return { start: start.getTime(), end: addDays(start, 1).getTime() };
+}
+
 export function entriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {
-  return entries.filter((e) => toDayKey(e.start) === dayKey);
+  const { start, end } = localDayRange(dayKey);
+  return entries.filter((entry) => entry.start.getTime() < end && entry.end.getTime() > start);
+}
+
+export function hasYearBusyEntry(entries: CalendarEntry[], dayKey: string): boolean {
+  return entriesForDay(entries, dayKey).some(
+    (entry) =>
+      entry.source === CalendarEntrySource.Task ||
+      entry.source === CalendarEntrySource.Google ||
+      entry.source === CalendarEntrySource.Apple,
+  );
 }
 
 /** Whether an all-day entry occupies a given calendar day (supports multi-day spans). */
 export function allDayEntryOnDay(entry: CalendarEntry, dayKey: string): boolean {
   if (!entry.allDay) return false;
-  const dayStart = parseDayKey(dayKey).getTime();
-  const dayEnd = dayStart + 86_400_000;
+  const { start: dayStart, end: dayEnd } = localDayRange(dayKey);
   const evStart = parseDayKey(toDayKey(entry.start)).getTime();
   const evEnd = entry.end.getTime();
   return evStart < dayEnd && evEnd > dayStart;
@@ -373,27 +421,46 @@ export function allDayEntriesForDay(entries: CalendarEntry[], dayKey: string): C
   return entries.filter((e) => allDayEntryOnDay(e, dayKey));
 }
 
+function timedEntryIntersectsDayGrid(
+  entry: CalendarEntry,
+  dayKey: string,
+): boolean {
+  const gridStart = dateFromGridMinutes(
+    dayKey,
+    CALENDAR_GRID_START_HOUR * 60,
+  ).getTime();
+  const gridEnd = dateFromGridMinutes(
+    dayKey,
+    CALENDAR_GRID_END_HOUR * 60,
+  ).getTime();
+  return entry.start.getTime() < gridEnd && entry.end.getTime() > gridStart;
+}
+
 export function timedEntriesForDay(entries: CalendarEntry[], dayKey: string): CalendarEntry[] {
-  return entries.filter((e) => !e.allDay && isTimedOnDayGrid(e.start, dayKey));
+  return entries.filter(
+    (entry) => !entry.allDay && timedEntryIntersectsDayGrid(entry, dayKey),
+  );
 }
 
 export function entriesForWeek(entries: CalendarEntry[], weekStart: Date): CalendarEntry[] {
   const days = buildWeekDays(weekStart);
-  const keys = new Set(days.map((d) => d.dayKey));
   const weekStartMs = parseDayKey(days[0].dayKey).getTime();
-  const weekEndMs = parseDayKey(days[6].dayKey).getTime() + 86_400_000;
+  const weekEndMs = addDays(parseDayKey(days[6].dayKey), 1).getTime();
 
   return entries.filter((e) => {
     if (e.allDay) {
       const evStart = parseDayKey(toDayKey(e.start)).getTime();
       return evStart < weekEndMs && e.end.getTime() > weekStartMs;
     }
-    return keys.has(toDayKey(e.start));
+    return days.some(({ dayKey }) => timedEntryIntersectsDayGrid(e, dayKey));
   });
 }
 
 export function entriesForYear(entries: CalendarEntry[], year: number): CalendarEntry[] {
-  return entries.filter((e) => e.start.getFullYear() === year);
+  const { start, end } = yearRange(year);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return entries.filter((entry) => entry.start.getTime() < endMs && entry.end.getTime() > startMs);
 }
 
 export function eventBlockLayout(
@@ -406,17 +473,24 @@ export function eventBlockLayout(
   if (entry.allDay) return null;
 
   const dayKey = gridDayKey ?? toDayKey(entry.start);
-  const startKey = toDayKey(entry.start);
-  const startMin = gridMinutesFromDate(dayKey, entry.start);
+  const gridStart = dateFromGridMinutes(dayKey, gridStartHour * 60);
+  const gridEnd = dateFromGridMinutes(dayKey, gridEndHour * 60);
+  if (entry.start >= gridEnd || entry.end <= gridStart) return null;
+
+  const clippedStart = entry.start < gridStart ? gridStart : entry.start;
+  const clippedEnd = entry.end > gridEnd ? gridEnd : entry.end;
+  const startMin = gridMinutesFromDate(dayKey, clippedStart);
   if (startMin == null) return null;
   const startH = startMin / 60;
 
   let endH: number;
-  const endMin = gridMinutesFromDate(dayKey, entry.end);
+  const endMin = gridMinutesFromDate(dayKey, clippedEnd);
   if (endMin != null && endMin > startMin) {
     endH = endMin / 60;
   } else {
-    endH = startH + Math.max(0.5, (entry.end.getTime() - entry.start.getTime()) / 3_600_000);
+    endH =
+      startH +
+      Math.max(0.5, (clippedEnd.getTime() - clippedStart.getTime()) / 3_600_000);
   }
 
   const gridSpan = gridEndHour - gridStartHour;
@@ -429,12 +503,7 @@ export function eventBlockLayout(
     height += top;
     top = 0;
   }
-  // Never drop a same-day block that starts before the grid — keep a stub at the top
-  // so moved overnight (01:00) tasks stay visible until the user reschedules.
   if (height <= 0) {
-    if (startKey === dayKey && startMin < gridStartHour * 60) {
-      return { top: 0, height: 12 };
-    }
     return null;
   }
   if (top >= maxTop) {
@@ -474,7 +543,7 @@ export function calendarColumnStyle(
 function entryTimeRangeMs(entry: CalendarEntry): { start: number; end: number } {
   const start = entry.start.getTime();
   let end = entry.end.getTime();
-  if (end <= start) end = start + 30 * 60_000;
+  if (end <= start) end = start + TASK_DURATION_DEFAULT * 60_000;
   return { start, end };
 }
 

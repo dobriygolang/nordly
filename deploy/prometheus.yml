@@ -11,11 +11,6 @@ scrape_configs:
       - targets: ["identity:8080"]
     metrics_path: /metrics
 
-  - job_name: billing
-    static_configs:
-      - targets: ["billing:8085"]
-    metrics_path: /metrics
-
   - job_name: sandbox
     static_configs:
       - targets: ["sandbox:8086"]

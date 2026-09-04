@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,12 +17,15 @@ type ExpiredRoomStore interface {
 }
 
 // Run periodically deletes rooms whose expires_at has passed and closes live sessions.
-func Run(ctx context.Context, repo ExpiredRoomStore, hub *ws.Hub, interval time.Duration, log logger.Logger) {
+func Run(ctx context.Context, repo ExpiredRoomStore, hub *ws.Hub, interval time.Duration, log logger.Logger) error {
 	if interval <= 0 {
-		panic("room archive interval must be > 0 (set ROOM_ARCHIVE_INTERVAL)")
+		return fmt.Errorf("room archive interval must be > 0 (set ROOM_ARCHIVE_INTERVAL)")
 	}
 	if hub == nil {
-		panic("room archive: hub is required")
+		return fmt.Errorf("room archive: hub is required")
+	}
+	if repo == nil {
+		return fmt.Errorf("room archive: repo is required")
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -29,7 +33,7 @@ func Run(ctx context.Context, repo ExpiredRoomStore, hub *ws.Hub, interval time.
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-ticker.C:
 			ids, err := repo.DeleteExpired(ctx)
 			if err != nil {
@@ -40,7 +44,6 @@ func Run(ctx context.Context, repo ExpiredRoomStore, hub *ws.Hub, interval time.
 				continue
 			}
 			for _, id := range ids {
-				hub.BroadcastRoomClosed(id)
 				hub.CloseRoom(id)
 			}
 			log.Info("deleted expired rooms", "count", len(ids))

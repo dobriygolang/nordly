@@ -4,22 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	billinggrpc "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing/grpc"
+	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/config"
 	sandboxrepo "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/repository"
 	sandboxservice "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/service"
-	"github.com/dobriygolang/project-nordly/services/sandbox/internal/config"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/logger"
-	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
 
 type App struct {
-	Config      *config.Config
-	Logger      logger.Logger
-	Postgres    *sandboxrepo.Pool
-	JWT         *jwt.Validator
-	BillingConn *billinggrpc.Client
-	Service     sandboxservice.Service
+	Config   *config.Config
+	Logger   logger.Logger
+	Postgres *sandboxrepo.Pool
+	JWT      *jwt.Validator
+	Service  sandboxservice.Service
+	Warmup   *runner.Warmup
 }
 
 func New(ctx context.Context) (*App, error) {
@@ -32,6 +31,12 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
+	ready := false
+	defer func() {
+		if !ready {
+			_ = log.Sync()
+		}
+	}()
 
 	jwtValidator, err := jwt.NewValidator(cfg.JWTPublicKeyPEM)
 	if err != nil {
@@ -48,49 +53,66 @@ func New(ctx context.Context) (*App, error) {
 		pg.Close()
 		return nil, fmt.Errorf("init runner: %w", err)
 	}
-	if cfg.RunnerMode == "docker" {
+	repo, err := sandboxrepo.New(pg)
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init sandbox repository: %w", err)
+	}
+	svc, err := sandboxservice.New(sandboxservice.Deps{
+		Repo:                  repo,
+		Runner:                codeRunner,
+		TimeoutMS:             cfg.DefaultTimeoutMS,
+		MemoryMB:              cfg.DefaultMemoryMB,
+		MaxOutputBytes:        cfg.MaxOutputBytes,
+		LeaseDuration:         cfg.QueueLease,
+		MaxCodeBytes:          cfg.MaxCodeBytes,
+		MaxStdinBytes:         cfg.MaxStdinBytes,
+		MaxConcurrentUser:     cfg.MaxConcurrentUser,
+		MaxConcurrentRoom:     cfg.MaxConcurrentRoom,
+		UserRequestsPerMinute: cfg.UserRequestsPerMinute,
+		RoomRequestsPerMinute: cfg.RoomRequestsPerMinute,
+		AsyncRuns:             cfg.AsyncRuns,
+	})
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init sandbox service: %w", err)
+	}
+
+	var warmup *runner.Warmup
+	if cfg.RunnerMode == config.RunnerModeDocker {
 		dockerRunner, ok := codeRunner.(*runner.DockerRunner)
-		if ok {
-			runner.WarmGoCompiler(ctx, log, dockerRunner)
+		if !ok {
+			pg.Close()
+			return nil, fmt.Errorf("init Docker warmup: runner mode returned %T", codeRunner)
 		}
-		runner.WarmDockerImages(ctx, log,
+		warmup, err = runner.StartDockerWarmup(
+			ctx,
+			log,
+			dockerRunner,
 			cfg.DockerGoImage,
 			cfg.DockerPythonImage,
 			cfg.DockerNodeImage,
 		)
+		if err != nil {
+			pg.Close()
+			return nil, fmt.Errorf("init Docker warmup: %w", err)
+		}
 	}
 
-	billingConn, err := billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
-	if err != nil {
-		pg.Close()
-		return nil, fmt.Errorf("init billing client: %w", err)
-	}
-
-	repo := sandboxrepo.New(pg)
-	svc := sandboxservice.New(sandboxservice.Deps{
-		Repo:          repo,
-		Billing:       billingConn,
-		Runner:        codeRunner,
-		TimeoutMS:     cfg.DefaultTimeoutMS,
-		MemoryMB:      cfg.DefaultMemoryMB,
-		MaxCodeBytes:  cfg.MaxCodeBytes,
-		MaxStdinBytes: cfg.MaxStdinBytes,
-		AsyncRuns:     cfg.AsyncRuns,
-	})
-
+	ready = true
 	return &App{
-		Config:      cfg,
-		Logger:      log,
-		Postgres:    pg,
-		JWT:         jwtValidator,
-		BillingConn: billingConn,
-		Service:     svc,
+		Config:   cfg,
+		Logger:   log,
+		Postgres: pg,
+		JWT:      jwtValidator,
+		Service:  svc,
+		Warmup:   warmup,
 	}, nil
 }
 
 func (a *App) Close() {
-	if a.BillingConn != nil {
-		_ = a.BillingConn.Close()
+	if a.Warmup != nil {
+		a.Warmup.Close()
 	}
 	if a.Postgres != nil {
 		a.Postgres.Close()

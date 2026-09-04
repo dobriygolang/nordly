@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { PageId } from '@shared/model/navigation';
+
 import {
   PAGE_STORAGE_KEY,
   readStoredPage,
@@ -8,16 +10,16 @@ import {
 
 describe('readStoredPage', () => {
   it('uses home when navigation has not been stored', () => {
-    expect(readStoredPage()).toBe('home');
-    expect(readStoredPage({ getItem: () => null, setItem: () => undefined })).toBe('home');
+    expect(readStoredPage()).toBe(PageId.Home);
+    expect(readStoredPage({ getItem: () => null, setItem: () => undefined })).toBe(PageId.Home);
   });
 
   it('returns a valid stored page and rejects corrupted state', () => {
     const storage = {
-      getItem: (key: string) => (key === PAGE_STORAGE_KEY ? 'notes' : null),
+      getItem: (key: string) => (key === PAGE_STORAGE_KEY ? PageId.Notes : null),
       setItem: () => undefined,
     };
-    expect(readStoredPage(storage)).toBe('notes');
+    expect(readStoredPage(storage)).toBe(PageId.Notes);
     expect(() =>
       readStoredPage({ ...storage, getItem: () => 'stats' }),
     ).toThrow('Invalid stored page: stats');
@@ -32,16 +34,22 @@ describe('readStoredPage', () => {
         },
         setItem: () => undefined,
       }),
-    ).toBe('home');
+    ).toBe(PageId.Home);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
 });
 
 describe('shouldFlushBeforeNavigation', () => {
-  it('only gates transitions that leave notes', () => {
-    expect(shouldFlushBeforeNavigation('notes', 'today')).toBe(true);
-    expect(shouldFlushBeforeNavigation('notes', 'notes')).toBe(false);
-    expect(shouldFlushBeforeNavigation('home', 'settings')).toBe(false);
+  it('gates transitions that leave notes or whiteboard', () => {
+    expect(shouldFlushBeforeNavigation(PageId.Notes, PageId.Today)).toBe(true);
+    expect(shouldFlushBeforeNavigation(PageId.Notes, PageId.Notes)).toBe(false);
+    expect(shouldFlushBeforeNavigation(PageId.Whiteboard, PageId.Home)).toBe(true);
+    expect(shouldFlushBeforeNavigation(PageId.Whiteboard, PageId.Whiteboard)).toBe(false);
+    expect(shouldFlushBeforeNavigation(PageId.Calendar, PageId.Home)).toBe(true);
+    expect(shouldFlushBeforeNavigation(PageId.Calendar, PageId.Calendar)).toBe(false);
+    expect(shouldFlushBeforeNavigation(PageId.Planning, PageId.Home)).toBe(true);
+    expect(shouldFlushBeforeNavigation(PageId.Planning, PageId.Planning)).toBe(false);
+    expect(shouldFlushBeforeNavigation(PageId.Home, PageId.Settings)).toBe(false);
   });
 });

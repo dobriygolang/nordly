@@ -5,23 +5,61 @@ import {
   tasksStoreGet,
   tasksStoreList,
   tasksStorePut,
+  tasksStorePutMany,
   tasksStoreSoftDelete,
 } from '@features/tasks/repository/tasksStore';
 import { isTaskEpicColor, findEpicByColor, normalizeHex } from '@features/tasks/lib/epicColor';
 import { epicsStoreList } from '@features/tasks/repository/epicsStore';
 import { isOfflineEpicId } from '@features/tasks/api/epics';
+import {
+  TaskActionError,
+  TaskActionErrorCode,
+} from '@features/tasks/lib/taskActionErrors';
 import { remoteCreateTaskConference } from '@features/tasks/remote/tasksRemote';
 import { getServerId } from '@shared/sync/idMap';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
+import {
+  OutboxOp,
+  SyncDomain,
+  type SyncOp,
+  type SyncPayload,
+} from '@shared/sync/types';
 import { flushSync, scheduleSync } from '@shared/sync/SyncEngine';
 import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 import { isCloudEnabled } from '@shared/model/features';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { scheduleStartISO } from '@shared/lib/dates';
+import { clampTaskDurationMin } from '../model/duration';
+import { ConferenceProvider, isTaskDone, TaskKind, TaskStatus } from '../model/status';
+import type { TaskCard, TaskEpicSelection } from '../model/task';
 
-export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'dismissed';
-export type TaskKind = 'algo' | 'sysdesign' | 'quiz' | 'reflection' | 'reading' | 'ml' | 'custom';
-export type ConferenceProvider = 'meet' | 'zoom';
+export type { TaskCard, TaskEpicSelection } from '../model/task';
+
+export {
+  ConferenceProvider,
+  CONFERENCE_PROVIDERS,
+  TaskKind,
+  TASK_KINDS,
+  TaskStatus,
+  TASK_STATUSES,
+  isConferenceProvider,
+  isTaskKind,
+  isTaskStatus,
+  isVisibleTaskStatus,
+  isActiveForReminder,
+  isTaskDone,
+  nextTaskCompletionStatus,
+  VISIBLE_TASK_STATUSES,
+} from '../model/status';
+export {
+  TASK_DURATION_DEFAULT,
+  TASK_DURATION_MAX,
+  TASK_DURATION_MIN,
+  TASK_DURATION_PRESETS_MIN,
+  clampTaskDurationMin,
+  sumTaskDurationMin,
+  taskDurationMin,
+} from '../model/duration';
 
 /** UI label when a task somehow has an empty title — logs so corruption stays visible. */
 export function displayTaskTitle(title: string, taskId?: string, fallback?: string): string {
@@ -31,35 +69,15 @@ export function displayTaskTitle(title: string, taskId?: string, fallback?: stri
   return fallback ?? translate('nordly.taskboard.untitled');
 }
 
-export type TaskEpicSelection = { epicId: string } | { color: string } | null;
-
-export interface TaskCard {
-  id: string;
-  status: TaskStatus;
-  kind: TaskKind;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-  scheduledStart?: string;
-  scheduledDurationMin?: number;
-  googleEventId?: string;
-  /** Synced epic id from tracker. */
-  epicId?: string;
-  /** Local tint persisted on existing rows; new assignments require a synced `epicId`. */
-  epicColor?: string;
-  conferenceUrl?: string;
-  conferenceProvider?: ConferenceProvider;
-  /** Zoom meeting id when conferenceProvider is zoom (device-created). */
-  zoomMeetingId?: string;
-  /** Manual order within a day column. Undefined → derived from schedule/createdAt. */
-  order?: number;
+function taskMutationSucceeded<T>(result: T): T {
+  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  return result;
 }
 
 async function resolveTask(id: string): Promise<TaskCard | null> {
   const direct = await tasksStoreGet(id);
   if (direct) return direct;
-  const serverId = await getServerId('tasks', id);
+  const serverId = await getServerId(SyncDomain.Tasks, id);
   if (serverId && serverId !== id) return tasksStoreGet(serverId);
   return null;
 }
@@ -68,38 +86,74 @@ export async function listTasks(): Promise<TaskCard[]> {
   return tasksStoreList();
 }
 
-export async function createTask(input: { title: string; kind: TaskKind }): Promise<TaskCard> {
+export async function createTask(input: { title: string }): Promise<TaskCard> {
   const title = input.title.trim();
   if (!title) throw new Error('Task title is required');
-  if (!input.kind) throw new Error('Task kind is required');
   const now = new Date().toISOString();
   const task: TaskCard = {
     id: crypto.randomUUID(),
-    status: 'todo',
-    kind: input.kind,
+    status: TaskStatus.Todo,
+    kind: TaskKind.Custom,
     title,
     createdAt: now,
     updatedAt: now,
   };
   await tasksStorePut(task);
   if (isSyncQueueEnabled()) {
-    await enqueueOutbox('tasks', 'create', task.id, {
+    await enqueueOutbox(SyncDomain.Tasks, OutboxOp.Create, task.id, {
       title: task.title,
       kind: task.kind,
     });
     scheduleSync();
   }
-  return task;
+  return taskMutationSucceeded(task);
 }
 
-async function enqueueTaskOutbox(
+export async function createScheduledTask(input: {
+  title: string;
+  start: Date | string;
+  durationMin: number;
+}): Promise<TaskCard> {
+  const title = input.title.trim();
+  if (!title) throw new Error('Task title is required');
+  const now = new Date().toISOString();
+  const startIso = scheduleStartISO(input.start);
+  const durationMin = clampTaskDurationMin(input.durationMin);
+  const task: TaskCard = {
+    id: crypto.randomUUID(),
+    status: TaskStatus.Todo,
+    kind: TaskKind.Custom,
+    title,
+    createdAt: now,
+    updatedAt: now,
+    scheduledStart: startIso,
+    scheduledDurationMin: durationMin,
+  };
+  await tasksStorePut(task);
+  if (isSyncQueueEnabled()) {
+    await enqueueOutbox(SyncDomain.Tasks, OutboxOp.Create, task.id, {
+      title: task.title,
+      kind: task.kind,
+    });
+    await enqueueOutbox(SyncDomain.Tasks, OutboxOp.Schedule, task.id, {
+      startIso,
+      durationMin,
+    });
+    scheduleSync();
+  }
+  return taskMutationSucceeded(task);
+}
+
+async function enqueueTaskOutbox<
+  O extends SyncOp<typeof SyncDomain.Tasks>,
+>(
   aliasOrId: string,
   canonicalId: string,
-  op: Parameters<typeof enqueueOutbox>[1],
-  payload: unknown,
+  op: O,
+  payload: SyncPayload<typeof SyncDomain.Tasks, O>,
 ): Promise<void> {
-  if (aliasOrId !== canonicalId) await cancelOutboxForEntity('tasks', aliasOrId);
-  await enqueueOutbox('tasks', op, canonicalId, payload);
+  if (aliasOrId !== canonicalId) await cancelOutboxForEntity(SyncDomain.Tasks, aliasOrId);
+  await enqueueOutbox(SyncDomain.Tasks, op, canonicalId, payload);
 }
 
 export async function moveTaskStatus(taskId: string, status: TaskStatus): Promise<TaskCard> {
@@ -110,14 +164,14 @@ export async function moveTaskStatus(taskId: string, status: TaskStatus): Promis
     ...prev,
     status,
     updatedAt: now,
-    completedAt: status === 'done' ? now : prev.completedAt,
+    completedAt: isTaskDone(status) ? now : undefined,
   };
   await tasksStorePut(task);
   if (isSyncQueueEnabled()) {
-    await enqueueTaskOutbox(taskId, prev.id, 'status', { status });
+    await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Status, { status });
     scheduleSync();
   }
-  return task;
+  return taskMutationSucceeded(task);
 }
 
 /**
@@ -136,7 +190,7 @@ export async function renameTask(taskId: string, title: string): Promise<TaskCar
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);
-  return task;
+  return taskMutationSucceeded(task);
 }
 
 export async function scheduleTask(
@@ -147,21 +201,22 @@ export async function scheduleTask(
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
   const startIso = scheduleStartISO(start);
+  const scheduledDurationMin = clampTaskDurationMin(durationMin);
   const task: TaskCard = {
     ...prev,
     scheduledStart: startIso,
-    scheduledDurationMin: Math.max(15, Math.min(480, durationMin)),
+    scheduledDurationMin,
     updatedAt: new Date().toISOString(),
   };
   await tasksStorePut(task);
   if (isSyncQueueEnabled()) {
-    await enqueueTaskOutbox(taskId, prev.id, 'schedule', {
+    await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Schedule, {
       startIso,
-      durationMin: task.scheduledDurationMin,
+      durationMin: scheduledDurationMin,
     });
     scheduleSync();
   }
-  return task;
+  return taskMutationSucceeded(task);
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
@@ -170,12 +225,12 @@ export async function deleteTask(taskId: string): Promise<void> {
   const id = prev.id;
   await tasksStoreSoftDelete(id);
   if (isSyncQueueEnabled()) {
-    if (taskId !== id) await cancelOutboxForEntity('tasks', taskId);
-    await cancelOutboxForEntity('tasks', id);
-    await enqueueOutbox('tasks', 'delete', id, {});
+    if (taskId !== id) await cancelOutboxForEntity(SyncDomain.Tasks, taskId);
+    await cancelOutboxForEntity(SyncDomain.Tasks, id);
+    await enqueueOutbox(SyncDomain.Tasks, OutboxOp.Delete, id, {});
     scheduleSync();
   }
-  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  taskMutationSucceeded(undefined);
 }
 
 /**
@@ -186,8 +241,15 @@ export async function deleteTask(taskId: string): Promise<void> {
  * any local `order` already stored.
  */
 export async function reorderTasks(updated: TaskCard[]): Promise<void> {
-  for (const t of updated) await tasksStorePut(t);
-  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
+  if (updated.length === 0) return;
+  const persisted: TaskCard[] = [];
+  for (const task of updated) {
+    const current = await resolveTask(task.id);
+    if (!current) throw new Error(`Task not found: ${task.id}`);
+    persisted.push({ ...current, order: task.order });
+  }
+  await tasksStorePutMany(persisted);
+  taskMutationSucceeded(undefined);
 }
 
 /** Assign or clear task epic — syncs epicId when online; epicColor is offline/pending fallback. */
@@ -226,17 +288,16 @@ export async function patchTaskEpic(taskId: string, selection: TaskEpicSelection
 
   if (isSyncQueueEnabled()) {
     if (selection === null) {
-      await enqueueTaskOutbox(taskId, prev.id, 'patch', { clearEpic: true });
+      await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Patch, { clearEpic: true });
     } else if (epicId) {
-      await enqueueTaskOutbox(taskId, prev.id, 'patch', { epicId });
+      await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Patch, { epicId });
     } else if (epicColor) {
-      await enqueueTaskOutbox(taskId, prev.id, 'patch', { epicColor });
+      await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Patch, { epicColor });
     }
     scheduleSync();
   }
 
-  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  return task;
+  return taskMutationSucceeded(task);
 }
 
 export async function patchTaskDetails(
@@ -252,16 +313,17 @@ export async function patchTaskDetails(
     conferenceUrl: patch.clearConference ? undefined : prev.conferenceUrl,
     conferenceProvider: patch.clearConference ? undefined : prev.conferenceProvider,
     googleEventId: patch.clearConference ? undefined : prev.googleEventId,
+    googleCalendarId: patch.clearConference ? undefined : prev.googleCalendarId,
     zoomMeetingId: patch.clearConference ? undefined : prev.zoomMeetingId,
   };
   await tasksStorePut(task);
   if (isSyncQueueEnabled() && patch.clearConference) {
-    await enqueueTaskOutbox(taskId, prev.id, 'patch', {
+    await enqueueTaskOutbox(taskId, prev.id, OutboxOp.Patch, {
       clearConference: true,
     });
     scheduleSync();
   }
-  return task;
+  return taskMutationSucceeded(task);
 }
 
 export async function createTaskConference(
@@ -269,11 +331,11 @@ export async function createTaskConference(
   provider: ConferenceProvider,
 ): Promise<TaskCard> {
   if (!isCloudEnabled()) {
-    throw new Error('integrations require cloud account');
+    throw new TaskActionError(TaskActionErrorCode.IntegrationsRequireCloud);
   }
   const prev = await resolveTask(taskId);
   if (!prev) throw new Error(`Task not found: ${taskId}`);
-  let serverId = await getServerId('tasks', taskId);
+  let serverId = await getServerId(SyncDomain.Tasks, taskId);
   if (!serverId && isSyncQueueEnabled()) {
     // Meet/Zoom need the tracker id — push local creates first.
     // Best-effort: unrelated outbox failures must not block conference creation.
@@ -282,19 +344,17 @@ export async function createTaskConference(
     } catch (err) {
       console.error('[nordly:tasks] flush before conference failed', err);
     }
-    serverId = await getServerId('tasks', taskId);
+    serverId = await getServerId(SyncDomain.Tasks, taskId);
   }
-  if (!serverId) throw new Error('task_not_synced');
+  if (!serverId) {
+    throw new TaskActionError(TaskActionErrorCode.TaskNotSynced);
+  }
   const updated = await remoteCreateTaskConference(serverId, provider);
   const task = await tasksStoreApplyRemote(updated);
-  window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  // Meet writes a Google event; dynamic import keeps the calendar barrel out of App → Notes.
-  if (provider === 'meet') {
-    void import('@features/calendar/api/calendar').then(
-      ({ invalidateGoogleCalendarCache, refreshGoogleCalendarCache }) => {
-        invalidateGoogleCalendarCache();
-        void refreshGoogleCalendarCache();
-      },
+  taskMutationSucceeded(undefined);
+  if (provider === ConferenceProvider.Meet) {
+    window.dispatchEvent(
+      new Event(NORDLY_EVENTS.googleCalendarRefreshRequested),
     );
   }
   return task;

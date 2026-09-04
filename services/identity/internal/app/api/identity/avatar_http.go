@@ -7,9 +7,10 @@ import (
 
 	"github.com/dobriygolang/project-nordly/services/identity/internal/adapter/telegram"
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
+	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 )
 
-// UserAvatarHTTP serves profile photos (Telegram proxy or external URL redirect).
+// UserAvatarHTTP serves profile photos stored as Telegram file references.
 func (i *Implementation) UserAvatarHTTP() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -17,8 +18,8 @@ func (i *Implementation) UserAvatarHTTP() http.HandlerFunc {
 			return
 		}
 		userID := r.PathValue("id")
-		if userID == "" {
-			writeHTTPError(w, invalidArgument("user id required"))
+		if err := identityjwt.ValidateSubject(userID); err != nil {
+			writeHTTPError(w, invalidArgument("user id must be a canonical non-nil UUID"))
 			return
 		}
 
@@ -28,17 +29,17 @@ func (i *Implementation) UserAvatarHTTP() http.HandlerFunc {
 			return
 		}
 
-		if path, ok := telegram.ParseStoreRef(user.AvatarURL); ok && path != "" {
-			i.serveTelegramFile(w, r, path)
+		path, err := telegramAvatarPath(user.AvatarURL)
+		if err != nil {
+			writeHTTPError(w, err)
+			return
+		}
+		if path == "" {
+			writeHTTPError(w, notFound("avatar not found"))
 			return
 		}
 
-		if user.AvatarURL != "" {
-			http.Redirect(w, r, user.AvatarURL, http.StatusFound)
-			return
-		}
-
-		writeHTTPError(w, notFound("avatar not found"))
+		i.serveTelegramFile(w, r, path)
 	}
 }
 

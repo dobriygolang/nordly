@@ -6,7 +6,7 @@ import {
   startFocusSession,
 } from '@features/focus/api/focusClient';
 import { notify } from '@shared/api/notifications';
-import { readEndBell } from '@shared/model/settings';
+import { readEndBell, TimerMode } from '@shared/model/settings';
 import { usePomodoroStore, type FocusTimerMode, parseFocusTimerMode } from '@shared/model/pomodoro';
 
 export interface PomodoroPersistSnap {
@@ -20,13 +20,50 @@ export interface SessionRef {
   current: string | null;
 }
 
+export interface PomodoroSnapshotFreshness {
+  requestedAtVersion: number;
+  currentVersion: number;
+  lastMutationAt: number;
+  knownPersistedVersion?: {
+    savedAt: number;
+    version: number;
+  };
+}
+
 interface FinishOverride {
   secondsFocused?: number;
   pomodorosCompleted?: number;
 }
 
+const completionBySessionRef = new WeakMap<SessionRef, Promise<void>>();
+
+export class FocusSessionTransitionQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  enqueue(transition: () => Promise<void>): Promise<void> {
+    const pending = this.tail.then(transition);
+    this.tail = pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    return pending;
+  }
+}
+
 export function snapMode(snap: PomodoroPersistSnap): FocusTimerMode {
   return parseFocusTimerMode(snap.mode);
+}
+
+export function shouldApplyPersistedSnapshot(
+  snap: Pick<PomodoroPersistSnap, 'savedAt'>,
+  freshness: PomodoroSnapshotFreshness,
+): boolean {
+  if (freshness.requestedAtVersion !== freshness.currentVersion) return false;
+  const known = freshness.knownPersistedVersion;
+  if (known?.savedAt === snap.savedAt) {
+    return known.version === freshness.currentVersion;
+  }
+  return snap.savedAt > freshness.lastMutationAt;
 }
 
 async function resolveSessionId(sessionRef: SessionRef): Promise<string | null> {
@@ -41,20 +78,23 @@ export async function finishFocusSession(
   const { remain, durationSec, mode, elapsed } = usePomodoroStore.getState();
   const secondsFocused =
     override?.secondsFocused ??
-    (mode === 'pomodoro' ? Math.max(0, durationSec - remain) : Math.max(0, elapsed));
+    (mode === TimerMode.Pomodoro
+      ? Math.max(0, durationSec - remain)
+      : Math.max(0, elapsed));
   const pomodorosCompleted =
-    override?.pomodorosCompleted ?? (mode === 'pomodoro' && remain === 0 ? 1 : 0);
+    override?.pomodorosCompleted ??
+    (mode === TimerMode.Pomodoro && remain === 0 ? 1 : 0);
 
   const id = await resolveSessionId(sessionRef);
   if (!id) return;
 
-  sessionRef.current = null;
   await endFocusSession({
     sessionId: id,
     pomodorosCompleted,
     secondsFocused,
     reflection: '',
   });
+  if (sessionRef.current === id) sessionRef.current = null;
 }
 
 export async function reattachFocusSession(sessionRef: SessionRef): Promise<void> {
@@ -73,26 +113,42 @@ export async function reattachFocusSession(sessionRef: SessionRef): Promise<void
   sessionRef.current = session.id;
 }
 
-export async function completePomodoroTimer(
+export function completePomodoroTimer(
   sessionRef: SessionRef,
   durationSec: number,
 ): Promise<void> {
-  const id = await resolveSessionId(sessionRef);
-  if (!id) {
-    // Idempotent — timer already finished / session already closed.
+  const active = completionBySessionRef.get(sessionRef);
+  if (active) return active;
+
+  const completion = (async () => {
+    const id = await resolveSessionId(sessionRef);
+    if (!id) {
+      // Idempotent — timer already finished / session already closed.
+      usePomodoroStore.getState().complete();
+      return;
+    }
+    await finishFocusSession(sessionRef, {
+      secondsFocused: durationSec,
+      pomodorosCompleted: 1,
+    });
+    void notify(
+      translate('nordly.notify.session_title'),
+      translate('nordly.notify.session_body'),
+      { sound: readEndBell() ? 'session' : false },
+    ).catch((error: unknown) => {
+      console.error('[nordly:pomodoro] completion notification failed', error);
+    });
     usePomodoroStore.getState().complete();
-    return;
-  }
-  await finishFocusSession(sessionRef, {
-    secondsFocused: durationSec,
-    pomodorosCompleted: 1,
-  });
-  void notify(
-    translate('nordly.notify.session_title'),
-    translate('nordly.notify.session_body'),
-    { sound: readEndBell() ? 'session' : false },
-  );
-  usePomodoroStore.getState().complete();
+  })();
+
+  completionBySessionRef.set(sessionRef, completion);
+  const clear = () => {
+    if (completionBySessionRef.get(sessionRef) === completion) {
+      completionBySessionRef.delete(sessionRef);
+    }
+  };
+  void completion.then(clear, clear);
+  return completion;
 }
 
 export async function applyPersistedSnapshot(
@@ -102,7 +158,7 @@ export async function applyPersistedSnapshot(
   const mode = snapMode(snap);
   const elapsedMs = Math.max(0, Date.now() - snap.savedAt);
 
-  if (mode === 'pomodoro') {
+  if (mode === TimerMode.Pomodoro) {
     if (snap.running && elapsedMs >= snap.remainSec * 1000) {
       usePomodoroStore.getState().hydrate(0, false, mode);
       await completePomodoroTimer(sessionRef, usePomodoroStore.getState().durationSec);

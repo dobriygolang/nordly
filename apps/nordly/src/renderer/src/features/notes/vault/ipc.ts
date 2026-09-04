@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 
 import { isTauriRuntime } from '@platform/runtime';
+import { trackAsyncDisposer } from '@shared/lib/asyncDisposer';
 
 import type {
   NotesVaultConfig,
@@ -151,13 +152,10 @@ export async function vaultStopWatch(): Promise<void> {
 
 const VAULT_CHANGED = 'notes-vault:changed';
 
-export function listenVaultChanged(cb: () => void): () => void {
+export function listenVaultChanged(
+  cb: () => void,
+  onError: (error: unknown) => void,
+): () => void {
   if (!isNotesVaultRuntime()) return () => undefined;
-  let unlisten: UnlistenFn | undefined;
-  void listen(VAULT_CHANGED, () => cb()).then((fn) => {
-    unlisten = fn;
-  });
-  return () => {
-    void unlisten?.();
-  };
+  return trackAsyncDisposer(listen(VAULT_CHANGED, () => cb()), onError);
 }

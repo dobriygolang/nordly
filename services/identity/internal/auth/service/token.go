@@ -11,28 +11,38 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
 	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
 const tokenKeyID = "v1"
-
-// TokenPair holds issued access and refresh tokens.
-type TokenPair struct {
-	AccessToken  string
-	RefreshToken string
-}
 
 // TokenManager signs and validates RS256 JWT access tokens.
 type TokenManager struct {
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
+	validator  *identityjwt.Validator
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 }
 
 // NewTokenManager constructs a token manager from PEM-encoded RSA keys.
 func NewTokenManager(privateKeyPEM, publicKeyPEM []byte, accessTTL, refreshTTL time.Duration) (*TokenManager, error) {
+	if !authmodel.IsValidAccessTokenTTL(accessTTL) {
+		return nil, fmt.Errorf(
+			"access token ttl must be whole seconds within [%s, %s]",
+			authmodel.MinTokenTTL,
+			authmodel.MaxAccessTokenTTL,
+		)
+	}
+	if !authmodel.IsValidRefreshTokenTTL(refreshTTL) {
+		return nil, fmt.Errorf(
+			"refresh token ttl must be whole seconds within [%s, %s]",
+			authmodel.MinTokenTTL,
+			authmodel.MaxRefreshTokenTTL,
+		)
+	}
 	privateKey, err := parsePrivateKey(privateKeyPEM)
 	if err != nil {
 		return nil, err
@@ -41,10 +51,18 @@ func NewTokenManager(privateKeyPEM, publicKeyPEM []byte, accessTTL, refreshTTL t
 	if err != nil {
 		return nil, err
 	}
+	if !privateKey.PublicKey.Equal(publicKey) {
+		return nil, errors.New("jwt private and public keys do not match")
+	}
+	validator, err := identityjwt.NewValidator(publicKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("create jwt validator: %w", err)
+	}
 
 	return &TokenManager{
 		privateKey: privateKey,
 		publicKey:  publicKey,
+		validator:  validator,
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
 	}, nil
@@ -62,14 +80,19 @@ func (m *TokenManager) RefreshTTL() time.Duration {
 
 // IssueAccessToken creates a signed JWT for the given user ID.
 func (m *TokenManager) IssueAccessToken(userID string) (string, error) {
+	if err := identityjwt.ValidateSubject(userID); err != nil {
+		return "", err
+	}
 	now := time.Now().UTC()
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"iat": now.Unix(),
-		"exp": now.Add(m.accessTTL).Unix(),
+	claims := identityjwt.UserSessionTokenClaims{
+		RegisteredClaims: jwtlib.RegisteredClaims{
+			Subject:   userID,
+			IssuedAt:  jwtlib.NewNumericDate(now),
+			ExpiresAt: jwtlib.NewNumericDate(now.Add(m.accessTTL)),
+		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, claims)
 	token.Header["kid"] = tokenKeyID
 
 	signed, err := token.SignedString(m.privateKey)
@@ -81,55 +104,54 @@ func (m *TokenManager) IssueAccessToken(userID string) (string, error) {
 
 // IssueScopedAccessToken mints a short-lived JWT bound to a resource scope.
 // Used for guest room access: role=guest, scp=editor:{roomID}.
-func (m *TokenManager) IssueScopedAccessToken(userID, role, scope, displayName string, ttl time.Duration) (string, error) {
-	if userID == "" || scope == "" {
-		return "", errors.New("user id and scope are required")
+func (m *TokenManager) IssueScopedAccessToken(
+	userID string,
+	role identityjwt.Role,
+	scope identityjwt.EditorScope,
+	displayName string,
+	ttl time.Duration,
+) (string, error) {
+	if err := identityjwt.ValidateSubject(userID); err != nil {
+		return "", err
+	}
+	if !role.IsValid() {
+		return "", errors.New("invalid scoped access token role")
+	}
+	if !scope.IsValid() {
+		return "", errors.New("invalid scoped access token scope")
+	}
+	if ttl <= 0 || ttl > authmodel.MaxScopedAccessTokenTTL {
+		return "", fmt.Errorf("scoped access token ttl must be within (0, %s]", authmodel.MaxScopedAccessTokenTTL)
 	}
 	now := time.Now().UTC()
-	if ttl <= 0 {
-		return "", errors.New("scoped access token ttl must be > 0")
-	}
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"iat": now.Unix(),
-		"exp": now.Add(ttl).Unix(),
-		identityjwt.ClaimRole:  role,
-		identityjwt.ClaimScope: scope,
-	}
-	if displayName != "" {
-		claims[identityjwt.ClaimDisplayName] = displayName
+	claims := identityjwt.EditorTokenClaims{
+		RegisteredClaims: jwtlib.RegisteredClaims{
+			Subject:   userID,
+			IssuedAt:  jwtlib.NewNumericDate(now),
+			ExpiresAt: jwtlib.NewNumericDate(now.Add(ttl)),
+		},
+		Role:        role,
+		Scope:       scope,
+		DisplayName: displayName,
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, claims)
 	token.Header["kid"] = tokenKeyID
-	return token.SignedString(m.privateKey)
+	signed, err := token.SignedString(m.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("sign scoped access token: %w", err)
+	}
+	return signed, nil
 }
 
-// ValidateAccessToken verifies JWT and returns the subject user ID.
+// ValidateAccessToken verifies a user-session JWT and returns the subject.
+// Collab/guest scoped tokens (role=guest or non-empty scp) are rejected.
 func (m *TokenManager) ValidateAccessToken(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		if token.Method != jwt.SigningMethodRS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return m.publicKey, nil
-	})
+	claims, err := m.validator.ParseUserSession(tokenString)
 	if err != nil {
-		return "", fmt.Errorf("parse access token: %w", err)
+		return "", err
 	}
-	if !token.Valid {
-		return "", errors.New("invalid access token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", errors.New("invalid token claims")
-	}
-
-	sub, err := claims.GetSubject()
-	if err != nil || sub == "" {
-		return "", errors.New("missing token subject")
-	}
-	return sub, nil
+	return claims.UserID, nil
 }
 
 // NewRefreshToken generates a random refresh token and its SHA-256 hash.

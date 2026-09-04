@@ -9,19 +9,27 @@ import (
 
 // RunCode executes user code in the sandbox runner.
 func (i *Implementation) RunCode(ctx context.Context, req *sandboxv1.RunCodeRequest) (*sandboxv1.RunCodeResponse, error) {
-	userID, err := requireUserID(ctx)
+	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
+	language, err := languageFromProto(req.GetLanguage())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
 	run, err := i.svc.RunCode(ctx, sandboxservice.RunCodeInput{
-		UserID:   userID,
-		RoomID:   editorRoomIDFromContext(ctx),
-		Language: req.GetLanguage(),
+		UserID:   principal.UserID,
+		RoomID:   principal.EditorRoomID,
+		Language: language,
 		Code:     req.GetCode(),
 		Stdin:    req.GetStdin(),
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &sandboxv1.RunCodeResponse{Run: toProtoCodeRun(run)}, nil
+	pb, err := toProtoCodeRun(run)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &sandboxv1.RunCodeResponse{Run: pb}, nil
 }

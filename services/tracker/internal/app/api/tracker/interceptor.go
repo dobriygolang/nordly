@@ -9,26 +9,26 @@ import (
 )
 
 var protectedMethods = map[string]struct{}{
-	trackerv1.TrackerService_GetSettings_FullMethodName:              {},
-	trackerv1.TrackerService_UpdateSettings_FullMethodName:           {},
-	trackerv1.TrackerService_GetGoogleCalendarAuthURL_FullMethodName: {},
-	trackerv1.TrackerService_DisconnectGoogleCalendar_FullMethodName: {},
-	trackerv1.TrackerService_ListGoogleCalendars_FullMethodName:           {},
-	trackerv1.TrackerService_ListGoogleCalendarEvents_FullMethodName:    {},
-	trackerv1.TrackerService_CreateGoogleCalendarEvent_FullMethodName:   {},
-	trackerv1.TrackerService_UpdateGoogleCalendarEvent_FullMethodName:   {},
-	trackerv1.TrackerService_DeleteGoogleCalendarEvent_FullMethodName:   {},
-	trackerv1.TrackerService_ListWorkTasks_FullMethodName:            {},
-	trackerv1.TrackerService_CreateWorkTask_FullMethodName:           {},
-	trackerv1.TrackerService_UpdateWorkTaskStatus_FullMethodName:     {},
-	trackerv1.TrackerService_DeleteWorkTask_FullMethodName:           {},
-	trackerv1.TrackerService_ScheduleWorkTask_FullMethodName:         {},
-	trackerv1.TrackerService_UnscheduleWorkTask_FullMethodName:       {},
-	trackerv1.TrackerService_PatchWorkTask_FullMethodName:            {},
-	trackerv1.TrackerService_CreateWorkTaskConference_FullMethodName: {},
-	trackerv1.TrackerService_ListEpics_FullMethodName:                {},
-	trackerv1.TrackerService_GetZoomAuthURL_FullMethodName:           {},
-	trackerv1.TrackerService_DisconnectZoom_FullMethodName:           {},
+	trackerv1.TrackerService_GetSettings_FullMethodName:               {},
+	trackerv1.TrackerService_UpdateSettings_FullMethodName:            {},
+	trackerv1.TrackerService_GetGoogleCalendarAuthURL_FullMethodName:  {},
+	trackerv1.TrackerService_DisconnectGoogleCalendar_FullMethodName:  {},
+	trackerv1.TrackerService_ListGoogleCalendars_FullMethodName:       {},
+	trackerv1.TrackerService_ListGoogleCalendarEvents_FullMethodName:  {},
+	trackerv1.TrackerService_CreateGoogleCalendarEvent_FullMethodName: {},
+	trackerv1.TrackerService_UpdateGoogleCalendarEvent_FullMethodName: {},
+	trackerv1.TrackerService_DeleteGoogleCalendarEvent_FullMethodName: {},
+	trackerv1.TrackerService_ListWorkTasks_FullMethodName:             {},
+	trackerv1.TrackerService_CreateWorkTask_FullMethodName:            {},
+	trackerv1.TrackerService_UpdateWorkTaskStatus_FullMethodName:      {},
+	trackerv1.TrackerService_DeleteWorkTask_FullMethodName:            {},
+	trackerv1.TrackerService_ScheduleWorkTask_FullMethodName:          {},
+	trackerv1.TrackerService_UnscheduleWorkTask_FullMethodName:        {},
+	trackerv1.TrackerService_PatchWorkTask_FullMethodName:             {},
+	trackerv1.TrackerService_CreateWorkTaskConference_FullMethodName:  {},
+	trackerv1.TrackerService_ListEpics_FullMethodName:                 {},
+	trackerv1.TrackerService_GetZoomAuthURL_FullMethodName:            {},
+	trackerv1.TrackerService_DisconnectZoom_FullMethodName:            {},
 }
 
 func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {
@@ -37,16 +37,10 @@ func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		token := BearerTokenFromContext(ctx)
-		userID, err := v.UserID(token)
+		claims, err := v.ParseUserSession(token)
 		if err != nil {
 			return nil, unauthorized()
 		}
-		return handler(WithUserID(ctx, userID), req)
-	}
-}
-
-func InternalAuthInterceptor(_ string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return handler(ctx, req)
+		return handler(WithUserID(ctx, claims.UserID), req)
 	}
 }

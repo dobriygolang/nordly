@@ -15,5 +15,9 @@ func (i *Implementation) UnscheduleWorkTask(ctx context.Context, req *trackerv1.
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.UnscheduleWorkTaskResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.UnscheduleWorkTaskResponse{Task: pb}, nil
 }

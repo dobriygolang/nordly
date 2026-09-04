@@ -1,16 +1,25 @@
-import { API_BASE, apiWithBearer, parseGuestAccessToken } from '@/lib/apiClient'
-import { normalizeProtoJson } from '@/lib/protoJson'
+import { API_BASE, ApiError, apiWithBearer, parseGuestAuthResponse } from '@/lib/apiClient'
+import {
+  roomLanguageFromWire,
+  roomLanguageToWire,
+  roomTypeFromWire,
+  roomTypeToWire,
+} from '@/lib/api/wireEnums'
+
+export const GuestRoomType = {
+  Practice: 'practice',
+  SystemDesign: 'system_design',
+} as const
+export type GuestRoomType = (typeof GuestRoomType)[keyof typeof GuestRoomType]
 
 export type CodeRoom = {
   id: string
   owner_id: string
-  room_type: string
+  room_type: GuestRoomType
   language: string
   expires_at?: string
   created_at?: string
 }
-
-export type GuestRoomType = 'practice' | 'system_design'
 
 export type InviteLink = {
   url: string
@@ -28,46 +37,54 @@ export type GuestCreateResult = GuestJoinResult & {
 
 const guestTokenKey = (roomId: string) => `nordly_guest_token_${roomId}`
 const guestRoomKey = (roomId: string) => `nordly_guest_room_${roomId}`
+const guestExpiryKey = (roomId: string) => `nordly_guest_expires_${roomId}`
 
 export function readGuestToken(roomId: string): string | null {
-  try {
-    return sessionStorage.getItem(guestTokenKey(roomId))
-  } catch (err) {
-    console.warn('[rooms] guest token read failed', err)
-    return null
+  return sessionStorage.getItem(guestTokenKey(roomId))
+}
+
+export function persistGuestToken(roomId: string, token: string, expiresInSec?: number): void {
+  sessionStorage.setItem(guestTokenKey(roomId), token)
+  if (expiresInSec != null && Number.isFinite(expiresInSec) && expiresInSec > 0) {
+    sessionStorage.setItem(guestExpiryKey(roomId), String(Date.now() + expiresInSec * 1000))
   }
 }
 
-export function persistGuestToken(roomId: string, token: string): void {
-  try {
-    sessionStorage.setItem(guestTokenKey(roomId), token)
-  } catch (err) {
-    console.warn('[rooms] guest token persist failed', err)
-  }
+export function guestSessionExpired(roomId: string): boolean {
+  const raw = sessionStorage.getItem(guestExpiryKey(roomId))
+  if (!raw) return false
+  const at = Number(raw)
+  return Number.isFinite(at) && Date.now() >= at
+}
+
+export function isGuestSessionFatalError(err: unknown): boolean {
+  return err instanceof ApiError && [401, 403, 404, 410].includes(err.status)
 }
 
 export function readGuestRoom(roomId: string): CodeRoom | null {
+  const raw = sessionStorage.getItem(guestRoomKey(roomId))
+  if (!raw) return null
   try {
-    const raw = sessionStorage.getItem(guestRoomKey(roomId))
-    if (!raw) return null
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== 'object') {
-      console.warn('[rooms] guest room cache invalid shape')
-      return null
+      throw new Error('Invalid guest room cache')
     }
     return mapCachedRoom(parsed as Record<string, unknown>)
   } catch (err) {
-    console.warn('[rooms] guest room cache read failed', err)
+    console.warn('[rooms] invalid guest room cache', err)
+    sessionStorage.removeItem(guestRoomKey(roomId))
     return null
   }
 }
 
+export function clearGuestSession(roomId: string): void {
+  sessionStorage.removeItem(guestTokenKey(roomId))
+  sessionStorage.removeItem(guestRoomKey(roomId))
+  sessionStorage.removeItem(guestExpiryKey(roomId))
+}
+
 export function persistGuestRoom(roomId: string, room: CodeRoom): void {
-  try {
-    sessionStorage.setItem(guestRoomKey(roomId), JSON.stringify(room))
-  } catch (err) {
-    console.warn('[rooms] guest room persist failed', err)
-  }
+  sessionStorage.setItem(guestRoomKey(roomId), JSON.stringify(room))
 }
 
 function bearerForRoom(roomId: string): string | null {
@@ -88,14 +105,32 @@ function requireExpiresIn(body: Record<string, unknown>): number {
   throw new Error('Invalid room auth response: missing expiresIn')
 }
 
+function requireCachedRoomType(raw: unknown): GuestRoomType {
+  if (raw === GuestRoomType.Practice || raw === GuestRoomType.SystemDesign) return raw
+  throw new Error(`Invalid room response: bad roomType ${String(raw)}`)
+}
+
 function mapCachedRoom(r: Record<string, unknown>): CodeRoom {
   const expiresAt = r.expires_at
   const createdAt = r.created_at
   return {
     id: requireStringField(r, 'id', 'id'),
     owner_id: requireStringField(r, 'owner_id', 'ownerId'),
-    room_type: requireStringField(r, 'room_type', 'roomType'),
+    room_type: requireCachedRoomType(r.room_type),
     language: requireStringField(r, 'language', 'language'),
+    expires_at: typeof expiresAt === 'string' && expiresAt ? expiresAt : undefined,
+    created_at: typeof createdAt === 'string' && createdAt ? createdAt : undefined,
+  }
+}
+
+function mapWireRoom(r: Record<string, unknown>): CodeRoom {
+  const expiresAt = r.expires_at
+  const createdAt = r.created_at
+  return {
+    id: requireStringField(r, 'id', 'id'),
+    owner_id: requireStringField(r, 'owner_id', 'ownerId'),
+    room_type: roomTypeFromWire(r.room_type),
+    language: roomLanguageFromWire(r.language),
     expires_at: typeof expiresAt === 'string' && expiresAt ? expiresAt : undefined,
     created_at: typeof createdAt === 'string' && createdAt ? createdAt : undefined,
   }
@@ -107,7 +142,7 @@ function mapRoom(raw: Record<string, unknown>): CodeRoom {
   if (!room || typeof room !== 'object') {
     throw new Error('Invalid room response: missing room')
   }
-  return mapCachedRoom(room as Record<string, unknown>)
+  return mapWireRoom(room as Record<string, unknown>)
 }
 
 function mapInvite(body: Record<string, unknown>): InviteLink {
@@ -124,7 +159,7 @@ export async function createGuestRoom(input: {
   language: string
   roomType: GuestRoomType
 }): Promise<GuestCreateResult> {
-  if (input.roomType !== 'practice' && input.roomType !== 'system_design') {
+  if (input.roomType !== GuestRoomType.Practice && input.roomType !== GuestRoomType.SystemDesign) {
     throw new Error('Invalid guest room type')
   }
   const language = input.language.trim()
@@ -140,22 +175,11 @@ export async function createGuestRoom(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       displayName,
-      language,
-      roomType: input.roomType,
+      language: roomLanguageToWire(language),
+      roomType: roomTypeToWire(input.roomType),
     }),
   })
-  if (!res.ok) {
-    let text = ''
-    try {
-      text = await res.text()
-    } catch (err) {
-      console.warn('[rooms] guest create error body unreadable', err)
-    }
-    throw new Error(text || `guest create ${res.status}`)
-  }
-  const raw = (await res.json()) as Record<string, unknown>
-  const accessToken = parseGuestAccessToken(raw)
-  const body = normalizeProtoJson(raw) as Record<string, unknown>
+  const { accessToken, body } = await parseGuestAuthResponse('/rooms/guest-create', res)
   return {
     access_token: accessToken,
     expires_in: requireExpiresIn(body),
@@ -193,21 +217,10 @@ export async function guestJoin(
     body: JSON.stringify({ displayName: name }),
     redirect: 'manual',
   })
-  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-    throw new Error('guest join misrouted — check room URL')
-  }
-  if (!res.ok) {
-    let text = ''
-    try {
-      text = await res.text()
-    } catch (err) {
-      console.warn('[rooms] guest join error body unreadable', err)
-    }
-    throw new Error(text || `guest join ${res.status}`)
-  }
-  const raw = (await res.json()) as Record<string, unknown>
-  const accessToken = parseGuestAccessToken(raw)
-  const body = normalizeProtoJson(raw) as Record<string, unknown>
+  const { accessToken, body } = await parseGuestAuthResponse(
+    `/rooms/${encodeURIComponent(id)}/guest-join`,
+    res,
+  )
   const room = mapRoom(body)
   persistGuestRoom(id, room)
   return {

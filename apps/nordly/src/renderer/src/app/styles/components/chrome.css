@@ -18,7 +18,7 @@
   width: 100%;
   padding: 8px 10px 8px 8px;
   margin-left: 0;
-  border-radius: 6;
+  border-radius: 6px;
   border: none;
   border-left: 2px solid transparent;
   background: transparent;
@@ -37,30 +37,6 @@
 .no-select {
   user-select: none;
   -webkit-user-select: none;
-}
-
-/*
- * Winter 0.0.27 — measured in DevTools:
- * UI/modals 200ms, page shell fadeIn 400ms, poster layer 700ms, long 640ms.
- */
-:root {
-  --motion-dur-micro: 100ms;
-  --motion-dur-small: 150ms;
-  --motion-dur-medium: 200ms;
-  --motion-dur-page: 400ms;
-  --motion-dur-content: 500ms;
-  --motion-dur-poster: 700ms;
-  --motion-dur-large: 360ms;
-  --motion-dur-long: 640ms;
-  --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
-  --motion-ease-interactive: cubic-bezier(0.46, 0.03, 0.52, 0.96);
-  --motion-ease-emphasized: cubic-bezier(0.65, 0.05, 0.36, 1);
-  --motion-ease-page-in: ease-in;
-  --motion-ease-poster: cubic-bezier(0.25, 1, 0.5, 1);
-  --motion-ease-content: cubic-bezier(0.4, 0, 0.2, 1);
-  --t-fast: var(--motion-dur-small) var(--motion-ease-standard);
-  --t-base: var(--motion-dur-medium) var(--motion-ease-interactive);
-  --t-slow: var(--motion-dur-content) var(--motion-ease-content);
 }
 
 /* Apply to any interactive surface — buttons, list rows, inputs. */

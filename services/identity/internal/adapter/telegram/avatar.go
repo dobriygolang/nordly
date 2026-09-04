@@ -16,9 +16,6 @@ const FilePrefix = "telegram:"
 
 // ProfilePhotoFilePath returns Telegram file_path for the user's profile photo.
 func ProfilePhotoFilePath(bot *tgbotapi.BotAPI, userID int64) (string, error) {
-	if bot == nil || userID == 0 {
-		return "", nil
-	}
 	photos, err := bot.GetUserProfilePhotos(tgbotapi.UserProfilePhotosConfig{
 		UserID: userID,
 		Limit:  1,
@@ -46,9 +43,6 @@ func ProfilePhotoFilePath(bot *tgbotapi.BotAPI, userID int64) (string, error) {
 
 // StoreRef encodes a Telegram file_path for DB storage.
 func StoreRef(filePath string) string {
-	if filePath == "" {
-		return ""
-	}
 	return FilePrefix + filePath
 }
 
@@ -59,9 +53,6 @@ func ParseStoreRef(stored string) (string, bool) {
 
 // OpenFile downloads a Telegram file by file_path using the bot token.
 func OpenFile(ctx context.Context, botToken, filePath string) (io.ReadCloser, string, error) {
-	if botToken == "" || filePath == "" {
-		return nil, "", fmt.Errorf("telegram file download not configured")
-	}
 	url := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, filePath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

@@ -22,5 +22,9 @@ func (i *Implementation) PutNoteAttachment(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &notesv1.PutNoteAttachmentResponse{Attachment: toProtoNoteAttachment(attachment)}, nil
+	protoAttachment, err := toProtoNoteAttachment(attachment)
+	if err != nil {
+		return nil, err
+	}
+	return &notesv1.PutNoteAttachmentResponse{Attachment: protoAttachment}, nil
 }

@@ -2,11 +2,11 @@ import {
   cursorCharLeft,
   cursorCharRight,
 } from '@codemirror/commands';
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { livePreviewPlugin } from '../livePreview';
+import { imageHrefResolverFacet, livePreviewPlugin } from '../livePreview';
 import { notesKeymap } from '../notesKeymap';
 
 let view: EditorView | null = null;
@@ -17,7 +17,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function createView(doc: string, anchor = 0): EditorView {
+function createView(doc: string, anchor = 0, extensions: Extension[] = []): EditorView {
   const parent = document.createElement('div');
   document.body.appendChild(parent);
   view = new EditorView({
@@ -25,7 +25,7 @@ function createView(doc: string, anchor = 0): EditorView {
     state: EditorState.create({
       doc,
       selection: { anchor },
-      extensions: [livePreviewPlugin],
+      extensions: [imageHrefResolverFacet.of(null), ...extensions, livePreviewPlugin],
     }),
   });
   return view;
@@ -107,5 +107,26 @@ describe('notes live preview navigation', () => {
 
     expect(down?.run(editor)).toBe(true);
     expect(editor.state.doc.lineAt(editor.state.selection.main.head).number).toBe(2);
+  });
+
+  it('uses the resolver for relative and nordly-asset images but not https', async () => {
+    const doc =
+      '![relative](img/photo.png)\n' +
+      '![asset](nordly-asset:asset-1)\n' +
+      '![remote](https://example.com/photo.png)\n' +
+      'done';
+    const resolver = vi.fn(async (href: string) => `blob:${href}`);
+    const editor = createView(doc, doc.length, [imageHrefResolverFacet.of(resolver)]);
+
+    expect(resolver).toHaveBeenCalledWith('img/photo.png');
+    expect(resolver).toHaveBeenCalledWith('nordly-asset:asset-1');
+    expect(resolver).not.toHaveBeenCalledWith('https://example.com/photo.png');
+
+    await Promise.resolve();
+    const sources = [...editor.dom.querySelectorAll<HTMLImageElement>('.nordly-md-image__img')]
+      .map((image) => image.getAttribute('src'));
+    expect(sources).toContain('blob:img/photo.png');
+    expect(sources).toContain('blob:nordly-asset:asset-1');
+    expect(sources).toContain('https://example.com/photo.png');
   });
 });

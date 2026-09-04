@@ -1,7 +1,6 @@
 go 1.25.12
 
 use (
-	./services/billing
 	./services/focus
 	./services/identity
 	./services/notes

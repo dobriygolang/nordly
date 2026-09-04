@@ -2,26 +2,31 @@
 import {
   findOpenFocusSession,
   focusStoreGet,
+  focusStoreList,
   focusStorePut,
   rowFrom,
+  sameFocusSessions,
   type StoredFocusSession,
 } from '@features/focus/repository/focusStore';
 import {
   padToSevenDays,
   remoteGetStats,
+  sameNordlyStats,
   type FocusDay,
   type FocusSession,
   type NordlyStats,
 } from '@features/focus/remote/focusRemote';
-import { focusStoreList } from '@features/focus/repository/focusStore';
 import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { enqueueOutbox } from '@shared/sync/outbox';
+import { OutboxOp, SyncDomain } from '@shared/sync/types';
+import type { FocusTimerMode } from '@shared/model/pomodoro';
 import { scheduleSync } from '@shared/sync/SyncEngine';
-import { canReachNetwork, isSyncEnabled, isSyncQueueEnabled } from '@shared/sync/syncConfig';
+import { canReachNetwork } from '@shared/lib/network';
+import { isSyncEnabled, isSyncQueueEnabled } from '@shared/sync/syncConfig';
 
 export type { FocusDay, FocusSession, NordlyStats, StoredFocusSession };
-export { padToSevenDays };
+export { padToSevenDays, sameFocusSessions, sameNordlyStats };
 
 export async function listFocusSessions(): Promise<StoredFocusSession[]> {
   return focusStoreList();
@@ -39,7 +44,7 @@ interface StoredSession {
   endedAt: string | null;
   pomodorosCompleted: number;
   secondsFocused: number;
-  mode: string;
+  mode: FocusTimerMode;
   synced?: boolean;
 }
 
@@ -86,11 +91,20 @@ function streakFromDays(days: Set<string>, anchor: string): number {
   return streak;
 }
 
+export function currentStreakFromDays(days: Set<string>, anchor: string): number {
+	const anchorDate = parseDayKey(anchor);
+	const lastActiveAnchor = days.has(anchor) ? anchorDate : addDays(anchorDate, -1);
+	return streakFromDays(days, toDayKey(lastActiveAnchor));
+}
+
 function statsFromSessions(sessions: StoredSession[], upToDate?: string): StatsCore {
   const byDay = aggregateDays(sessions);
   const heatmap = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
   const anchor = upToDate ?? toDayKey(new Date());
-  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const lastSevenDays = padToSevenDays(
+    heatmap.filter((d) => d.date <= anchor),
+    anchor,
+  );
   const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
   const totalFocusedSeconds = sessions.reduce((sum, s) => sum + s.secondsFocused, 0);
 
@@ -100,7 +114,7 @@ function statsFromSessions(sessions: StoredSession[], upToDate?: string): StatsC
   }
 
   return {
-    currentStreakDays: streakFromDays(activeDays, anchor),
+		currentStreakDays: currentStreakFromDays(activeDays, anchor),
     longestStreakDays: longest,
     totalFocusedSeconds,
     heatmap,
@@ -144,7 +158,10 @@ function mergeFocusDaysMax(a: FocusDay[], b: FocusDay[]): FocusDay[] {
 
 function statsFromHeatmap(heatmap: FocusDay[], upToDate?: string): StatsCore {
   const anchor = upToDate ?? toDayKey(new Date());
-  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const lastSevenDays = padToSevenDays(
+    heatmap.filter((d) => d.date <= anchor),
+    anchor,
+  );
   const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
   const totalFocusedSeconds = heatmap.reduce((sum, d) => sum + d.seconds, 0);
 
@@ -154,7 +171,7 @@ function statsFromHeatmap(heatmap: FocusDay[], upToDate?: string): StatsCore {
   }
 
   return {
-    currentStreakDays: streakFromDays(activeDays, anchor),
+		currentStreakDays: currentStreakFromDays(activeDays, anchor),
     longestStreakDays: longest,
     totalFocusedSeconds,
     heatmap,
@@ -165,7 +182,10 @@ function statsFromHeatmap(heatmap: FocusDay[], upToDate?: string): StatsCore {
 function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): StatsCore {
   const heatmap = mergeFocusDays(base.heatmap, extra.heatmap);
   const anchor = upToDate ?? toDayKey(new Date());
-  const lastSevenDays = padToSevenDays(heatmap.filter((d) => d.date <= anchor));
+  const lastSevenDays = padToSevenDays(
+    heatmap.filter((d) => d.date <= anchor),
+    anchor,
+  );
   const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
 
   let longest = 0;
@@ -174,7 +194,7 @@ function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): Stats
   }
 
   return {
-    currentStreakDays: streakFromDays(activeDays, anchor),
+		currentStreakDays: currentStreakFromDays(activeDays, anchor),
     longestStreakDays: Math.max(base.longestStreakDays, extra.longestStreakDays, longest),
     totalFocusedSeconds: base.totalFocusedSeconds + extra.totalFocusedSeconds,
     heatmap,
@@ -237,7 +257,7 @@ export async function getStats(upToDate?: string): Promise<NordlyStats> {
 export async function startFocusSession(args: {
   planItemId?: string;
   pinnedTitle?: string;
-  mode: 'pomodoro' | 'stopwatch';
+  mode: FocusTimerMode;
 }): Promise<FocusSession> {
   const userId = requireUserId();
   const id = crypto.randomUUID();
@@ -254,7 +274,7 @@ export async function startFocusSession(args: {
   });
   await focusStorePut(row);
   if (isSyncQueueEnabled()) {
-    await enqueueOutbox('focus', 'session_start', id, {
+    await enqueueOutbox(SyncDomain.Focus, OutboxOp.SessionStart, id, {
       planItemId: row.planItemId,
       pinnedTitle: row.pinnedTitle,
       mode: args.mode,
@@ -285,7 +305,7 @@ export async function endFocusSession(args: {
   };
   await focusStorePut(row);
   if (isSyncQueueEnabled()) {
-    await enqueueOutbox('focus', 'session_end', args.sessionId, {
+    await enqueueOutbox(SyncDomain.Focus, OutboxOp.SessionEnd, args.sessionId, {
       pomodorosCompleted: args.pomodorosCompleted,
       secondsFocused: args.secondsFocused,
       endedAt: row.endedAt,

@@ -7,9 +7,10 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | Item | Notes |
 |------|-------|
 | Ubuntu 22.04+ / Debian 12+ | Docker Compose v2 |
-| Ports 80, 443, 22 | nginx TLS on host; Caddy on `127.0.0.1:18080` |
-| DNS A-records | `trynordly.app`, `api.trynordly.app`, `app.trynordly.app`, `code.trynordly.app`, `grafana.trynordly.app` |
+| Ports 80, 443, 22 | Dedicated VPS: nginx TLS on host (`nginx-trynordly.direct.conf.example`); Caddy on `127.0.0.1:18080`. VPN/xray share of :443 uses `nginx-trynordly.conf.example` instead. |
+| DNS A-records | `trynordly.app`, `www`, `api`, `app`, `code`, `grafana`, `cdn` (all → VPS). `code.trynordly.app` is required for live-share links. |
 | TLS cert SAN | include `code.trynordly.app` (certbot `--expand` if cert already exists) |
+| First boot | `bash deploy/scripts/setup-host.sh` then `--certs` after DNS points here |
 
 ## 2. `deploy/.env`
 
@@ -18,7 +19,7 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 | Variable | How |
 |----------|-----|
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
-| `REDIS_PASSWORD` | `openssl rand -hex 32` (required by identity, identity-bot, and billing) |
+| `REDIS_PASSWORD` | `openssl rand -hex 32` (required by identity and identity-bot) |
 | `INTERNAL_API_TOKEN` | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | `https://trynordly.app` (notes publish + rooms published boards) |
 | `LIVE_PUBLIC_BASE_URL` | `https://code.trynordly.app` (rooms guest invite / live-share links) |
@@ -32,11 +33,9 @@ Before first deploy: fill secrets, then `cd deploy && make up`.
 
 JWT: `cd deploy && make keys` → `secrets/jwt/*.pem` (do not commit).
 
-Optional: Tribute webhooks — see [RUNBOOK.md](./RUNBOOK.md).
-
 | `GRAFANA_ADMIN_PASSWORD` | required when using `--profile monitoring` (default in `make up`) |
 
-Set `TRIBUTE_WEBHOOK_SECRET` before production deployment, even when no current payment link is configured. Then run `make audit-env`; it rejects placeholders, missing required production secrets, and missing JWT key paths.
+Then run `make audit-env`; it rejects placeholders, missing required production secrets, and missing JWT key paths.
 
 ## 3. GitHub Actions deploy
 
@@ -45,7 +44,8 @@ Secrets: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY`, optional `DEPLO
 First time on VPS (manual or scripted):
 
 ```bash
-# Option A — bootstrap script (Docker + clone + .env + JWT keys):
+# Option A — host packages + nginx, then clone:
+./deploy/scripts/setup-host.sh
 ./deploy/scripts/bootstrap-server.sh git@github.com:YOUR_ORG/project-nordly.git
 
 # Option B — manual:

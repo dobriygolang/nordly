@@ -12,14 +12,14 @@ import {
   vaultStartWatch,
   vaultStopWatch,
   type NotesVaultConfig,
-} from '@features/notes/vault';
+} from '@features/notes/api/vault';
 import {
   refreshNotesVaultBoundCache,
   setNotesVaultBoundCache,
 } from '@features/notes/api/notesClient';
+import { notesErrorMessage as errorMessage } from '@features/notes/api/errorMessage';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { isTauriRuntime } from '@platform/runtime';
-import { errorMessage } from '../../Notes/utils';
 
 import { SettingRow, SettingsGroup } from '../primitives/SettingRow';
 
@@ -31,7 +31,7 @@ function displayVaultPath(path: string): string {
 export function FilesAndLinksSection() {
   const t = useT();
   const [cfg, setCfg] = useState<NotesVaultConfig | null>(null);
-  const [attachmentDraft, setAttachmentDraft] = useState('img');
+  const [attachmentDraft, setAttachmentDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -40,10 +40,18 @@ export function FilesAndLinksSection() {
       setCfg(null);
       return;
     }
-    const next = await vaultGetConfig();
-    setCfg(next);
-    setAttachmentDraft(next?.attachmentFolder ?? 'img');
-  }, []);
+    try {
+      const next = await vaultGetConfig();
+      setCfg(next);
+      setAttachmentDraft(next?.attachmentFolder ?? '');
+    } catch (err) {
+      setError(errorMessage(err, t));
+    }
+  }, [t]);
+
+  const onBoundError = useCallback((err: unknown) => {
+    setError(errorMessage(err, t));
+  }, [t]);
 
   useEffect(() => {
     void reload();
@@ -58,9 +66,13 @@ export function FilesAndLinksSection() {
     try {
       const folder = await vaultPickFolder();
       if (!folder) return;
+      const attachmentFolder = attachmentDraft.trim() || (!cfg ? 'img' : '');
+      if (!attachmentFolder) {
+        throw new Error('attachment folder is required');
+      }
       const next = await vaultSetConfig({
         root: folder,
-        attachmentFolder: attachmentDraft.trim() || 'img',
+        attachmentFolder,
         migratedFromIdb: cfg?.migratedFromIdb ?? false,
       });
       setCfg(next);
@@ -82,7 +94,10 @@ export function FilesAndLinksSection() {
     setBusy(true);
     setError(null);
     try {
-      const folder = attachmentDraft.trim() || 'img';
+      const folder = attachmentDraft.trim();
+      if (!folder) {
+        throw new Error('attachment folder is required');
+      }
       const next = await vaultSetConfig({
         ...cfg,
         attachmentFolder: folder,
@@ -181,16 +196,24 @@ export function FilesAndLinksSection() {
         ) : null}
       </SettingsGroup>
       {error ? <p className="mono nordly-settings-inline-error">{error}</p> : null}
-      <BoundProbe onNeedReload={reload} />
+      <BoundProbe onNeedReload={reload} onError={onBoundError} />
     </>
   );
 }
 
-function BoundProbe({ onNeedReload }: { onNeedReload: () => void }) {
+function BoundProbe({
+  onNeedReload,
+  onError,
+}: {
+  onNeedReload: () => void;
+  onError: (err: unknown) => void;
+}) {
   useEffect(() => {
-    void isNotesVaultBound().then((bound) => {
-      if (!bound) onNeedReload();
-    });
-  }, [onNeedReload]);
+    void isNotesVaultBound()
+      .then((bound) => {
+        if (!bound) onNeedReload();
+      })
+      .catch(onError);
+  }, [onNeedReload, onError]);
   return null;
 }

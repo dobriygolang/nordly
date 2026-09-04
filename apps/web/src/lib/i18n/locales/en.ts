@@ -1,9 +1,6 @@
 import { legalEn } from './legal.en'
 
 export const en = {
-  locale: {
-    label: 'Language',
-  },
   common: {
     retry: 'Retry',
     guest: 'Guest',
@@ -31,11 +28,11 @@ export const en = {
       },
       legalTerms: {
         title: 'Terms of Service',
-        description: 'Terms of use for Nordly (trynordly.app) — workspace, billing, and live collaboration.',
+        description: 'Terms of use for Nordly (trynordly.app) — workspace and live collaboration.',
       },
       legalPrivacy: {
         title: 'Privacy Policy',
-        description: 'How Nordly (trynordly.app) processes personal data — account, billing, and live rooms.',
+        description: 'How Nordly (trynordly.app) processes personal data — account and live rooms.',
       },
       liveNew: {
         title: 'Live collab rooms',
@@ -65,20 +62,9 @@ export const en = {
       },
     },
   },
-  billing: {
-    counters: {
-      cloud_sync_enabled: 'Cloud sync',
-      cloud_sync_devices: 'Synced devices',
-      cloud_notes_count: 'Cloud notes',
-      published_notes_active: 'Publish to web',
-      publish_password: 'Private link',
-    },
-  },
   session: {
     editorFormatGoOnly: 'Formatting is available for Go only',
-    editorFormatAuthExpired: 'Your session expired. Refresh the page or sign in again.',
-    editorRunQuota: 'Daily code run limit reached. Try again tomorrow.',
-    editorRunFeatureDisabled: 'This feature is not available for your account.',
+    editorFormatAuthExpired: 'Your session expired. Refresh the page and join the room again.',
   },
   welcome: {
     pill: 'EARLY ACCESS',
@@ -97,6 +83,12 @@ export const en = {
     downloadCta: 'Download app',
     downloadCtaVersion: 'Download app v{{version}}',
     downloadStarted: 'Download started',
+    downloadTitle: 'Download Nordly',
+    downloadPickOs: 'Choose an installer for your system.',
+    downloadUnavailable: 'No installer is available for this release yet.',
+    downloadMacApple: 'macOS (Apple silicon)',
+    downloadMacIntel: 'macOS (Intel)',
+    downloadWindows: 'Windows',
     philosophyTitle: 'Our philosophy',
     philosophyBody:
       'Nordly is not another tab in your browser.\n' +
@@ -179,6 +171,7 @@ export const en = {
     wsOffline: 'OFFLINE',
     wsReconnecting: 'RECONNECT…',
     wsConnecting: 'CONNECT…',
+    wsClosed: 'CLOSED',
   },
   oauth: {
     google: {

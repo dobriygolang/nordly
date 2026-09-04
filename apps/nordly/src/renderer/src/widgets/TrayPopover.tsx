@@ -11,7 +11,9 @@ import { applyTheme } from '@shared/lib/applyTheme';
 import { listenEffect } from '@shared/lib/tauriListen';
 import { readStoredTheme } from '@shared/model/theme';
 import { usePomodoroStore } from '@shared/model/pomodoro';
+import { TimerMode } from '@shared/model/settings';
 import { Icon } from '@shared/ui/primitives/Icon';
+import { DIGIT_STRIP } from '@shared/ui/OdometerTimer';
 import { themePosterSrc, type ThemeId } from '@shared/model/theme';
 
 function readTheme(): ThemeId {
@@ -20,8 +22,6 @@ function readTheme(): ThemeId {
   return theme;
 }
 
-/** Duplicated strip — second 0–9 allows a seamless full revolution. */
-const DIGIT_STRIP = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const CELL_EM = 1.05;
 
 const TICK_ROLL_MS = 420;
@@ -178,7 +178,7 @@ export function TrayPopoverApp(): JSX.Element {
   const elapsed = usePomodoroStore((s) => s.elapsed);
   const running = usePomodoroStore((s) => s.running);
   const pinnedTitle = usePomodoroStore((s) => s.pinnedTitle);
-  const displaySec = mode === 'pomodoro' ? remain : elapsed;
+  const displaySec = mode === TimerMode.Pomodoro ? remain : elapsed;
   const taskTitle = pinnedTitle?.trim();
   const focusLabel = taskTitle || t(running ? 'nordly.tray.focus_session' : 'nordly.tray.ready');
 
@@ -236,9 +236,13 @@ export function TrayPopoverApp(): JSX.Element {
               type="button"
               className={`nordly-tray-popover__play motion-press focus-ring${running ? ' is-running' : ''}`}
               onClick={toggleTimer}
-              aria-label={running ? 'Pause timer' : 'Start timer'}
+              aria-label={
+                running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
+              }
               aria-pressed={running}
-              title={running ? 'Pause' : 'Play'}
+              title={
+                running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
+              }
             >
               <span className="nordly-tray-popover__play-icon">
                 <Icon name={running ? 'pause' : 'play'} size={10} />

@@ -4,156 +4,28 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { usePomodoroStore } from '@shared/model/pomodoro';
+import { TimerMode } from '@shared/model/settings';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
-
-// Локальный CSS — keyframes для mount-анимации + hover-варианты для
-// DockBtn. Inline event handlers на transform конфликтуют с CSS-hover
-// rotate/scale; CSS-driven подход даёт чистый combination.
-const DOCK_CSS = `
-@keyframes nordly-dock-enter {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-.nordly-dock {
-  animation: nordly-dock-enter var(--motion-dur-xxlarge) var(--motion-ease-standard) both;
-}
-
-.nordly-dock-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--ink);
-  cursor: pointer;
-  padding: 0;
-  transition:
-    background-color var(--t-fast),
-    color var(--t-fast),
-    transform var(--t-fast),
-    opacity var(--t-fast);
-}
-.nordly-dock-btn:hover {
-  background: rgb(var(--ink-rgb) / 0.1);
-  color: var(--ink);
-}
-.nordly-dock-btn[data-variant="menu"]:hover {
-  opacity: 1;
-}
-.nordly-dock-btn__icon {
-  display: flex;
-  transition: transform var(--motion-dur-medium) var(--motion-ease-interactive);
-}
-.nordly-dock-btn[data-variant="menu"]:hover .nordly-dock-btn__icon {
-  transform: rotate(180deg);
-}
-.nordly-dock-btn[data-variant="action"]:hover {
-  transform: scale(1.02);
-}
-.nordly-dock-btn[data-variant="action"]:active {
-  transform: scale(0.98);
-}
-
-.nordly-dock-timer {
-  position: relative;
-  height: 36px;
-  min-width: 96px;
-  padding: 0 10px;
-  border-radius: 10px;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.nordly-dock-timer-layer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    opacity var(--motion-dur-medium) var(--motion-ease-interactive),
-    transform var(--motion-dur-medium) var(--motion-ease-interactive);
-}
-
-.nordly-dock-timer-layer--time {
-  gap: 6px;
-  transition-delay: 25ms;
-}
-
-.nordly-dock-timer-mode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  color: var(--ink);
-  opacity: 0.86;
-}
-
-.nordly-dock-timer-display {
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  color: var(--ink);
-}
-
-.nordly-dock-timer-layer--reset {
-  gap: 4px;
-  opacity: 0;
-  transform: translateY(-4px);
-  pointer-events: none;
-  transition-delay: 0ms;
-}
-
-.nordly-dock-timer:hover .nordly-dock-timer-layer--time {
-  opacity: 0;
-  transform: translateY(4px);
-  transition-delay: 0ms;
-}
-
-.nordly-dock-timer:hover .nordly-dock-timer-layer--reset {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  transition-delay: 30ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nordly-dock,
-  .nordly-dock-btn,
-  .nordly-dock-timer {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-  .nordly-dock-btn[data-variant="menu"]:hover .nordly-dock-btn__icon {
-    transform: none;
-  }
-  .nordly-dock-btn[data-variant="action"]:hover,
-  .nordly-dock-btn[data-variant="action"]:active {
-    transform: none;
-  }
-}
-`;
 
 interface DockProps {
   onMenu: () => void;
 }
 
 export function Dock({ onMenu }: DockProps) {
+  const t = useT();
+  const menuLabel = t('nordly.dock.open_menu');
   return (
-    <>
-      <style>{DOCK_CSS}</style>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 36,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          WebkitAppRegion: 'no-drag',
-        }}
-      >
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 36,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+        WebkitAppRegion: 'no-drag',
+      }}
+    >
       <div
         className="no-select nordly-dock"
         style={
@@ -170,7 +42,12 @@ export function Dock({ onMenu }: DockProps) {
           } as CSSProperties
         }
       >
-        <DockBtn onClick={onMenu} title="Menu (⌘K)" ariaLabel="Open menu" variant="menu">
+        <DockBtn
+          onClick={onMenu}
+          title={`${menuLabel} (⌘K)`}
+          ariaLabel={menuLabel}
+          variant="menu"
+        >
           <span className="nordly-dock-btn__icon">
             <Icon name="menu" size={14} />
           </span>
@@ -178,8 +55,7 @@ export function Dock({ onMenu }: DockProps) {
         <Divider />
         <TimerControls />
       </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -187,25 +63,33 @@ function ModeCycleBtn() {
   const t = useT();
   const mode = usePomodoroStore((s) => s.mode);
   const cycleMode = usePomodoroStore((s) => s.cycleMode);
-  const nextMode = mode === 'pomodoro' ? 'stopwatch' : 'pomodoro';
+  const nextMode =
+    mode === TimerMode.Pomodoro ? TimerMode.Stopwatch : TimerMode.Pomodoro;
   const title =
-    nextMode === 'stopwatch' ? t('nordly.dock.mode_stopwatch') : t('nordly.dock.mode_pomodoro');
+    nextMode === TimerMode.Stopwatch
+      ? t('nordly.dock.mode_stopwatch')
+      : t('nordly.dock.mode_pomodoro');
 
   return (
     <DockBtn onClick={() => cycleMode()} title={title} ariaLabel={title} small variant="action">
-      <Icon name={mode === 'pomodoro' ? 'pomodoro' : 'infinity'} size={14} strokeWidth={2} />
+      <Icon
+        name={mode === TimerMode.Pomodoro ? 'pomodoro' : 'infinity'}
+        size={14}
+        strokeWidth={2}
+      />
     </DockBtn>
   );
 }
 
 function TimerControls() {
+  const t = useT();
   const mode = usePomodoroStore((s) => s.mode);
   const remain = usePomodoroStore((s) => s.remain);
   const elapsed = usePomodoroStore((s) => s.elapsed);
   const running = usePomodoroStore((s) => s.running);
   const toggle = usePomodoroStore((s) => s.toggle);
   const reset = usePomodoroStore((s) => s.reset);
-  const displaySec = mode === 'pomodoro' ? remain : elapsed;
+  const displaySec = mode === TimerMode.Pomodoro ? remain : elapsed;
 
   return (
     <>
@@ -218,8 +102,12 @@ function TimerControls() {
       <Divider />
       <DockBtn
         onClick={toggle}
-        title={running ? 'Pause' : 'Play'}
-        ariaLabel={running ? 'Pause timer' : 'Play timer'}
+        title={
+          running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
+        }
+        ariaLabel={
+          running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
+        }
         ariaPressed={running}
         variant="action"
       >
@@ -231,7 +119,7 @@ function TimerControls() {
 
 
 interface TimerAreaProps {
-  mode: 'pomodoro' | 'stopwatch';
+  mode: TimerMode;
   totalSec: number;
   running: boolean;
   onReset: () => void;
@@ -243,7 +131,11 @@ function TimerArea({ mode, totalSec, running, onReset }: TimerAreaProps) {
     <div className="nordly-dock-timer">
       <div className="nordly-dock-timer-layer nordly-dock-timer-layer--time">
         <span className="nordly-dock-timer-mode" aria-hidden="true">
-          <Icon name={mode === 'pomodoro' ? 'pomodoro' : 'infinity'} size={14} strokeWidth={2} />
+          <Icon
+            name={mode === TimerMode.Pomodoro ? 'pomodoro' : 'infinity'}
+            size={14}
+            strokeWidth={2}
+          />
         </span>
         <OdometerTimer
           totalSec={totalSec}

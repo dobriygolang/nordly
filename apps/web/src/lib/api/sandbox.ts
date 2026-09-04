@@ -1,5 +1,6 @@
 import { apiWithBearer } from '@/lib/apiClient'
 import { normalizeCodeRun } from '@/lib/api/normalize'
+import { sandboxLanguageToWire } from '@/lib/api/wireEnums'
 import type { CodeRun } from '@/lib/types'
 
 function requireBearer(accessToken?: string | null): string {
@@ -31,7 +32,7 @@ export function runCode(
     {
       method: 'POST',
       body: JSON.stringify({
-        language: input.language,
+        language: sandboxLanguageToWire(input.language),
         code: input.code,
         stdin: input.stdin,
       }),
@@ -59,7 +60,7 @@ export function formatCode(
     {
       method: 'POST',
       body: JSON.stringify({
-        language: input.language,
+        language: sandboxLanguageToWire(input.language),
         code: input.code,
       }),
     },
@@ -68,5 +69,5 @@ export function formatCode(
 }
 
 export function isTerminalRunStatus(status: string): boolean {
-  return !['queued', 'running'].includes(status)
+  return status !== 'queued' && status !== 'running'
 }

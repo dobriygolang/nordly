@@ -8,16 +8,14 @@ import (
 )
 
 type Config struct {
-	AppEnv           string
-	LogLevel         string
-	HTTPPort         int
-	GRPCPort         int
-	GRPCHost         string
-	PostgresDSN      string
-	JWTPublicKeyPEM  []byte
-	PublicBaseURL    string
-	BillingGRPCAddr  string
-	InternalAPIToken string
+	AppEnv          string
+	LogLevel        string
+	HTTPPort        int
+	GRPCPort        int
+	GRPCHost        string
+	PostgresDSN     string
+	JWTPublicKeyPEM []byte
+	PublicBaseURL   string
 }
 
 func Load() (*Config, error) {
@@ -33,25 +31,19 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jwt public key: %w", err)
 	}
-	internalToken := os.Getenv("INTERNAL_API_TOKEN")
-	if internalToken == "" {
-		return nil, fmt.Errorf("INTERNAL_API_TOKEN is required")
-	}
 	publicBaseURL := os.Getenv("PUBLIC_BASE_URL")
 	if publicBaseURL == "" {
 		return nil, fmt.Errorf("PUBLIC_BASE_URL is required")
 	}
 	return &Config{
-		AppEnv:           getEnv("APP_ENV", "development"),
-		LogLevel:         getEnv("LOG_LEVEL", "info"),
-		HTTPPort:         httpPort,
-		GRPCPort:         grpcPort,
-		GRPCHost:         grpcListenHost(),
-		PostgresDSN:      getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5442/nordly_notes?sslmode=disable"),
-		JWTPublicKeyPEM:  publicKey,
-		PublicBaseURL:    strings.TrimRight(publicBaseURL, "/"),
-		BillingGRPCAddr:  getEnv("BILLING_GRPC_ADDR", "127.0.0.1:9095"),
-		InternalAPIToken: internalToken,
+		AppEnv:          getEnv("APP_ENV", "development"),
+		LogLevel:        getEnv("LOG_LEVEL", "info"),
+		HTTPPort:        httpPort,
+		GRPCPort:        grpcPort,
+		GRPCHost:        grpcListenHost(),
+		PostgresDSN:     getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5442/nordly_notes?sslmode=disable"),
+		JWTPublicKeyPEM: publicKey,
+		PublicBaseURL:   strings.TrimRight(publicBaseURL, "/"),
 	}, nil
 }
 

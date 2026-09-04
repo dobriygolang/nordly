@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
+	"time"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/repository"
@@ -14,18 +15,11 @@ import (
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/support"
 )
 
-var (
-	ErrInvalidInput  = model.ErrInvalidInput
-	ErrForbidden     = model.ErrForbidden
-	ErrNotFound      = model.ErrNotFound
-	ErrQuotaExceeded = model.ErrQuotaExceeded
-)
-
 // RunCodeInput is input for RunCode.
 type RunCodeInput struct {
 	UserID   string
 	RoomID   string
-	Language string
+	Language model.Language
 	Code     string
 	Stdin    string
 }
@@ -33,16 +27,15 @@ type RunCodeInput struct {
 // FormatCodeInput is input for FormatCode.
 type FormatCodeInput struct {
 	UserID   string
-	RoomID   string
-	Language string
+	Language model.Language
 	Code     string
 }
 
 // GetCodeRunInput identifies who is fetching a run.
 type GetCodeRunInput struct {
-	UserID string
-	Scope  string
-	RunID  string
+	UserID       string
+	EditorRoomID string
+	RunID        string
 }
 
 // Service is sandbox domain logic.
@@ -54,8 +47,7 @@ type Service interface {
 }
 
 type sandboxService struct {
-	maxCodeBytes  int
-	maxStdinBytes int
+	limits model.RunLimits
 
 	runCode           *run_code.Handler
 	formatCode        *format_code.Handler
@@ -65,75 +57,103 @@ type sandboxService struct {
 
 // Deps holds service dependencies.
 type Deps struct {
-	Repo          repository.Store
-	Billing       billingadapter.Client
-	Runner        runner.CodeRunner
-	TimeoutMS     int
-	MemoryMB      int
-	MaxCodeBytes  int
-	MaxStdinBytes int
-	AsyncRuns     bool
+	Repo                  repository.Store
+	Runner                runner.CodeRunner
+	TimeoutMS             int
+	MemoryMB              int
+	MaxOutputBytes        int
+	LeaseDuration         time.Duration
+	MaxCodeBytes          int
+	MaxStdinBytes         int
+	MaxConcurrentUser     int
+	MaxConcurrentRoom     int
+	UserRequestsPerMinute int
+	RoomRequestsPerMinute int
+	AsyncRuns             bool
 }
 
 // New constructs sandbox service.
-func New(deps Deps) Service {
+func New(deps Deps) (Service, error) {
 	if deps.Repo == nil {
-		panic("sandbox service: Repo is required")
-	}
-	if deps.Billing == nil {
-		panic("sandbox service: Billing is required")
+		return nil, errors.New("sandbox service: Repo is required")
 	}
 	if deps.Runner == nil {
-		panic("sandbox service: Runner is required")
+		return nil, errors.New("sandbox service: Runner is required")
 	}
-	if deps.TimeoutMS <= 0 || deps.MemoryMB <= 0 {
-		panic("sandbox service: TimeoutMS and MemoryMB must be > 0")
+	defaults := support.Defaults{
+		TimeoutMS:      deps.TimeoutMS,
+		MemoryMB:       deps.MemoryMB,
+		MaxOutputBytes: deps.MaxOutputBytes,
+		LeaseDuration:  deps.LeaseDuration,
 	}
-	if deps.MaxCodeBytes <= 0 || deps.MaxStdinBytes <= 0 {
-		panic("sandbox service: MaxCodeBytes and MaxStdinBytes must be > 0")
+	if err := defaults.Validate(); err != nil {
+		return nil, errors.New("sandbox service: runner defaults must be > 0")
 	}
-
-	defaults := support.Defaults{TimeoutMS: deps.TimeoutMS, MemoryMB: deps.MemoryMB}
+	limits := model.RunLimits{
+		MaxCodeBytes:          deps.MaxCodeBytes,
+		MaxStdinBytes:         deps.MaxStdinBytes,
+		MaxConcurrentUser:     deps.MaxConcurrentUser,
+		MaxConcurrentRoom:     deps.MaxConcurrentRoom,
+		UserRequestsPerMinute: deps.UserRequestsPerMinute,
+		RoomRequestsPerMinute: deps.RoomRequestsPerMinute,
+	}
+	if err := limits.Validate(); err != nil {
+		return nil, errors.New("sandbox service: run limits must be > 0")
+	}
+	runCode, err := run_code.New(run_code.Config{
+		Store:     deps.Repo,
+		Runner:    deps.Runner,
+		Defaults:  defaults,
+		AsyncRuns: deps.AsyncRuns,
+		Now:       time.Now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	formatCode, err := format_code.New(format_code.Config{
+		Runner: deps.Runner,
+	})
+	if err != nil {
+		return nil, err
+	}
+	processQueuedRuns, err := process_queued_runs.New(process_queued_runs.Config{
+		Store:    deps.Repo,
+		Runner:   deps.Runner,
+		Defaults: defaults,
+		Now:      time.Now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	getCodeRun, err := get_code_run.New(deps.Repo)
+	if err != nil {
+		return nil, err
+	}
 	return &sandboxService{
-		maxCodeBytes:  deps.MaxCodeBytes,
-		maxStdinBytes: deps.MaxStdinBytes,
-		runCode: run_code.New(run_code.Config{
-			Store:     deps.Repo,
-			Billing:   deps.Billing,
-			Runner:    deps.Runner,
-			Defaults:  defaults,
-			AsyncRuns: deps.AsyncRuns,
-		}),
-		formatCode: format_code.New(format_code.Config{
-			Billing: deps.Billing,
-			Runner:  deps.Runner,
-		}),
-		processQueuedRuns: process_queued_runs.New(process_queued_runs.Config{
-			Store:    deps.Repo,
-			Runner:   deps.Runner,
-			Defaults: defaults,
-		}),
-		getCodeRun: get_code_run.New(deps.Repo),
-	}
+		limits:            limits,
+		runCode:           runCode,
+		formatCode:        formatCode,
+		processQueuedRuns: processQueuedRuns,
+		getCodeRun:        getCodeRun,
+	}, nil
 }
 
 func (s *sandboxService) RunCode(ctx context.Context, input RunCodeInput) (*model.CodeRun, error) {
 	return s.runCode.Handle(ctx, run_code.Command{
-		UserID:        input.UserID,
-		RoomID:        input.RoomID,
-		Language:      input.Language,
-		Code:          input.Code,
-		Stdin:         input.Stdin,
-		MaxCodeBytes:  s.maxCodeBytes,
-		MaxStdinBytes: s.maxStdinBytes,
+		UserID:   input.UserID,
+		RoomID:   input.RoomID,
+		Language: input.Language,
+		Code:     input.Code,
+		Stdin:    input.Stdin,
+		Limits:   s.limits,
 	})
 }
 
 func (s *sandboxService) GetCodeRun(ctx context.Context, input GetCodeRunInput) (*model.CodeRun, error) {
 	return s.getCodeRun.Handle(ctx, get_code_run.Query{
-		UserID: input.UserID,
-		Scope:  input.Scope,
-		RunID:  input.RunID,
+		UserID:       input.UserID,
+		EditorRoomID: input.EditorRoomID,
+		RunID:        input.RunID,
 	})
 }
 
@@ -144,9 +164,8 @@ func (s *sandboxService) ProcessQueuedRuns(ctx context.Context, limit int) (int,
 func (s *sandboxService) FormatCode(ctx context.Context, input FormatCodeInput) (string, error) {
 	return s.formatCode.Handle(ctx, format_code.Command{
 		UserID:       input.UserID,
-		RoomID:       input.RoomID,
 		Language:     input.Language,
 		Code:         input.Code,
-		MaxCodeBytes: s.maxCodeBytes,
+		MaxCodeBytes: s.limits.MaxCodeBytes,
 	})
 }

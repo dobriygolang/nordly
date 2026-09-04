@@ -21,9 +21,9 @@ func (_m *Store) EXPECT() *Store_Expecter {
 	return &Store_Expecter{mock: &_m.Mock}
 }
 
-// RegisterDevice provides a mock function with given fields: ctx, userID, deviceID, name, appVersion, limit
-func (_m *Store) RegisterDevice(ctx context.Context, userID string, deviceID string, name string, appVersion string, limit int) (int, error) {
-	ret := _m.Called(ctx, userID, deviceID, name, appVersion, limit)
+// RegisterDevice provides a mock function with given fields: ctx, userID, deviceID, name, appVersion
+func (_m *Store) RegisterDevice(ctx context.Context, userID string, deviceID string, name string, appVersion string) (int, error) {
+	ret := _m.Called(ctx, userID, deviceID, name, appVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RegisterDevice")
@@ -31,17 +31,17 @@ func (_m *Store) RegisterDevice(ctx context.Context, userID string, deviceID str
 
 	var r0 int
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int) (int, error)); ok {
-		return rf(ctx, userID, deviceID, name, appVersion, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (int, error)); ok {
+		return rf(ctx, userID, deviceID, name, appVersion)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int) int); ok {
-		r0 = rf(ctx, userID, deviceID, name, appVersion, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) int); ok {
+		r0 = rf(ctx, userID, deviceID, name, appVersion)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, int) error); ok {
-		r1 = rf(ctx, userID, deviceID, name, appVersion, limit)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, userID, deviceID, name, appVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -60,14 +60,13 @@ type Store_RegisterDevice_Call struct {
 //   - deviceID string
 //   - name string
 //   - appVersion string
-//   - limit int
-func (_e *Store_Expecter) RegisterDevice(ctx interface{}, userID interface{}, deviceID interface{}, name interface{}, appVersion interface{}, limit interface{}) *Store_RegisterDevice_Call {
-	return &Store_RegisterDevice_Call{Call: _e.mock.On("RegisterDevice", ctx, userID, deviceID, name, appVersion, limit)}
+func (_e *Store_Expecter) RegisterDevice(ctx interface{}, userID interface{}, deviceID interface{}, name interface{}, appVersion interface{}) *Store_RegisterDevice_Call {
+	return &Store_RegisterDevice_Call{Call: _e.mock.On("RegisterDevice", ctx, userID, deviceID, name, appVersion)}
 }
 
-func (_c *Store_RegisterDevice_Call) Run(run func(ctx context.Context, userID string, deviceID string, name string, appVersion string, limit int)) *Store_RegisterDevice_Call {
+func (_c *Store_RegisterDevice_Call) Run(run func(ctx context.Context, userID string, deviceID string, name string, appVersion string)) *Store_RegisterDevice_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(int))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
 	})
 	return _c
 }
@@ -77,7 +76,7 @@ func (_c *Store_RegisterDevice_Call) Return(_a0 int, _a1 error) *Store_RegisterD
 	return _c
 }
 
-func (_c *Store_RegisterDevice_Call) RunAndReturn(run func(context.Context, string, string, string, string, int) (int, error)) *Store_RegisterDevice_Call {
+func (_c *Store_RegisterDevice_Call) RunAndReturn(run func(context.Context, string, string, string, string) (int, error)) *Store_RegisterDevice_Call {
 	_c.Call.Return(run)
 	return _c
 }

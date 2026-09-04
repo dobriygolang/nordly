@@ -48,15 +48,12 @@ These objects are candidates only. Their presence here is not DROP approval.
   separately. In particular, partial indexes and active-room queries currently
   reference `archived_at`, so code/index dependencies must be removed in an
   expand release before it can begin a clean observation window.
-- `nordly_billing.usage_counters_period_end_idx`: correlate scans with query
-  logs and period cleanup/expiry jobs; zero scans alone is insufficient.
 
 ## Explicit KEEP list
 
 The following are not cleanup candidates and must not be dropped through this
 gate:
 
-- billing `subscriptions` and `provider_events` tables;
 - notes `note_links` table (only its `updated_at` column is a candidate);
 - rooms `code_rooms.visibility`;
 - sandbox `code_runs.room_id` and its room-scoped access semantics.

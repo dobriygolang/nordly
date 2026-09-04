@@ -11,13 +11,17 @@ func (i *Implementation) GetUserByTelegramID(
 	ctx context.Context,
 	req *identityv1.GetUserByTelegramIDRequest,
 ) (*identityv1.GetUserResponse, error) {
-	if req.GetTelegramId() == 0 {
-		return nil, invalidArgument("telegram_id is required")
+	if req.GetTelegramId() <= 0 {
+		return nil, invalidArgument("telegram_id must be greater than zero")
 	}
 
 	user, err := i.service.GetUserByTelegramID(ctx, req.GetTelegramId())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &identityv1.GetUserResponse{User: toProtoUser(user)}, nil
+	mapped, err := toProtoUser(user)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &identityv1.GetUserResponse{User: mapped}, nil
 }

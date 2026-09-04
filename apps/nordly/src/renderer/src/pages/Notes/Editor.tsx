@@ -14,7 +14,8 @@ import { Icon } from '@shared/ui/primitives/Icon';
 import { LiveMarkdownEditor } from '@shared/ui/LiveMarkdownEditor';
 import type { ImageHrefResolver } from '@shared/lib/codemirror/livePreview';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { formatTime, type ListState } from './utils';
+import { formatTime, NoteListStatus, type ListState } from './utils';
+import { NoteSaveStatus, type NoteSaveStatus as SaveStatus } from './saveStatus';
 
 export interface EditorProps {
   list: ListState;
@@ -24,7 +25,7 @@ export interface EditorProps {
   activeError: string | null;
   draftTitle: string;
   draftBody: string;
-  saveStatus: 'idle' | 'saving' | 'saved';
+  saveStatus: SaveStatus;
   noteTitles: string[];
   editorZoom: number;
   onTitleChange: (v: string) => void;
@@ -58,9 +59,11 @@ export function Editor({
       style={{ ['--nordly-notes-zoom' as string]: String(editorZoom) }}
     >
       <div className="nordly-vault-editor__inner">
-        {list.status === 'error' ? (
-          <ErrorPane message={list.error ?? ''} onRetry={onRetryList} />
-        ) : !active && list.status === 'ok' && list.notes.length === 0 ? (
+        {list.status === NoteListStatus.Failed ? (
+          <ErrorPane message={list.error} onRetry={onRetryList} />
+        ) : !active &&
+          list.status === NoteListStatus.Ready &&
+          list.notes.length === 0 ? (
           <EmptyState onCreate={onCreate} />
         ) : !active ? (
           <EmptyState onCreate={onCreate} dim />
@@ -137,7 +140,7 @@ function ActiveEditor({
   const resolveImageHref = useMemo((): ImageHrefResolver => {
     return async (href: string) => {
       if (/^https:\/\//i.test(href)) return href;
-      const { isNotesVaultBound, resolveVaultImageHref } = await import('@features/notes/vault');
+      const { isNotesVaultBound, resolveVaultImageHref } = await import('@features/notes/api/vault');
       if (await isNotesVaultBound()) {
         return resolveVaultImageHref(href, noteId);
       }
@@ -238,12 +241,12 @@ export function ErrorPane({ message, onRetry }: { message: string; onRetry: () =
   );
 }
 
-function SaveStatusIndicator({ status }: { status: 'idle' | 'saving' | 'saved' }) {
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
   const t = useT();
-  if (status === 'idle') return null;
+  if (status === NoteSaveStatus.Idle) return null;
   return (
     <span role="status" aria-live="polite" aria-atomic="true">
-      {status === 'saving' ? t('nordly.notes.saving') : t('nordly.notes.saved')}
+      {status === NoteSaveStatus.Saving ? t('nordly.notes.saving') : t('nordly.notes.saved')}
     </span>
   );
 }

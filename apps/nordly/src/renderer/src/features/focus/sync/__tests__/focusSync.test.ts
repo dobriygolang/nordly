@@ -30,6 +30,7 @@ vi.mock('@shared/sync/outbox', () => ({
   enqueueOutboxOnce: vi.fn(),
   hasOutboxForEntity: vi.fn(),
   removeOutboxForEntity: mocks.removeForEntity,
+  outboxCount: vi.fn(async () => 0),
 }));
 
 import { pushFocusOutbox } from '../focusSync';

@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PageId } from '@shared/model/navigation';
 
 import { MOTION_MS } from '@shared/lib/motionMs';
+import { ErrorBoundary } from '@shared/ui/ErrorBoundary';
 
 /** Matches page-layer fade (`--motion-dur-page`, Winter MAIN fadeIn 0.4s). */
 const PAGE_FADE_MS = MOTION_MS.page;
@@ -86,7 +87,9 @@ export function PageStack({
           data-status={layer.status}
           aria-hidden={layer.status === 'leaving' ? true : undefined}
         >
-          <Suspense fallback={null}>{children(layer.id)}</Suspense>
+          <ErrorBoundary section={layer.id}>
+            <Suspense fallback={null}>{children(layer.id)}</Suspense>
+          </ErrorBoundary>
         </div>
       ))}
     </>

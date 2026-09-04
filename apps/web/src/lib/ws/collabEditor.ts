@@ -3,19 +3,52 @@ import * as Y from 'yjs'
 import { applyAwarenessUpdate } from 'y-protocols/awareness'
 import type { Awareness } from 'y-protocols/awareness'
 
+export const EDITOR_WS_KINDS = [
+  'snapshot',
+  'op',
+  'presence',
+  'cursor',
+  'code_run',
+  'room_closed',
+] as const
+export type EditorWsKind = (typeof EDITOR_WS_KINDS)[number]
+
 export type EditorWsEnvelope = {
-  kind: string
+  kind: EditorWsKind
   data?: unknown
 }
 
-export type EditorWsStatus = 'connecting' | 'open' | 'reconnecting' | 'failed' | 'closed'
+export const EDITOR_WS_STATUSES = [
+  'connecting',
+  'open',
+  'reconnecting',
+  'failed',
+  'closed',
+] as const
+export type EditorWsStatus = (typeof EDITOR_WS_STATUSES)[number]
+
+/** Policy and room-closed frames must not be retried; 410 upgrades arrive as 1006. */
+export function shouldRetryEditorWsClose(code: number): boolean {
+  return code !== 1000 && code !== 1008
+}
+
+export function parseEditorWsEnvelope(raw: unknown): EditorWsEnvelope {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid WS envelope')
+  }
+  const kind = (raw as { kind?: unknown }).kind
+  if (typeof kind !== 'string' || !(EDITOR_WS_KINDS as readonly string[]).includes(kind)) {
+    throw new Error(`Unknown collab envelope kind: ${String(kind)}`)
+  }
+  return { kind: kind as EditorWsKind, data: (raw as { data?: unknown }).data }
+}
 
 export function decodeYjsPayload(payload: unknown): Uint8Array | null {
   if (payload == null) return null
   if (typeof payload === 'string') return b64ToBytes(payload)
   if (payload instanceof Uint8Array) return payload
   if (Array.isArray(payload)) return new Uint8Array(payload as number[])
-  return null
+  throw new Error(`Invalid Yjs payload type: ${typeof payload}`)
 }
 
 export function useEditorWs(
@@ -28,6 +61,7 @@ export function useEditorWs(
   const attemptsRef = useRef(0)
   const timerRef = useRef<number | null>(null)
   const closedByUser = useRef(false)
+  const failedHard = useRef(false)
   const [reconnectKey, setReconnectKey] = useState(0)
   const onEnvelopeRef = useRef(onEnvelope)
   onEnvelopeRef.current = onEnvelope
@@ -38,16 +72,17 @@ export function useEditorWs(
       return
     }
     closedByUser.current = false
+    failedHard.current = false
     attemptsRef.current = 0
 
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const base =
       (import.meta.env.VITE_WS_BASE as string | undefined) || `${proto}//${window.location.host}/ws`
-    const url = `${base.replace(/\/$/, '')}/editor/${encodeURIComponent(roomId)}?token=${encodeURIComponent(token)}`
+    const url = `${base.replace(/\/$/, '')}/editor/${encodeURIComponent(roomId)}`
 
     const connect = () => {
       setStatus(attemptsRef.current === 0 ? 'connecting' : 'reconnecting')
-      const ws = new WebSocket(url)
+      const ws = new WebSocket(url, [`access_token.${token}`])
       wsRef.current = ws
       ws.onopen = () => {
         attemptsRef.current = 0
@@ -55,18 +90,31 @@ export function useEditorWs(
       }
       ws.onmessage = (ev) => {
         try {
-          const env = JSON.parse(ev.data) as EditorWsEnvelope
+          const env = parseEditorWsEnvelope(JSON.parse(ev.data) as unknown)
           onEnvelopeRef.current?.(env)
         } catch (err) {
           console.error('[collabEditor] corrupt WS envelope', err)
+          failedHard.current = true
+          closedByUser.current = true
+          if (timerRef.current) window.clearTimeout(timerRef.current)
+          setStatus('failed')
+          ws.close()
         }
       }
       ws.onerror = () => {
         /* onclose handles retry */
       }
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        if (failedHard.current) {
+          setStatus('failed')
+          return
+        }
         if (closedByUser.current) {
           setStatus('closed')
+          return
+        }
+        if (!shouldRetryEditorWsClose(ev.code)) {
+          setStatus(ev.code === 1000 ? 'closed' : 'failed')
           return
         }
         attemptsRef.current += 1
@@ -104,8 +152,11 @@ export function useEditorWs(
 }
 
 export function bytesToB64(bytes: Uint8Array): string {
+  const CHUNK = 0x2000
   let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
   return btoa(binary)
 }
 
@@ -116,68 +167,62 @@ export function b64ToBytes(b64: string): Uint8Array {
   return out
 }
 
-const ENVELOPE_KIND_ORDER: Record<string, number> = {
+const ENVELOPE_KIND_ORDER: Partial<Record<EditorWsKind, number>> = {
   snapshot: 0,
   op: 1,
   presence: 2,
 }
 
-function envelopeKindOrder(kind: string): number {
-  return ENVELOPE_KIND_ORDER[kind] ?? 50
+function envelopeKindOrder(kind: EditorWsKind): number {
+  const order = ENVELOPE_KIND_ORDER[kind]
+  if (order === undefined) {
+    throw new Error(`Unknown collab envelope kind: ${kind}`)
+  }
+  return order
 }
 
-/** Hub relay wraps as { user_id, data: { update } }; client sends { update } directly. */
-export function extractPresenceUpdate(data: unknown): string | null {
-  if (data == null || typeof data !== 'object') return null
-  const root = data as Record<string, unknown>
-
-  const direct = root.update
-  if (typeof direct === 'string') return direct
-
-  const nested = root.data
-  if (nested != null && typeof nested === 'object') {
-    const upd = (nested as Record<string, unknown>).update
-    if (typeof upd === 'string') return upd
+/** Canonical presence payload is `{ update: "<b64>" }`. */
+export function extractPresenceUpdate(data: unknown): string {
+  if (data == null || typeof data !== 'object') {
+    throw new Error('Invalid presence payload')
   }
-  if (typeof nested === 'string') {
-    try {
-      const parsed = JSON.parse(nested) as { update?: unknown }
-      if (typeof parsed.update === 'string') return parsed.update
-    } catch (err) {
-      console.error('[collabEditor] corrupt nested presence JSON', err)
-    }
+  const update = (data as Record<string, unknown>).update
+  if (typeof update !== 'string' || !update) {
+    throw new Error('Invalid presence payload: missing update')
   }
-  return null
+  return update
 }
 
 function applyPresenceUpdate(awareness: Awareness, data: unknown): void {
-  const b64 = extractPresenceUpdate(data)
-  if (!b64) return
-  try {
-    applyAwarenessUpdate(awareness, b64ToBytes(b64), 'remote')
-  } catch (err) {
-    console.error('[collabEditor] malformed awareness update', err)
-  }
+  applyAwarenessUpdate(awareness, b64ToBytes(extractPresenceUpdate(data)), 'remote')
 }
+
+const SIDE_EFFECT_KINDS = new Set<EditorWsKind>(['room_closed', 'code_run', 'cursor'])
 
 export function applyWsEnvelope(
   env: EditorWsEnvelope,
   ydoc: Y.Doc,
   awareness: Awareness | null,
 ): void {
+  if (SIDE_EFFECT_KINDS.has(env.kind)) return
   if (env.kind === 'snapshot' || env.kind === 'op') {
     const data = env.data as { payload?: unknown } | undefined
     const bytes = decodeYjsPayload(data?.payload)
-    if (bytes && bytes.byteLength > 0) {
+    if (!bytes) {
+      throw new Error(`collab ${env.kind} missing payload`)
+    }
+    if (bytes.byteLength > 0) {
       Y.applyUpdate(ydoc, bytes, 'remote')
     }
     return
   }
 
-  if (env.kind === 'presence' && awareness) {
-    // Relative cursor positions bind to Y.Text — apply after doc ops in the same tick.
-    queueMicrotask(() => applyPresenceUpdate(awareness, env.data))
+  if (env.kind === 'presence') {
+    if (!awareness) return
+    applyPresenceUpdate(awareness, env.data)
+    return
   }
+  throw new Error(`Unknown collab envelope kind: ${env.kind}`)
 }
 
 /** Apply a batch of WS envelopes: doc sync first, then awareness (deferred per envelope). */
@@ -186,7 +231,10 @@ export function applyWsEnvelopes(
   ydoc: Y.Doc,
   awareness: Awareness | null,
 ): void {
-  const sorted = [...envs].sort(
+  const docEnvs = envs.filter(
+    (env) => env.kind === 'snapshot' || env.kind === 'op' || env.kind === 'presence',
+  )
+  const sorted = [...docEnvs].sort(
     (a, b) => envelopeKindOrder(a.kind) - envelopeKindOrder(b.kind),
   )
   for (const env of sorted) {
@@ -218,6 +266,10 @@ export function handleCollabSideEffect(env: EditorWsEnvelope, handlers: CollabSi
   }
   if (env.kind === 'code_run') {
     const data = env.data as CodeRunBroadcast | undefined
-    if (data?.run_id) handlers.onCodeRun?.(data)
+    if (!data?.run_id) {
+      throw new Error('collab code_run missing run_id')
+    }
+    handlers.onCodeRun?.(data)
+    return
   }
 }

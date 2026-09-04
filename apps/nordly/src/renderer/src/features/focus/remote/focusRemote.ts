@@ -1,5 +1,6 @@
 import { addDays, parseDayKey, toDayKey } from '@shared/lib/dates';
 import { API_BASE_URL } from '@shared/api/config';
+import { requireOk } from '@shared/api/errors';
 import {
   optionalJsonDate,
   optionalJsonStringOrEmpty,
@@ -9,6 +10,8 @@ import {
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
+import { focusModeFromWire, focusModeToWire } from './wireEnums';
+import type { FocusTimerMode } from '@shared/model/pomodoro';
 
 export interface FocusDay {
   date: string;
@@ -32,11 +35,22 @@ export interface FocusSession {
   endedAt: Date | null;
   pomodorosCompleted: number;
   secondsFocused: number;
-  mode: string;
+  mode: FocusTimerMode;
 }
 
 function focusJsonHeaders(): HeadersInit {
   return syncAuthHeaders({ 'content-type': 'application/json' });
+}
+
+function requireNonNegativeInteger(
+  raw: Record<string, unknown>,
+  field: string,
+): number {
+  const value = requireJsonNumber(raw, field);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`Invalid focus response: bad ${field}`);
+  }
+  return value;
 }
 
 function unwrapSession(raw: Record<string, unknown>): FocusSession {
@@ -47,40 +61,60 @@ function unwrapSession(raw: Record<string, unknown>): FocusSession {
     pinnedTitle: optionalJsonStringOrEmpty(raw, 'pinnedTitle'),
     startedAt: parseJsonDate(raw.startedAt, 'startedAt'),
     endedAt: optionalJsonDate(raw.endedAt),
-    secondsFocused: requireJsonNumber(raw, 'secondsFocused'),
-    pomodorosCompleted: requireJsonNumber(raw, 'pomodorosCompleted'),
+    secondsFocused: requireNonNegativeInteger(raw, 'secondsFocused'),
+    pomodorosCompleted: requireNonNegativeInteger(raw, 'pomodorosCompleted'),
     mode: requireFocusMode(raw),
   };
 }
 
-function requireFocusMode(raw: Record<string, unknown>): string {
-  const mode = requireJsonString(raw, 'mode');
-  if (mode !== 'pomodoro' && mode !== 'stopwatch') {
-    throw new Error(`Invalid focus session response: bad mode ${mode}`);
-  }
-  return mode;
+function requireFocusMode(raw: Record<string, unknown>): FocusTimerMode {
+  return focusModeFromWire(requireJsonString(raw, 'mode'));
 }
 
 function unwrapDay(raw: Record<string, unknown>): FocusDay {
+  const date = requireJsonString(raw, 'date');
+  parseDayKey(date);
   return {
-    date: requireJsonString(raw, 'date'),
-    seconds: requireJsonNumber(raw, 'seconds'),
-    sessions: requireJsonNumber(raw, 'sessions'),
+    date,
+    seconds: requireNonNegativeInteger(raw, 'seconds'),
+    sessions: requireNonNegativeInteger(raw, 'sessions'),
   };
+}
+
+function sameFocusDays(a: FocusDay[], b: FocusDay[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left.date !== right.date || left.seconds !== right.seconds || left.sessions !== right.sessions) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function sameNordlyStats(a: NordlyStats, b: NordlyStats): boolean {
+  return (
+    a.currentStreakDays === b.currentStreakDays &&
+    a.longestStreakDays === b.longestStreakDays &&
+    a.totalFocusedSeconds === b.totalFocusedSeconds &&
+    sameFocusDays(a.lastSevenDays, b.lastSevenDays) &&
+    sameFocusDays(a.heatmap, b.heatmap)
+  );
 }
 
 export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
   const qs = upToDate ? `?up_to_date=${encodeURIComponent(upToDate)}` : '';
   const resp = await apiFetch(`${API_BASE_URL}/v1/focus/stats${qs}`, { headers: syncAuthHeaders() });
-  if (!resp.ok) throw new Error(`getStats failed: ${resp.status}`);
+  requireOk(resp, 'getStats');
   const j = (await resp.json()) as Record<string, unknown>;
   if (!Array.isArray(j.heatmap)) throw new Error('Invalid focus stats response: missing heatmap');
   const lastSeven = j.lastSevenDays;
   if (!Array.isArray(lastSeven)) throw new Error('Invalid focus stats response: missing lastSevenDays');
   return {
-    currentStreakDays: requireJsonNumber(j, 'currentStreakDays'),
-    longestStreakDays: requireJsonNumber(j, 'longestStreakDays'),
-    totalFocusedSeconds: requireJsonNumber(j, 'totalFocusedSeconds'),
+    currentStreakDays: requireNonNegativeInteger(j, 'currentStreakDays'),
+    longestStreakDays: requireNonNegativeInteger(j, 'longestStreakDays'),
+    totalFocusedSeconds: requireNonNegativeInteger(j, 'totalFocusedSeconds'),
     heatmap: j.heatmap.map((d) => unwrapDay(d as Record<string, unknown>)),
     lastSevenDays: lastSeven.map((d) => unwrapDay(d as Record<string, unknown>)),
   };
@@ -89,7 +123,7 @@ export async function remoteGetStats(upToDate?: string): Promise<NordlyStats> {
 export async function remoteStartFocusSession(args: {
   planItemId?: string;
   pinnedTitle?: string;
-  mode: 'pomodoro' | 'stopwatch';
+  mode: FocusTimerMode;
   clientSessionId: string;
   startedAt: string;
 }): Promise<FocusSession> {
@@ -97,14 +131,14 @@ export async function remoteStartFocusSession(args: {
     method: 'POST',
     headers: focusJsonHeaders(),
     body: JSON.stringify({
-      mode: args.mode,
+      mode: focusModeToWire(args.mode),
       pinnedTitle: args.pinnedTitle,
       taskId: args.planItemId,
       clientSessionId: args.clientSessionId,
       startedAt: args.startedAt,
     }),
   });
-  if (!resp.ok) throw new Error(`startFocusSession failed: ${resp.status}`);
+  requireOk(resp, 'startFocusSession');
   const j = (await resp.json()) as { session?: Record<string, unknown> };
   if (!j.session) throw new Error('Invalid focus response: missing session');
   return unwrapSession(j.session);
@@ -129,17 +163,19 @@ export async function remoteEndFocusSession(args: {
       }),
     },
   );
-  if (!resp.ok) throw new Error(`endFocusSession failed: ${resp.status}`);
+  requireOk(resp, 'endFocusSession');
   const j = (await resp.json()) as { session?: Record<string, unknown> };
   if (!j.session) throw new Error('Invalid focus response: missing session');
   return unwrapSession(j.session);
 }
 
-export function padToSevenDays(input: FocusDay[]): FocusDay[] {
+export function padToSevenDays(
+  input: FocusDay[],
+  upToDate = toDayKey(new Date()),
+): FocusDay[] {
   const byDate = new Map(input.map((d) => [d.date, d]));
   const out: FocusDay[] = [];
-  const todayKey = toDayKey(new Date());
-  const anchor = parseDayKey(todayKey);
+  const anchor = parseDayKey(upToDate);
   for (let i = 6; i >= 0; i--) {
     const d = addDays(anchor, -i);
     const iso = toDayKey(d);

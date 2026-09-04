@@ -6,31 +6,18 @@ let cached: string | null = null;
 
 export function getDeviceId(): string | null {
   if (cached) return cached;
-  try {
-    cached = window.localStorage.getItem(DEVICE_ID_KEY);
-  } catch (err) {
-    console.warn('[device] read failed', err);
-    cached = null;
-  }
+  cached = window.localStorage.getItem(DEVICE_ID_KEY);
   return cached;
 }
 
 export function setDeviceId(id: string): void {
+  window.localStorage.setItem(DEVICE_ID_KEY, id);
   cached = id;
-  try {
-    window.localStorage.setItem(DEVICE_ID_KEY, id);
-  } catch (err) {
-    console.warn('[device] persist failed', err);
-  }
 }
 
 export function clearDeviceId(): void {
+  window.localStorage.removeItem(DEVICE_ID_KEY);
   cached = null;
-  try {
-    window.localStorage.removeItem(DEVICE_ID_KEY);
-  } catch (err) {
-    console.warn('[device] clear failed', err);
-  }
 }
 
 /** Assign a stable local device id for API headers (x-device-id). */

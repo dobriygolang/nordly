@@ -3,455 +3,290 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"slices"
+	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/logger"
 )
 
-const (
-	wsRateLimit     = 200
-	wsPingInterval  = 30 * time.Second
-	wsReadDeadline  = 120 * time.Second
-	replayBufferCap = 10_000
-
-	KindOp                = "op"
-	KindSnapshot          = "snapshot"
-	KindCursor            = "cursor"
-	KindCodeRun           = "code_run"
-	KindRoomClosed        = "room_closed"
-	KindRoleChange        = "role_change"
-	KindParticipantJoined = "participant_joined"
-	KindParticipantLeft   = "participant_left"
-	KindError             = "error"
-	KindPong              = "pong"
-
-	InOp       = "op"
-	InSnapshot = "snapshot"
-	InCursor   = "cursor"
-	InPresence = "presence"
-	InCodeRun  = "code_run"
-	InPing     = "ping"
-)
-
-type Envelope struct {
-	Kind string          `json:"kind"`
-	Data json.RawMessage `json:"data,omitempty"`
-}
-
-type opPayload struct {
-	Payload []byte `json:"payload"`
-}
-
-type cursorPayload struct {
-	Line   int `json:"line"`
-	Column int `json:"column"`
-}
-
 type Hub struct {
-	Log          logger.Logger
-	RoomResolver func(ctx context.Context, roomID uuid.UUID) (model.Room, error)
-	RoleResolver func(ctx context.Context, roomID, userID uuid.UUID) (model.Role, error)
+	log logger.Logger
 
-	mu          sync.RWMutex
+	mu          sync.Mutex
 	rooms       map[uuid.UUID]*roomHub
-	seqCounters sync.Map
+	closedRooms map[uuid.UUID]struct{}
+	stopping    bool
 }
 
 func NewHub(log logger.Logger) *Hub {
-	return &Hub{Log: log, rooms: make(map[uuid.UUID]*roomHub)}
-}
-
-type roomHub struct {
-	mu           sync.RWMutex
-	clients      map[*wsConn]struct{}
-	buffer       []bufferedEntry
-	bufHead      int
-	bufLen       int
-	lastSnapshot []byte
-}
-
-type bufferedEntry struct {
-	Kind      string    `json:"kind"`
-	Seq       int64     `json:"seq,omitempty"`
-	UserID    uuid.UUID `json:"user_id"`
-	Payload   []byte    `json:"payload,omitempty"`
-	Line      int       `json:"line,omitempty"`
-	Column    int       `json:"column,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func (h *Hub) room(roomID uuid.UUID) *roomHub {
-	h.mu.RLock()
-	rh := h.rooms[roomID]
-	h.mu.RUnlock()
-	if rh != nil {
-		return rh
+	return &Hub{
+		log:         log,
+		rooms:       make(map[uuid.UUID]*roomHub),
+		closedRooms: make(map[uuid.UUID]struct{}),
 	}
+}
+
+func (h *Hub) register(c *wsConn) error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	if rh = h.rooms[roomID]; rh != nil {
-		return rh
+	if h.stopping {
+		h.mu.Unlock()
+		c.requestClose(websocket.CloseGoingAway, closeReasonShutdown)
+		return errRoomClosed
 	}
-	rh = &roomHub{
-		clients: make(map[*wsConn]struct{}),
-		buffer:  make([]bufferedEntry, replayBufferCap),
+	if _, closed := h.closedRooms[c.roomID]; closed {
+		h.mu.Unlock()
+		c.requestClose(websocket.CloseNormalClosure, closeReasonRoom)
+		return errRoomClosed
 	}
-	h.rooms[roomID] = rh
-	return rh
-}
-
-func (h *Hub) register(roomID uuid.UUID, c *wsConn) {
-	rh := h.room(roomID)
+	rh := h.rooms[c.roomID]
+	if rh == nil {
+		rh = newRoomHub()
+		h.rooms[c.roomID] = rh
+	}
 	rh.mu.Lock()
-	rh.clients[c] = struct{}{}
+	h.mu.Unlock()
+
+	err := rh.registerLocked(c)
 	rh.mu.Unlock()
-	h.Broadcast(roomID, KindParticipantJoined, map[string]any{"user_id": c.userID})
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errRoomClosed) || errors.Is(err, errConnectionClosed) {
+		c.requestClose(websocket.CloseNormalClosure, closeReasonRoom)
+		return err
+	}
+	h.log.Error("ws register client", "room", c.roomID.String(), "err", err)
+	c.requestClose(websocket.CloseInternalServerErr, closeReasonInternal)
+	return err
 }
 
-func (h *Hub) unregister(roomID uuid.UUID, c *wsConn) {
+func (h *Hub) unregister(c *wsConn) {
+	rh := c.room
+	if rh == nil {
+		return
+	}
+	rh.mu.Lock()
+	err := rh.unregisterLocked(c)
+	rh.mu.Unlock()
+	if err != nil && !errors.Is(err, errRoomClosed) {
+		h.log.Error("ws unregister client", "room", c.roomID.String(), "err", err)
+	}
+}
+
+func (h *Hub) applyOp(c *wsConn, payload []byte) error {
+	rh := c.room
+	if rh == nil {
+		return errConnectionClosed
+	}
+	rh.mu.Lock()
+	err := rh.applyOpLocked(c.userID, payload)
+	rh.mu.Unlock()
+	return err
+}
+
+func (h *Hub) replaceSnapshot(c *wsConn, payload []byte) error {
+	rh := c.room
+	if rh == nil {
+		return errConnectionClosed
+	}
+	rh.mu.Lock()
+	err := rh.replaceSnapshotLocked(payload)
+	rh.mu.Unlock()
+	return err
+}
+
+func (h *Hub) broadcastFrom(c *wsConn, kind Kind, data any) error {
+	rh := c.room
+	if rh == nil {
+		return errConnectionClosed
+	}
+	rh.mu.Lock()
+	err := rh.broadcastLocked(kind, data)
+	rh.mu.Unlock()
+	return err
+}
+
+// CloseRoom atomically prevents new registrations, queues room_closed, and then
+// queues a normal close frame for every connected client.
+func (h *Hub) CloseRoom(roomID uuid.UUID) {
 	h.mu.Lock()
+	h.closedRooms[roomID] = struct{}{}
 	rh := h.rooms[roomID]
+	delete(h.rooms, roomID)
 	if rh == nil {
 		h.mu.Unlock()
 		return
 	}
 	rh.mu.Lock()
-	delete(rh.clients, c)
-	empty := len(rh.clients) == 0
-	rh.mu.Unlock()
-	if empty {
-		delete(h.rooms, roomID)
-		h.seqCounters.Delete(roomID)
-	}
 	h.mu.Unlock()
-	if empty {
-		return
-	}
-	h.Broadcast(roomID, KindParticipantLeft, map[string]any{"user_id": c.userID})
-}
 
-func (h *Hub) Broadcast(roomID uuid.UUID, kind string, data any) {
-	env := mustEnvelope(kind, data)
-	h.mu.RLock()
-	rh := h.rooms[roomID]
-	h.mu.RUnlock()
-	if rh == nil {
-		return
-	}
-	rh.mu.RLock()
-	targets := make([]*wsConn, 0, len(rh.clients))
-	for c := range rh.clients {
-		targets = append(targets, c)
-	}
-	rh.mu.RUnlock()
-	for _, c := range targets {
-		c.enqueue(env)
-	}
-}
-
-func (h *Hub) BroadcastRoomClosed(roomID uuid.UUID) {
-	h.Broadcast(roomID, KindRoomClosed, map[string]any{"room_id": roomID.String()})
-}
-
-// CloseRoom disconnects all clients in the room and drops in-memory state.
-func (h *Hub) CloseRoom(roomID uuid.UUID) {
-	h.mu.Lock()
-	rh := h.rooms[roomID]
-	delete(h.rooms, roomID)
-	h.mu.Unlock()
-	h.seqCounters.Delete(roomID)
-	if rh == nil {
-		return
-	}
-	rh.mu.RLock()
-	clients := make([]*wsConn, 0, len(rh.clients))
-	for c := range rh.clients {
-		clients = append(clients, c)
-	}
-	rh.mu.RUnlock()
-	for _, c := range clients {
-		c.close()
-	}
-}
-
-func (h *Hub) nextSeq(roomID uuid.UUID) int64 {
-	v, _ := h.seqCounters.LoadOrStore(roomID, new(atomic.Int64))
-	return v.(*atomic.Int64).Add(1)
-}
-
-func (rh *roomHub) pushEntry(e bufferedEntry) {
-	rh.mu.Lock()
-	defer rh.mu.Unlock()
-	rh.buffer[rh.bufHead] = e
-	rh.bufHead = (rh.bufHead + 1) % replayBufferCap
-	if rh.bufLen < replayBufferCap {
-		rh.bufLen++
-	}
-}
-
-func (h *Hub) SnapshotOf(roomID uuid.UUID) []byte {
-	h.mu.RLock()
-	rh := h.rooms[roomID]
-	h.mu.RUnlock()
-	if rh == nil {
-		return nil
-	}
-	rh.mu.RLock()
-	defer rh.mu.RUnlock()
-	if len(rh.lastSnapshot) == 0 {
-		return nil
-	}
-	return slices.Clone(rh.lastSnapshot)
-}
-
-// replayOpsToClient sends buffered Yjs ops to a newly connected client when no snapshot exists yet.
-func (h *Hub) replayOpsToClient(roomID uuid.UUID, c *wsConn) {
-	h.mu.RLock()
-	rh := h.rooms[roomID]
-	h.mu.RUnlock()
-	if rh == nil {
-		return
-	}
-	rh.mu.RLock()
-	defer rh.mu.RUnlock()
-	if rh.bufLen == 0 {
-		return
-	}
-	start := (rh.bufHead - rh.bufLen + replayBufferCap) % replayBufferCap
-	for i := 0; i < rh.bufLen; i++ {
-		idx := (start + i) % replayBufferCap
-		entry := rh.buffer[idx]
-		if entry.Kind != KindOp || len(entry.Payload) == 0 {
-			continue
+	roomClosed, err := encodeEnvelope(
+		KindRoomClosed,
+		map[string]any{"room_id": roomID.String()},
+	)
+	rh.closed = true
+	for client := range rh.clients {
+		if err == nil {
+			client.enqueue(roomClosed)
+			client.requestClose(websocket.CloseNormalClosure, closeReasonRoom)
+		} else {
+			client.requestClose(websocket.CloseInternalServerErr, closeReasonInternal)
 		}
-		c.enqueue(mustEnvelope(KindOp, map[string]any{
-			"seq": entry.Seq, "user_id": entry.UserID, "payload": entry.Payload,
-		}))
+		delete(rh.clients, client)
+	}
+	rh.mu.Unlock()
+
+	if err != nil {
+		h.log.Error("ws encode room closed", "room", roomID.String(), "err", err)
 	}
 }
 
+// CloseAll prevents new registrations and closes every connection as a server
+// shutdown, without declaring the persisted rooms closed.
 func (h *Hub) CloseAll() {
-	h.mu.RLock()
+	h.mu.Lock()
+	if h.stopping {
+		h.mu.Unlock()
+		return
+	}
+	h.stopping = true
 	rooms := make([]*roomHub, 0, len(h.rooms))
-	for _, rh := range h.rooms {
+	for roomID, rh := range h.rooms {
+		delete(h.rooms, roomID)
 		rooms = append(rooms, rh)
 	}
-	h.mu.RUnlock()
+	h.mu.Unlock()
+
 	for _, rh := range rooms {
-		rh.mu.RLock()
-		for c := range rh.clients {
-			c.close()
+		rh.mu.Lock()
+		rh.closed = true
+		for client := range rh.clients {
+			client.requestClose(websocket.CloseGoingAway, closeReasonShutdown)
+			delete(rh.clients, client)
 		}
-		rh.mu.RUnlock()
-	}
-}
-
-type wsConn struct {
-	ws        *websocket.Conn
-	roomID    uuid.UUID
-	userID    uuid.UUID
-	role      atomic.Value
-	out       chan []byte
-	done      chan struct{}
-	log       logger.Logger
-	closeOnce sync.Once
-
-	rlMu    sync.Mutex
-	rlStart time.Time
-	rlCount int
-}
-
-func newWSConn(ws *websocket.Conn, roomID, userID uuid.UUID, role model.Role, log logger.Logger) *wsConn {
-	c := &wsConn{
-		ws:      ws,
-		roomID:  roomID,
-		userID:  userID,
-		out:     make(chan []byte, 128),
-		done:    make(chan struct{}),
-		log:     log,
-		rlStart: time.Now(),
-	}
-	c.role.Store(role)
-	return c
-}
-
-func (c *wsConn) currentRole() model.Role {
-	v := c.role.Load()
-	if v == nil {
-		// Role is always set in newWSConn — inventing viewer would silently drop edits.
-		panic(fmt.Sprintf("wsConn role unset user=%s room=%s", c.userID, c.roomID))
-	}
-	return v.(model.Role)
-}
-
-func (c *wsConn) enqueue(msg []byte) {
-	select {
-	case c.out <- msg:
-	default:
-		c.log.Warn("ws slow client disconnected",
-			"user", c.userID.String(),
-			"room", c.roomID.String())
-		c.close()
-	}
-}
-
-// close disconnects clients that cannot keep up so no room updates are silently dropped.
-func (c *wsConn) close() {
-	c.closeOnce.Do(func() {
-		_ = c.ws.WriteControl(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "client too slow"),
-			time.Now().Add(time.Second),
-		)
-		close(c.done)
-		_ = c.ws.Close()
-	})
-}
-
-func (c *wsConn) rateOk() bool {
-	c.rlMu.Lock()
-	defer c.rlMu.Unlock()
-	now := time.Now()
-	if now.Sub(c.rlStart) >= time.Second {
-		c.rlStart = now
-		c.rlCount = 0
-	}
-	c.rlCount++
-	return c.rlCount <= wsRateLimit
-}
-
-func (c *wsConn) writeLoop() {
-	pinger := time.NewTicker(wsPingInterval)
-	defer pinger.Stop()
-	for {
-		select {
-		case <-c.done:
-			return
-		case <-pinger.C:
-			_ = c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := c.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-		case msg, ok := <-c.out:
-			_ = c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if !ok {
-				_ = c.ws.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			if err := c.ws.WriteMessage(websocket.TextMessage, msg); err != nil {
-				return
-			}
-		}
+		rh.mu.Unlock()
 	}
 }
 
 func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 	defer func() {
-		h.unregister(c.roomID, c)
-		c.close()
+		h.unregister(c)
+		c.requestClose(websocket.CloseNormalClosure, "")
 	}()
-	c.ws.SetReadLimit(256 * 1024)
-	_ = c.ws.SetReadDeadline(time.Now().Add(wsReadDeadline))
-	c.ws.SetPongHandler(func(string) error {
-		return c.ws.SetReadDeadline(time.Now().Add(wsReadDeadline))
+
+	c.socket.SetReadLimit(256 * 1024)
+	if err := c.socket.SetReadDeadline(time.Now().Add(wsReadDeadline)); err != nil {
+		h.log.Warn("ws set read deadline", "err", err)
+		c.requestClose(websocket.CloseInternalServerErr, closeReasonInternal)
+		return
+	}
+	c.socket.SetPongHandler(func(string) error {
+		return c.socket.SetReadDeadline(time.Now().Add(wsReadDeadline))
 	})
+	c.socket.SetPingHandler(func(appData string) error {
+		if !c.enqueueControl(websocket.PongMessage, []byte(appData)) {
+			return errConnectionClosed
+		}
+		return nil
+	})
+	c.socket.SetCloseHandler(func(code int, text string) error {
+		c.requestClose(code, text)
+		return nil
+	})
+
 	for {
 		if ctx.Err() != nil {
+			c.requestClose(websocket.CloseGoingAway, "request canceled")
 			return
 		}
-		_, data, err := c.ws.ReadMessage()
+		messageType, data, err := c.socket.ReadMessage()
 		if err != nil {
 			return
 		}
-		if !c.rateOk() {
-			continue
+		if messageType != websocket.TextMessage {
+			c.requestClose(websocket.CloseUnsupportedData, "text messages required")
+			return
 		}
-		var env Envelope
-		if err := json.Unmarshal(data, &env); err != nil {
-			c.log.Warn("ws bad envelope", "err", err)
-			continue
+		if !c.rateOK() {
+			c.requestClose(websocket.ClosePolicyViolation, closeReasonRate)
+			return
 		}
-		switch env.Kind {
-		case InPing:
-			c.enqueue(mustEnvelope(KindPong, nil))
-		case InOp:
-			role := c.currentRole()
-			if !role.CanEdit() {
-				continue
-			}
-			var p opPayload
-			if err := json.Unmarshal(env.Data, &p); err != nil {
-				c.log.Warn("ws bad op payload", "err", err)
-				continue
-			}
-			seq := h.nextSeq(c.roomID)
-			h.room(c.roomID).pushEntry(bufferedEntry{
-				Kind: KindOp, Seq: seq, UserID: c.userID, Payload: p.Payload, CreatedAt: time.Now().UTC(),
-			})
-			h.Broadcast(c.roomID, KindOp, map[string]any{
-				"seq": seq, "user_id": c.userID, "payload": p.Payload,
-			})
-		case InCursor:
-			var p cursorPayload
-			if err := json.Unmarshal(env.Data, &p); err != nil {
-				c.log.Warn("ws bad cursor payload", "err", err)
-				continue
-			}
-			h.room(c.roomID).pushEntry(bufferedEntry{
-				Kind: KindCursor, UserID: c.userID, Line: p.Line, Column: p.Column, CreatedAt: time.Now().UTC(),
-			})
-			h.Broadcast(c.roomID, KindCursor, map[string]any{
-				"user_id": c.userID, "line": p.Line, "column": p.Column,
-			})
-		case InPresence:
-			// Forward { "update": "<b64>" } as-is; clientId is inside the awareness blob.
-			h.Broadcast(c.roomID, InPresence, json.RawMessage(env.Data))
-		case InCodeRun:
-			h.Broadcast(c.roomID, KindCodeRun, env.Data)
-		case InSnapshot:
-			role := c.currentRole()
-			if !role.CanEdit() {
-				continue
-			}
-			var p opPayload
-			if err := json.Unmarshal(env.Data, &p); err != nil {
-				c.log.Warn("ws bad snapshot payload", "err", err)
-				continue
-			}
-			if len(p.Payload) == 0 {
-				c.log.Warn("ws empty snapshot payload")
-				continue
-			}
-			rh := h.room(c.roomID)
-			rh.mu.Lock()
-			if len(rh.lastSnapshot) == 0 || len(p.Payload) >= len(rh.lastSnapshot) {
-				rh.lastSnapshot = p.Payload
-			}
-			rh.mu.Unlock()
+
+		var envelope Envelope
+		if err := json.Unmarshal(data, &envelope); err != nil {
+			c.requestClose(websocket.CloseInvalidFramePayloadData, "invalid JSON message")
+			return
+		}
+		if !h.handleEnvelope(c, envelope) {
+			return
 		}
 	}
 }
 
-func mustEnvelope(kind string, data any) []byte {
-	var raw json.RawMessage
-	if data != nil {
-		b, err := json.Marshal(data)
-		if err != nil {
-			panic(fmt.Sprintf("mustEnvelope(%s) data: %v", kind, err))
+func (h *Hub) handleEnvelope(c *wsConn, envelope Envelope) bool {
+	switch In(envelope.Kind) {
+	case InPing:
+		return c.enqueueEnvelope(KindPong, nil)
+	case InOp:
+		if !c.role.CanEdit() {
+			c.requestClose(websocket.ClosePolicyViolation, "participant is read-only")
+			return false
 		}
-		raw = b
+		var payload opPayload
+		if err := json.Unmarshal(envelope.Data, &payload); err != nil || len(payload.Payload) == 0 {
+			c.requestClose(websocket.CloseInvalidFramePayloadData, "invalid op payload")
+			return false
+		}
+		return h.handleRoomResult(c, h.applyOp(c, payload.Payload))
+	case InCursor:
+		var payload cursorPayload
+		if err := json.Unmarshal(envelope.Data, &payload); err != nil {
+			c.requestClose(websocket.CloseInvalidFramePayloadData, "invalid cursor payload")
+			return false
+		}
+		return h.handleRoomResult(c, h.broadcastFrom(c, KindCursor, map[string]any{
+			"user_id": c.userID,
+			"line":    payload.Line,
+			"column":  payload.Column,
+		}))
+	case InPresence:
+		return h.handleRoomResult(c, h.broadcastFrom(c, KindPresence, json.RawMessage(envelope.Data)))
+	case InCodeRun:
+		if !c.role.CanEdit() {
+			c.requestClose(websocket.ClosePolicyViolation, "participant is read-only")
+			return false
+		}
+		return h.handleRoomResult(c, h.broadcastFrom(c, KindCodeRun, json.RawMessage(envelope.Data)))
+	case InSnapshot:
+		if !c.role.CanEdit() {
+			c.requestClose(websocket.ClosePolicyViolation, "participant is read-only")
+			return false
+		}
+		var payload opPayload
+		if err := json.Unmarshal(envelope.Data, &payload); err != nil || len(payload.Payload) == 0 {
+			c.requestClose(websocket.CloseInvalidFramePayloadData, "invalid snapshot payload")
+			return false
+		}
+		return h.handleRoomResult(c, h.replaceSnapshot(c, payload.Payload))
+	default:
+		c.requestClose(websocket.CloseUnsupportedData, "unsupported message kind")
+		return false
 	}
-	out, err := json.Marshal(Envelope{Kind: kind, Data: raw})
-	if err != nil {
-		panic(fmt.Sprintf("mustEnvelope(%s): %v", kind, err))
+}
+
+func (h *Hub) handleRoomResult(c *wsConn, err error) bool {
+	if err == nil {
+		return true
 	}
-	return out
+	if errors.Is(err, errRoomClosed) || errors.Is(err, errConnectionClosed) {
+		c.requestClose(websocket.CloseNormalClosure, closeReasonRoom)
+		return false
+	}
+	h.log.Error("ws room operation", "room", c.roomID.String(), "err", err)
+	c.requestClose(websocket.CloseInternalServerErr, closeReasonInternal)
+	return false
 }

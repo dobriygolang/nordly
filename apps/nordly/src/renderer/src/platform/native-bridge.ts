@@ -2,7 +2,7 @@
  * Tauri implementation of window.nordly.
  */
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 
 import {
   eventChannels,
@@ -13,6 +13,7 @@ import {
 } from '@platform/ipc';
 
 import { isTauriRuntime } from '@platform/runtime';
+import { trackAsyncDisposer } from '@shared/lib/asyncDisposer';
 
 export function installNativeBridge(): void {
   if (!isTauriRuntime() || typeof window === 'undefined') return;
@@ -45,15 +46,14 @@ export function installNativeBridge(): void {
     },
     on: (channel, listener) => {
       const wire = eventWire(channel);
-      let unlisten: UnlistenFn | undefined;
-      void listen<unknown>(wire, (ev) => {
-        listener(ev.payload as EventPayload[typeof channel]);
-      }).then((fn) => {
-        unlisten = fn;
-      });
-      return () => {
-        void unlisten?.();
-      };
+      return trackAsyncDisposer(
+        listen<unknown>(wire, (ev) => {
+          listener(ev.payload as EventPayload[typeof channel]);
+        }),
+        (error) => {
+          console.error(`[nordly:native] ${wire} listener failed`, error);
+        },
+      );
     },
   };
 

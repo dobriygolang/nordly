@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	examplemodel "github.com/dobriygolang/project-nordly/services/template/internal/example/model"
+	"github.com/jackc/pgx/v5"
 )
 
 // ListItemsFilter filters item list queries.

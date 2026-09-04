@@ -5,13 +5,12 @@ import (
 	"strings"
 
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
-	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/usecase/support"
 )
 
 // Command creates a new work task.
 type Command struct {
 	UserID string
-	Kind   string
+	Kind   model.WorkKind
 	Title  string
 }
 
@@ -23,14 +22,13 @@ func (c Command) Validate() error {
 	if strings.TrimSpace(c.Title) == "" {
 		return fmt.Errorf("%w: title required", model.ErrInvalidArgument)
 	}
-	kind := strings.TrimSpace(c.Kind)
-	if !support.ValidWorkKind(kind) {
+	if !c.Kind.IsValid() {
 		return fmt.Errorf("%w: invalid kind", model.ErrInvalidArgument)
 	}
 	return nil
 }
 
 // Normalized returns trimmed kind and title for persistence.
-func (c Command) Normalized() (kind, title string) {
-	return strings.TrimSpace(c.Kind), strings.TrimSpace(c.Title)
+func (c Command) Normalized() (kind model.WorkKind, title string) {
+	return c.Kind, strings.TrimSpace(c.Title)
 }

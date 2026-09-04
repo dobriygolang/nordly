@@ -7,7 +7,25 @@ option go_package = "github.com/dobriygolang/project-nordly/services/rooms/pkg/a
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// Live coding collab rooms. WebSocket Yjs sync: GET /ws/editor/{room_id}?token=JWT
+enum RoomType {
+  ROOM_TYPE_UNSPECIFIED = 0;
+  ROOM_TYPE_PRACTICE = 1;
+  ROOM_TYPE_SYSTEM_DESIGN = 2;
+  reserved 3, 4;
+  reserved "ROOM_TYPE_INTERVIEW", "ROOM_TYPE_PAIR_MOCK";
+}
+
+enum RoomLanguage {
+  ROOM_LANGUAGE_UNSPECIFIED = 0;
+  ROOM_LANGUAGE_GO = 1;
+  ROOM_LANGUAGE_PYTHON = 2;
+  ROOM_LANGUAGE_JAVASCRIPT = 3;
+  ROOM_LANGUAGE_TYPESCRIPT = 4;
+  ROOM_LANGUAGE_DIAGRAM = 5;
+}
+
+// Live coding collab rooms. WebSocket Yjs sync: GET /ws/editor/{room_id}
+// with Authorization: Bearer or Sec-WebSocket-Protocol: access_token.<JWT>
 // (custom HTTP handler, not grpc-gateway).
 
 service RoomsService {
@@ -72,8 +90,8 @@ service RoomsService {
 message Room {
   string id = 1;
   string owner_id = 2;
-  string room_type = 3;
-  string language = 4;
+  RoomType room_type = 3;
+  RoomLanguage language = 4;
   google.protobuf.Timestamp expires_at = 8;
   google.protobuf.Timestamp created_at = 10;
   reserved 5, 6, 7, 9, 11;
@@ -108,8 +126,8 @@ message GuestJoinResponse {
 
 message CreateGuestRoomRequest {
   string display_name = 1;
-  string language = 2;
-  string room_type = 3;
+  RoomLanguage language = 2;
+  RoomType room_type = 3;
 }
 
 message CreateGuestRoomResponse {

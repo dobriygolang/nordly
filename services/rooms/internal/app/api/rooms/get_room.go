@@ -15,5 +15,9 @@ func (i *Implementation) GetRoom(ctx context.Context, req *roomsv1.GetRoomReques
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &roomsv1.GetRoomResponse{Room: toProtoRoom(view)}, nil
+	room, err := toProtoRoom(view)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &roomsv1.GetRoomResponse{Room: room}, nil
 }

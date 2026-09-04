@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@shared/model/features', () => ({
+  isCloudEnabled: vi.fn(() => true),
+}));
+
 import { useSessionStore } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
@@ -88,7 +92,12 @@ describe('auth refresh gating', () => {
     expect(await refreshAccessToken()).toBe(false);
     expect(useSyncStore.getState().sessionReauthRequired).toBe(false);
 
-    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 600 }));
+    const payload = btoa(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 600 }),
+    )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>

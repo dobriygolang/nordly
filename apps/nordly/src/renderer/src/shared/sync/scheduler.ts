@@ -1,4 +1,5 @@
 import type { SyncOptions } from '@shared/sync/options';
+import { SyncStatus } from '@shared/sync/types';
 
 export const SYNC_DEBOUNCE_MS = 3_000;
 export const SYNC_INTERVAL_MS = 60_000;
@@ -22,7 +23,7 @@ export type SyncSchedulerDeps = {
   documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener'>;
   isVisible: () => boolean;
   canSchedule: () => boolean;
-  getSyncState: () => { pendingCount: number; status: string };
+  getSyncState: () => { pendingCount: number; status: SyncStatus };
   countPending: () => Promise<number>;
   subscribeVault: (listener: (unlocked: boolean) => void) => () => void;
   enqueueBackground: (options: SyncOptions | undefined, source: string) => void;
@@ -68,7 +69,12 @@ export class SyncScheduler {
 
     this.intervalId = this.deps.clock.setInterval(() => {
       const state = this.deps.getSyncState();
-      if (state.pendingCount > 0 || state.status === 'error' || this.deps.canSchedule()) {
+      if (state.pendingCount > 0) {
+        this.deps.enqueueBackground(undefined, 'interval');
+        return;
+      }
+      if (!this.deps.isVisible()) return;
+      if (state.status === SyncStatus.Error || this.deps.canSchedule()) {
         this.deps.enqueueBackground(undefined, 'interval');
       }
     }, SYNC_INTERVAL_MS);

@@ -46,30 +46,18 @@ export function readSceneFromYjs(ydoc: Y.Doc): ScenePayload {
   for (const id of order) {
     const raw = elementsMap.get(id)
     if (!raw) continue
-    try {
-      elements.push(JSON.parse(raw))
-      seen.add(id)
-    } catch (err) {
-      console.error('[excalidrawYjs] corrupt element JSON', id, err)
-    }
+    elements.push(JSON.parse(raw))
+    seen.add(id)
   }
 
   elementsMap.forEach((raw, id) => {
     if (seen.has(id)) return
-    try {
-      elements.push(JSON.parse(raw))
-    } catch (err) {
-      console.error('[excalidrawYjs] corrupt element JSON', id, err)
-    }
+    elements.push(JSON.parse(raw))
   })
 
   const files: Record<string, unknown> = {}
   filesMap.forEach((raw, id) => {
-    try {
-      files[id] = JSON.parse(raw)
-    } catch (err) {
-      console.error('[excalidrawYjs] corrupt file JSON', id, err)
-    }
+    files[id] = JSON.parse(raw)
   })
 
   return { elements, files }

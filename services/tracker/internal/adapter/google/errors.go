@@ -4,13 +4,14 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 )
 
 // ErrReauthRequired signals that the stored refresh token is no longer valid
 // (revoked, expired, or consent withdrawn) and the user must reconnect.
-var ErrReauthRequired = errors.New("google calendar: reauthentication required")
+var ErrReauthRequired = model.ErrGoogleReauthRequired
 
 // classifyErr wraps token/permission failures as ErrReauthRequired so callers
 // can drop the stored token and prompt the user to reconnect.

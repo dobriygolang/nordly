@@ -12,7 +12,6 @@ import (
 type Store interface {
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByTelegramID(ctx context.Context, telegramID int64) (*model.User, error)
-	GetByUsername(ctx context.Context, username string) (*model.User, error)
 	Create(ctx context.Context, user *model.User) (*model.User, error)
 	Update(ctx context.Context, user *model.User) (*model.User, error)
 	UsernameExists(ctx context.Context, username string) (bool, error)

@@ -90,6 +90,17 @@ export const BoardRow = memo(function BoardRow({
     void onRename(board.id, next).finally(() => onCancelRename());
   }, [board.id, board.title, draftName, onCancelRename, onRename]);
 
+  const renamingRef = useRef(renaming);
+  renamingRef.current = renaming;
+  const commitRenameRef = useRef(commitRename);
+  commitRenameRef.current = commitRename;
+
+  useEffect(() => {
+    return () => {
+      if (renamingRef.current) commitRenameRef.current();
+    };
+  }, []);
+
   const handleDelete = useCallback(async () => {
     closeMenu();
     try {

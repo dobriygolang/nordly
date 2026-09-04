@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	billinggrpc "github.com/dobriygolang/project-nordly/services/identity/internal/adapter/billing/grpc"
 	authrepo "github.com/dobriygolang/project-nordly/services/identity/internal/auth/repository"
 	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/config"
@@ -26,7 +25,6 @@ type App struct {
 	TokenManager  *authservice.TokenManager
 	JWTValidator  *jwt.Validator
 	PublicKeyPEM  []byte
-	billingConn   *billinggrpc.Client
 }
 
 // New wires adapters and the domain service.
@@ -40,17 +38,25 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
+	a := &App{Config: cfg, Logger: log}
+	initialized := false
+	defer func() {
+		if !initialized {
+			a.Close()
+		}
+	}()
 
 	pg, err := userrepo.NewPool(ctx, cfg.PostgresDSN)
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
+	a.Postgres = pg
 
 	redisClient, err := authrepo.New(ctx, cfg.RedisAddr, cfg.RedisPassword)
 	if err != nil {
-		pg.Close()
 		return nil, fmt.Errorf("init redis: %w", err)
 	}
+	a.Redis = redisClient
 
 	tokenManager, err := authservice.NewTokenManager(
 		cfg.JWTPrivateKeyPEM,
@@ -59,64 +65,47 @@ func New(ctx context.Context) (*App, error) {
 		cfg.JWTRefreshTTL,
 	)
 	if err != nil {
-		_ = redisClient.Close()
-		pg.Close()
 		return nil, fmt.Errorf("init token manager: %w", err)
 	}
+	a.TokenManager = tokenManager
 
 	publicKeyPEM, err := tokenManager.PublicKeyPEM()
 	if err != nil {
-		_ = redisClient.Close()
-		pg.Close()
 		return nil, fmt.Errorf("encode public key: %w", err)
 	}
+	a.PublicKeyPEM = publicKeyPEM
 
 	jwtValidator, err := jwt.NewValidator(cfg.JWTPublicKeyPEM)
 	if err != nil {
-		_ = redisClient.Close()
-		pg.Close()
 		return nil, fmt.Errorf("init jwt validator: %w", err)
 	}
+	a.JWTValidator = jwtValidator
 
-	billingConn, err := billinggrpc.NewClient(ctx, cfg.BillingGRPCAddr, cfg.InternalAPIToken)
-	if err != nil {
-		_ = redisClient.Close()
-		pg.Close()
-		return nil, fmt.Errorf("init billing client: %w", err)
-	}
-
-	a := &App{
-		Config:       cfg,
-		Logger:       log,
-		Postgres:     pg,
-		Redis:        redisClient,
-		TokenManager: tokenManager,
-		JWTValidator: jwtValidator,
-		PublicKeyPEM: publicKeyPEM,
-		billingConn:  billingConn,
-	}
-
-	a.Service = authservice.New(authservice.Deps{
+	authSvc, err := authservice.New(authservice.Deps{
 		Users:         userrepo.New(pg),
 		LoginCodes:    authrepo.NewLoginCodeRepository(redisClient),
 		RefreshTokens: authrepo.NewRefreshTokenRepository(redisClient),
 		Tokens:        tokenManager,
-		Log:           log,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("init auth service: %w", err)
+	}
+	a.Service = authSvc
 
-	a.DeviceService = deviceservice.New(deviceservice.Deps{
-		Repo:    devicerepo.New(pg),
-		Billing: billingConn,
+	deviceSvc, err := deviceservice.New(deviceservice.Deps{
+		Repo: devicerepo.New(pg),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("init device service: %w", err)
+	}
+	a.DeviceService = deviceSvc
 
+	initialized = true
 	return a, nil
 }
 
 // Close releases adapter resources.
 func (a *App) Close() {
-	if a.billingConn != nil {
-		_ = a.billingConn.Close()
-	}
 	if a.Redis != nil {
 		_ = a.Redis.Close()
 	}

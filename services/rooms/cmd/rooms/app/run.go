@@ -3,9 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
-	identitygrpc "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity/grpc"
 	"github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
+	identitygrpc "github.com/dobriygolang/project-nordly/services/rooms/internal/adapter/identity/grpc"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/config"
 	roomrepo "github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 	roomservice "github.com/dobriygolang/project-nordly/services/rooms/internal/room/service"
@@ -52,13 +53,19 @@ func New(ctx context.Context) (*App, error) {
 
 	repo := roomrepo.New(pg)
 	hub := ws.NewHub(log)
-	svc := roomservice.New(roomservice.Deps{
+	svc, err := roomservice.New(roomservice.Deps{
 		Repo:              repo,
 		Identity:          identityConn,
 		PublicBaseURL:     cfg.PublicBaseURL,
 		LivePublicBaseURL: cfg.LivePublicBaseURL,
 		GuestRoomTTL:      cfg.GuestRoomTTL,
+		Now:               time.Now,
 	})
+	if err != nil {
+		pg.Close()
+		_ = identityConn.Close()
+		return nil, fmt.Errorf("init rooms service: %w", err)
+	}
 
 	return &App{
 		Config:       cfg,

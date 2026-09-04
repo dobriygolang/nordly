@@ -16,3 +16,7 @@ func notFound(message string) error {
 func unauthorized() error {
 	return status.Error(codes.Unauthenticated, "unauthorized")
 }
+
+func permissionDenied() error {
+	return status.Error(codes.PermissionDenied, "permission denied")
+}

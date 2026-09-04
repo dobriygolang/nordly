@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,17 +17,27 @@ import (
 // Intended for local dev only (RUNNER_MODE=process).
 type ProcessRunner struct {
 	MaxOutputBytes int
+	MaxCodeBytes   int
 }
 
 func (r *ProcessRunner) Name() string { return "process" }
 
-// Run executes code once or per test case.
+// Run executes one custom code request.
 func (r *ProcessRunner) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
-	return runWithTests(ctx, req, r.Name(), r.runOnce)
-}
-
-func (r *ProcessRunner) runOnce(ctx context.Context, req RunRequest, stdin, testName string) (*RunResult, error) {
 	start := time.Now()
+	if r.MaxOutputBytes <= 0 {
+		return nil, fmt.Errorf("process runner: MaxOutputBytes must be > 0")
+	}
+	if !req.Language.IsValid() {
+		return nil, fmt.Errorf("process runner: unsupported language %q", req.Language)
+	}
+	if req.TimeoutMS <= 0 {
+		return nil, fmt.Errorf("process runner: TimeoutMS must be > 0")
+	}
+	if req.MemoryMB <= 0 {
+		return nil, fmt.Errorf("process runner: MemoryMB must be > 0")
+	}
+
 	dir, err := os.MkdirTemp("", "sandbox-run-*")
 	if err != nil {
 		return nil, err
@@ -48,58 +59,94 @@ func (r *ProcessRunner) runOnce(ctx context.Context, req RunRequest, stdin, test
 	}
 
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
-	if timeout <= 0 {
-		return nil, fmt.Errorf("process run: TimeoutMS must be > 0")
-	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	if compileArgs != nil {
-		compile := exec.CommandContext(runCtx, compileArgs[0], compileArgs[1:]...)
+		compile := commandContext(runCtx, compileArgs[0], compileArgs[1:]...)
 		compile.Dir = dir
 		compile.Env = minimalEnv(dir)
-		out, err := compile.CombinedOutput()
+		output, err := newCappedWriter(r.MaxOutputBytes)
 		if err != nil {
+			return nil, err
+		}
+		compile.Stdout = output
+		compile.Stderr = output
+		err = compile.Run()
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
+			if executionTimedOut(ctx, runCtx) {
+				return &RunResult{
+					Status:        model.StatusTimeout,
+					CompileOutput: output.String(),
+					TimeMS:        int(time.Since(start).Milliseconds()),
+					RunnerName:    r.Name(),
+				}, nil
+			}
+			var startErr *exec.Error
+			if errors.As(err, &startErr) {
+				return nil, fmt.Errorf("start compiler: %w", err)
+			}
 			return &RunResult{
 				Status:        model.StatusCompileError,
-				CompileOutput: truncateOutput(string(out), r.MaxOutputBytes),
+				CompileOutput: output.String(),
 				TimeMS:        int(time.Since(start).Milliseconds()),
 				RunnerName:    r.Name(),
 			}, nil
 		}
 	}
 
-	cmd := exec.CommandContext(runCtx, cmdArgs[0], cmdArgs[1:]...)
+	cmd := commandContext(runCtx, cmdArgs[0], cmdArgs[1:]...)
 	cmd.Dir = dir
 	cmd.Env = minimalEnv(dir)
-	cmd.Stdin = strings.NewReader(stdin)
+	cmd.Stdin = strings.NewReader(req.Stdin)
 
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout, err := newCappedWriter(r.MaxOutputBytes)
+	if err != nil {
+		return nil, err
+	}
+	stderr, err := newCappedWriter(r.MaxOutputBytes)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	runErr := cmd.Run()
 
 	res := &RunResult{
-		Stdout:     truncateOutput(stdout.String(), r.MaxOutputBytes),
-		Stderr:     truncateOutput(stderr.String(), r.MaxOutputBytes),
+		Stdout:     stdout.String(),
+		Stderr:     stderr.String(),
 		TimeMS:     int(time.Since(start).Milliseconds()),
 		RunnerName: r.Name(),
 	}
-	if testName != "" {
-		_ = testName
-	}
 
-	if runCtx.Err() == context.DeadlineExceeded {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
+	if executionTimedOut(ctx, runCtx) {
 		res.Status = model.StatusTimeout
 		return res, nil
 	}
 	if runErr != nil {
+		var startErr *exec.Error
+		if errors.As(runErr, &startErr) {
+			return nil, fmt.Errorf("start runtime: %w", runErr)
+		}
 		if exitErr, ok := runErr.(*exec.ExitError); ok {
 			code := exitErr.ExitCode()
 			res.ExitCode = &code
 		}
 		res.Status = model.StatusRuntimeError
-		res.Error = runErr.Error()
+		if msg := strings.TrimSpace(res.Stderr); msg != "" {
+			res.Error, err = LimitText(msg, r.MaxOutputBytes)
+		} else {
+			res.Error, err = LimitText(runErr.Error(), r.MaxOutputBytes)
+		}
+		if err != nil {
+			return nil, err
+		}
 		return res, nil
 	}
 	code := 0
@@ -108,14 +155,21 @@ func (r *ProcessRunner) runOnce(ctx context.Context, req RunRequest, stdin, test
 	return res, nil
 }
 
-func languageSpec(language, dir string) (filename string, runArgs, compileArgs []string, err error) {
-	switch strings.ToLower(strings.TrimSpace(language)) {
-	case model.LangGo, "golang":
-		return "main.go", []string{"go", "run", "main.go"}, nil, nil
+func languageSpec(language model.Language, dir string) (filename string, runArgs, compileArgs []string, err error) {
+	switch language {
+	case model.LangGo:
+		binary := filepath.Join(dir, "program")
+		return "main.go", []string{binary}, []string{"go", "build", "-o", binary, "main.go"}, nil
 	case model.LangPython:
-		return "main.py", []string{"python3", "main.py"}, nil, nil
+		return "main.py",
+			[]string{"python3", "main.py"},
+			[]string{"python3", "-m", "py_compile", "main.py"},
+			nil
 	case model.LangJavaScript:
-		return "main.js", []string{"node", "main.js"}, nil, nil
+		return "main.js",
+			[]string{"node", "main.js"},
+			[]string{"node", "--check", "main.js"},
+			nil
 	default:
 		return "", nil, nil, fmt.Errorf("unsupported language: %s", language)
 	}
@@ -130,12 +184,3 @@ func minimalEnv(workDir string) []string {
 		"GOTMPDIR=" + workDir,
 	}
 }
-
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-func intPtr(v int) *int { return &v }

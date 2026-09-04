@@ -1,8 +1,8 @@
 package focusapi
 
 import (
-	focusv1 "github.com/dobriygolang/project-nordly/services/focus/pkg/api/focus/v1"
 	focusservice "github.com/dobriygolang/project-nordly/services/focus/internal/focus/service"
+	focusv1 "github.com/dobriygolang/project-nordly/services/focus/pkg/api/focus/v1"
 	"google.golang.org/grpc"
 )
 

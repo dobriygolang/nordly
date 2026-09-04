@@ -7,18 +7,21 @@ export interface PublishedNote {
   passwordRequired: boolean
 }
 
-function requireStr(j: Record<string, unknown>, key: string): string {
+function proto3String(j: Record<string, unknown>, key: string): string {
   const v = j[key]
+  if (v === undefined || v === null) return ''
   if (typeof v !== 'string') {
-    throw new Error(`Invalid published note: missing ${key}`)
+    throw new Error(`Invalid published note: ${key} must be a string`)
   }
   return v
 }
 
-function requireBool(j: Record<string, unknown>, key: string): boolean {
+/** Proto3 omits `false`; gateway does not emit unpopulated defaults. */
+function proto3Bool(j: Record<string, unknown>, key: string): boolean {
   const v = j[key]
+  if (v === undefined || v === null) return false
   if (typeof v !== 'boolean') {
-    throw new Error(`Invalid published note: missing ${key}`)
+    throw new Error(`Invalid published note: ${key} must be a boolean`)
   }
   return v
 }
@@ -28,7 +31,7 @@ function mapPublishedNote(j: Record<string, unknown>): PublishedNote {
   if (publishedAtRaw != null && typeof publishedAtRaw !== 'string') {
     throw new Error('Invalid published note: published_at must be a string')
   }
-  const passwordRequired = requireBool(j, 'password_required')
+  const passwordRequired = proto3Bool(j, 'password_required')
   let bodyMd: string
   if (passwordRequired) {
     // Proto3 may omit empty body_md; any non-empty body before unlock is invalid.
@@ -37,10 +40,10 @@ function mapPublishedNote(j: Record<string, unknown>): PublishedNote {
     }
     bodyMd = ''
   } else {
-    bodyMd = requireStr(j, 'body_md')
+    bodyMd = proto3String(j, 'body_md')
   }
   return {
-    title: requireStr(j, 'title'),
+    title: proto3String(j, 'title'),
     bodyMd,
     publishedAt: typeof publishedAtRaw === 'string' && publishedAtRaw ? publishedAtRaw : null,
     passwordRequired,
@@ -65,8 +68,8 @@ export async function accessPublishedNote(slug: string, password: string): Promi
   })
   const body = await parseResponse<Record<string, unknown>>(path, res)
   return {
-    title: requireStr(body, 'title'),
-    bodyMd: requireStr(body, 'body_md'),
+    title: proto3String(body, 'title'),
+    bodyMd: proto3String(body, 'body_md'),
     publishedAt:
       typeof body.published_at === 'string' && body.published_at ? body.published_at : null,
     passwordRequired: false,
@@ -74,10 +77,7 @@ export async function accessPublishedNote(slug: string, password: string): Promi
 }
 
 export function publishedNoteDisplayTitle(title: string): string {
-  const t = title.trim()
-  if (t) return t
-  console.error('[publicNotes] published note missing title')
-  return 'Untitled note'
+  return title.trim()
 }
 
 export { ApiError }

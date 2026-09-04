@@ -6,12 +6,14 @@
 // Gated by the `taskRollover` setting; runs at startup and on window focus,
 // idempotent via a per-user per-day marker in localStorage.
 import { listTasks, scheduleTask } from '@features/tasks/api/tasks';
+import { taskDurationMin } from '@features/tasks/model/duration';
+import { isTaskDone, isVisibleTaskStatus } from '@features/tasks/model/status';
 import { getDbUserId } from '@shared/db/nordlyDb';
-import { defaultDurationMin, parseScheduleInstant, toDayKey } from '@shared/lib/dates';
+import { parseScheduleInstant, toDayKey } from '@shared/lib/dates';
 import { readTaskRollover } from '@shared/model/settings';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 
-const ROLLOVER_KEY_PREFIX = 'nordly:task-rollover-day';
+const ROLLOVER_KEY_PREFIX = STORAGE_KEYS.taskRolloverDay;
 /** Rollover only kicks in after this local hour so early-morning work still
  * counts against "yesterday" until the day has clearly turned over. */
 const ROLLOVER_HOUR = 3;
@@ -31,11 +33,15 @@ function lastRolloverDay(userId: string): string | null {
 }
 
 function markRolloverDay(userId: string, dayKey: string): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') {
+    throw new Error('task rollover requires window.localStorage');
+  }
   try {
     window.localStorage.setItem(rolloverStorageKey(userId), dayKey);
   } catch (err) {
-    console.warn('[taskRollover] persist failed', err);
+    throw new Error(
+      `task rollover marker persist failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -57,10 +63,9 @@ export async function runTaskRollover(now: Date = new Date()): Promise<number> {
   const tasks = await listTasks();
   let moved = 0;
   for (const task of tasks) {
-    if (task.status === 'done' || task.status === 'dismissed') continue;
+    if (isTaskDone(task.status) || !isVisibleTaskStatus(task.status)) continue;
     if (!task.scheduledStart) continue;
     const start = parseScheduleInstant(task.scheduledStart);
-    if (Number.isNaN(start.getTime())) continue;
     if (toDayKey(start) >= todayKey) continue;
 
     const movedStart = new Date(
@@ -70,13 +75,10 @@ export async function runTaskRollover(now: Date = new Date()): Promise<number> {
       start.getHours(),
       start.getMinutes(),
     );
-    await scheduleTask(task.id, movedStart, defaultDurationMin(task));
+    await scheduleTask(task.id, movedStart, taskDurationMin(task));
     moved++;
   }
 
   markRolloverDay(userId, todayKey);
-  if (moved > 0 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-  }
   return moved;
 }

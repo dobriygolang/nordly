@@ -25,7 +25,6 @@ export default function LegalPrivacyPage() {
           <li>{t('legal.privacy.s2Li4')}</li>
           <li>{t('legal.privacy.s2Li5')}</li>
           <li>{t('legal.privacy.s2Li6')}</li>
-          <li>{t('legal.privacy.s2Li7')}</li>
         </ul>
       </LegalSection>
 

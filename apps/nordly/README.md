@@ -37,7 +37,7 @@ CI: [`.github/workflows/nordly-release.yml`](../../.github/workflows/nordly-rele
 
 1. Bump `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` (optional if you only release via tag — CI syncs from the tag).
 2. Commit, then tag with **three-part semver**: `git tag nordly-v0.0.1 && git push origin nordly-v0.0.1`
-3. GitHub Actions builds **macOS** (Apple Silicon + Intel) and **Windows**, uploads installers + `latest.json` to the release. Builds ship **offline-only** (`VITE_NORDLY_LOCAL_ONLY=true`) while the backend is down.
+3. GitHub Actions builds **macOS** (Apple Silicon + Intel) and **Windows**, uploads installers + `latest.json` to the release. Builds ship with cloud APIs on (`VITE_NORDLY_LOCAL_ONLY=false`).
 4. Installed apps check **Settings → Software → Check for Updates** (Tauri updater → GitHub Releases `latest.json`).
 
 **One-time manual install:** older builds still poll `trynordly.app` CDN. While that host is down, download the installer from the GitHub Release once; after that, in-app updates use GitHub.

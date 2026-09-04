@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   detectPlatform,
+  isAllowedDownloadUrl,
   isDirectInstallerUrl,
+  isDownloadLandingPath,
   NORDLY_DOWNLOAD_PATH,
   resolveDownloadUrl,
   triggerDownload,
@@ -56,6 +58,11 @@ export function LandingDownloadProvider({ children }: { children: ReactNode }) {
     if (isDirectInstallerUrl(downloadUrl)) {
       triggerDownload(downloadUrl)
       setDownloaded(true)
+      return
+    }
+    if (isDownloadLandingPath(downloadUrl) || !isAllowedDownloadUrl(downloadUrl)) {
+      if (window.location.pathname.replace(/\/$/, '') === NORDLY_DOWNLOAD_PATH) return
+      window.location.assign(NORDLY_DOWNLOAD_PATH)
       return
     }
     window.location.assign(downloadUrl)

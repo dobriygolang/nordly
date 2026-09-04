@@ -19,5 +19,9 @@ func (i *Implementation) UpdateNote(ctx context.Context, req *notesv1.UpdateNote
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &notesv1.UpdateNoteResponse{Note: toProtoNote(note)}, nil
+	protoNote, err := toProtoNote(note)
+	if err != nil {
+		return nil, err
+	}
+	return &notesv1.UpdateNoteResponse{Note: protoNote}, nil
 }

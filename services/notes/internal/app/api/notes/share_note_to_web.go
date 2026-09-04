@@ -21,10 +21,18 @@ func (i *Implementation) ShareNoteToWeb(
 	if err != nil {
 		return nil, err
 	}
+	accessMode, err := fromProtoPublishAccessMode(req.GetAccessMode())
+	if err != nil {
+		return nil, err
+	}
+	expiryPolicy, err := fromProtoPublishExpiryPolicy(req.GetExpiryPolicy())
+	if err != nil {
+		return nil, err
+	}
 	res, err := i.service.ShareNoteToWeb(ctx, userID, req.GetNoteId(), req.GetPlaintextMd(), notesservice.PublishOptions{
-		PasswordProtected: req.GetPasswordProtected(),
-		Password:          req.GetPassword(),
-		ExpiresInDays:     req.GetExpiresInDays(),
+		AccessMode:   accessMode,
+		Password:     req.GetPassword(),
+		ExpiryPolicy: expiryPolicy,
 	}, attachments)
 	if err != nil {
 		return nil, mapServiceError(err)

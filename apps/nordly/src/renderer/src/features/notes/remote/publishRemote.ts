@@ -1,20 +1,19 @@
-import type { PublishToWebOptions } from '@features/notes/model/publishOptions';
-import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
+import type {
+  PublishStatus,
+  PublishToWebOptions,
+} from '@features/notes/model/publishOptions';
+import {
+  DEFAULT_PUBLISH_OPTIONS,
+  shareAccessMode,
+  shareExpiryPolicy,
+} from '@features/notes/model/publishOptions';
 import { API_BASE_URL } from '@shared/api/config';
+import { requireOk } from '@shared/api/errors';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
-import { throwIfLimitResponse } from '@shared/api/limitErrors';
 import { requireJsonBoolean, requireJsonString } from '@shared/api/json';
-
-export interface PublishStatus {
-  published: boolean;
-  slug?: string;
-  url?: string;
-  publishedAt?: string;
-  passwordProtected?: boolean;
-  expiresAt?: string;
-}
+import { publishAccessModeFromWire, publishAccessModeToWire, publishExpiryPolicyToWire } from './wireEnums';
 
 export interface ShareToWebResult {
   slug: string;
@@ -30,6 +29,27 @@ export interface PublishedAttachmentInput {
   dataB64: string;
 }
 
+function unwrapPublishStatus(raw: Record<string, unknown>): PublishStatus {
+  const published = requireJsonBoolean(raw, 'published');
+  if (!published) {
+    return { published: false };
+  }
+
+  const expiresAtRaw = raw.expiresAt;
+  if (expiresAtRaw != null && typeof expiresAtRaw !== 'string') {
+    throw new Error('Invalid publish status: expiresAt must be a string');
+  }
+  const accessMode = publishAccessModeFromWire(requireJsonString(raw, 'accessMode'));
+  return {
+    published: true,
+    slug: requireJsonString(raw, 'slug'),
+    url: requireJsonString(raw, 'url'),
+    publishedAt: requireJsonString(raw, 'publishedAt'),
+    accessMode,
+    expiresAt: typeof expiresAtRaw === 'string' && expiresAtRaw ? expiresAtRaw : undefined,
+  };
+}
+
 export async function remoteGetPublishStatus(noteId: string): Promise<PublishStatus | null> {
   if (!isCloudApiAvailable()) {
     throw new Error('Cloud API unavailable');
@@ -39,21 +59,8 @@ export async function remoteGetPublishStatus(noteId: string): Promise<PublishSta
     { headers: syncAuthHeaders() },
   );
   if (resp.status === 404) return null;
-  if (!resp.ok) throw new Error(`publish status: ${resp.status}`);
-  const j = (await resp.json()) as Record<string, unknown>;
-  const published = requireJsonBoolean(j, 'published');
-  const expiresAtRaw = j.expiresAt;
-  if (expiresAtRaw != null && typeof expiresAtRaw !== 'string') {
-    throw new Error('Invalid publish status: expiresAt must be a string');
-  }
-  return {
-    published,
-    slug: published ? requireJsonString(j, 'slug') : undefined,
-    url: published ? requireJsonString(j, 'url') : undefined,
-    publishedAt: published ? requireJsonString(j, 'publishedAt') : undefined,
-    passwordProtected: j.passwordProtected === true,
-    expiresAt: typeof expiresAtRaw === 'string' && expiresAtRaw ? expiresAtRaw : undefined,
-  };
+  requireOk(resp, 'publish status');
+  return unwrapPublishStatus((await resp.json()) as Record<string, unknown>);
 }
 
 export async function remoteShareNoteToWeb(
@@ -64,8 +71,8 @@ export async function remoteShareNoteToWeb(
 ): Promise<ShareToWebResult> {
   const body: Record<string, unknown> = {
     plaintextMd,
-    passwordProtected: options.passwordProtected,
-    expiresInDays: options.expiresInDays,
+    accessMode: publishAccessModeToWire(shareAccessMode(options)),
+    expiryPolicy: publishExpiryPolicyToWire(shareExpiryPolicy(options)),
     attachments: attachments.map((a) => ({
       id: a.id,
       fileName: a.fileName,
@@ -84,10 +91,7 @@ export async function remoteShareNoteToWeb(
       body: JSON.stringify(body),
     },
   );
-  if (!resp.ok) {
-    await throwIfLimitResponse(resp, 'notes_publish');
-    throw new Error(`shareToWeb: ${resp.status}`);
-  }
+  requireOk(resp, 'shareToWeb');
   const j = (await resp.json()) as Record<string, unknown>;
   return {
     slug: requireJsonString(j, 'slug'),
@@ -106,7 +110,7 @@ export async function remoteUnpublishNote(noteId: string): Promise<void> {
       body: JSON.stringify({ noteId }),
     },
   );
-  if (!resp.ok) throw new Error(`unpublish: ${resp.status}`);
+  requireOk(resp, 'unpublish');
 }
 
 export async function remoteMakeNotePrivate(
@@ -121,5 +125,5 @@ export async function remoteMakeNotePrivate(
       body: JSON.stringify({ ciphertextB64 }),
     },
   );
-  if (!resp.ok) throw new Error(`makePrivate: ${resp.status}`);
+  requireOk(resp, 'makePrivate');
 }

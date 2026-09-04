@@ -2,8 +2,6 @@ export type SyncErrorCode =
   | 'no_network'
   | 'server_unreachable'
   | 'session_expired'
-  | 'cloud_sync_disabled'
-  | 'device_limit_exceeded'
   | 'device_register_failed';
 
 export class SyncError extends Error {
@@ -21,6 +19,13 @@ export class SyncDeferredError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SyncDeferredError';
+  }
+}
+
+export class SyncAbortedError extends Error {
+  constructor() {
+    super('Sync stopped before the queued operation could run');
+    this.name = 'SyncAbortedError';
   }
 }
 

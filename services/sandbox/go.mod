@@ -3,10 +3,8 @@ module github.com/dobriygolang/project-nordly/services/sandbox
 go 1.25.12
 
 require (
-	github.com/dobriygolang/project-nordly/services/billing v0.0.0
 	github.com/dobriygolang/project-nordly/services/identity v0.0.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/prometheus/client_golang v1.23.2
@@ -16,10 +14,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-replace (
-	github.com/dobriygolang/project-nordly/services/billing => ../billing
-	github.com/dobriygolang/project-nordly/services/identity => ../identity
-)
+replace github.com/dobriygolang/project-nordly/services/identity => ../identity
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

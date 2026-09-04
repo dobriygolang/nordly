@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Excalidraw } from '@excalidraw/excalidraw'
-import '@excalidraw/excalidraw/index.css'
 
 import {
   ApiError,
@@ -9,18 +7,17 @@ import {
   publishedBoardDisplayTitle,
   type PublishedBoard,
 } from '@/lib/api/publicBoards'
-import {
-  EXCALIDRAW_MOUNT_CLASS,
-  EXCALIDRAW_UI_OPTIONS,
-  excalidrawSiteAppState,
-  excalidrawThemeFor,
-} from '@/lib/collab/excalidrawTheme'
-import { boardThemeSceneFromCanonical } from '@/lib/collab/excalidrawBoardColors'
 import { applyDocumentMeta } from '@/lib/site/documentMeta'
 import { useI18n } from '@/lib/i18n'
 
+const PublishedBoardCanvas = lazy(() =>
+  import('./PublishedBoardCanvas').then((m) => ({ default: m.PublishedBoardCanvas })),
+)
+
 function parseScene(raw: string): { elements: unknown[]; files: Record<string, unknown> } {
-  if (!raw.trim()) throw new Error('Published board scene is empty')
+  if (!raw.trim()) {
+    return { elements: [], files: {} }
+  }
   const j = JSON.parse(raw) as { elements?: unknown[]; files?: Record<string, unknown> }
   if (!Array.isArray(j.elements) || !j.files || typeof j.files !== 'object' || Array.isArray(j.files)) {
     throw new Error('Published board scene has an invalid shape')
@@ -104,32 +101,25 @@ export default function PublishedBoardPage() {
       </div>
     )
   }
-  if (!scene) throw new Error('Published board scene missing from loaded state')
+  if (state.kind !== 'ok' || !scene) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
+        <h1 className="text-2xl font-bold mb-3">Could not load board</h1>
+        <Link to="/" className="text-sm text-zinc-300 underline underline-offset-4">
+          {t('seo.goHome')}
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col">
       <header className="px-6 py-4 border-b border-white/10">
         <h1 className="text-lg font-semibold truncate">{title}</h1>
       </header>
-      <div
-        className={`flex-1 min-h-0 ${EXCALIDRAW_MOUNT_CLASS}`}
-        style={{ height: 'calc(100vh - 57px)' }}
-        data-board-theme="dark"
-      >
-        <Excalidraw
-          theme={excalidrawThemeFor('dark')}
-          UIOptions={EXCALIDRAW_UI_OPTIONS}
-          viewModeEnabled
-          initialData={{
-            elements: boardThemeSceneFromCanonical(
-              scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
-              'dark',
-            ) as never[],
-            files: scene.files as never,
-            appState: excalidrawSiteAppState('dark'),
-          }}
-        />
-      </div>
+      <Suspense fallback={<div className="flex-1 min-h-0 bg-[#050505]" />}>
+        <PublishedBoardCanvas scene={scene} />
+      </Suspense>
       <Link
         to="/"
         className="fixed bottom-6 right-6 flex items-center gap-2 px-2 py-2 rounded-md border border-white/10 bg-black text-xs text-zinc-400 hover:text-white z-50"

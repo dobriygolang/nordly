@@ -21,53 +21,6 @@ func (_m *RefreshTokenStore) EXPECT() *RefreshTokenStore_Expecter {
 	return &RefreshTokenStore_Expecter{mock: &_m.Mock}
 }
 
-// Delete provides a mock function with given fields: ctx, tokenHash
-func (_m *RefreshTokenStore) Delete(ctx context.Context, tokenHash string) error {
-	ret := _m.Called(ctx, tokenHash)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Delete")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, tokenHash)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// RefreshTokenStore_Delete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Delete'
-type RefreshTokenStore_Delete_Call struct {
-	*mock.Call
-}
-
-// Delete is a helper method to define mock.On call
-//   - ctx context.Context
-//   - tokenHash string
-func (_e *RefreshTokenStore_Expecter) Delete(ctx interface{}, tokenHash interface{}) *RefreshTokenStore_Delete_Call {
-	return &RefreshTokenStore_Delete_Call{Call: _e.mock.On("Delete", ctx, tokenHash)}
-}
-
-func (_c *RefreshTokenStore_Delete_Call) Run(run func(ctx context.Context, tokenHash string)) *RefreshTokenStore_Delete_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *RefreshTokenStore_Delete_Call) Return(_a0 error) *RefreshTokenStore_Delete_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *RefreshTokenStore_Delete_Call) RunAndReturn(run func(context.Context, string) error) *RefreshTokenStore_Delete_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetUserID provides a mock function with given fields: ctx, tokenHash
 func (_m *RefreshTokenStore) GetUserID(ctx context.Context, tokenHash string) (string, error) {
 	ret := _m.Called(ctx, tokenHash)
@@ -121,6 +74,56 @@ func (_c *RefreshTokenStore_GetUserID_Call) Return(_a0 string, _a1 error) *Refre
 }
 
 func (_c *RefreshTokenStore_GetUserID_Call) RunAndReturn(run func(context.Context, string) (string, error)) *RefreshTokenStore_GetUserID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Rotate provides a mock function with given fields: ctx, oldHash, newHash, userID, ttlSeconds
+func (_m *RefreshTokenStore) Rotate(ctx context.Context, oldHash string, newHash string, userID string, ttlSeconds int) error {
+	ret := _m.Called(ctx, oldHash, newHash, userID, ttlSeconds)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Rotate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int) error); ok {
+		r0 = rf(ctx, oldHash, newHash, userID, ttlSeconds)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RefreshTokenStore_Rotate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Rotate'
+type RefreshTokenStore_Rotate_Call struct {
+	*mock.Call
+}
+
+// Rotate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - oldHash string
+//   - newHash string
+//   - userID string
+//   - ttlSeconds int
+func (_e *RefreshTokenStore_Expecter) Rotate(ctx interface{}, oldHash interface{}, newHash interface{}, userID interface{}, ttlSeconds interface{}) *RefreshTokenStore_Rotate_Call {
+	return &RefreshTokenStore_Rotate_Call{Call: _e.mock.On("Rotate", ctx, oldHash, newHash, userID, ttlSeconds)}
+}
+
+func (_c *RefreshTokenStore_Rotate_Call) Run(run func(ctx context.Context, oldHash string, newHash string, userID string, ttlSeconds int)) *RefreshTokenStore_Rotate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *RefreshTokenStore_Rotate_Call) Return(_a0 error) *RefreshTokenStore_Rotate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *RefreshTokenStore_Rotate_Call) RunAndReturn(run func(context.Context, string, string, string, int) error) *RefreshTokenStore_Rotate_Call {
 	_c.Call.Return(run)
 	return _c
 }

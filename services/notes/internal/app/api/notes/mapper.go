@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toProtoNote(n *notesmodel.Note) *notesv1.Note {
+func toProtoNote(n *notesmodel.Note) (*notesv1.Note, error) {
 	if n == nil {
-		panic("toProtoNote: note is nil")
+		return nil, status.Error(codes.Internal, "toProtoNote: note is nil")
 	}
 	return &notesv1.Note{
 		Id:        n.ID,
@@ -23,7 +23,7 @@ func toProtoNote(n *notesmodel.Note) *notesv1.Note {
 		UpdatedAt: timestamppb.New(n.UpdatedAt),
 		SizeBytes: int32(n.SizeBytes),
 		Encrypted: n.Encrypted,
-	}
+	}, nil
 }
 
 func fromProtoWikiLinks(links []*notesv1.WikiLinkRef) ([]notesmodel.WikiLinkRef, error) {
@@ -43,14 +43,6 @@ func fromProtoWikiLinks(links []*notesv1.WikiLinkRef) ([]notesmodel.WikiLinkRef,
 	return out, nil
 }
 
-func toProtoBacklinkEntry(e notesmodel.BacklinkEntry) *notesv1.BacklinkEntry {
-	return &notesv1.BacklinkEntry{
-		NoteId:    e.NoteID,
-		Title:     e.Title,
-		UpdatedAt: timestamppb.New(e.UpdatedAt),
-	}
-}
-
 func toProtoNoteSummary(n notesmodel.NoteSummary) *notesv1.NoteSummary {
 	return &notesv1.NoteSummary{
 		Id:        n.ID,
@@ -60,9 +52,9 @@ func toProtoNoteSummary(n notesmodel.NoteSummary) *notesv1.NoteSummary {
 	}
 }
 
-func toProtoNoteAttachment(a *notesmodel.NoteAttachment) *notesv1.NoteAttachment {
+func toProtoNoteAttachment(a *notesmodel.NoteAttachment) (*notesv1.NoteAttachment, error) {
 	if a == nil {
-		panic("toProtoNoteAttachment: attachment is nil")
+		return nil, status.Error(codes.Internal, "toProtoNoteAttachment: attachment is nil")
 	}
 	return &notesv1.NoteAttachment{
 		Id:        a.ID,
@@ -73,12 +65,12 @@ func toProtoNoteAttachment(a *notesmodel.NoteAttachment) *notesv1.NoteAttachment
 		SizeBytes: int32(a.SizeBytes),
 		CreatedAt: timestamppb.New(a.CreatedAt),
 		UpdatedAt: timestamppb.New(a.UpdatedAt),
-	}
+	}, nil
 }
 
-func toProtoNoteAttachmentSummary(a *notesmodel.NoteAttachmentSummary) *notesv1.NoteAttachmentSummary {
+func toProtoNoteAttachmentSummary(a *notesmodel.NoteAttachmentSummary) (*notesv1.NoteAttachmentSummary, error) {
 	if a == nil {
-		panic("toProtoNoteAttachmentSummary: attachment is nil")
+		return nil, status.Error(codes.Internal, "toProtoNoteAttachmentSummary: attachment is nil")
 	}
 	return &notesv1.NoteAttachmentSummary{
 		Id:        a.ID,
@@ -88,7 +80,7 @@ func toProtoNoteAttachmentSummary(a *notesmodel.NoteAttachmentSummary) *notesv1.
 		SizeBytes: int32(a.SizeBytes),
 		CreatedAt: timestamppb.New(a.CreatedAt),
 		UpdatedAt: timestamppb.New(a.UpdatedAt),
-	}
+	}, nil
 }
 
 func fromProtoAttachmentInput(a *notesv1.PublishedAttachmentInput) notesservice.AttachmentInput {
@@ -108,18 +100,54 @@ func fromProtoPublishedAttachments(inputs []*notesv1.PublishedAttachmentInput) (
 	return out, nil
 }
 
+func fromProtoPublishAccessMode(mode notesv1.PublishAccessMode) (notesmodel.PublishAccessMode, error) {
+	switch mode {
+	case notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_PUBLIC:
+		return notesmodel.PublishAccessModePublic, nil
+	case notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_PASSWORD:
+		return notesmodel.PublishAccessModePassword, nil
+	default:
+		return "", invalidArgument("unsupported publish access mode")
+	}
+}
+
+func fromProtoPublishExpiryPolicy(policy notesv1.PublishExpiryPolicy) (notesmodel.PublishExpiryPolicy, error) {
+	switch policy {
+	case notesv1.PublishExpiryPolicy_PUBLISH_EXPIRY_POLICY_NEVER:
+		return notesmodel.PublishExpiryPolicyNever, nil
+	case notesv1.PublishExpiryPolicy_PUBLISH_EXPIRY_POLICY_SEVEN_DAYS:
+		return notesmodel.PublishExpiryPolicySevenDays, nil
+	case notesv1.PublishExpiryPolicy_PUBLISH_EXPIRY_POLICY_THIRTY_DAYS:
+		return notesmodel.PublishExpiryPolicyThirtyDays, nil
+	case notesv1.PublishExpiryPolicy_PUBLISH_EXPIRY_POLICY_NINETY_DAYS:
+		return notesmodel.PublishExpiryPolicyNinetyDays, nil
+	default:
+		return "", invalidArgument("unsupported publish expiry policy")
+	}
+}
+
+func toProtoPublishAccessMode(mode notesmodel.PublishAccessMode) (notesv1.PublishAccessMode, error) {
+	switch mode {
+	case "":
+		return notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_UNSPECIFIED, nil
+	case notesmodel.PublishAccessModePublic:
+		return notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_PUBLIC, nil
+	case notesmodel.PublishAccessModePassword:
+		return notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_PASSWORD, nil
+	default:
+		return notesv1.PublishAccessMode_PUBLISH_ACCESS_MODE_UNSPECIFIED,
+			status.Error(codes.Internal, "invalid publish access mode")
+	}
+}
+
 func mapServiceError(err error) error {
 	switch {
 	case notesservice.IsNotFound(err):
 		return notFound("not found")
 	case notesservice.IsInvalidArgument(err):
 		return invalidArgument(err.Error())
-	case notesservice.IsQuotaExceeded(err):
-		return status.Error(codes.ResourceExhausted, "quota exceeded")
-	case notesservice.IsFeatureDisabled(err):
-		return status.Error(codes.PermissionDenied, "feature not available on your plan")
 	case notesservice.IsAccessDenied(err):
-		return unauthorized()
+		return permissionDenied()
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

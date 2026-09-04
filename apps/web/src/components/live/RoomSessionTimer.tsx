@@ -31,11 +31,24 @@ export function RoomSessionTimer({ mode, createdAt, expiresAt, className, onExpi
   const { t } = useI18n()
   const [now, setNow] = useState(() => Date.now())
   const expiresMs = parseTs(expiresAt)
+  const createdMs = parseTs(createdAt)
+  const hasClock = mode === 'countdown' ? expiresMs != null : createdMs != null
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
+    if (!hasClock) return
+    const id = window.setInterval(() => {
+      if (document.hidden) return
+      setNow(Date.now())
+    }, 1000)
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [hasClock])
 
   useEffect(() => {
     if (mode !== 'countdown' || expiresMs == null || !onExpired) return
@@ -47,8 +60,6 @@ export function RoomSessionTimer({ mode, createdAt, expiresAt, className, onExpi
     const id = window.setTimeout(onExpired, remainingMs)
     return () => window.clearTimeout(id)
   }, [mode, expiresMs, onExpired])
-
-  const createdMs = parseTs(createdAt)
 
   let label: string
   let value: string

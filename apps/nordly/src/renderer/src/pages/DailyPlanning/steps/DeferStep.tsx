@@ -3,7 +3,6 @@ import { useT } from '@nordly-i18n';
 import type { TaskCard } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
-import { parseDayKey } from '@shared/lib/dates';
 
 import { DayTaskDndContext } from '@features/tasks/components/DayTaskDndContext';
 import { PlanningTaskColumn } from '@features/planning/components/PlanningTaskColumn';
@@ -20,9 +19,6 @@ interface DeferStepProps {
 
 export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps): JSX.Element {
   const t = useT();
-  const todayDate = parseDayKey(todayKey);
-  const tomorrowDate = parseDayKey(board.tomorrow);
-  const nextWeekDate = parseDayKey(board.nextWeek);
   const { dnd } = board;
 
   const columnProps = {
@@ -56,7 +52,7 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === todayKey && dnd.isDragging}
           insertPreviewAt={dnd.getColumnInsertPreviewAt(todayKey)}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min)}
           {...columnProps}
         />
         <PlanningTaskColumn
@@ -67,7 +63,7 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === board.tomorrow && dnd.isDragging}
           insertPreviewAt={dnd.getColumnInsertPreviewAt(board.tomorrow)}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, tomorrowDate)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min)}
           {...columnProps}
         />
         <PlanningTaskColumn
@@ -78,7 +74,7 @@ export function DeferStep({ todayKey, epics, settings, board }: DeferStepProps):
           taskById={dnd.taskById}
           dropHighlight={dnd.overContainerId === board.nextWeek && dnd.isDragging}
           insertPreviewAt={dnd.getColumnInsertPreviewAt(board.nextWeek)}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, nextWeekDate)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min)}
           {...columnProps}
         />
       </div>

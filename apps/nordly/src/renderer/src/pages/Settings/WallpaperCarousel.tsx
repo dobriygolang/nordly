@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -6,7 +6,7 @@ import { CanvasBg } from '@widgets/CanvasBg';
 import { Icon } from '@shared/ui/primitives/Icon';
 import type { ThemeId } from '@shared/model/theme';
 import { themeLabelKey } from '@shared/model/settings';
-import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
+import { useDialogSurface } from '@shared/hooks/useDialogSurface';
 
 interface WallpaperCarouselProps {
   themes: ThemeId[];
@@ -21,6 +21,7 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
   const t = useT();
   const initial = Math.max(0, themes.indexOf(current));
   const [active, setActive] = useState(initial);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const step = useCallback(
     (delta: number) => {
@@ -37,7 +38,7 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
     [onPick, themes],
   );
 
-  useEscapeLayer(onClose);
+  useDialogSurface(dialogRef, onClose);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -71,10 +72,12 @@ export function WallpaperCarousel({ themes, current, onPick, onClose }: Wallpape
 
   return (
     <div
+      ref={dialogRef}
       className="nordly-wallpaper-carousel fadein"
       role="dialog"
       aria-modal="true"
       aria-label={t('nordly.settings.wallpaper.title')}
+      tabIndex={-1}
       onClick={onClose}
     >
       <p className="nordly-wallpaper-carousel__hint mono">{t('nordly.settings.wallpaper.hint')}</p>

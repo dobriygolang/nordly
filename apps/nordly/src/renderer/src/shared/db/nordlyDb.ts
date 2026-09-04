@@ -1,7 +1,5 @@
 /** IndexedDB — local-first store scoped by userId. */
 
-import { useSessionStore } from '@shared/model/session';
-
 const DB_NAME = 'nordly-db';
 const DB_VERSION = 5;
 
@@ -30,17 +28,8 @@ export function setDbUserId(userId: string | null): void {
   currentUserId = userId;
 }
 
-/** Session store is source of truth — heals HMR / async logout desync. */
 function resolveUserId(): string | null {
-  const { status, userId } = useSessionStore.getState();
-  if (status !== 'signed_in' || !userId) {
-    currentUserId = null;
-    return null;
-  }
-  if (currentUserId !== userId) {
-    currentUserId = userId;
-  }
-  return userId;
+  return currentUserId;
 }
 
 function requireUserId(): string {
@@ -103,6 +92,24 @@ function runTx<T>(
 
 export async function dbPut<T extends { key: string }>(store: NordlyStore, row: T): Promise<void> {
   await runTx(store, 'readwrite', (s) => s.put(row));
+}
+
+export async function dbPutMany<T extends { key: string }>(
+  store: NordlyStore,
+  rows: readonly T[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await openDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        const objectStore = tx.objectStore(store);
+        for (const row of rows) objectStore.put(row);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error('IDB batch put failed'));
+        tx.onabort = () => reject(tx.error ?? new Error('IDB batch put aborted'));
+      }),
+  );
 }
 
 export async function dbGet<T>(store: NordlyStore, key: string): Promise<T | null> {

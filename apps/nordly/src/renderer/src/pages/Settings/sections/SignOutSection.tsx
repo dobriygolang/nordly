@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { useSessionStore } from '@shared/model/session';
+import {
+  AuthKind,
+  AuthStatus,
+  useSessionStore,
+} from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { isCloudEnabled } from '@shared/model/features';
 
@@ -15,23 +19,27 @@ export function SignOutSection() {
   const sessionReauthRequired = useSyncStore((s) => s.sessionReauthRequired);
   const clear = useSessionStore((s) => s.clear);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       await clear();
       window.dispatchEvent(new Event(NORDLY_EVENTS.navHome));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('nordly.settings.sign_out.error'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (status !== 'signed_in') {
+  if (status !== AuthStatus.SignedIn) {
     return <p className="nordly-settings-signed-out">{t('nordly.settings.signed_out')}</p>;
   }
 
-  if (authKind === 'local') {
+  if (authKind === AuthKind.Local) {
     return (
       <div className="nordly-settings-account">
         <p className="nordly-settings-account__id mono">
@@ -81,6 +89,7 @@ export function SignOutSection() {
       <button type="button" className="nordly-settings-sign-out" onClick={() => void handleSignOut()} disabled={busy}>
         {busy ? t('nordly.settings.sign_out.busy') : t('nordly.settings.sign_out')}
       </button>
+      {error ? <p className="nordly-settings-google-error mono">{error}</p> : null}
     </div>
   );
 }

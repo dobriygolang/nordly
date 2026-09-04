@@ -10,10 +10,12 @@ import {
   startOfLocalDay,
 } from '@shared/lib/dates';
 import { TimePicker } from '@features/tasks/components/TimePicker';
+import { useDialogSurface } from '@shared/hooks/useDialogSurface';
+import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 
 export type { PageId, PaletteAction } from '@shared/model/navigation';
 
-import type { PaletteAction } from '@shared/model/navigation';
+import { PageId, PaletteAction } from '@shared/model/navigation';
 
 interface PaletteProps {
   onClose: () => void;
@@ -24,7 +26,7 @@ interface PaletteProps {
 }
 
 interface NavItem {
-  id: string;
+  id: PaletteAction;
   label: string;
   icon: IconName;
   shortcut?: string[];
@@ -36,27 +38,24 @@ type Row =
   | { kind: 'task'; title: string; index: number };
 
 const NAV_ITEMS: Array<{
-  id: string;
+  id: PaletteAction;
   labelKey: string;
   icon: IconName;
   shortcut?: string[];
 }> = [
-  { id: 'today', labelKey: 'nordly.palette.nav_today', icon: 'sun', shortcut: ['T'] },
-  { id: 'planning', labelKey: 'nordly.palette.nav_planning', icon: 'pomodoro', shortcut: ['P'] },
-  { id: 'notes', labelKey: 'nordly.palette.nav_notes', icon: 'note', shortcut: ['N'] },
-  { id: 'whiteboard', labelKey: 'nordly.palette.nav_whiteboard', icon: 'grid', shortcut: ['B'] },
-  { id: 'calendar', labelKey: 'nordly.palette.nav_calendar', icon: 'calendar', shortcut: ['C'] },
-  { id: 'stats', labelKey: 'nordly.palette.nav_stats', icon: 'bars', shortcut: ['S'] },
-  { id: 'settings', labelKey: 'nordly.palette.nav_settings', icon: 'settings', shortcut: [','] },
+  { id: PageId.Today, labelKey: 'nordly.palette.nav_today', icon: 'sun', shortcut: ['T'] },
+  { id: PageId.Planning, labelKey: 'nordly.palette.nav_planning', icon: 'pomodoro', shortcut: ['P'] },
+  { id: PageId.Notes, labelKey: 'nordly.palette.nav_notes', icon: 'note', shortcut: ['N'] },
+  { id: PageId.Whiteboard, labelKey: 'nordly.palette.nav_whiteboard', icon: 'grid', shortcut: ['B'] },
+  { id: PageId.Calendar, labelKey: 'nordly.palette.nav_calendar', icon: 'calendar', shortcut: ['C'] },
+  { id: PaletteAction.Stats, labelKey: 'nordly.palette.nav_stats', icon: 'bars', shortcut: ['S'] },
+  { id: PageId.Settings, labelKey: 'nordly.palette.nav_settings', icon: 'settings', shortcut: [','] },
 ];
 
-const PALETTE_PAGE_PRELOAD: Partial<Record<string, () => void>> = {
-  today: () => void import('@pages/TaskBoard'),
-  planning: () => void import('@pages/DailyPlanning/DailyPlanningModal'),
-  notes: () => void import('@pages/Notes'),
-  whiteboard: () => void import('@pages/Whiteboard'),
-  calendar: () => void import('@pages/Calendar/CalendarModal'),
-  settings: () => void import('@pages/Settings'),
+const PALETTE_PAGE_PRELOAD: Partial<Record<PaletteAction, () => void>> = {
+  [PageId.Today]: () => void import('@pages/TaskBoard'),
+  [PageId.Planning]: () => void import('@pages/DailyPlanning/DailyPlanningModal'),
+  [PageId.Settings]: () => void import('@pages/Settings'),
 };
 
 export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = false }: PaletteProps) {
@@ -66,11 +65,18 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
   const [q, setQ] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const timeCustomizedRef = useRef(false);
   const trimmed = q.trim();
   const day = taskDate ?? new Date();
   const [scheduleAt, setScheduleAt] = useState(() => buildDefaultScheduleDate(day));
   const when = formatWhenChipWithTime(scheduleAt, locale);
+
+  useDialogSurface(panelRef, onClose, { active: !closing, initialFocusRef: inputRef });
+  useEscapeLayer(() => {
+    setTimeOpen(false);
+    inputRef.current?.focus();
+  }, timeOpen && !closing);
 
   useEffect(() => {
     setScheduleAt(buildDefaultScheduleDate(taskDate ?? new Date()));
@@ -85,7 +91,7 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
         label: t(it.labelKey),
         icon: it.icon,
         shortcut: it.shortcut,
-        run: () => onOpen(it.id as PaletteAction),
+        run: () => onOpen(it.id),
       })),
     [onOpen, t],
   );
@@ -108,9 +114,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
     return out;
   }, [filteredNav, trimmed, onCreateTask]);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
   useEffect(() => {
     setIdx(0);
   }, [q]);
@@ -139,9 +142,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
       e.preventDefault();
       const row = rows[idx];
       if (row) runRow(row);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
     }
   };
 
@@ -155,8 +155,13 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className="nordly-palette-panel"
         data-closing={closing ? 'true' : undefined}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('nordly.palette.aria_commands')}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="nordly-palette-search">

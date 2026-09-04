@@ -33,11 +33,11 @@ func NewPool(ctx context.Context, dsn string) (*Pool, error) {
 
 // Repository persists code rooms and participants.
 type Repository struct {
-	pg *Pool
+	pg Database
 }
 
 // New constructs a room repository.
-func New(pg *Pool) *Repository {
+func New(pg Database) *Repository {
 	return &Repository{pg: pg}
 }
 
@@ -53,25 +53,72 @@ func scanRoom(row pgx.Row) (model.Room, error) {
 	); err != nil {
 		return model.Room{}, err
 	}
-	out.Type = model.RoomType(roomType)
-	out.Language = model.Language(lang)
-	out.Visibility = model.Visibility(vis)
+	parsedRoomType, err := model.ParseRoomType(roomType)
+	if err != nil {
+		return model.Room{}, fmt.Errorf("scan room type: %w", err)
+	}
+	parsedLanguage, err := model.ParseLanguage(lang)
+	if err != nil {
+		return model.Room{}, fmt.Errorf("scan room language: %w", err)
+	}
+	parsedVisibility, err := model.ParseVisibility(vis)
+	if err != nil {
+		return model.Room{}, fmt.Errorf("scan room visibility: %w", err)
+	}
+	out.Type = parsedRoomType
+	out.Language = parsedLanguage
+	out.Visibility = parsedVisibility
 	return out, nil
 }
 
-func (r *Repository) CreateRoomWithID(ctx context.Context, id uuid.UUID, room model.Room) (model.Room, error) {
-	const q = `
-INSERT INTO code_rooms (id, owner_id, room_type, language, visibility, expires_at, is_guest_created)
-VALUES ($1, $2, $3, $4, $5, $6, $7)` + roomReturning
+func (r *Repository) CreateRoom(
+	ctx context.Context,
+	room model.Room,
+	owner model.Participant,
+	initialSceneJSON string,
+) (model.Room, error) {
+	tx, err := r.pg.BeginRoomTx(ctx)
+	if err != nil {
+		return model.Room{}, fmt.Errorf("CreateRoom begin: %w", err)
+	}
 
-	out, err := scanRoom(r.pg.QueryRow(ctx, q,
-		id, room.OwnerID, room.Type.String(), room.Language.String(),
-		room.Visibility, room.ExpiresAt, room.IsGuestCreated,
+	const q = `
+INSERT INTO code_rooms (
+	id, owner_id, room_type, language, visibility, expires_at, is_guest_created, initial_scene_json
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''))` + roomReturning
+
+	out, err := scanRoom(tx.QueryRow(ctx, q,
+		room.ID, room.OwnerID, room.Type.String(), room.Language.String(),
+		room.Visibility, room.ExpiresAt, room.IsGuestCreated, initialSceneJSON,
 	))
 	if err != nil {
-		return model.Room{}, fmt.Errorf("CreateRoomWithID: %w", err)
+		return model.Room{}, rollbackRoomCreate(ctx, tx, fmt.Errorf("CreateRoom insert room: %w", err))
+	}
+
+	const participantQ = `
+INSERT INTO code_room_participants (room_id, user_id, role, joined_at)
+VALUES ($1, $2, $3, $4)`
+	tag, err := tx.Exec(ctx, participantQ, owner.RoomID, owner.UserID, owner.Role.String(), owner.JoinedAt)
+	if err != nil {
+		return model.Room{}, rollbackRoomCreate(ctx, tx, fmt.Errorf("CreateRoom insert owner: %w", err))
+	}
+	if tag.RowsAffected() != 1 {
+		return model.Room{}, rollbackRoomCreate(ctx, tx, fmt.Errorf("CreateRoom insert owner: expected one row, wrote %d", tag.RowsAffected()))
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return model.Room{}, rollbackRoomCreate(ctx, tx, fmt.Errorf("CreateRoom commit: %w", err))
 	}
 	return out, nil
+}
+
+func rollbackRoomCreate(ctx context.Context, tx Transaction, cause error) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := tx.Rollback(rollbackCtx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		return fmt.Errorf("%w (rollback failed: %v)", cause, err)
+	}
+	return cause
 }
 
 func (r *Repository) GetRoom(ctx context.Context, id uuid.UUID) (model.Room, error) {
@@ -94,7 +141,12 @@ func (r *Repository) AddParticipant(ctx context.Context, p model.Participant) (m
 	const q = `
 INSERT INTO code_room_participants (room_id, user_id, role)
 VALUES ($1, $2, $3)
-ON CONFLICT (room_id, user_id) DO UPDATE SET role = EXCLUDED.role, updated_at = now()
+ON CONFLICT (room_id, user_id) DO UPDATE SET
+	role = CASE
+		WHEN code_room_participants.role = 'owner' THEN code_room_participants.role
+		ELSE EXCLUDED.role
+	END,
+	updated_at = now()
 RETURNING room_id, user_id, role, joined_at`
 
 	var out model.Participant
@@ -105,34 +157,26 @@ RETURNING room_id, user_id, role, joined_at`
 	if err != nil {
 		return model.Participant{}, fmt.Errorf("AddParticipant: %w", err)
 	}
-	out.Role = model.Role(role)
+	parsed, err := model.ParseRole(role)
+	if err != nil {
+		return model.Participant{}, fmt.Errorf("AddParticipant: %w", err)
+	}
+	out.Role = parsed
 	return out, nil
 }
 
-func (r *Repository) ListParticipants(ctx context.Context, roomID uuid.UUID) ([]model.Participant, error) {
+func (r *Repository) DeleteParticipant(ctx context.Context, roomID, userID uuid.UUID) error {
 	const q = `
-SELECT room_id, user_id, role, joined_at
-FROM code_room_participants
-WHERE room_id = $1
-ORDER BY joined_at`
-
-	rows, err := r.pg.Query(ctx, q, roomID)
+DELETE FROM code_room_participants
+WHERE room_id = $1 AND user_id = $2 AND role <> 'owner'`
+	tag, err := r.pg.Exec(ctx, q, roomID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("ListParticipants: %w", err)
+		return fmt.Errorf("DeleteParticipant: %w", err)
 	}
-	defer rows.Close()
-
-	var out []model.Participant
-	for rows.Next() {
-		var p model.Participant
-		var role string
-		if err := rows.Scan(&p.RoomID, &p.UserID, &role, &p.JoinedAt); err != nil {
-			return nil, fmt.Errorf("ListParticipants scan: %w", err)
-		}
-		p.Role = model.Role(role)
-		out = append(out, p)
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
 	}
-	return out, rows.Err()
+	return nil
 }
 
 func (r *Repository) GetRole(ctx context.Context, roomID, userID uuid.UUID) (model.Role, error) {
@@ -145,12 +189,11 @@ func (r *Repository) GetRole(ctx context.Context, roomID, userID uuid.UUID) (mod
 		}
 		return "", fmt.Errorf("GetRole: %w", err)
 	}
-	return model.Role(role), nil
-}
-
-// IsExpired reports whether the room TTL has passed.
-func IsExpired(room model.Room, now time.Time) bool {
-	return !room.ExpiresAt.IsZero() && now.After(room.ExpiresAt)
+	parsed, err := model.ParseRole(role)
+	if err != nil {
+		return "", fmt.Errorf("GetRole: %w", err)
+	}
+	return parsed, nil
 }
 
 func (r *Repository) DeleteExpired(ctx context.Context) ([]uuid.UUID, error) {

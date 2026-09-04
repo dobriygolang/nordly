@@ -26,10 +26,11 @@ export function useCreateLiveRoom() {
       return {
         room: result.room,
         access_token: result.access_token,
+        expires_in: result.expires_in,
       }
     },
-    onSuccess: async ({ room, access_token }) => {
-      persistGuestToken(room.id, access_token)
+    onSuccess: async ({ room, access_token, expires_in }) => {
+      persistGuestToken(room.id, access_token, expires_in)
       try {
         await navigator.clipboard.writeText(publicLiveRoomUrl(room.id))
       } catch (err) {

@@ -43,7 +43,7 @@ Recovery sequence:
 
 1. Provision the pinned Postgres major version and empty databases from `services.conf.sh`.
 2. Restore JWT keys and deploy secrets from the secrets manager.
-3. Stop identity, billing, sandbox, rooms, tracker, notes, focus, identity-bot, and Caddy.
+3. Stop identity, sandbox, rooms, tracker, notes, focus, identity-bot, and Caddy.
 4. Verify the archive, then run the confirmed restore.
 5. Run migrations only if restoring an older application-compatible backup.
 6. Start services in the order documented in `deploy/RUNBOOK.md`.

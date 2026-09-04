@@ -16,5 +16,9 @@ func (i *Implementation) GetItem(ctx context.Context, req *templatev1.GetItemReq
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &templatev1.GetItemResponse{Item: toProtoItem(item)}, nil
+	protoItem, err := toProtoItem(item)
+	if err != nil {
+		return nil, err
+	}
+	return &templatev1.GetItemResponse{Item: protoItem}, nil
 }

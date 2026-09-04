@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { calendarQueryRange } from '../calendarQuery';
+import { defaultGoogleSyncWindow, isInsideDefaultGoogleSyncWindow } from '../googleCalendarCache';
 
 describe('calendarQueryRange', () => {
   it('pads the active week range for cache prefetching', () => {
@@ -29,5 +30,16 @@ describe('calendarQueryRange', () => {
 
     expect(range.start).toEqual(new Date(2026, 0, 1));
     expect(range.end).toEqual(new Date(2027, 0, 1));
+  });
+});
+
+describe('isInsideDefaultGoogleSyncWindow', () => {
+  it('accepts a day inside the rolling snapshot and rejects a far year', () => {
+    const now = new Date(2026, 6, 15);
+    const win = defaultGoogleSyncWindow(now);
+    expect(isInsideDefaultGoogleSyncWindow(win.timeMin, win.timeMax, now)).toBe(true);
+    expect(
+      isInsideDefaultGoogleSyncWindow(new Date(2028, 0, 1), new Date(2028, 0, 2), now),
+    ).toBe(false);
   });
 });

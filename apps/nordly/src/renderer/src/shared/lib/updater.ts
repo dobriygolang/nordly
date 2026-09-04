@@ -40,22 +40,15 @@ export function compareSemver(a: string, b: string): number {
 /** Version string from published updater manifest on GitHub Releases. */
 export async function fetchPublishedVersion(): Promise<string | null> {
   if (!isTauriRuntime()) return null;
-  try {
-    const resp = await tauriFetch(UPDATER_JSON_URL, { cache: 'no-store' });
-    if (!resp.ok) {
-      console.warn('[nordly:updater] latest.json HTTP', resp.status);
-      return null;
-    }
-    const j = (await resp.json()) as { version?: string };
-    if (typeof j.version !== 'string' || j.version.length === 0) {
-      console.warn('[nordly:updater] latest.json missing version');
-      return null;
-    }
-    return j.version;
-  } catch (err) {
-    console.warn('[nordly:updater] latest.json fetch failed', err);
-    return null;
+  const resp = await tauriFetch(UPDATER_JSON_URL, { cache: 'no-store' });
+  if (!resp.ok) {
+    throw new Error(`updater manifest HTTP ${resp.status}`);
   }
+  const j = (await resp.json()) as { version?: string };
+  if (typeof j.version !== 'string' || j.version.length === 0) {
+    throw new Error('updater manifest missing version');
+  }
+  return j.version;
 }
 
 export type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'installing' | 'relaunching';
@@ -78,7 +71,12 @@ export function classifyUpdateError(message: string): UpdateErrorCode {
   ) {
     return 'no_release';
   }
-  if (lower.includes('network') || lower.includes('timeout') || lower.includes('connection')) {
+  if (
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('connection') ||
+    lower.includes('manifest http')
+  ) {
     return 'network';
   }
   return 'unknown';

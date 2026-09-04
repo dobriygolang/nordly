@@ -10,4 +10,4 @@ Follow [AGENTS.md](../../AGENTS.md#service-template-canonical), root [fail-fast-
 [architecture-standard.mdc](../../../../.cursor/rules/architecture-standard.mdc), and [go-backend.mdc](../../../../.cursor/rules/go-backend.mdc).
 
 Transport thin; logic in `internal/<domain>/service/` → extract `usecase/{command,query}` as complexity grows.
-Mockery-only tests; panic in `New` on missing required deps.
+Mockery-only tests; `New` returns an error on missing required deps.

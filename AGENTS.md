@@ -10,7 +10,6 @@ When working on a service, **open only that service folder** and read its local 
 |---------|-----------|---------------|
 | **template** | [services/template/AGENTS.md](services/template/AGENTS.md) | **copy skeleton** for new services |
 | identity | [services/identity/AGENTS.md](services/identity/AGENTS.md) | auth, Redis, interceptors, custom HTTP |
-| billing | [services/billing/AGENTS.md](services/billing/AGENTS.md) | usage quotas, Tribute billing |
 | sandbox | [services/sandbox/AGENTS.md](services/sandbox/AGENTS.md) | code execution + LSP (live rooms) |
 | **rooms** | [services/rooms/AGENTS.md](services/rooms/AGENTS.md) | live coding collab, WS + Yjs |
 | **tracker** | [services/tracker/AGENTS.md](services/tracker/AGENTS.md) | task board, sprint/epic, Google Calendar |
@@ -19,13 +18,13 @@ When working on a service, **open only that service folder** and read its local 
 
 **Desktop app (Nordly):** [apps/nordly/AGENTS.md](apps/nordly/AGENTS.md) — Tauri focus workspace (notes, tasks, whiteboard, sync).
 
-**Web companion:** [apps/web/AGENTS.md](apps/web/AGENTS.md) — landing, guest live collab, pricing, published notes/boards.
+**Web companion:** [apps/web/AGENTS.md](apps/web/AGENTS.md) — landing, guest live collab, published notes/boards.
 
 Prod deploy: [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md), [deploy/RUNBOOK.md](deploy/RUNBOOK.md)
 
-Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Billing**, **Product**.
+Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Product**.
 
-**CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, billing, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
+**CI_SERVICES** (`deploy/scripts/services.conf.sh`): identity, sandbox, rooms, tracker, notes, focus. **template** is skeleton-only (not in CI).
 
 Root `go.work` is optional. Services build with `GOWORK=off`.
 
@@ -140,7 +139,6 @@ func NewRegisteredImplementation(s *grpc.Server, svc exampleservice.Service) *Im
 | Service | HTTP | gRPC | Postgres port | DB name |
 |---------|------|------|---------------|---------|
 | identity | 8080 | 9090 | 5432 | nordly |
-| billing | 8085 | 9095 | 5438 | nordly_billing |
 | sandbox | 8086 | 9096 | 5439 | nordly_sandbox |
 | **rooms** | **8087** | **9097** | **5440** | **nordly_rooms** |
 | **tracker** | **8089** | **9099** | **5441** | **nordly_tracker** |

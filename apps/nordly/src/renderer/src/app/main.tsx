@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-import { ErrorBoundary } from '@shared/ui/ErrorBoundary';
+import { ErrorBoundary, ErrorFallback } from '@shared/ui/ErrorBoundary';
 import { installNativeBridge } from '@platform/native-bridge';
 import { isTauriRuntime } from '@platform/runtime';
 import { applyTextScale, readTextScale } from '@shared/model/accessibility';
@@ -17,28 +17,24 @@ type NordlyView = 'main' | 'tray' | 'notification';
 
 function resolveView(): NordlyView {
   if (typeof window === 'undefined') return 'main';
-  try {
-    if (isTauriRuntime()) {
-      const label = getCurrentWebviewWindow().label;
-      if (label === 'tray-popover') return 'tray';
-      if (label === 'notification') return 'notification';
-    }
-  } catch (err) {
-    console.warn('[nordly] resolveView tauri label failed', err);
+  if (isTauriRuntime()) {
+    const label = getCurrentWebviewWindow().label;
+    if (label === 'tray-popover') return 'tray';
+    if (label === 'notification') return 'notification';
   }
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const view = params.get('view');
-    if (view === 'tray') return 'tray';
-    if (view === 'notification') return 'notification';
-  } catch (err) {
-    console.warn('[nordly] resolveView query parse failed', err);
-  }
+  const params = new URLSearchParams(window.location.search);
+  const queryView = params.get('view');
+  if (queryView === 'tray') return 'tray';
+  if (queryView === 'notification') return 'notification';
   return 'main';
 }
 
 const view = resolveView();
-if (view !== 'main' && typeof document !== 'undefined') {
+const mount = document.getElementById('root');
+if (!mount) throw new Error('nordly: #root missing');
+const root = createRoot(mount);
+
+if (view !== 'main') {
   document.documentElement.dataset.nordlyView = view;
 }
 
@@ -71,14 +67,21 @@ async function mountView(): Promise<void> {
     }
   }
 
-  const mount = document.getElementById('root');
-  if (!mount) throw new Error('nordly: #root missing');
-
-  createRoot(mount).render(
+  root.render(
     <ErrorBoundary section={section}>
       <RootApp />
     </ErrorBoundary>,
   );
 }
 
-void mountView();
+void mountView().catch((error: unknown) => {
+  const appError = error instanceof Error ? error : new Error(String(error));
+  console.error('[nordly:bootstrap]', appError);
+  root.render(
+    <ErrorFallback
+      error={appError}
+      section="Nordly"
+      onRetry={() => window.location.reload()}
+    />,
+  );
+});

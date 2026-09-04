@@ -10,13 +10,18 @@ import {
 
 import { useT } from '@nordly-i18n';
 
-import type { TaskCard, ConferenceProvider, TaskEpicSelection } from '@features/tasks/api/tasks';
+import type { ConferenceProvider } from '@features/tasks/model/status';
+import type {
+  TaskCard,
+  TaskEpicSelection,
+} from '@features/tasks/model/task';
 import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { defaultDurationMin } from '@shared/lib/dates';
 import { resolveTaskEpicColor } from '@features/tasks/lib/taskUi';
+import { taskDurationMin } from '@features/tasks/model/duration';
+import { isTaskDone } from '@features/tasks/model/status';
 import { DurationPicker } from './DurationPicker';
 import { TaskDetailPopover } from './TaskDetailPopover';
 
@@ -64,7 +69,7 @@ export const TaskRow = memo(function TaskRow({
   onTaskTap,
 }: TaskRowProps): JSX.Element {
   const t = useT();
-  const done = task.status === 'done';
+  const done = isTaskDone(task.status);
   const epicColor = resolveTaskEpicColor(task, epics);
 
   const [editing, setEditing] = useState(false);
@@ -98,7 +103,9 @@ export const TaskRow = memo(function TaskRow({
     if (editRequestKey <= 0) return;
     setDraft(task.title);
     setEditing(true);
-  }, [editRequestKey, task.title]);
+    // Re-enter edit only on a new request — a board refresh must not wipe the draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- task.title is the title at request time
+  }, [editRequestKey]);
 
   const autosize = useCallback(() => {
     const el = textareaRef.current;
@@ -128,6 +135,25 @@ export const TaskRow = memo(function TaskRow({
     setDraft(task.title);
     setEditing(false);
   }, [task.title]);
+
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const taskRef = useRef(task);
+  taskRef.current = task;
+  const onTitleChangeRef = useRef(onTitleChange);
+  onTitleChangeRef.current = onTitleChange;
+
+  useEffect(() => {
+    return () => {
+      if (!editingRef.current) return;
+      const next = draftRef.current.replace(/\s+$/, '');
+      if (next && next !== taskRef.current.title) {
+        onTitleChangeRef.current(taskRef.current, next);
+      }
+    };
+  }, []);
 
   return (
     <article
@@ -273,7 +299,7 @@ export const TaskRow = memo(function TaskRow({
 
             <div className="nordly-task-row__duration" data-no-drag>
               <DurationPicker
-                valueMin={defaultDurationMin(task)}
+                valueMin={taskDurationMin(task)}
                 buttonClassName="nordly-task-row__duration-btn mono"
                 onChange={(min) => onDurationChange(task, min)}
               />

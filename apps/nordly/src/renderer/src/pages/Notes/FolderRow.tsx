@@ -92,6 +92,17 @@ export const FolderRow = memo(function FolderRow({
     onCommitRename(folder.id, next);
   }, [draftName, folder.id, folder.name, onCancelRename, onCommitRename]);
 
+  const renamingRef = useRef(renaming);
+  renamingRef.current = renaming;
+  const commitRenameRef = useRef(commitRename);
+  commitRenameRef.current = commitRename;
+
+  useEffect(() => {
+    return () => {
+      if (renamingRef.current) commitRenameRef.current();
+    };
+  }, []);
+
   const handleCreateNote = useCallback(() => {
     closeMenu();
     onCreateNote(folder.id);

@@ -18,8 +18,11 @@ type Command struct {
 
 // Validate checks identifiers, duration, and start time.
 func (c Command) Validate() error {
-	if strings.TrimSpace(c.UserID) == "" || strings.TrimSpace(c.TaskID) == "" {
-		return fmt.Errorf("%w: user_id and task_id required", model.ErrInvalidArgument)
+	if strings.TrimSpace(c.UserID) == "" {
+		return fmt.Errorf("%w: user_id required", model.ErrInvalidArgument)
+	}
+	if err := model.ValidateUUID("task_id", c.TaskID); err != nil {
+		return err
 	}
 	if c.DurationMin < 15 || c.DurationMin > 480 {
 		return fmt.Errorf("%w: duration_min must be 15..480", model.ErrInvalidArgument)

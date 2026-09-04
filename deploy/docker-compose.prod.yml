@@ -88,7 +88,6 @@ services:
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI}
       AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-60}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
-      BILLING_GRPC_ADDR: billing:9095
     volumes:
       - ./secrets/jwt:/run/secrets/jwt:ro
     healthcheck:
@@ -134,8 +133,6 @@ services:
       HTTP_PORT: 8086
       GRPC_PORT: 9096
       POSTGRES_DSN: ${SANDBOX_POSTGRES_DSN}
-      BILLING_GRPC_ADDR: billing:9095
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
       JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
       RUNNER_MODE: ${SANDBOX_RUNNER_MODE:-docker}
       SANDBOX_MAX_OUTPUT_BYTES: ${SANDBOX_MAX_OUTPUT_BYTES:-65536}
@@ -159,8 +156,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      billing:
-        condition: service_healthy
       docker-socket-proxy:
         condition: service_started
 
@@ -222,46 +217,6 @@ services:
       identity:
         condition: service_healthy
 
-  billing:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      args:
-        SERVICE: billing
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      <<: *service-env
-      HTTP_PORT: 8085
-      GRPC_PORT: 9095
-      POSTGRES_DSN: ${BILLING_POSTGRES_DSN}
-      REDIS_ADDR: redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-      ENTITLEMENTS_CACHE_TTL: ${ENTITLEMENTS_CACHE_TTL:-60s}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
-      IDENTITY_GRPC_ADDR: identity:9090
-      JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
-      TRIBUTE_WEBHOOK_SECRET: ${TRIBUTE_WEBHOOK_SECRET:-}
-      TRIBUTE_TIER_MAP: ${TRIBUTE_TIER_MAP:-tribute_pro_monthly:pro_monthly}
-      TRIBUTE_PRO_CHECKOUT_URL: ${TRIBUTE_PRO_CHECKOUT_URL:-}
-      TRIBUTE_PRO_TELEGRAM_CHECKOUT_URL: ${TRIBUTE_PRO_TELEGRAM_CHECKOUT_URL:-}
-      TRIBUTE_CHECKOUT_URLS: ${TRIBUTE_CHECKOUT_URLS:-}
-      TRIBUTE_TELEGRAM_CHECKOUT_URLS: ${TRIBUTE_TELEGRAM_CHECKOUT_URLS:-}
-      PRO_TRIAL_ENABLED: ${PRO_TRIAL_ENABLED:-true}
-      PRO_TRIAL_DAYS: ${PRO_TRIAL_DAYS:-14}
-    volumes:
-      - ./secrets/jwt:/run/secrets/jwt:ro
-    healthcheck:
-      <<: *health-ready
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8085/readyz"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      identity:
-        condition: service_healthy
-
   rooms:
     build:
       context: ..
@@ -292,8 +247,6 @@ services:
         condition: service_completed_successfully
       identity:
         condition: service_healthy
-      billing:
-        condition: service_healthy
 
   notes:
     build:
@@ -309,8 +262,6 @@ services:
       GRPC_PORT: 9100
       POSTGRES_DSN: ${NOTES_POSTGRES_DSN}
       JWT_PUBLIC_KEY_FILE: /run/secrets/jwt/public.pem
-      BILLING_GRPC_ADDR: billing:9095
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
     volumes:
       - ./secrets/jwt:/run/secrets/jwt:ro
@@ -321,8 +272,6 @@ services:
       migrate:
         condition: service_completed_successfully
       identity:
-        condition: service_healthy
-      billing:
         condition: service_healthy
 
   focus:
@@ -371,8 +320,6 @@ services:
       - no-new-privileges:true
     depends_on:
       identity:
-        condition: service_healthy
-      billing:
         condition: service_healthy
       sandbox:
         condition: service_healthy
@@ -437,8 +384,6 @@ services:
       - alloy_data:/var/lib/alloy/data
     depends_on:
       identity:
-        condition: service_healthy
-      billing:
         condition: service_healthy
       sandbox:
         condition: service_healthy

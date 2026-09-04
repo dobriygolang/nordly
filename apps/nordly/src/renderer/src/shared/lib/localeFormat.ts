@@ -72,6 +72,14 @@ export function formatLocaleDate(
   return date.toLocaleDateString(tag(locale), options);
 }
 
+export function formatLocaleDateTime(
+  date: Date,
+  locale?: Locale,
+  options: Intl.DateTimeFormatOptions = {},
+): string {
+  return date.toLocaleString(tag(locale), options);
+}
+
 /**
  * JS `getDay()` value for the first column of a week (0 = Sun … 6 = Sat).
  * Driven by Settings → week starts on (Monday or Sunday).

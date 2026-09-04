@@ -16,6 +16,7 @@ type Client struct {
 func New(ctx context.Context, addr, password string) (*Client, error) {
 	client := goredis.NewClient(&goredis.Options{Addr: addr, Password: password})
 	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 	return &Client{Client: client}, nil

@@ -15,7 +15,7 @@ export const NORDLY_EVENTS = {
   openSettings: 'nordly:open-settings',
   /** TaskBoard → App: open palette prefilled for a day. */
   openPaletteAddTask: 'nordly:open-palette-add-task',
-  /** Palette → TaskBoard: refresh task list after create. */
+  /** Task API → task surfaces: durable local task mutation completed. */
   tasksChanged: 'nordly:tasks-changed',
   /** Notes → App: note list changed. */
   notesChanged: 'nordly:notes-changed',
@@ -26,6 +26,8 @@ export const NORDLY_EVENTS = {
   zoomOAuth: 'nordly:zoom-oauth',
   /** Background worker → calendar views: Google events cache updated. */
   googleCalendarChanged: 'nordly:google-calendar-changed',
+  /** Feature mutation → calendar worker: invalidate and refresh Google events. */
+  googleCalendarRefreshRequested: 'nordly:google-calendar-refresh-requested',
   /** Local app settings persisted (poll interval, etc.). */
   settingsChanged: 'nordly:settings-changed',
   /** Background update worker found a newer published version. */

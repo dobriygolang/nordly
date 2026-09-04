@@ -9,17 +9,21 @@ import (
 
 // GetCodeRun returns a persisted code run for the authenticated user.
 func (i *Implementation) GetCodeRun(ctx context.Context, req *sandboxv1.GetCodeRunRequest) (*sandboxv1.GetCodeRunResponse, error) {
-	userID, err := requireUserID(ctx)
+	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
 	run, err := i.svc.GetCodeRun(ctx, sandboxservice.GetCodeRunInput{
-		UserID: userID,
-		Scope:  TokenScopeFromContext(ctx),
-		RunID:  req.GetId(),
+		UserID:       principal.UserID,
+		EditorRoomID: principal.EditorRoomID,
+		RunID:        req.GetId(),
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &sandboxv1.GetCodeRunResponse{Run: toProtoCodeRun(run)}, nil
+	pb, err := toProtoCodeRun(run)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &sandboxv1.GetCodeRunResponse{Run: pb}, nil
 }

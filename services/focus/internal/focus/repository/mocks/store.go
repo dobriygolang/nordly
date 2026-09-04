@@ -24,9 +24,9 @@ func (_m *Store) EXPECT() *Store_Expecter {
 	return &Store_Expecter{mock: &_m.Mock}
 }
 
-// AbandonSessionsStartedBefore provides a mock function with given fields: ctx, cutoff
-func (_m *Store) AbandonSessionsStartedBefore(ctx context.Context, cutoff time.Time) (int64, error) {
-	ret := _m.Called(ctx, cutoff)
+// AbandonSessionsStartedBefore provides a mock function with given fields: ctx, cutoff, now
+func (_m *Store) AbandonSessionsStartedBefore(ctx context.Context, cutoff time.Time, now time.Time) (int64, error) {
+	ret := _m.Called(ctx, cutoff, now)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AbandonSessionsStartedBefore")
@@ -34,17 +34,17 @@ func (_m *Store) AbandonSessionsStartedBefore(ctx context.Context, cutoff time.T
 
 	var r0 int64
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time) (int64, error)); ok {
-		return rf(ctx, cutoff)
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) (int64, error)); ok {
+		return rf(ctx, cutoff, now)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, time.Time) int64); ok {
-		r0 = rf(ctx, cutoff)
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time, time.Time) int64); ok {
+		r0 = rf(ctx, cutoff, now)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
-		r1 = rf(ctx, cutoff)
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, cutoff, now)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -60,13 +60,14 @@ type Store_AbandonSessionsStartedBefore_Call struct {
 // AbandonSessionsStartedBefore is a helper method to define mock.On call
 //   - ctx context.Context
 //   - cutoff time.Time
-func (_e *Store_Expecter) AbandonSessionsStartedBefore(ctx interface{}, cutoff interface{}) *Store_AbandonSessionsStartedBefore_Call {
-	return &Store_AbandonSessionsStartedBefore_Call{Call: _e.mock.On("AbandonSessionsStartedBefore", ctx, cutoff)}
+//   - now time.Time
+func (_e *Store_Expecter) AbandonSessionsStartedBefore(ctx interface{}, cutoff interface{}, now interface{}) *Store_AbandonSessionsStartedBefore_Call {
+	return &Store_AbandonSessionsStartedBefore_Call{Call: _e.mock.On("AbandonSessionsStartedBefore", ctx, cutoff, now)}
 }
 
-func (_c *Store_AbandonSessionsStartedBefore_Call) Run(run func(ctx context.Context, cutoff time.Time)) *Store_AbandonSessionsStartedBefore_Call {
+func (_c *Store_AbandonSessionsStartedBefore_Call) Run(run func(ctx context.Context, cutoff time.Time, now time.Time)) *Store_AbandonSessionsStartedBefore_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(time.Time))
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Time))
 	})
 	return _c
 }
@@ -76,13 +77,13 @@ func (_c *Store_AbandonSessionsStartedBefore_Call) Return(_a0 int64, _a1 error) 
 	return _c
 }
 
-func (_c *Store_AbandonSessionsStartedBefore_Call) RunAndReturn(run func(context.Context, time.Time) (int64, error)) *Store_AbandonSessionsStartedBefore_Call {
+func (_c *Store_AbandonSessionsStartedBefore_Call) RunAndReturn(run func(context.Context, time.Time, time.Time) (int64, error)) *Store_AbandonSessionsStartedBefore_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateSession provides a mock function with given fields: ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt
-func (_m *Store) CreateSession(ctx context.Context, userID string, mode string, pinnedTitle string, taskID *string, clientSessionID *string, startedAt *time.Time) (*model.Session, error) {
+func (_m *Store) CreateSession(ctx context.Context, userID string, mode model.SessionMode, pinnedTitle string, taskID *string, clientSessionID *string, startedAt time.Time) (*model.Session, bool, error) {
 	ret := _m.Called(ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
 
 	if len(ret) == 0 {
@@ -90,11 +91,12 @@ func (_m *Store) CreateSession(ctx context.Context, userID string, mode string, 
 	}
 
 	var r0 *model.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *string, *string, *time.Time) (*model.Session, error)); ok {
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.SessionMode, string, *string, *string, time.Time) (*model.Session, bool, error)); ok {
 		return rf(ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, *string, *string, *time.Time) *model.Session); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.SessionMode, string, *string, *string, time.Time) *model.Session); ok {
 		r0 = rf(ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
 	} else {
 		if ret.Get(0) != nil {
@@ -102,13 +104,19 @@ func (_m *Store) CreateSession(ctx context.Context, userID string, mode string, 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, *string, *string, *time.Time) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, model.SessionMode, string, *string, *string, time.Time) bool); ok {
 		r1 = rf(ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, model.SessionMode, string, *string, *string, time.Time) error); ok {
+		r2 = rf(ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // Store_CreateSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSession'
@@ -119,34 +127,34 @@ type Store_CreateSession_Call struct {
 // CreateSession is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-//   - mode string
+//   - mode model.SessionMode
 //   - pinnedTitle string
 //   - taskID *string
 //   - clientSessionID *string
-//   - startedAt *time.Time
+//   - startedAt time.Time
 func (_e *Store_Expecter) CreateSession(ctx interface{}, userID interface{}, mode interface{}, pinnedTitle interface{}, taskID interface{}, clientSessionID interface{}, startedAt interface{}) *Store_CreateSession_Call {
 	return &Store_CreateSession_Call{Call: _e.mock.On("CreateSession", ctx, userID, mode, pinnedTitle, taskID, clientSessionID, startedAt)}
 }
 
-func (_c *Store_CreateSession_Call) Run(run func(ctx context.Context, userID string, mode string, pinnedTitle string, taskID *string, clientSessionID *string, startedAt *time.Time)) *Store_CreateSession_Call {
+func (_c *Store_CreateSession_Call) Run(run func(ctx context.Context, userID string, mode model.SessionMode, pinnedTitle string, taskID *string, clientSessionID *string, startedAt time.Time)) *Store_CreateSession_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(*string), args[5].(*string), args[6].(*time.Time))
+		run(args[0].(context.Context), args[1].(string), args[2].(model.SessionMode), args[3].(string), args[4].(*string), args[5].(*string), args[6].(time.Time))
 	})
 	return _c
 }
 
-func (_c *Store_CreateSession_Call) Return(_a0 *model.Session, _a1 error) *Store_CreateSession_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *Store_CreateSession_Call) Return(_a0 *model.Session, _a1 bool, _a2 error) *Store_CreateSession_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *Store_CreateSession_Call) RunAndReturn(run func(context.Context, string, string, string, *string, *string, *time.Time) (*model.Session, error)) *Store_CreateSession_Call {
+func (_c *Store_CreateSession_Call) RunAndReturn(run func(context.Context, string, model.SessionMode, string, *string, *string, time.Time) (*model.Session, bool, error)) *Store_CreateSession_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // EndSession provides a mock function with given fields: ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt
-func (_m *Store) EndSession(ctx context.Context, userID string, sessionID string, secondsFocused int, pomodorosCompleted int, endedAt *time.Time) (*model.Session, error) {
+func (_m *Store) EndSession(ctx context.Context, userID string, sessionID string, secondsFocused int, pomodorosCompleted int, endedAt time.Time) (*model.Session, model.SessionEndOutcome, error) {
 	ret := _m.Called(ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)
 
 	if len(ret) == 0 {
@@ -154,11 +162,12 @@ func (_m *Store) EndSession(ctx context.Context, userID string, sessionID string
 	}
 
 	var r0 *model.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int, *time.Time) (*model.Session, error)); ok {
+	var r1 model.SessionEndOutcome
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int, time.Time) (*model.Session, model.SessionEndOutcome, error)); ok {
 		return rf(ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int, *time.Time) *model.Session); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int, time.Time) *model.Session); ok {
 		r0 = rf(ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)
 	} else {
 		if ret.Get(0) != nil {
@@ -166,13 +175,19 @@ func (_m *Store) EndSession(ctx context.Context, userID string, sessionID string
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, int, int, *time.Time) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int, int, time.Time) model.SessionEndOutcome); ok {
 		r1 = rf(ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(model.SessionEndOutcome)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, int, int, time.Time) error); ok {
+		r2 = rf(ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // Store_EndSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EndSession'
@@ -186,24 +201,84 @@ type Store_EndSession_Call struct {
 //   - sessionID string
 //   - secondsFocused int
 //   - pomodorosCompleted int
-//   - endedAt *time.Time
+//   - endedAt time.Time
 func (_e *Store_Expecter) EndSession(ctx interface{}, userID interface{}, sessionID interface{}, secondsFocused interface{}, pomodorosCompleted interface{}, endedAt interface{}) *Store_EndSession_Call {
 	return &Store_EndSession_Call{Call: _e.mock.On("EndSession", ctx, userID, sessionID, secondsFocused, pomodorosCompleted, endedAt)}
 }
 
-func (_c *Store_EndSession_Call) Run(run func(ctx context.Context, userID string, sessionID string, secondsFocused int, pomodorosCompleted int, endedAt *time.Time)) *Store_EndSession_Call {
+func (_c *Store_EndSession_Call) Run(run func(ctx context.Context, userID string, sessionID string, secondsFocused int, pomodorosCompleted int, endedAt time.Time)) *Store_EndSession_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(int), args[5].(*time.Time))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(int), args[5].(time.Time))
 	})
 	return _c
 }
 
-func (_c *Store_EndSession_Call) Return(_a0 *model.Session, _a1 error) *Store_EndSession_Call {
+func (_c *Store_EndSession_Call) Return(_a0 *model.Session, _a1 model.SessionEndOutcome, _a2 error) *Store_EndSession_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *Store_EndSession_Call) RunAndReturn(run func(context.Context, string, string, int, int, time.Time) (*model.Session, model.SessionEndOutcome, error)) *Store_EndSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetSessionByClientID provides a mock function with given fields: ctx, userID, clientSessionID
+func (_m *Store) GetSessionByClientID(ctx context.Context, userID string, clientSessionID string) (*model.Session, error) {
+	ret := _m.Called(ctx, userID, clientSessionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSessionByClientID")
+	}
+
+	var r0 *model.Session
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*model.Session, error)); ok {
+		return rf(ctx, userID, clientSessionID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *model.Session); ok {
+		r0 = rf(ctx, userID, clientSessionID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.Session)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, userID, clientSessionID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Store_GetSessionByClientID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSessionByClientID'
+type Store_GetSessionByClientID_Call struct {
+	*mock.Call
+}
+
+// GetSessionByClientID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - clientSessionID string
+func (_e *Store_Expecter) GetSessionByClientID(ctx interface{}, userID interface{}, clientSessionID interface{}) *Store_GetSessionByClientID_Call {
+	return &Store_GetSessionByClientID_Call{Call: _e.mock.On("GetSessionByClientID", ctx, userID, clientSessionID)}
+}
+
+func (_c *Store_GetSessionByClientID_Call) Run(run func(ctx context.Context, userID string, clientSessionID string)) *Store_GetSessionByClientID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *Store_GetSessionByClientID_Call) Return(_a0 *model.Session, _a1 error) *Store_GetSessionByClientID_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Store_EndSession_Call) RunAndReturn(run func(context.Context, string, string, int, int, *time.Time) (*model.Session, error)) *Store_EndSession_Call {
+func (_c *Store_GetSessionByClientID_Call) RunAndReturn(run func(context.Context, string, string) (*model.Session, error)) *Store_GetSessionByClientID_Call {
 	_c.Call.Return(run)
 	return _c
 }

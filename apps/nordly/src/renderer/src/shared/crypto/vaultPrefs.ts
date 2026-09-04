@@ -6,12 +6,18 @@ function metaKey(userId: string): string {
 
 let cachedUserId: string | null = null;
 let cachedEnabled = false;
+let prefsReady = false;
 
 type VaultEnabledListener = (enabled: boolean) => void;
 const listeners = new Set<VaultEnabledListener>();
 
 function notifyVaultEnabled(enabled: boolean): void {
   for (const listener of listeners) listener(enabled);
+}
+
+/** True after `loadVaultPrefs` for the current user. False after `clearVaultPrefsCache`. */
+export function areVaultPrefsReady(): boolean {
+  return prefsReady && cachedUserId !== null;
 }
 
 /** Fast path for sync/store — call loadVaultPrefs on sign-in first. */
@@ -32,6 +38,7 @@ export async function loadVaultPrefs(userId: string): Promise<boolean> {
   const row = await dbGet<{ enabled?: boolean }>('meta', metaKey(userId));
   cachedUserId = userId;
   cachedEnabled = row?.enabled === true;
+  prefsReady = true;
   notifyVaultEnabled(cachedEnabled);
   return cachedEnabled;
 }
@@ -47,11 +54,13 @@ export async function setVaultEnabled(enabled: boolean, userId?: string): Promis
   await dbPut('meta', { key: metaKey(uid), userId: uid, enabled });
   cachedUserId = uid;
   cachedEnabled = enabled;
+  prefsReady = true;
   notifyVaultEnabled(enabled);
 }
 
 export function clearVaultPrefsCache(): void {
   cachedUserId = null;
   cachedEnabled = false;
+  prefsReady = false;
   notifyVaultEnabled(false);
 }

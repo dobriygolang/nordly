@@ -31,12 +31,6 @@ type WikiLinkRef struct {
 	LinkText     string
 }
 
-type BacklinkEntry struct {
-	NoteID    string
-	Title     string
-	UpdatedAt time.Time
-}
-
 type NoteAttachment struct {
 	ID        string
 	UserID    string
@@ -84,13 +78,19 @@ type PublishedNoteAsset struct {
 	Data []byte
 }
 
+type PublishOptions struct {
+	AccessMode   PublishAccessMode
+	Password     string
+	ExpiryPolicy PublishExpiryPolicy
+}
+
 type PublishStatus struct {
-	Published         bool
-	Slug              string
-	URL               string
-	PublishedAt       *time.Time
-	PasswordProtected bool
-	ExpiresAt         *time.Time
+	Published   bool
+	Slug        string
+	URL         string
+	PublishedAt *time.Time
+	AccessMode  PublishAccessMode
+	ExpiresAt   *time.Time
 }
 
 type ShareToWebResult struct {
@@ -110,10 +110,9 @@ type PublishedNote struct {
 
 // PublishMeta is stored when sharing a note to the web.
 type PublishMeta struct {
-	PasswordHash  *string
-	ExpiresInDays int32
-	// QuotaLimit is nil for unlimited; otherwise new publishes must remain below it.
-	QuotaLimit *int
+	AccessMode      PublishAccessMode
+	ExpiryPolicy    PublishExpiryPolicy
+	NewPasswordHash *string
 }
 
 // PublishedNoteRecord includes fields needed for password verification (service layer only).

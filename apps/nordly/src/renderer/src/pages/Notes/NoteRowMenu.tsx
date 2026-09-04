@@ -4,10 +4,10 @@ import { useT } from '@nordly-i18n';
 
 import {
   canApplyPublishOptions,
-  type PublishFeatureEntitlements,
+  parsePublishExpiryDays,
+  PUBLISH_EXPIRY_OPTIONS,
   type PublishToWebOptions,
 } from '@features/notes/model/publishOptions';
-import { PUBLISH_EXPIRY_OPTIONS } from '@features/notes/model/publishOptions';
 import { Icon } from '@shared/ui/primitives/Icon';
 
 export interface NoteRowMenuProps {
@@ -15,7 +15,6 @@ export interface NoteRowMenuProps {
   publishingAvailable: boolean;
   vaultReady: boolean;
   publishOptions: PublishToWebOptions;
-  publishEntitlements: PublishFeatureEntitlements | null;
   serverPasswordProtected: boolean;
   style?: React.CSSProperties;
   onPublishOptionsChange: (patch: Partial<PublishToWebOptions>) => void;
@@ -98,20 +97,17 @@ function MenuToggle({
 
 function PublishOptionsSection({
   publishOptions,
-  publishEntitlements,
   onPublishOptionsChange,
 }: {
   publishOptions: PublishToWebOptions;
-  publishEntitlements: PublishFeatureEntitlements;
   onPublishOptionsChange: (patch: Partial<PublishToWebOptions>) => void;
 }) {
   const t = useT();
-  if (!publishEntitlements.publishPrivateLink) return null;
 
   return (
     <div className="nordly-note-menu__options">
       <MenuToggle
-        label={t('nordly.settings.features.entitlement.publish_password')}
+        label={t('nordly.notes.menu.private_link')}
         checked={publishOptions.passwordProtected}
         onChange={(passwordProtected) =>
           onPublishOptionsChange({
@@ -145,7 +141,9 @@ function PublishOptionsSection({
                 className="nordly-select nordly-select--block mono focus-ring"
                 value={publishOptions.expiresInDays}
                 onClick={(e) => e.stopPropagation()}
-                onChange={(e) => onPublishOptionsChange({ expiresInDays: Number(e.target.value) })}
+                onChange={(e) =>
+                  onPublishOptionsChange({ expiresInDays: parsePublishExpiryDays(e.target.value) })
+                }
               >
                 {PUBLISH_EXPIRY_OPTIONS.map((days) => (
                   <option key={days} value={days}>
@@ -170,7 +168,6 @@ export const NoteRowMenu = memo(
       publishingAvailable,
       vaultReady,
       publishOptions,
-      publishEntitlements,
       serverPasswordProtected,
       style,
       onPublishOptionsChange,
@@ -184,7 +181,6 @@ export const NoteRowMenu = memo(
   ) {
     const t = useT();
     const passwordInvalid = !canApplyPublishOptions(publishOptions, serverPasswordProtected);
-    const proOptions = publishEntitlements?.publishPrivateLink;
 
     return (
       <div
@@ -212,13 +208,10 @@ export const NoteRowMenu = memo(
                   label={t('nordly.notes.menu.view_public')}
                   onClick={onViewPublic}
                 />
-                {proOptions ? (
-                  <PublishOptionsSection
-                    publishOptions={publishOptions}
-                    publishEntitlements={publishEntitlements}
-                    onPublishOptionsChange={onPublishOptionsChange}
-                  />
-                ) : null}
+                <PublishOptionsSection
+                  publishOptions={publishOptions}
+                  onPublishOptionsChange={onPublishOptionsChange}
+                />
                 <MenuItem
                   icon={<Icon name="unlink" size={14} strokeWidth={1.5} />}
                   label={t('nordly.notes.menu.unpublish')}
@@ -228,13 +221,10 @@ export const NoteRowMenu = memo(
               </>
             ) : (
               <>
-                {proOptions ? (
-                  <PublishOptionsSection
-                    publishOptions={publishOptions}
-                    publishEntitlements={publishEntitlements}
-                    onPublishOptionsChange={onPublishOptionsChange}
-                  />
-                ) : null}
+                <PublishOptionsSection
+                  publishOptions={publishOptions}
+                  onPublishOptionsChange={onPublishOptionsChange}
+                />
                 <MenuItem
                   icon={<Icon name="link" size={14} strokeWidth={1.5} />}
                   label={t('nordly.notes.menu.publish')}

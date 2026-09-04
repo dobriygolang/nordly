@@ -1,6 +1,7 @@
 import { toDayKey } from '@shared/lib/dates';
 
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard } from '@features/tasks/model/task';
+import { isTaskDone } from '@features/tasks/model/status';
 
 import type { DailyPlanRecord, DailyPlanSnapshot } from '../repository/dailyPlanStore';
 
@@ -30,11 +31,11 @@ export function computePlanProgress(
   if (!snapshot?.taskIds?.length) return null;
   const idSet = new Set(snapshot.taskIds);
   const planned = todayTasks.filter((task) => idSet.has(task.id));
-  const doneCount = planned.filter((task) => task.status === 'done').length;
+  const doneCount = planned.filter((task) => isTaskDone(task.status)).length;
   return {
     plannedTotal: snapshot.taskIds.length,
     doneCount,
-    activeRemaining: planned.filter((task) => task.status !== 'done').length,
+    activeRemaining: planned.filter((task) => !isTaskDone(task.status)).length,
     plannedDurationMin: snapshot.totalDurationMin,
   };
 }

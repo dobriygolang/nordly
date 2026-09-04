@@ -5,8 +5,9 @@ export interface PublishedBoard {
   sceneJson: string
 }
 
-function requireString(obj: Record<string, unknown>, key: string, label: string): string {
+function proto3String(obj: Record<string, unknown>, key: string, label: string): string {
   const v = obj[key]
+  if (v === undefined || v === null) return ''
   if (typeof v !== 'string') {
     throw new Error(`Invalid published board response: missing ${label}`)
   }
@@ -14,8 +15,8 @@ function requireString(obj: Record<string, unknown>, key: string, label: string)
 }
 
 function mapPublishedBoard(j: Record<string, unknown>): PublishedBoard {
-  const title = requireString(j, 'title', 'title')
-  const sceneJson = requireString(j, 'scene_json', 'sceneJson')
+  const title = proto3String(j, 'title', 'title')
+  const sceneJson = proto3String(j, 'scene_json', 'sceneJson')
   return { title, sceneJson }
 }
 
@@ -29,10 +30,7 @@ export async function fetchPublishedBoard(slug: string): Promise<PublishedBoard>
 }
 
 export function publishedBoardDisplayTitle(title: string): string {
-  const t = title.trim()
-  if (t) return t
-  console.error('[publicBoards] published board missing title')
-  return 'Untitled board'
+  return title.trim()
 }
 
 export { ApiError }

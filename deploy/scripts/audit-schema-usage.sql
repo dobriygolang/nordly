@@ -30,33 +30,6 @@ FROM pg_stat_user_indexes
 WHERE indexrelname IN ('users_created_at_idx', 'user_devices_user_idx')
 ORDER BY indexrelname;
 
-\echo '=== billing / nordly_billing ==='
-\connect nordly_billing
--- Subscription/provider storage remains reserved for Tribute operations; observe,
--- do not drop merely because current entitlements always resolve to default.
-SELECT count(*) AS subscriptions,
-       count(*) FILTER (WHERE status IN ('active', 'trialing')) AS active_or_trialing,
-       count(*) FILTER (WHERE cancel_at_period_end) AS cancel_pending
-FROM subscriptions;
--- KEEP: webhook idempotency history is operational state.
-SELECT count(*) AS provider_events,
-       min(processed_at) AS oldest_processed_at,
-       max(processed_at) AS newest_processed_at
-FROM provider_events;
-SELECT count(*) AS provider_accounts,
-       count(*) FILTER (WHERE provider_username IS NOT NULL) AS with_username,
-       count(*) FILTER (WHERE metadata <> '{}'::jsonb) AS with_metadata
-FROM provider_accounts;
-SELECT indexrelname, idx_scan, idx_tup_read, idx_tup_fetch
-FROM pg_stat_user_indexes
-WHERE indexrelname IN (
-  'subscriptions_user_status_idx',
-  'subscriptions_provider_sub_idx',
-  'usage_counters_user_key_idx',
-  'usage_counters_period_end_idx'
-)
-ORDER BY indexrelname;
-
 \echo '=== tracker / nordly_tracker ==='
 \connect nordly_tracker
 -- Confirm this remains zero for 30 days after the stop-write release.
@@ -146,11 +119,8 @@ ORDER BY indexrelname;
 
 \echo '=== sandbox / nordly_sandbox ==='
 \connect nordly_sandbox
--- Custom runs should make legacy test-shaped fields stay at their defaults.
-SELECT run_type, count(*) FROM code_runs GROUP BY run_type ORDER BY run_type;
+SELECT status, count(*) FROM code_runs GROUP BY status ORDER BY status;
 SELECT count(*) AS runs,
-       count(*) FILTER (WHERE tests_total <> 0 OR tests_passed <> 0 OR test_results <> '[]'::jsonb) AS with_test_data,
-       count(*) FILTER (WHERE memory_kb IS NOT NULL) AS with_memory,
        count(*) FILTER (WHERE runner IS NOT NULL AND runner <> '') AS with_runner,
        count(*) FILTER (WHERE room_id IS NOT NULL) AS room_scoped
 FROM code_runs;

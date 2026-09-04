@@ -17,7 +17,6 @@ var protectedMethods = map[string]struct{}{
 	notesv1.NotesService_CreateNote_FullMethodName:           {},
 	notesv1.NotesService_UpdateNote_FullMethodName:           {},
 	notesv1.NotesService_DeleteNote_FullMethodName:           {},
-	notesv1.NotesService_GetBacklinks_FullMethodName:         {},
 	notesv1.NotesService_PutNoteAttachment_FullMethodName:    {},
 	notesv1.NotesService_GetNoteAttachment_FullMethodName:    {},
 	notesv1.NotesService_ListNoteAttachments_FullMethodName:  {},
@@ -34,10 +33,10 @@ func AuthInterceptor(v *jwt.Validator) grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		token := BearerTokenFromContext(ctx)
-		userID, err := v.UserID(token)
+		claims, err := v.ParseUserSession(token)
 		if err != nil {
 			return nil, unauthorized()
 		}
-		return handler(WithUserID(ctx, userID), req)
+		return handler(WithUserID(ctx, claims.UserID), req)
 	}
 }

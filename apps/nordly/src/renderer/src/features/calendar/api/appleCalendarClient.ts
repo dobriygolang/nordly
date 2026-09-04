@@ -80,6 +80,8 @@ export async function listAppleCalendars(): Promise<AppleCalendarListEntry[]> {
   return invoke<AppleCalendarListEntry[]>('apple_calendar_list_calendars');
 }
 
+export { resetAppleCalendarFetchBlock } from '../lib/appleCalendarEventsStore';
+
 export async function listAppleCalendarEvents(
   timeMin: Date,
   timeMax: Date,

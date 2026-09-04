@@ -20,13 +20,17 @@ func New(pg *userrepo.Pool) *Repository {
 }
 
 // RegisterDevice serializes registrations by locking the parent user row. The
-// count, limit check, and insert/update therefore observe one stable device set.
-func (r *Repository) RegisterDevice(ctx context.Context, userID, deviceID, name, appVersion string, limit int) (int, error) {
+// count and insert/update therefore observe one stable device set.
+func (r *Repository) RegisterDevice(ctx context.Context, userID, deviceID, name, appVersion string) (int, error) {
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("begin device registration transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(rollbackCtx)
+	}()
 
 	var lockedUserID string
 	if err := tx.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&lockedUserID); err != nil {
@@ -34,21 +38,6 @@ func (r *Repository) RegisterDevice(ctx context.Context, userID, deviceID, name,
 			return 0, devicemodel.ErrNotFound
 		}
 		return 0, fmt.Errorf("lock user for device registration: %w", err)
-	}
-
-	var exists bool
-	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM user_devices WHERE user_id = $1 AND device_id = $2)
-	`, userID, deviceID).Scan(&exists); err != nil {
-		return 0, fmt.Errorf("check existing device: %w", err)
-	}
-
-	var count int
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM user_devices WHERE user_id = $1`, userID).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count devices: %w", err)
-	}
-	if !exists && limit >= 0 && count >= limit {
-		return 0, devicemodel.ErrDeviceLimitExceeded
 	}
 
 	now := time.Now().UTC()
@@ -62,8 +51,10 @@ func (r *Repository) RegisterDevice(ctx context.Context, userID, deviceID, name,
 	`, userID, deviceID, name, appVersion, now); err != nil {
 		return 0, fmt.Errorf("upsert device: %w", err)
 	}
-	if !exists {
-		count++
+
+	var count int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM user_devices WHERE user_id = $1`, userID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count devices: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit device registration: %w", err)

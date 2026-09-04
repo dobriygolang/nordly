@@ -15,9 +15,13 @@ func (i *Implementation) GuestJoin(ctx context.Context, req *roomsv1.GuestJoinRe
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	room, err := toProtoRoom(result.Room)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	return &roomsv1.GuestJoinResponse{
 		AccessToken: result.AccessToken,
-		Room:        toProtoRoom(result.Room),
+		Room:        room,
 		ExpiresIn:   result.ExpiresIn,
 	}, nil
 }

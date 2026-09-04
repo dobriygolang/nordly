@@ -7,6 +7,12 @@ option go_package = "github.com/dobriygolang/project-nordly/services/focus/pkg/a
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
+enum SessionMode {
+  SESSION_MODE_UNSPECIFIED = 0;
+  SESSION_MODE_POMODORO = 1;
+  SESSION_MODE_STOPWATCH = 2;
+}
+
 service FocusService {
   rpc StartFocusSession(StartFocusSessionRequest) returns (StartFocusSessionResponse) {
     option (google.api.http) = {
@@ -31,7 +37,7 @@ service FocusService {
 
 message FocusSession {
   string id = 1;
-  string mode = 2;
+  SessionMode mode = 2;
   string pinned_title = 3;
   string task_id = 4;
   google.protobuf.Timestamp started_at = 5;
@@ -47,12 +53,12 @@ message FocusDay {
 }
 
 message StartFocusSessionRequest {
-  string mode = 1;
+  SessionMode mode = 1;
   string pinned_title = 2;
   string task_id = 3;
   // Client-generated UUID for outbox idempotency (optional for live clients).
   string client_session_id = 4;
-  // Optional client wall time for offline-started sessions.
+  // Client wall time, including for offline-started sessions.
   google.protobuf.Timestamp started_at = 5;
 }
 
@@ -64,7 +70,7 @@ message EndFocusSessionRequest {
   string session_id = 1;
   int32 seconds_focused = 2;
   int32 pomodoros_completed = 3;
-  // Optional client wall time for offline completions.
+  // Client wall time, including for offline completions.
   google.protobuf.Timestamp ended_at = 4;
 }
 

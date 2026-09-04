@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -9,7 +9,7 @@ import {
   requestAppleCalendarAccess,
   type AppleCalendarListEntry,
 } from '@features/calendar/api/appleCalendarClient';
-import { resetAppleCalendarFetchBlock } from '@features/calendar/lib/useAppleCalendarEvents';
+import { resetAppleCalendarFetchBlock } from '@features/calendar/api/appleCalendarClient';
 import { isMacOsDesktop } from '@platform/macos';
 import {
   APPLE_CALENDAR_POLL_MINUTES,
@@ -90,8 +90,6 @@ export function AppleCalendarSection(): JSX.Element | null {
       setStatus(auth.status);
       if (auth.authorized) {
         setError(null);
-        patchSettings({ appleCalendarEnabled: true });
-        setEnabled(true);
         resetAppleCalendarFetchBlock();
       }
       await loadCalendars(auth.authorized);
@@ -103,21 +101,22 @@ export function AppleCalendarSection(): JSX.Element | null {
     }
   }, [loadCalendars, t]);
 
+  const lastResumeLoadAt = useRef(0);
+
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
     const refresh = (): void => {
-      if (document.visibilityState === 'hidden') return;
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastResumeLoadAt.current < 2_000) return;
+      lastResumeLoadAt.current = now;
       void load();
     };
-    window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
-    return () => {
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
+    return () => document.removeEventListener('visibilitychange', refresh);
   }, [load]);
 
   if (!isMacOsDesktop()) return null;

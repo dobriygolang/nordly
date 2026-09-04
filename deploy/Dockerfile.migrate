@@ -2,7 +2,6 @@ FROM golang:1.25-alpine
 RUN apk add --no-cache git bash && \
     GOWORK=off go install github.com/pressly/goose/v3/cmd/goose@v3.19.2
 COPY services/identity/scripts/migrations /migrations/identity
-COPY services/billing/scripts/migrations /migrations/billing
 COPY services/sandbox/scripts/migrations /migrations/sandbox
 COPY services/rooms/scripts/migrations /migrations/rooms
 COPY services/tracker/scripts/migrations /migrations/tracker

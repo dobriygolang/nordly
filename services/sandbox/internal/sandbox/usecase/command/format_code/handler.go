@@ -2,35 +2,34 @@ package format_code
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/billing"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
-	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/support"
 )
+
+// Formatter is the narrow runner port required by this command.
+type Formatter interface {
+	Format(ctx context.Context, language model.Language, code string) (string, error)
+}
 
 // Config is constructor input for Handler.
 type Config struct {
-	Billing billingadapter.Client
-	Runner  runner.CodeRunner
+	Runner Formatter
 }
 
-// Handler formats code after consuming quota.
+// Handler formats code.
 type Handler struct {
-	billing billingadapter.Client
-	runner  runner.CodeRunner
+	runner Formatter
 }
 
 // New constructs the format-code command handler.
-func New(cfg Config) *Handler {
-	if cfg.Billing == nil {
-		panic("format_code: Billing is required")
-	}
+func New(cfg Config) (*Handler, error) {
 	if cfg.Runner == nil {
-		panic("format_code: Runner is required")
+		return nil, errors.New("format_code: Runner is required")
 	}
-	return &Handler{billing: cfg.Billing, runner: cfg.Runner}
+	return &Handler{runner: cfg.Runner}, nil
 }
 
 // Handle executes the command.
@@ -38,19 +37,12 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (string, error) {
 	if err := cmd.Validate(); err != nil {
 		return "", err
 	}
-	lang, err := support.NormalizeLanguage(cmd.Language)
+	formatted, err := h.runner.Format(ctx, cmd.Language, cmd.Code)
 	if err != nil {
+		if errors.Is(err, runner.ErrInvalidSource) {
+			return "", fmt.Errorf("%s: %w", err.Error(), model.ErrInvalidInput)
+		}
 		return "", err
-	}
-	if lang != model.LangGo {
-		return "", fmt.Errorf("format supported only for go: %w", model.ErrInvalidInput)
-	}
-	if err := support.GateCodeRun(ctx, h.billing, support.QuotaSubject(cmd.UserID, cmd.RoomID)); err != nil {
-		return "", err
-	}
-	formatted, err := h.runner.Format(ctx, lang, cmd.Code)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", err.Error(), model.ErrInvalidInput)
 	}
 	return formatted, nil
 }

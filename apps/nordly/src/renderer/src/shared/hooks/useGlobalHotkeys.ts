@@ -1,7 +1,7 @@
 // useGlobalHotkeys — global keyboard listener for Nordly hotkeys.
 import { useEffect, useRef } from 'react';
 
-import type { PageId } from '@shared/model/navigation';
+import { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { dismissTopEscapeLayer } from '@shared/lib/escapeLayer';
 import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
@@ -24,11 +24,10 @@ interface GlobalHotkeysDeps {
 }
 
 const LETTER_HOTKEYS: Record<string, PageId> = {
-  KeyT: 'today',
-  KeyN: 'notes',
-  KeyB: 'whiteboard',
-  KeyC: 'calendar',
-  Comma: 'settings',
+  KeyT: PageId.Today,
+  KeyN: PageId.Notes,
+  KeyB: PageId.Whiteboard,
+  Comma: PageId.Settings,
 };
 
 export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
@@ -84,7 +83,7 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
           d.closeStats();
           return;
         }
-        if (d.page !== 'home') {
+        if (d.page !== PageId.Home) {
           e.preventDefault();
           d.goHome();
         }
@@ -114,11 +113,6 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
 
       const id = LETTER_HOTKEYS[e.code];
       if (!id) return;
-      if (id === 'calendar') {
-        if (d.calendarOpen) d.closeCalendar();
-        else d.openCalendar();
-        return;
-      }
       if (d.page === id) d.goHome();
       else d.open(id);
     };

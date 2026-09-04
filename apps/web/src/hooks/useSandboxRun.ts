@@ -2,11 +2,9 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { getCodeRun, isTerminalRunStatus, runCode } from '@/lib/api/sandbox'
 import { formatSandboxRunError } from '@/lib/sandbox/formatRunError'
-import { useI18n } from '@/lib/i18n'
 import type { CodeRun } from '@/lib/types'
 
 export function useSandboxRun(accessToken?: string | null) {
-  const { t } = useI18n()
   const [runId, setRunId] = useState<string | null>(null)
   const [outputTab, setOutputTab] = useState<'stdout' | 'stderr'>('stdout')
   const [runError, setRunError] = useState<string | null>(null)
@@ -16,12 +14,26 @@ export function useSandboxRun(accessToken?: string | null) {
     queryKey: ['code-run', runId, accessToken ?? ''],
     queryFn: () => getCodeRun(runId!, accessToken),
     enabled: !!runId,
+    refetchOnWindowFocus: true,
     refetchInterval: (q) => {
       const status = q.state.data?.run.status
       if (!status || isTerminalRunStatus(status)) return false
+      if (typeof document !== 'undefined' && document.hidden) return false
       return 1000
     },
   })
+
+  const runStatus = runQ.data?.run.status
+  const refetchRun = runQ.refetch
+  useEffect(() => {
+    const onVisible = (): void => {
+      if (document.visibilityState !== 'visible') return
+      if (!runId || !runStatus || isTerminalRunStatus(runStatus)) return
+      void refetchRun()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [runId, runStatus, refetchRun])
 
   const runM = useMutation({
     mutationFn: (input: {
@@ -36,12 +48,7 @@ export function useSandboxRun(accessToken?: string | null) {
       else setOutputTab('stdout')
     },
     onError: (err) => {
-      setRunError(
-        formatSandboxRunError(err, {
-          quota: t('session.editorRunQuota'),
-          featureDisabled: t('session.editorRunFeatureDisabled'),
-        }),
-      )
+      setRunError(formatSandboxRunError(err))
       setRunId(null)
     },
   })
@@ -54,13 +61,8 @@ export function useSandboxRun(accessToken?: string | null) {
 
   useEffect(() => {
     if (!runQ.isError || !runQ.error) return
-    setRunError(
-      formatSandboxRunError(runQ.error, {
-        quota: t('session.editorRunQuota'),
-        featureDisabled: t('session.editorRunFeatureDisabled'),
-      }),
-    )
-  }, [runQ.isError, runQ.error, t])
+    setRunError(formatSandboxRunError(runQ.error))
+  }, [runQ.isError, runQ.error])
 
   const followRun = useCallback((id: string, actor?: string) => {
     setRunId(id)

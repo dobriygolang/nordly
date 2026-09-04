@@ -86,6 +86,7 @@ Per-feature offline vs online:
 | `repository/` | IndexedDB only |
 | `remote/` | HTTP clients |
 | `sync/` | outbox push/pull |
+| `vault/` | filesystem vault internals — pages/widgets use `@features/notes/api/vault` |
 | `api/` | local-first façade (`isSyncEnabled()` / `isCloudEnabled()` gates) |
 
 Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).
@@ -100,7 +101,7 @@ CI runs `npm run bundle:check` (`scripts/check-bundle-budgets.mjs`) after `build
 |------------------------|--------|
 | Calendar / meetings UI (`HomeTodayTasks`, inspectors, DayTimeline-heavy widgets) | `lazy(() => import(...))` + `<Suspense fallback={null}>` |
 | Route pages / Palette / modals | already lazy — keep them lazy |
-| Feature barrels that re-export hooks + workers (`@features/calendar/api/calendar`) | import leaf modules (`appleCalendarClient`, `calendarClient`, `lib/events`, …) |
+| Feature barrels that re-export hooks + workers | import leaf modules (`appleCalendarClient`, `calendarClient`, `lib/events`, hooks, components) |
 
 ```tsx
 // ❌ BAD — Home meetings + calendar hooks inflate App → Notes static graph
@@ -122,7 +123,7 @@ const AppleEventInspectorHost = lazy(() =>
 
 1. From `apps/nordly`: `npm run build:vite && node scripts/check-bundle-budgets.mjs`
 2. If Notes/main FAIL: lazy-load the new shell widget or narrow barrel imports — **do not** silently raise the budget unless the product intentionally ships that weight on cold Notes open.
-3. Never static-import `@features/calendar/api/calendar` from modules that App already imports (e.g. `features/tasks/api/tasks.ts`) — use a dynamic `import()` on the Meet path only.
+3. Never static-import calendar cache/sync workers from modules that App already imports (e.g. `features/tasks/api/tasks.ts`) — use a dynamic `import()` on the Meet path only.
 
 Vitest: alias `react` (and jsx-runtime / `react-dom`) to `apps/nordly/node_modules/...` in `vitest.config.ts` whenever code outside the package (e.g. `apps/shared/i18n`) is resolved — otherwise schedule/calendar unit tests fail with `Failed to resolve import "react"`.
 

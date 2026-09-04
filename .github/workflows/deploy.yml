@@ -31,7 +31,6 @@ jobs:
           cache: true
           cache-dependency-path: |
             services/identity/go.sum
-            services/billing/go.sum
             services/sandbox/go.sum
             services/rooms/go.sum
             services/tracker/go.sum
@@ -192,7 +191,11 @@ jobs:
 
             BUILD_TARGETS=""
             if [ -n "$PREV_SHA" ] && [ "$PREV_SHA" != "$CUR_SHA" ]; then
-              BUILD_TARGETS="$(bash scripts/changed-services.sh "$PREV_SHA" "$CUR_SHA" | xargs || true)"
+              if ! BUILD_TARGETS="$(bash scripts/changed-services.sh "$PREV_SHA" "$CUR_SHA")"; then
+                echo "ERROR: changed-services.sh failed"
+                exit 1
+              fi
+              BUILD_TARGETS="$(printf '%s' "$BUILD_TARGETS" | xargs)"
             fi
 
             if [ -z "$PREV_SHA" ]; then
@@ -217,8 +220,13 @@ jobs:
             else
               # shellcheck source=scripts/services.conf.sh
               source scripts/services.conf.sh
-              if migrations_changed "$PREV_SHA" "$CUR_SHA"; then
+              migrations_changed "$PREV_SHA" "$CUR_SHA"
+              mc=$?
+              if [ "$mc" -eq 0 ]; then
                 RUN_MIGRATE=1
+              elif [ "$mc" -ge 2 ]; then
+                echo "ERROR: could not detect migration changes"
+                exit 1
               fi
             fi
             if [ "$RUN_MIGRATE" = 1 ]; then
@@ -233,7 +241,6 @@ jobs:
             if ! docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans --wait --wait-timeout 300; then
               docker compose -f docker-compose.prod.yml --env-file .env ps
               docker compose -f docker-compose.prod.yml --env-file .env logs identity --tail 80
-              docker compose -f docker-compose.prod.yml --env-file .env logs billing --tail 40
               docker compose -f docker-compose.prod.yml --env-file .env logs tracker --tail 40
               docker compose -f docker-compose.prod.yml --env-file .env logs rooms --tail 40
               docker compose -f docker-compose.prod.yml --env-file .env logs sandbox --tail 40

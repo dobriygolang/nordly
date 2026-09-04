@@ -19,7 +19,10 @@ export function useTodayKey(): string {
   const [todayKey, setTodayKey] = useState(currentTodayKey);
 
   const refresh = useCallback(() => {
-    setTodayKey(currentTodayKey());
+    setTodayKey((prev) => {
+      const next = currentTodayKey();
+      return prev === next ? prev : next;
+    });
   }, []);
 
   useEffect(() => {

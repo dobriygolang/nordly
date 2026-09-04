@@ -12,17 +12,34 @@ const PublishedNotePage = lazy(() => import('@/pages/PublishedNotePage'))
 const PublishedBoardPage = lazy(() => import('@/pages/PublishedBoardPage'))
 const CollabRoomPage = lazy(() => import('@/pages/CollabRoomPage'))
 const LiveNewPage = lazy(() =>
-  import('@/components/live/LiveNewPage').then((m) => ({ default: m.LiveNewPage })),
+  import('@/pages/LiveNewPage').then((m) => ({ default: m.LiveNewPage })),
 )
 const LegalTermsPage = lazy(() => import('@/pages/LegalTermsPage'))
 const LegalPrivacyPage = lazy(() => import('@/pages/LegalPrivacyPage'))
 const NordlyDownloadPage = lazy(() => import('@/pages/NordlyDownloadPage'))
-const GoogleCalendarOAuthPage = lazy(() => import('@/pages/GoogleCalendarOAuthPage'))
-const ZoomOAuthPage = lazy(() => import('@/pages/ZoomOAuthPage'))
+const OAuthBridgePage = lazy(() => import('@/pages/OAuthBridgePage'))
 
 function RetiredRedirect() {
   return <Navigate to="/" replace />
 }
+
+const RETIRED_PATHS = [
+  '/login',
+  '/auth/callback',
+  '/profile',
+  '/settings',
+  '/checkout',
+  '/checkout/:planSlug',
+  '/billing/welcome',
+  '/pricing',
+  '/today',
+  '/dashboard',
+  '/learn/*',
+  '/mock/*',
+  '/interview/*',
+  '/tasks',
+  '/admin/*',
+] as const
 
 function LegacyNoteSlugRedirect() {
   const { slug } = useParams<{ slug: string }>()
@@ -58,32 +75,21 @@ export function AnimatedRoutes() {
             <Route path="/live/new" element={<LiveNewPage />} />
             <Route path="/legal/terms" element={<LegalTermsPage />} />
             <Route path="/legal/privacy" element={<LegalPrivacyPage />} />
+            <Route path="/download" element={<NordlyDownloadPage />} />
           </Route>
-
-          <Route path="/download" element={<NordlyDownloadPage />} />
-          <Route path="/oauth/google-calendar" element={<GoogleCalendarOAuthPage />} />
-          <Route path="/oauth/zoom" element={<ZoomOAuthPage />} />
+          <Route
+            path="/oauth/google-calendar"
+            element={<OAuthBridgePage provider="google_calendar" />}
+          />
+          <Route path="/oauth/zoom" element={<OAuthBridgePage provider="zoom" />} />
           <Route path="/notes/:slug" element={<PublishedNotePage />} />
           <Route path="/board/:slug" element={<PublishedBoardPage />} />
           <Route path="/n/:slug" element={<LegacyNoteSlugRedirect />} />
           <Route path="/live/:roomId" element={<CollabRoomPage />} />
 
-          <Route path="/login" element={<RetiredRedirect />} />
-          <Route path="/auth/callback" element={<RetiredRedirect />} />
-          <Route path="/profile" element={<RetiredRedirect />} />
-          <Route path="/settings" element={<RetiredRedirect />} />
-          <Route path="/checkout" element={<Navigate to="/" replace />} />
-          <Route path="/checkout/:planSlug" element={<Navigate to="/" replace />} />
-          <Route path="/billing/welcome" element={<Navigate to="/" replace />} />
-          <Route path="/pricing" element={<Navigate to="/" replace />} />
-
-          <Route path="/today" element={<RetiredRedirect />} />
-          <Route path="/dashboard" element={<RetiredRedirect />} />
-          <Route path="/learn/*" element={<RetiredRedirect />} />
-          <Route path="/mock/*" element={<RetiredRedirect />} />
-          <Route path="/interview/*" element={<RetiredRedirect />} />
-          <Route path="/tasks" element={<RetiredRedirect />} />
-          <Route path="/admin/*" element={<RetiredRedirect />} />
+          {RETIRED_PATHS.map((path) => (
+            <Route key={path} path={path} element={<RetiredRedirect />} />
+          ))}
 
           <Route path="/:roomId" element={<ShortLiveRoomRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -60,3 +60,27 @@ func TestUserSettingsView(t *testing.T) {
 		})
 	}
 }
+
+func TestUserSettingsViewKeepsIntegrationReauthIndependent(t *testing.T) {
+	t.Parallel()
+	settings := UserSettings{
+		GoogleRefreshToken:    strptr("google"),
+		GoogleReauthRequired:  true,
+		ZoomRefreshToken:      strptr("zoom"),
+		ZoomReauthRequired:    false,
+	}
+	view := settings.View()
+	if !view.GoogleCalendarConnected || !view.GoogleReauthRequired {
+		t.Fatalf("google state = connected %v reauth %v", view.GoogleCalendarConnected, view.GoogleReauthRequired)
+	}
+	if !view.ZoomConnected || view.ZoomReauthRequired {
+		t.Fatalf("zoom state = connected %v reauth %v", view.ZoomConnected, view.ZoomReauthRequired)
+	}
+
+	settings.GoogleReauthRequired = false
+	settings.ZoomReauthRequired = true
+	view = settings.View()
+	if view.GoogleReauthRequired || !view.ZoomReauthRequired {
+		t.Fatalf("reauth flags leaked across providers: google=%v zoom=%v", view.GoogleReauthRequired, view.ZoomReauthRequired)
+	}
+}

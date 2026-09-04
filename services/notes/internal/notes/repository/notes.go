@@ -54,15 +54,15 @@ func (r *Repository) CreateNote(
 	userID, title, body string,
 	links []notesmodel.WikiLinkRef,
 ) (*notesmodel.Note, error) {
-	if err := r.validateWikiLinkTargets(ctx, userID, links); err != nil {
-		return nil, err
-	}
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	if err := lockWikiLinkTargetsTx(ctx, tx, userID, links); err != nil {
+		return nil, err
+	}
 	size := len(body)
 	row := tx.QueryRow(ctx, `
 		INSERT INTO notes (user_id, title, body_md, size_bytes)
@@ -87,15 +87,15 @@ func (r *Repository) UpdateNote(
 	userID, id, title, body string,
 	links []notesmodel.WikiLinkRef,
 ) (*notesmodel.Note, error) {
-	if err := r.validateWikiLinkTargets(ctx, userID, links); err != nil {
-		return nil, err
-	}
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	if err := lockNoteAndWikiLinkTargetsTx(ctx, tx, userID, id, links); err != nil {
+		return nil, err
+	}
 	size := len(body)
 	row := tx.QueryRow(ctx, `
 		UPDATE notes
@@ -124,15 +124,24 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var publishSlug *string
-	err = tx.QueryRow(ctx, `
-		UPDATE notes SET archived_at = now(), updated_at = now()
+	if err := tx.QueryRow(ctx, `
+		SELECT publish_slug
+		FROM notes
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-		RETURNING publish_slug
-	`, id, userID).Scan(&publishSlug)
-	if err != nil {
+		FOR UPDATE
+	`, id, userID).Scan(&publishSlug); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return notesmodel.ErrNotFound
 		}
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE notes
+		SET archived_at = now(), updated_at = now(),
+		    published = false, publish_slug = NULL, published_at = NULL,
+		    publish_password_hash = NULL, publish_expires_at = NULL
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+	`, id, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -157,7 +166,13 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 }
 
 func (r *Repository) EncryptNote(ctx context.Context, userID, noteID, ciphertext string) error {
-	size := len(ciphertext)
+	return r.storeCiphertextAndClearPublish(ctx, userID, noteID, ciphertext)
+}
+
+func (r *Repository) storeCiphertextAndClearPublish(
+	ctx context.Context,
+	userID, noteID, ciphertext string,
+) error {
 	tx, err := r.pg.Begin(ctx)
 	if err != nil {
 		return err
@@ -181,7 +196,7 @@ func (r *Repository) EncryptNote(ctx context.Context, userID, noteID, ciphertext
 		    published_at = NULL, publish_password_hash = NULL,
 		    publish_expires_at = NULL, size_bytes = $4, updated_at = now()
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID, ciphertext, size); err != nil {
+	`, noteID, userID, ciphertext, len(ciphertext)); err != nil {
 		return err
 	}
 	if publishSlug != nil {
@@ -224,7 +239,7 @@ func (r *Repository) GetPublishedNoteBySlug(ctx context.Context, slug string) (*
 		Title:            rec.Title,
 		BodyMD:           rec.BodyMD,
 		PublishedAt:      rec.PublishedAt,
-		PasswordRequired: rec.PasswordHash != nil && *rec.PasswordHash != "",
+		PasswordRequired: rec.PasswordHash != nil,
 	}
 	if out.PasswordRequired {
 		out.BodyMD = ""

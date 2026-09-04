@@ -1,4 +1,11 @@
-export type CalendarViewMode = 'week' | 'month' | 'year';
+import { addDays, startOfLocalDay } from '@shared/lib/dates';
+
+export const CalendarViewMode = {
+  Week: 'week',
+  Month: 'month',
+  Year: 'year',
+} as const;
+export type CalendarViewMode = (typeof CalendarViewMode)[keyof typeof CalendarViewMode];
 
 export interface CalendarViewSelection {
   viewMode: CalendarViewMode;
@@ -18,16 +25,12 @@ export function calendarQueryRange(
   paddingDays = 7,
 ): CalendarQueryRange {
   const visible =
-    selection.viewMode === 'week'
-      ? {
-          start: new Date(selection.weekStart),
-          end: new Date(
-            selection.weekStart.getFullYear(),
-            selection.weekStart.getMonth(),
-            selection.weekStart.getDate() + 7,
-          ),
-        }
-      : selection.viewMode === 'month'
+    selection.viewMode === CalendarViewMode.Week
+      ? (() => {
+          const start = startOfLocalDay(selection.weekStart);
+          return { start, end: addDays(start, 7) };
+        })()
+      : selection.viewMode === CalendarViewMode.Month
         ? {
             start: new Date(selection.monthDate.getFullYear(), selection.monthDate.getMonth(), 1),
             end: new Date(
@@ -40,9 +43,7 @@ export function calendarQueryRange(
             start: new Date(selection.viewYear, 0, 1),
             end: new Date(selection.viewYear + 1, 0, 1),
           };
-  const start = new Date(visible.start);
-  start.setDate(start.getDate() - paddingDays);
-  const end = new Date(visible.end);
-  end.setDate(end.getDate() + paddingDays);
+  const start = addDays(visible.start, -paddingDays);
+  const end = addDays(visible.end, paddingDays);
   return { start, end };
 }

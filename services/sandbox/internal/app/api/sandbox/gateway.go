@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/humanerror"
 	sandboxv1 "github.com/dobriygolang/project-nordly/services/sandbox/pkg/api/sandbox/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/humanerror"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"

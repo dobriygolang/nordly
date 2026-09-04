@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-/** Duplicated strip: the second 0-9 lets digits roll cleanly through wrap-around. */
-const DIGIT_STRIP = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+/** Second 0–9 lets digits roll cleanly through wrap-around. */
+export const DIGIT_STRIP = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const CELL_EM = 1.05;
 const TICK_ROLL_MS = 420;
 const OPEN_ROLL_MS = 560;

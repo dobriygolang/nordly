@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	billingadapter "github.com/dobriygolang/project-nordly/services/identity/internal/adapter/billing"
 	devicemodel "github.com/dobriygolang/project-nordly/services/identity/internal/device/model"
 	devicerepo "github.com/dobriygolang/project-nordly/services/identity/internal/device/repository"
 )
@@ -22,23 +21,18 @@ type Service interface {
 }
 
 type deviceService struct {
-	repo    devicerepo.Store
-	billing billingadapter.Client
+	repo devicerepo.Store
 }
 
 type Deps struct {
-	Repo    devicerepo.Store
-	Billing billingadapter.Client
+	Repo devicerepo.Store
 }
 
-func New(deps Deps) Service {
+func New(deps Deps) (Service, error) {
 	if deps.Repo == nil {
-		panic("device service: Repo is required")
+		return nil, errors.New("device service: Repo is required")
 	}
-	if deps.Billing == nil {
-		panic("device service: Billing is required")
-	}
-	return &deviceService{repo: deps.Repo, billing: deps.Billing}
+	return &deviceService{repo: deps.Repo}, nil
 }
 
 func (s *deviceService) RegisterDevice(
@@ -51,31 +45,7 @@ func (s *deviceService) RegisterDevice(
 		return nil, devicemodel.ErrInvalidArgument
 	}
 
-	enabled, err := s.billing.CheckFeature(ctx, userID, billingadapter.EntitlementCloudSyncEnabled)
-	if err != nil {
-		return nil, err
-	}
-	if !enabled {
-		return nil, devicemodel.ErrCloudSyncDisabled
-	}
-
-	limitSpec, err := s.billing.GetGaugeLimit(ctx, userID, billingadapter.EntitlementCloudSyncDevices)
-	if err != nil {
-		return nil, err
-	}
-	deviceLimit := 0
-	if limitSpec.Unlimited {
-		deviceLimit = -1
-	} else if limitSpec.Limit != nil {
-		deviceLimit = *limitSpec.Limit
-	} else {
-		return nil, errors.New("billing: cloud_sync_devices limit missing")
-	}
-	if deviceLimit == 0 {
-		return nil, devicemodel.ErrCloudSyncDisabled
-	}
-
-	count, err := s.repo.RegisterDevice(ctx, userID, deviceID, name, appVersion, deviceLimit)
+	count, err := s.repo.RegisterDevice(ctx, userID, deviceID, name, appVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -83,19 +53,15 @@ func (s *deviceService) RegisterDevice(
 	return &RegisterResult{
 		DeviceID:          deviceID,
 		CloudSyncEnabled:  true,
-		DeviceLimit:       deviceLimit,
+		DeviceLimit:       -1,
 		DevicesRegistered: count,
 	}, nil
 }
 
-func IsCloudSyncDisabled(err error) bool {
-	return errors.Is(err, devicemodel.ErrCloudSyncDisabled)
-}
-
-func IsDeviceLimitExceeded(err error) bool {
-	return errors.Is(err, devicemodel.ErrDeviceLimitExceeded)
-}
-
 func IsInvalidArgument(err error) bool {
 	return errors.Is(err, devicemodel.ErrInvalidArgument)
+}
+
+func IsNotFound(err error) bool {
+	return errors.Is(err, devicemodel.ErrNotFound)
 }

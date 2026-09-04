@@ -1,59 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-
 import { useT, useLocale, type Locale } from '@nordly-i18n';
 
-import { listTasks, displayTaskTitle, moveTaskStatus, type TaskCard } from '@features/tasks/api/tasks';
-import { listFocusSessions } from '@features/focus/api/focusClient';
+import type { CalendarEntry } from '@features/calendar/lib/events';
+import { CalendarEntrySource } from '@features/calendar/model/entry';
 import { resolveTaskEpicColor } from '@features/tasks/lib/epicColor';
-import { useTaskEpics } from '@features/tasks/lib/useTaskEpics';
-import { loadDailyPlan, type DailyPlanRecord } from '@features/planning/api/dailyPlan';
-import { isPlanFinalizedToday, parseObstacleLines } from '@features/planning/lib/planningProgress';
-import { tasksForToday } from '@features/planning/lib/planningTasks';
-import {
-  appleToCalendarEntries,
-  googleToCalendarEntries,
-  linkedGoogleEventIds,
-  taskIsMeeting,
-  tasksPlannedForDay,
-  upcomingHomeMeetings,
-  type CalendarEntry,
-} from '@features/calendar/lib/events';
-import { inspectCalendarEntry } from '@features/calendar/lib/calendarInspect';
-import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
-import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
-import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
-import { isCloudEnabled } from '@shared/model/features';
-import { readSettings } from '@shared/model/settings';
-import { defaultDurationMin, parseDayKey, startOfLocalDay, toDayKey } from '@shared/lib/dates';
+import { focusSecondsTodayForTask, useHomeTodayTasks } from '@features/tasks/hooks/useHomeTodayTasks';
+import { taskDurationMin } from '@features/tasks/model/duration';
+import { isTaskDone } from '@features/tasks/model/status';
+import { toDayKey } from '@shared/lib/dates';
 import { formatLocaleTime } from '@shared/lib/localeFormat';
 import { useFlipList } from '@shared/lib/useFlipList';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { usePomodoroStore } from '@shared/model/pomodoro';
-import { useSessionStore } from '@shared/model/session';
-import { useTodayKey } from '@shared/hooks/useTodayKey';
+import { TimerMode } from '@shared/model/settings';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
-
-const MEETING_TICK_MS = 30_000;
-
-function focusSecondsTodayForTask(
-  sessions: Awaited<ReturnType<typeof listFocusSessions>>,
-  planItemId: string,
-  dayKey: string,
-): number {
-  let total = 0;
-  for (const s of sessions) {
-    if (s.planItemId !== planItemId || !s.endedAt || s.secondsFocused <= 0) continue;
-    if (s.endedAt.slice(0, 10) === dayKey) total += s.secondsFocused;
-  }
-  return total;
-}
-
-function sortHomeTasks(a: TaskCard, b: TaskCard): number {
-  const aOrder = a.order ?? new Date(a.createdAt).getTime();
-  const bOrder = b.order ?? new Date(b.createdAt).getTime();
-  return aOrder - bOrder;
-}
 
 function formatMeetingWhen(entry: CalendarEntry, todayKey: string, locale: Locale): string {
   const time = formatLocaleTime(entry.start, locale);
@@ -65,16 +24,7 @@ function formatMeetingWhen(entry: CalendarEntry, todayKey: string, locale: Local
 export function HomeTodayTasks(): JSX.Element | null {
   const t = useT();
   const [locale] = useLocale();
-  const sessionReady = useSessionStore((s) => s.status === 'signed_in' && s.userId != null);
-  const todayKey = useTodayKey();
-  const todayDate = useMemo(() => parseDayKey(todayKey), [todayKey]);
-  const { epics } = useTaskEpics();
-  const [tasks, setTasks] = useState<TaskCard[]>([]);
-  const [focusSessions, setFocusSessions] = useState<Awaited<ReturnType<typeof listFocusSessions>>>([]);
-  const [dailyPlan, setDailyPlan] = useState<DailyPlanRecord>({});
-  const [loadError, setLoadError] = useState<Error | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
+  const home = useHomeTodayTasks();
   const activeId = usePomodoroStore((s) => s.pinnedPlanItemId);
   const pinnedTitle = usePomodoroStore((s) => s.pinnedTitle);
   const running = usePomodoroStore((s) => s.running);
@@ -84,166 +34,22 @@ export function HomeTodayTasks(): JSX.Element | null {
   const durationSec = usePomodoroStore((s) => s.durationSec);
   const toggle = usePomodoroStore((s) => s.toggle);
 
-  const dayStart = useMemo(() => startOfLocalDay(todayDate), [todayDate]);
-  const dayEnd = useMemo(() => {
-    const end = startOfLocalDay(todayDate);
-    end.setDate(end.getDate() + 1);
-    return end;
-  }, [todayDate]);
+  const listRef = useFlipList(home.todayTasks.map((task) => task.id));
+  const meetingsRef = useFlipList(home.upcomingMeetings.map((m) => m.id));
 
-  const { connected, ready: connectionReady } = useGoogleCalendarConnection();
-  const googleEnabled = isCloudEnabled() && connected && connectionReady;
-  const appleCalendarEnabled = readSettings().appleCalendarEnabled;
-  const { events: googleEvents } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
-  const { events: appleEvents } = useAppleCalendarEvents(dayStart, dayEnd, appleCalendarEnabled);
+  if (!home.sessionReady) return null;
 
-  const refresh = useCallback(async () => {
-    const { status, userId } = useSessionStore.getState();
-    if (status !== 'signed_in' || !userId) return;
-
-    const [taskList, sessions] = await Promise.all([listTasks(), listFocusSessions()]);
-    setTasks(taskList);
-    setFocusSessions(sessions);
-    setLoadError(null);
-  }, []);
-
-  const refreshPlan = useCallback(async () => {
-    const { status, userId } = useSessionStore.getState();
-    if (status !== 'signed_in' || !userId) return;
-
-    setDailyPlan(await loadDailyPlan(todayKey));
-    setLoadError(null);
-  }, [todayKey]);
-
-  useEffect(() => {
-    if (!sessionReady) return;
-    void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-    void refreshPlan().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-  }, [sessionReady, refresh, refreshPlan]);
-
-  useEffect(() => {
-    const onTasksChanged = () =>
-      void refresh().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-    window.addEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
-    return () => window.removeEventListener(NORDLY_EVENTS.tasksChanged, onTasksChanged);
-  }, [refresh]);
-
-  useEffect(() => {
-    const onPlanChanged = () =>
-      void refreshPlan().catch((err: unknown) => setLoadError(err instanceof Error ? err : new Error(String(err))));
-    window.addEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
-    return () => window.removeEventListener(NORDLY_EVENTS.dailyPlanChanged, onPlanChanged);
-  }, [refreshPlan]);
-
-  useEffect(() => {
-    return usePomodoroStore.subscribe((state, prev) => {
-      if (prev.running && !state.running) {
-        void refresh().catch((err: unknown) =>
-          setLoadError(err instanceof Error ? err : new Error(String(err))),
-        );
-      }
-    });
-  }, [refresh]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), MEETING_TICK_MS);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const todayAll = useMemo(
-    () => [...tasksForToday(tasks, todayKey)].sort(sortHomeTasks),
-    [tasks, todayKey],
-  );
-  const todayTasks = useMemo(
-    () => todayAll.filter((task) => !taskIsMeeting(task)),
-    [todayAll],
-  );
-
-  const linkedGoogleIds = useMemo(() => linkedGoogleEventIds(tasks), [tasks]);
-  const upcomingMeetings = useMemo(() => {
-    const meetingTasks = todayAll.filter(taskIsMeeting);
-    const taskMeetingEntries: CalendarEntry[] = tasksPlannedForDay(
-      todayKey,
-      meetingTasks,
-    ).map(({ task, start, end }) => ({
-      id: `task:${task.id}`,
-      source: 'task',
-      title: displayTaskTitle(task.title, task.id),
-      start,
-      end,
-      allDay: false,
-      taskId: task.id,
-      taskStatus: task.status,
-      epicId: task.epicId,
-      epicColor: task.epicColor,
-      conferenceUrl: task.conferenceUrl,
-      conferenceProvider: task.conferenceProvider,
-    }));
-    return upcomingHomeMeetings(
-      [
-        ...googleToCalendarEntries(googleEvents, linkedGoogleIds, tasks),
-        ...appleToCalendarEntries(appleEvents),
-        ...taskMeetingEntries,
-      ],
-      new Date(nowMs),
-    );
-  }, [googleEvents, appleEvents, linkedGoogleIds, tasks, todayAll, todayKey, nowMs]);
-
-  const planFinalized = isPlanFinalizedToday(dailyPlan, todayKey);
-  const obstacles = parseObstacleLines(dailyPlan.obstacles);
-
-  const listRef = useFlipList(todayTasks.map((task) => task.id));
-  const meetingsRef = useFlipList(upcomingMeetings.map((m) => m.id));
-
-  const startPomodoro = (task: TaskCard) => {
-    usePomodoroStore.getState().start({ planItemId: task.id, pinnedTitle: task.title });
-  };
-
-  const startMeetingFocus = (entry: CalendarEntry) => {
-    if (entry.taskId) {
-      usePomodoroStore.getState().start({
-        planItemId: entry.taskId,
-        pinnedTitle: entry.title,
-      });
-      return;
-    }
-    usePomodoroStore.getState().start({ pinnedTitle: entry.title });
-  };
-
-  const openMeeting = (entry: CalendarEntry) => {
-    inspectCalendarEntry(entry);
-  };
-
-  const toggleTaskOpen = useCallback(async (task: TaskCard) => {
-    const next = task.status === 'done' ? 'todo' : 'done';
-    setTasks((prev) => prev.map((item) => (item.id === task.id ? { ...item, status: next } : item)));
-    try {
-      const updated = await moveTaskStatus(task.id, next);
-      setTasks((prev) => prev.map((item) => (item.id === task.id ? updated : item)));
-      window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-    } catch (err) {
-      setTasks((prev) =>
-        prev.map((item) => (item.id === task.id ? { ...item, status: task.status } : item)),
-      );
-      setLoadError(err instanceof Error ? err : new Error(String(err)));
-    }
-  }, []);
-
-  if (!sessionReady) return null;
-
-  if (loadError) {
-    if (loadError.message.includes('userId not set')) return null;
-    // Soft-fail: do not tear down the whole app shell (ErrorBoundary / "signed out" feel).
+  if (home.loadError) {
     return (
       <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
         <p className="nordly-home-today__empty mono" role="alert">
-          {loadError.message}
+          {home.loadError.message}
         </p>
       </section>
     );
   }
 
-  if (todayTasks.length === 0 && upcomingMeetings.length === 0 && !planFinalized) {
+  if (home.todayTasks.length === 0 && home.upcomingMeetings.length === 0 && !home.planFinalized) {
     return (
       <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
         <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
@@ -253,22 +59,26 @@ export function HomeTodayTasks(): JSX.Element | null {
 
   return (
     <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
-      {todayTasks.length === 0 ? (
-        upcomingMeetings.length === 0 ? (
+      {home.todayTasks.length === 0 ? (
+        home.upcomingMeetings.length === 0 ? (
           <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
         ) : null
       ) : (
         <div className="nordly-home-today__list" ref={listRef} role="list">
-          {todayTasks.map((task) => {
-            const done = task.status === 'done';
-            const epicColor = resolveTaskEpicColor(task, epics);
+          {home.todayTasks.map((task) => {
+            const done = isTaskDone(task.status);
+            const epicColor = resolveTaskEpicColor(task, home.epics);
             const isActive = activeId === task.id;
-            const focusedTodaySec = focusSecondsTodayForTask(focusSessions, task.id, todayKey);
+            const focusedTodaySec = focusSecondsTodayForTask(home.focusSessions, task.id, home.todayKey);
             const activeSessionSec =
-              isActive ? (mode === 'pomodoro' ? Math.max(0, durationSec - remain) : elapsed) : 0;
+              isActive
+                ? mode === TimerMode.Pomodoro
+                  ? Math.max(0, durationSec - remain)
+                  : elapsed
+                : 0;
             const timerSec = Math.max(
               0,
-              defaultDurationMin(task) * 60 - focusedTodaySec - activeSessionSec,
+              taskDurationMin(task) * 60 - focusedTodaySec - activeSessionSec,
             );
 
             return (
@@ -284,14 +94,10 @@ export function HomeTodayTasks(): JSX.Element | null {
                 <button
                   type="button"
                   className="nordly-home-today__main focus-ring"
-                  onClick={() => void toggleTaskOpen(task)}
+                  onClick={() => void home.toggleTaskOpen(task)}
                 >
                   {epicColor ? (
-                    <span
-                      className="nordly-home-today__stripe"
-                      style={{ background: epicColor }}
-                      aria-hidden
-                    />
+                    <span className="nordly-home-today__stripe" style={{ background: epicColor }} aria-hidden />
                   ) : null}
                   <span className="nordly-home-today__title">{task.title}</span>
                 </button>
@@ -310,7 +116,7 @@ export function HomeTodayTasks(): JSX.Element | null {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (isActive) toggle();
-                        else startPomodoro(task);
+                        else home.startPomodoro(task);
                       }}
                     >
                       <Icon
@@ -327,17 +133,17 @@ export function HomeTodayTasks(): JSX.Element | null {
         </div>
       )}
 
-      {upcomingMeetings.length > 0 ? (
+      {home.upcomingMeetings.length > 0 ? (
         <section className="nordly-home-today__meetings" aria-label={t('nordly.home.meetings_aria')}>
           <h3 className="nordly-home-today__meetings-heading">{t('nordly.home.meetings_heading')}</h3>
           <div className="nordly-home-today__list" ref={meetingsRef} role="list">
-            {upcomingMeetings.map((meeting) => {
+            {home.upcomingMeetings.map((meeting) => {
               const isActive = meeting.taskId
                 ? activeId === meeting.taskId
                 : !activeId && pinnedTitle === meeting.title;
               const canOpen =
-                meeting.source === 'google' ||
-                meeting.source === 'apple' ||
+                meeting.source === CalendarEntrySource.Google ||
+                meeting.source === CalendarEntrySource.Apple ||
                 Boolean(meeting.conferenceUrl);
               return (
                 <div
@@ -353,22 +159,14 @@ export function HomeTodayTasks(): JSX.Element | null {
                       type="button"
                       className="nordly-home-today__main focus-ring"
                       title={meeting.title}
-                      onClick={() => openMeeting(meeting)}
+                      onClick={() => home.openMeeting(meeting)}
                     >
-                      <span
-                        className="nordly-home-today__stripe"
-                        data-source={meeting.source}
-                        aria-hidden
-                      />
+                      <span className="nordly-home-today__stripe" data-source={meeting.source} aria-hidden />
                       <span className="nordly-home-today__title">{meeting.title}</span>
                     </button>
                   ) : (
                     <div className="nordly-home-today__main nordly-home-today__main--static">
-                      <span
-                        className="nordly-home-today__stripe"
-                        data-source={meeting.source}
-                        aria-hidden
-                      />
+                      <span className="nordly-home-today__stripe" data-source={meeting.source} aria-hidden />
                       <span className="nordly-home-today__title" title={meeting.title}>
                         {meeting.title}
                       </span>
@@ -376,7 +174,7 @@ export function HomeTodayTasks(): JSX.Element | null {
                   )}
                   <span className="nordly-home-today__meta">
                     <span className="nordly-home-today__when mono">
-                      {formatMeetingWhen(meeting, todayKey, locale)}
+                      {formatMeetingWhen(meeting, home.todayKey, locale)}
                     </span>
                     <button
                       type="button"
@@ -385,7 +183,7 @@ export function HomeTodayTasks(): JSX.Element | null {
                       aria-label={t('nordly.home.meeting_start_focus')}
                       onClick={() => {
                         if (isActive) toggle();
-                        else startMeetingFocus(meeting);
+                        else home.startMeetingFocus(meeting);
                       }}
                     >
                       <Icon
@@ -402,11 +200,11 @@ export function HomeTodayTasks(): JSX.Element | null {
         </section>
       ) : null}
 
-      {planFinalized && obstacles.length > 0 ? (
+      {home.planFinalized && home.obstacles.length > 0 ? (
         <section className="nordly-home-today__obstacles" aria-label={t('nordly.planning.obstacles_heading')}>
           <h3 className="nordly-home-today__obstacles-heading">{t('nordly.planning.obstacles_heading')}</h3>
           <ul className="nordly-home-today__obstacles-list">
-            {obstacles.map((item, index) => (
+            {home.obstacles.map((item, index) => (
               <li key={`home-obstacle-${index}`} className="nordly-home-today__obstacles-item">
                 {item}
               </li>

@@ -24,17 +24,17 @@ func (_m *Store) EXPECT() *Store_Expecter {
 	return &Store_Expecter{mock: &_m.Mock}
 }
 
-// ClearAllGoogleCalendarSyncState provides a mock function with given fields: ctx, userID
-func (_m *Store) ClearAllGoogleCalendarSyncState(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
+// ApplyGoogleCalendarSyncDelta provides a mock function with given fields: ctx, userID, delta
+func (_m *Store) ApplyGoogleCalendarSyncDelta(ctx context.Context, userID string, delta model.CalendarSyncDelta) error {
+	ret := _m.Called(ctx, userID, delta)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ClearAllGoogleCalendarSyncState")
+		panic("no return value specified for ApplyGoogleCalendarSyncDelta")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.CalendarSyncDelta) error); ok {
+		r0 = rf(ctx, userID, delta)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -42,267 +42,32 @@ func (_m *Store) ClearAllGoogleCalendarSyncState(ctx context.Context, userID str
 	return r0
 }
 
-// Store_ClearAllGoogleCalendarSyncState_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearAllGoogleCalendarSyncState'
-type Store_ClearAllGoogleCalendarSyncState_Call struct {
+// Store_ApplyGoogleCalendarSyncDelta_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyGoogleCalendarSyncDelta'
+type Store_ApplyGoogleCalendarSyncDelta_Call struct {
 	*mock.Call
 }
 
-// ClearAllGoogleCalendarSyncState is a helper method to define mock.On call
+// ApplyGoogleCalendarSyncDelta is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-func (_e *Store_Expecter) ClearAllGoogleCalendarSyncState(ctx interface{}, userID interface{}) *Store_ClearAllGoogleCalendarSyncState_Call {
-	return &Store_ClearAllGoogleCalendarSyncState_Call{Call: _e.mock.On("ClearAllGoogleCalendarSyncState", ctx, userID)}
+//   - delta model.CalendarSyncDelta
+func (_e *Store_Expecter) ApplyGoogleCalendarSyncDelta(ctx interface{}, userID interface{}, delta interface{}) *Store_ApplyGoogleCalendarSyncDelta_Call {
+	return &Store_ApplyGoogleCalendarSyncDelta_Call{Call: _e.mock.On("ApplyGoogleCalendarSyncDelta", ctx, userID, delta)}
 }
 
-func (_c *Store_ClearAllGoogleCalendarSyncState_Call) Run(run func(ctx context.Context, userID string)) *Store_ClearAllGoogleCalendarSyncState_Call {
+func (_c *Store_ApplyGoogleCalendarSyncDelta_Call) Run(run func(ctx context.Context, userID string, delta model.CalendarSyncDelta)) *Store_ApplyGoogleCalendarSyncDelta_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(model.CalendarSyncDelta))
 	})
 	return _c
 }
 
-func (_c *Store_ClearAllGoogleCalendarSyncState_Call) Return(_a0 error) *Store_ClearAllGoogleCalendarSyncState_Call {
+func (_c *Store_ApplyGoogleCalendarSyncDelta_Call) Return(_a0 error) *Store_ApplyGoogleCalendarSyncDelta_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Store_ClearAllGoogleCalendarSyncState_Call) RunAndReturn(run func(context.Context, string) error) *Store_ClearAllGoogleCalendarSyncState_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearAllGoogleEventIDs provides a mock function with given fields: ctx, userID
-func (_m *Store) ClearAllGoogleEventIDs(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearAllGoogleEventIDs")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_ClearAllGoogleEventIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearAllGoogleEventIDs'
-type Store_ClearAllGoogleEventIDs_Call struct {
-	*mock.Call
-}
-
-// ClearAllGoogleEventIDs is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-func (_e *Store_Expecter) ClearAllGoogleEventIDs(ctx interface{}, userID interface{}) *Store_ClearAllGoogleEventIDs_Call {
-	return &Store_ClearAllGoogleEventIDs_Call{Call: _e.mock.On("ClearAllGoogleEventIDs", ctx, userID)}
-}
-
-func (_c *Store_ClearAllGoogleEventIDs_Call) Run(run func(ctx context.Context, userID string)) *Store_ClearAllGoogleEventIDs_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ClearAllGoogleEventIDs_Call) Return(_a0 error) *Store_ClearAllGoogleEventIDs_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_ClearAllGoogleEventIDs_Call) RunAndReturn(run func(context.Context, string) error) *Store_ClearAllGoogleEventIDs_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearGoogleConnection provides a mock function with given fields: ctx, userID
-func (_m *Store) ClearGoogleConnection(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearGoogleConnection")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_ClearGoogleConnection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearGoogleConnection'
-type Store_ClearGoogleConnection_Call struct {
-	*mock.Call
-}
-
-// ClearGoogleConnection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-func (_e *Store_Expecter) ClearGoogleConnection(ctx interface{}, userID interface{}) *Store_ClearGoogleConnection_Call {
-	return &Store_ClearGoogleConnection_Call{Call: _e.mock.On("ClearGoogleConnection", ctx, userID)}
-}
-
-func (_c *Store_ClearGoogleConnection_Call) Run(run func(ctx context.Context, userID string)) *Store_ClearGoogleConnection_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ClearGoogleConnection_Call) Return(_a0 error) *Store_ClearGoogleConnection_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_ClearGoogleConnection_Call) RunAndReturn(run func(context.Context, string) error) *Store_ClearGoogleConnection_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearGoogleEventIDByEventID provides a mock function with given fields: ctx, userID, eventID
-func (_m *Store) ClearGoogleEventIDByEventID(ctx context.Context, userID string, eventID string) error {
-	ret := _m.Called(ctx, userID, eventID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearGoogleEventIDByEventID")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, eventID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_ClearGoogleEventIDByEventID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearGoogleEventIDByEventID'
-type Store_ClearGoogleEventIDByEventID_Call struct {
-	*mock.Call
-}
-
-// ClearGoogleEventIDByEventID is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - eventID string
-func (_e *Store_Expecter) ClearGoogleEventIDByEventID(ctx interface{}, userID interface{}, eventID interface{}) *Store_ClearGoogleEventIDByEventID_Call {
-	return &Store_ClearGoogleEventIDByEventID_Call{Call: _e.mock.On("ClearGoogleEventIDByEventID", ctx, userID, eventID)}
-}
-
-func (_c *Store_ClearGoogleEventIDByEventID_Call) Run(run func(ctx context.Context, userID string, eventID string)) *Store_ClearGoogleEventIDByEventID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ClearGoogleEventIDByEventID_Call) Return(_a0 error) *Store_ClearGoogleEventIDByEventID_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_ClearGoogleEventIDByEventID_Call) RunAndReturn(run func(context.Context, string, string) error) *Store_ClearGoogleEventIDByEventID_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearGoogleEventsCache provides a mock function with given fields: ctx, userID
-func (_m *Store) ClearGoogleEventsCache(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearGoogleEventsCache")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_ClearGoogleEventsCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearGoogleEventsCache'
-type Store_ClearGoogleEventsCache_Call struct {
-	*mock.Call
-}
-
-// ClearGoogleEventsCache is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-func (_e *Store_Expecter) ClearGoogleEventsCache(ctx interface{}, userID interface{}) *Store_ClearGoogleEventsCache_Call {
-	return &Store_ClearGoogleEventsCache_Call{Call: _e.mock.On("ClearGoogleEventsCache", ctx, userID)}
-}
-
-func (_c *Store_ClearGoogleEventsCache_Call) Run(run func(ctx context.Context, userID string)) *Store_ClearGoogleEventsCache_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ClearGoogleEventsCache_Call) Return(_a0 error) *Store_ClearGoogleEventsCache_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_ClearGoogleEventsCache_Call) RunAndReturn(run func(context.Context, string) error) *Store_ClearGoogleEventsCache_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearZoomConnection provides a mock function with given fields: ctx, userID
-func (_m *Store) ClearZoomConnection(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearZoomConnection")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_ClearZoomConnection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearZoomConnection'
-type Store_ClearZoomConnection_Call struct {
-	*mock.Call
-}
-
-// ClearZoomConnection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-func (_e *Store_Expecter) ClearZoomConnection(ctx interface{}, userID interface{}) *Store_ClearZoomConnection_Call {
-	return &Store_ClearZoomConnection_Call{Call: _e.mock.On("ClearZoomConnection", ctx, userID)}
-}
-
-func (_c *Store_ClearZoomConnection_Call) Run(run func(ctx context.Context, userID string)) *Store_ClearZoomConnection_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *Store_ClearZoomConnection_Call) Return(_a0 error) *Store_ClearZoomConnection_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_ClearZoomConnection_Call) RunAndReturn(run func(context.Context, string) error) *Store_ClearZoomConnection_Call {
+func (_c *Store_ApplyGoogleCalendarSyncDelta_Call) RunAndReturn(run func(context.Context, string, model.CalendarSyncDelta) error) *Store_ApplyGoogleCalendarSyncDelta_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -421,6 +186,66 @@ func (_c *Store_ConsumeZoomOAuthState_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CreateDefaultEpics provides a mock function with given fields: ctx, userID, seeds
+func (_m *Store) CreateDefaultEpics(ctx context.Context, userID string, seeds []model.EpicSeed) ([]model.Epic, error) {
+	ret := _m.Called(ctx, userID, seeds)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateDefaultEpics")
+	}
+
+	var r0 []model.Epic
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []model.EpicSeed) ([]model.Epic, error)); ok {
+		return rf(ctx, userID, seeds)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, []model.EpicSeed) []model.Epic); ok {
+		r0 = rf(ctx, userID, seeds)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Epic)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []model.EpicSeed) error); ok {
+		r1 = rf(ctx, userID, seeds)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Store_CreateDefaultEpics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDefaultEpics'
+type Store_CreateDefaultEpics_Call struct {
+	*mock.Call
+}
+
+// CreateDefaultEpics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - seeds []model.EpicSeed
+func (_e *Store_Expecter) CreateDefaultEpics(ctx interface{}, userID interface{}, seeds interface{}) *Store_CreateDefaultEpics_Call {
+	return &Store_CreateDefaultEpics_Call{Call: _e.mock.On("CreateDefaultEpics", ctx, userID, seeds)}
+}
+
+func (_c *Store_CreateDefaultEpics_Call) Run(run func(ctx context.Context, userID string, seeds []model.EpicSeed)) *Store_CreateDefaultEpics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]model.EpicSeed))
+	})
+	return _c
+}
+
+func (_c *Store_CreateDefaultEpics_Call) Return(_a0 []model.Epic, _a1 error) *Store_CreateDefaultEpics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Store_CreateDefaultEpics_Call) RunAndReturn(run func(context.Context, string, []model.EpicSeed) ([]model.Epic, error)) *Store_CreateDefaultEpics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateEpic provides a mock function with given fields: ctx, userID, name, color
 func (_m *Store) CreateEpic(ctx context.Context, userID string, name string, color string) (*model.Epic, error) {
 	ret := _m.Called(ctx, userID, name, color)
@@ -483,7 +308,7 @@ func (_c *Store_CreateEpic_Call) RunAndReturn(run func(context.Context, string, 
 }
 
 // CreateWorkTask provides a mock function with given fields: ctx, userID, kind, title, status
-func (_m *Store) CreateWorkTask(ctx context.Context, userID string, kind string, title string, status string) (*model.WorkTask, error) {
+func (_m *Store) CreateWorkTask(ctx context.Context, userID string, kind model.WorkKind, title string, status model.WorkStatus) (*model.WorkTask, error) {
 	ret := _m.Called(ctx, userID, kind, title, status)
 
 	if len(ret) == 0 {
@@ -492,10 +317,10 @@ func (_m *Store) CreateWorkTask(ctx context.Context, userID string, kind string,
 
 	var r0 *model.WorkTask
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (*model.WorkTask, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.WorkKind, string, model.WorkStatus) (*model.WorkTask, error)); ok {
 		return rf(ctx, userID, kind, title, status)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) *model.WorkTask); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.WorkKind, string, model.WorkStatus) *model.WorkTask); ok {
 		r0 = rf(ctx, userID, kind, title, status)
 	} else {
 		if ret.Get(0) != nil {
@@ -503,7 +328,7 @@ func (_m *Store) CreateWorkTask(ctx context.Context, userID string, kind string,
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, model.WorkKind, string, model.WorkStatus) error); ok {
 		r1 = rf(ctx, userID, kind, title, status)
 	} else {
 		r1 = ret.Error(1)
@@ -520,16 +345,16 @@ type Store_CreateWorkTask_Call struct {
 // CreateWorkTask is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-//   - kind string
+//   - kind model.WorkKind
 //   - title string
-//   - status string
+//   - status model.WorkStatus
 func (_e *Store_Expecter) CreateWorkTask(ctx interface{}, userID interface{}, kind interface{}, title interface{}, status interface{}) *Store_CreateWorkTask_Call {
 	return &Store_CreateWorkTask_Call{Call: _e.mock.On("CreateWorkTask", ctx, userID, kind, title, status)}
 }
 
-func (_c *Store_CreateWorkTask_Call) Run(run func(ctx context.Context, userID string, kind string, title string, status string)) *Store_CreateWorkTask_Call {
+func (_c *Store_CreateWorkTask_Call) Run(run func(ctx context.Context, userID string, kind model.WorkKind, title string, status model.WorkStatus)) *Store_CreateWorkTask_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(model.WorkKind), args[3].(string), args[4].(model.WorkStatus))
 	})
 	return _c
 }
@@ -539,22 +364,22 @@ func (_c *Store_CreateWorkTask_Call) Return(_a0 *model.WorkTask, _a1 error) *Sto
 	return _c
 }
 
-func (_c *Store_CreateWorkTask_Call) RunAndReturn(run func(context.Context, string, string, string, string) (*model.WorkTask, error)) *Store_CreateWorkTask_Call {
+func (_c *Store_CreateWorkTask_Call) RunAndReturn(run func(context.Context, string, model.WorkKind, string, model.WorkStatus) (*model.WorkTask, error)) *Store_CreateWorkTask_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteGoogleEvents provides a mock function with given fields: ctx, userID, calendarID, eventIDs
-func (_m *Store) DeleteGoogleEvents(ctx context.Context, userID string, calendarID string, eventIDs []string) error {
-	ret := _m.Called(ctx, userID, calendarID, eventIDs)
+// DeleteGoogleEventLocal provides a mock function with given fields: ctx, userID, ref
+func (_m *Store) DeleteGoogleEventLocal(ctx context.Context, userID string, ref model.GoogleEventRef) error {
+	ret := _m.Called(ctx, userID, ref)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DeleteGoogleEvents")
+		panic("no return value specified for DeleteGoogleEventLocal")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) error); ok {
-		r0 = rf(ctx, userID, calendarID, eventIDs)
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.GoogleEventRef) error); ok {
+		r0 = rf(ctx, userID, ref)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -562,48 +387,47 @@ func (_m *Store) DeleteGoogleEvents(ctx context.Context, userID string, calendar
 	return r0
 }
 
-// Store_DeleteGoogleEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteGoogleEvents'
-type Store_DeleteGoogleEvents_Call struct {
+// Store_DeleteGoogleEventLocal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteGoogleEventLocal'
+type Store_DeleteGoogleEventLocal_Call struct {
 	*mock.Call
 }
 
-// DeleteGoogleEvents is a helper method to define mock.On call
+// DeleteGoogleEventLocal is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-//   - calendarID string
-//   - eventIDs []string
-func (_e *Store_Expecter) DeleteGoogleEvents(ctx interface{}, userID interface{}, calendarID interface{}, eventIDs interface{}) *Store_DeleteGoogleEvents_Call {
-	return &Store_DeleteGoogleEvents_Call{Call: _e.mock.On("DeleteGoogleEvents", ctx, userID, calendarID, eventIDs)}
+//   - ref model.GoogleEventRef
+func (_e *Store_Expecter) DeleteGoogleEventLocal(ctx interface{}, userID interface{}, ref interface{}) *Store_DeleteGoogleEventLocal_Call {
+	return &Store_DeleteGoogleEventLocal_Call{Call: _e.mock.On("DeleteGoogleEventLocal", ctx, userID, ref)}
 }
 
-func (_c *Store_DeleteGoogleEvents_Call) Run(run func(ctx context.Context, userID string, calendarID string, eventIDs []string)) *Store_DeleteGoogleEvents_Call {
+func (_c *Store_DeleteGoogleEventLocal_Call) Run(run func(ctx context.Context, userID string, ref model.GoogleEventRef)) *Store_DeleteGoogleEventLocal_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(model.GoogleEventRef))
 	})
 	return _c
 }
 
-func (_c *Store_DeleteGoogleEvents_Call) Return(_a0 error) *Store_DeleteGoogleEvents_Call {
+func (_c *Store_DeleteGoogleEventLocal_Call) Return(_a0 error) *Store_DeleteGoogleEventLocal_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Store_DeleteGoogleEvents_Call) RunAndReturn(run func(context.Context, string, string, []string) error) *Store_DeleteGoogleEvents_Call {
+func (_c *Store_DeleteGoogleEventLocal_Call) RunAndReturn(run func(context.Context, string, model.GoogleEventRef) error) *Store_DeleteGoogleEventLocal_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteGoogleEventsByCalendar provides a mock function with given fields: ctx, userID, calendarID
-func (_m *Store) DeleteGoogleEventsByCalendar(ctx context.Context, userID string, calendarID string) error {
-	ret := _m.Called(ctx, userID, calendarID)
+// DisconnectGoogleLocal provides a mock function with given fields: ctx, userID
+func (_m *Store) DisconnectGoogleLocal(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DeleteGoogleEventsByCalendar")
+		panic("no return value specified for DisconnectGoogleLocal")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, calendarID)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -611,32 +435,78 @@ func (_m *Store) DeleteGoogleEventsByCalendar(ctx context.Context, userID string
 	return r0
 }
 
-// Store_DeleteGoogleEventsByCalendar_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteGoogleEventsByCalendar'
-type Store_DeleteGoogleEventsByCalendar_Call struct {
+// Store_DisconnectGoogleLocal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DisconnectGoogleLocal'
+type Store_DisconnectGoogleLocal_Call struct {
 	*mock.Call
 }
 
-// DeleteGoogleEventsByCalendar is a helper method to define mock.On call
+// DisconnectGoogleLocal is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-//   - calendarID string
-func (_e *Store_Expecter) DeleteGoogleEventsByCalendar(ctx interface{}, userID interface{}, calendarID interface{}) *Store_DeleteGoogleEventsByCalendar_Call {
-	return &Store_DeleteGoogleEventsByCalendar_Call{Call: _e.mock.On("DeleteGoogleEventsByCalendar", ctx, userID, calendarID)}
+func (_e *Store_Expecter) DisconnectGoogleLocal(ctx interface{}, userID interface{}) *Store_DisconnectGoogleLocal_Call {
+	return &Store_DisconnectGoogleLocal_Call{Call: _e.mock.On("DisconnectGoogleLocal", ctx, userID)}
 }
 
-func (_c *Store_DeleteGoogleEventsByCalendar_Call) Run(run func(ctx context.Context, userID string, calendarID string)) *Store_DeleteGoogleEventsByCalendar_Call {
+func (_c *Store_DisconnectGoogleLocal_Call) Run(run func(ctx context.Context, userID string)) *Store_DisconnectGoogleLocal_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *Store_DeleteGoogleEventsByCalendar_Call) Return(_a0 error) *Store_DeleteGoogleEventsByCalendar_Call {
+func (_c *Store_DisconnectGoogleLocal_Call) Return(_a0 error) *Store_DisconnectGoogleLocal_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Store_DeleteGoogleEventsByCalendar_Call) RunAndReturn(run func(context.Context, string, string) error) *Store_DeleteGoogleEventsByCalendar_Call {
+func (_c *Store_DisconnectGoogleLocal_Call) RunAndReturn(run func(context.Context, string) error) *Store_DisconnectGoogleLocal_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DisconnectZoomLocal provides a mock function with given fields: ctx, userID
+func (_m *Store) DisconnectZoomLocal(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DisconnectZoomLocal")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Store_DisconnectZoomLocal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DisconnectZoomLocal'
+type Store_DisconnectZoomLocal_Call struct {
+	*mock.Call
+}
+
+// DisconnectZoomLocal is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *Store_Expecter) DisconnectZoomLocal(ctx interface{}, userID interface{}) *Store_DisconnectZoomLocal_Call {
+	return &Store_DisconnectZoomLocal_Call{Call: _e.mock.On("DisconnectZoomLocal", ctx, userID)}
+}
+
+func (_c *Store_DisconnectZoomLocal_Call) Run(run func(ctx context.Context, userID string)) *Store_DisconnectZoomLocal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *Store_DisconnectZoomLocal_Call) Return(_a0 error) *Store_DisconnectZoomLocal_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Store_DisconnectZoomLocal_Call) RunAndReturn(run func(context.Context, string) error) *Store_DisconnectZoomLocal_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -995,24 +865,24 @@ func (_c *Store_ListGoogleConnectedSettings_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// ListGoogleEventIDs provides a mock function with given fields: ctx, userID
-func (_m *Store) ListGoogleEventIDs(ctx context.Context, userID string) ([]string, error) {
+// ListGoogleEventRefs provides a mock function with given fields: ctx, userID
+func (_m *Store) ListGoogleEventRefs(ctx context.Context, userID string) ([]model.GoogleEventRef, error) {
 	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ListGoogleEventIDs")
+		panic("no return value specified for ListGoogleEventRefs")
 	}
 
-	var r0 []string
+	var r0 []model.GoogleEventRef
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]string, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]model.GoogleEventRef, error)); ok {
 		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []string); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []model.GoogleEventRef); ok {
 		r0 = rf(ctx, userID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
+			r0 = ret.Get(0).([]model.GoogleEventRef)
 		}
 	}
 
@@ -1025,93 +895,31 @@ func (_m *Store) ListGoogleEventIDs(ctx context.Context, userID string) ([]strin
 	return r0, r1
 }
 
-// Store_ListGoogleEventIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListGoogleEventIDs'
-type Store_ListGoogleEventIDs_Call struct {
+// Store_ListGoogleEventRefs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListGoogleEventRefs'
+type Store_ListGoogleEventRefs_Call struct {
 	*mock.Call
 }
 
-// ListGoogleEventIDs is a helper method to define mock.On call
+// ListGoogleEventRefs is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-func (_e *Store_Expecter) ListGoogleEventIDs(ctx interface{}, userID interface{}) *Store_ListGoogleEventIDs_Call {
-	return &Store_ListGoogleEventIDs_Call{Call: _e.mock.On("ListGoogleEventIDs", ctx, userID)}
+func (_e *Store_Expecter) ListGoogleEventRefs(ctx interface{}, userID interface{}) *Store_ListGoogleEventRefs_Call {
+	return &Store_ListGoogleEventRefs_Call{Call: _e.mock.On("ListGoogleEventRefs", ctx, userID)}
 }
 
-func (_c *Store_ListGoogleEventIDs_Call) Run(run func(ctx context.Context, userID string)) *Store_ListGoogleEventIDs_Call {
+func (_c *Store_ListGoogleEventRefs_Call) Run(run func(ctx context.Context, userID string)) *Store_ListGoogleEventRefs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *Store_ListGoogleEventIDs_Call) Return(_a0 []string, _a1 error) *Store_ListGoogleEventIDs_Call {
+func (_c *Store_ListGoogleEventRefs_Call) Return(_a0 []model.GoogleEventRef, _a1 error) *Store_ListGoogleEventRefs_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Store_ListGoogleEventIDs_Call) RunAndReturn(run func(context.Context, string) ([]string, error)) *Store_ListGoogleEventIDs_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListGoogleEvents provides a mock function with given fields: ctx, userID, calendarID, timeMin, timeMax
-func (_m *Store) ListGoogleEvents(ctx context.Context, userID string, calendarID string, timeMin time.Time, timeMax time.Time) ([]model.CachedCalendarEvent, error) {
-	ret := _m.Called(ctx, userID, calendarID, timeMin, timeMax)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListGoogleEvents")
-	}
-
-	var r0 []model.CachedCalendarEvent
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) ([]model.CachedCalendarEvent, error)); ok {
-		return rf(ctx, userID, calendarID, timeMin, timeMax)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []model.CachedCalendarEvent); ok {
-		r0 = rf(ctx, userID, calendarID, timeMin, timeMax)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]model.CachedCalendarEvent)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time) error); ok {
-		r1 = rf(ctx, userID, calendarID, timeMin, timeMax)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Store_ListGoogleEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListGoogleEvents'
-type Store_ListGoogleEvents_Call struct {
-	*mock.Call
-}
-
-// ListGoogleEvents is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - calendarID string
-//   - timeMin time.Time
-//   - timeMax time.Time
-func (_e *Store_Expecter) ListGoogleEvents(ctx interface{}, userID interface{}, calendarID interface{}, timeMin interface{}, timeMax interface{}) *Store_ListGoogleEvents_Call {
-	return &Store_ListGoogleEvents_Call{Call: _e.mock.On("ListGoogleEvents", ctx, userID, calendarID, timeMin, timeMax)}
-}
-
-func (_c *Store_ListGoogleEvents_Call) Run(run func(ctx context.Context, userID string, calendarID string, timeMin time.Time, timeMax time.Time)) *Store_ListGoogleEvents_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(time.Time), args[4].(time.Time))
-	})
-	return _c
-}
-
-func (_c *Store_ListGoogleEvents_Call) Return(_a0 []model.CachedCalendarEvent, _a1 error) *Store_ListGoogleEvents_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *Store_ListGoogleEvents_Call) RunAndReturn(run func(context.Context, string, string, time.Time, time.Time) ([]model.CachedCalendarEvent, error)) *Store_ListGoogleEvents_Call {
+func (_c *Store_ListGoogleEventRefs_Call) RunAndReturn(run func(context.Context, string) ([]model.GoogleEventRef, error)) *Store_ListGoogleEventRefs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1331,7 +1139,7 @@ func (_c *Store_MarkZoomReauthRequired_Call) RunAndReturn(run func(context.Conte
 }
 
 // PatchWorkTask provides a mock function with given fields: ctx, taskID, userID, patch
-func (_m *Store) PatchWorkTask(ctx context.Context, taskID string, userID string, patch repository.WorkTaskPatch) (*model.WorkTask, error) {
+func (_m *Store) PatchWorkTask(ctx context.Context, taskID string, userID string, patch model.WorkTaskPatch) (*model.WorkTask, error) {
 	ret := _m.Called(ctx, taskID, userID, patch)
 
 	if len(ret) == 0 {
@@ -1340,10 +1148,10 @@ func (_m *Store) PatchWorkTask(ctx context.Context, taskID string, userID string
 
 	var r0 *model.WorkTask
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, repository.WorkTaskPatch) (*model.WorkTask, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, model.WorkTaskPatch) (*model.WorkTask, error)); ok {
 		return rf(ctx, taskID, userID, patch)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, repository.WorkTaskPatch) *model.WorkTask); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, model.WorkTaskPatch) *model.WorkTask); ok {
 		r0 = rf(ctx, taskID, userID, patch)
 	} else {
 		if ret.Get(0) != nil {
@@ -1351,7 +1159,7 @@ func (_m *Store) PatchWorkTask(ctx context.Context, taskID string, userID string
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, repository.WorkTaskPatch) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, model.WorkTaskPatch) error); ok {
 		r1 = rf(ctx, taskID, userID, patch)
 	} else {
 		r1 = ret.Error(1)
@@ -1369,14 +1177,14 @@ type Store_PatchWorkTask_Call struct {
 //   - ctx context.Context
 //   - taskID string
 //   - userID string
-//   - patch repository.WorkTaskPatch
+//   - patch model.WorkTaskPatch
 func (_e *Store_Expecter) PatchWorkTask(ctx interface{}, taskID interface{}, userID interface{}, patch interface{}) *Store_PatchWorkTask_Call {
 	return &Store_PatchWorkTask_Call{Call: _e.mock.On("PatchWorkTask", ctx, taskID, userID, patch)}
 }
 
-func (_c *Store_PatchWorkTask_Call) Run(run func(ctx context.Context, taskID string, userID string, patch repository.WorkTaskPatch)) *Store_PatchWorkTask_Call {
+func (_c *Store_PatchWorkTask_Call) Run(run func(ctx context.Context, taskID string, userID string, patch model.WorkTaskPatch)) *Store_PatchWorkTask_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(repository.WorkTaskPatch))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(model.WorkTaskPatch))
 	})
 	return _c
 }
@@ -1386,22 +1194,22 @@ func (_c *Store_PatchWorkTask_Call) Return(_a0 *model.WorkTask, _a1 error) *Stor
 	return _c
 }
 
-func (_c *Store_PatchWorkTask_Call) RunAndReturn(run func(context.Context, string, string, repository.WorkTaskPatch) (*model.WorkTask, error)) *Store_PatchWorkTask_Call {
+func (_c *Store_PatchWorkTask_Call) RunAndReturn(run func(context.Context, string, string, model.WorkTaskPatch) (*model.WorkTask, error)) *Store_PatchWorkTask_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SaveGoogleCalendarSyncToken provides a mock function with given fields: ctx, userID, calendarID, syncToken
-func (_m *Store) SaveGoogleCalendarSyncToken(ctx context.Context, userID string, calendarID string, syncToken string) error {
-	ret := _m.Called(ctx, userID, calendarID, syncToken)
+// PruneGoogleCalendarData provides a mock function with given fields: ctx, userID, calendarIDs
+func (_m *Store) PruneGoogleCalendarData(ctx context.Context, userID string, calendarIDs []string) error {
+	ret := _m.Called(ctx, userID, calendarIDs)
 
 	if len(ret) == 0 {
-		panic("no return value specified for SaveGoogleCalendarSyncToken")
+		panic("no return value specified for PruneGoogleCalendarData")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
-		r0 = rf(ctx, userID, calendarID, syncToken)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, userID, calendarIDs)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1409,33 +1217,32 @@ func (_m *Store) SaveGoogleCalendarSyncToken(ctx context.Context, userID string,
 	return r0
 }
 
-// Store_SaveGoogleCalendarSyncToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SaveGoogleCalendarSyncToken'
-type Store_SaveGoogleCalendarSyncToken_Call struct {
+// Store_PruneGoogleCalendarData_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PruneGoogleCalendarData'
+type Store_PruneGoogleCalendarData_Call struct {
 	*mock.Call
 }
 
-// SaveGoogleCalendarSyncToken is a helper method to define mock.On call
+// PruneGoogleCalendarData is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID string
-//   - calendarID string
-//   - syncToken string
-func (_e *Store_Expecter) SaveGoogleCalendarSyncToken(ctx interface{}, userID interface{}, calendarID interface{}, syncToken interface{}) *Store_SaveGoogleCalendarSyncToken_Call {
-	return &Store_SaveGoogleCalendarSyncToken_Call{Call: _e.mock.On("SaveGoogleCalendarSyncToken", ctx, userID, calendarID, syncToken)}
+//   - calendarIDs []string
+func (_e *Store_Expecter) PruneGoogleCalendarData(ctx interface{}, userID interface{}, calendarIDs interface{}) *Store_PruneGoogleCalendarData_Call {
+	return &Store_PruneGoogleCalendarData_Call{Call: _e.mock.On("PruneGoogleCalendarData", ctx, userID, calendarIDs)}
 }
 
-func (_c *Store_SaveGoogleCalendarSyncToken_Call) Run(run func(ctx context.Context, userID string, calendarID string, syncToken string)) *Store_SaveGoogleCalendarSyncToken_Call {
+func (_c *Store_PruneGoogleCalendarData_Call) Run(run func(ctx context.Context, userID string, calendarIDs []string)) *Store_PruneGoogleCalendarData_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
 
-func (_c *Store_SaveGoogleCalendarSyncToken_Call) Return(_a0 error) *Store_SaveGoogleCalendarSyncToken_Call {
+func (_c *Store_PruneGoogleCalendarData_Call) Return(_a0 error) *Store_PruneGoogleCalendarData_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Store_SaveGoogleCalendarSyncToken_Call) RunAndReturn(run func(context.Context, string, string, string) error) *Store_SaveGoogleCalendarSyncToken_Call {
+func (_c *Store_PruneGoogleCalendarData_Call) RunAndReturn(run func(context.Context, string, []string) error) *Store_PruneGoogleCalendarData_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1736,6 +1543,53 @@ func (_c *Store_UpsertUserSettings_Call) Return(_a0 *model.UserSettings, _a1 err
 }
 
 func (_c *Store_UpsertUserSettings_Call) RunAndReturn(run func(context.Context, string, repository.UserSettingsPatch) (*model.UserSettings, error)) *Store_UpsertUserSettings_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// WithTx provides a mock function with given fields: ctx, fn
+func (_m *Store) WithTx(ctx context.Context, fn func(context.Context) error) error {
+	ret := _m.Called(ctx, fn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WithTx")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, func(context.Context) error) error); ok {
+		r0 = rf(ctx, fn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Store_WithTx_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WithTx'
+type Store_WithTx_Call struct {
+	*mock.Call
+}
+
+// WithTx is a helper method to define mock.On call
+//   - ctx context.Context
+//   - fn func(context.Context) error
+func (_e *Store_Expecter) WithTx(ctx interface{}, fn interface{}) *Store_WithTx_Call {
+	return &Store_WithTx_Call{Call: _e.mock.On("WithTx", ctx, fn)}
+}
+
+func (_c *Store_WithTx_Call) Run(run func(ctx context.Context, fn func(context.Context) error)) *Store_WithTx_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(func(context.Context) error))
+	})
+	return _c
+}
+
+func (_c *Store_WithTx_Call) Return(_a0 error) *Store_WithTx_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Store_WithTx_Call) RunAndReturn(run func(context.Context, func(context.Context) error) error) *Store_WithTx_Call {
 	_c.Call.Return(run)
 	return _c
 }

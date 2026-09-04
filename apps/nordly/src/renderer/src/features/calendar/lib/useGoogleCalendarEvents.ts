@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GoogleCalendarEvent } from '@features/calendar/api/calendarClient';
+import type { CalendarProviderError } from '@features/calendar/model/provider';
 import { isCloudEnabled } from '@shared/model/features';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { canReachNetwork } from '@shared/sync/syncConfig';
+import { canReachNetwork } from '@shared/lib/network';
 
 import {
+  googleCalendarLastError,
   hydrateGoogleCalendarCache,
   isGoogleCalendarRangeStale,
+  isInsideDefaultGoogleSyncWindow,
   peekGoogleCalendarEvents,
+  prefetchGoogleCalendarEvents,
+  reportGoogleCalendarError,
   subscribeGoogleCalendarCache,
   googleRangeKey,
 } from './googleCalendarCache';
@@ -25,7 +29,7 @@ export function useGoogleCalendarEvents(
 ): {
   events: GoogleCalendarEvent[];
   loading: boolean;
-  error: string | null;
+  error: CalendarProviderError | null;
   refresh: () => Promise<void>;
 } {
   const rangeKey = googleRangeKey(timeMin, timeMax);
@@ -44,7 +48,7 @@ export function useGoogleCalendarEvents(
     if (!enabled || !googleAvailable) return false;
     return peek() === null;
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CalendarProviderError | null>(null);
 
   const rangeRef = useRef({ timeMin, timeMax, enabled });
   rangeRef.current = { timeMin, timeMax, enabled };
@@ -59,20 +63,34 @@ export function useGoogleCalendarEvents(
     }
     const hit = peek();
     if (hit === null) {
+      setEvents([]);
       setLoading(true);
+      const cacheErr = googleCalendarLastError();
+      setError(cacheErr);
       return;
     }
     setEvents(hit);
     setLoading(false);
-    setError(null);
+    const cacheErr = googleCalendarLastError();
+    setError(cacheErr);
   }, [peek, googleAvailable]);
 
   /** Soft nudge for the worker — never assigns network results into UI state. */
   const nudgeSyncIfNeeded = useCallback(() => {
     const { timeMin: min, timeMax: max, enabled: on } = rangeRef.current;
-    if (!on || !googleAvailable || !canReachNetwork()) return;
+    if (!on || !googleAvailable || !canReachNetwork() || document.hidden) return;
     const hit = peekGoogleCalendarEvents(min, max);
-    if (hit === null || isGoogleCalendarRangeStale(min, max)) {
+    if (hit === null) {
+      if (isInsideDefaultGoogleSyncWindow(min, max)) {
+        void refreshGoogleCalendarCache();
+        return;
+      }
+      void prefetchGoogleCalendarEvents(min, max).catch((err: unknown) => {
+        reportGoogleCalendarError(err);
+      });
+      return;
+    }
+    if (isGoogleCalendarRangeStale(min, max)) {
       void refreshGoogleCalendarCache();
     }
   }, [googleAvailable]);
@@ -96,7 +114,7 @@ export function useGoogleCalendarEvents(
     }
 
     let cancelled = false;
-    setLoading(peek() === null);
+    applyCache();
     void (async () => {
       await hydrateGoogleCalendarCache();
       if (cancelled) return;
@@ -110,13 +128,6 @@ export function useGoogleCalendarEvents(
   }, [rangeKey, enabled, googleAvailable, peek, applyCache, nudgeSyncIfNeeded]);
 
   useEffect(() => subscribeGoogleCalendarCache(applyCache), [applyCache]);
-
-  useEffect(() => {
-    if (!googleAvailable) return;
-    const onChanged = () => applyCache();
-    window.addEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);
-    return () => window.removeEventListener(NORDLY_EVENTS.googleCalendarChanged, onChanged);
-  }, [applyCache, googleAvailable]);
 
   return {
     events,

@@ -286,7 +286,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_NORDLY_LOCAL_ONLY: 'true'
+          VITE_NORDLY_LOCAL_ONLY: 'false'
           VITE_NORDLY_WEB_BASE: 'https://trynordly.app'
           APPLE_SIGNING_IDENTITY: ${{ matrix.os == 'macos' && (vars.NORDLY_CODE_SIGNING == 'true' && secrets.APPLE_SIGNING_IDENTITY || '-') || '' }}
           APPLE_TEAM_ID: ${{ matrix.os == 'macos' && vars.NORDLY_CODE_SIGNING == 'true' && secrets.APPLE_TEAM_ID || '' }}
@@ -297,16 +297,12 @@ jobs:
           tagName: ${{ steps.release.outputs.tag }}
           releaseName: Nordly ${{ steps.release.outputs.tag }}
           releaseBody: |
-            Offline-first desktop builds for macOS (Apple Silicon + Intel) and Windows.
+            Desktop builds for macOS (Apple Silicon + Intel) and Windows.
 
-            Notes/tasks/focus stay on-device (`LOCAL_ONLY`). Google Calendar and Zoom require cloud (`LOCAL_ONLY=false`) and a running tracker.
-            on each device via PKCE + OS Keychain when client IDs are baked into the build.
+            Cloud sync, Telegram login, Google Calendar, and Zoom are enabled
+            (`LOCAL_ONLY=false`) against https://trynordly.app.
 
-            **First install while the server is down:** download an installer below once.
-            After that, updates come from GitHub Releases via **Settings → Software → Check for Updates**.
-
-            Nordly cloud sync / Telegram login return when the backend is back; Google/Zoom
-            tokens stay on the device and are not uploaded to tracker.
+            Updates come from GitHub Releases via **Settings → Software → Check for Updates**.
           releaseDraft: false
           prerelease: false
           updaterJsonPreferNsis: true

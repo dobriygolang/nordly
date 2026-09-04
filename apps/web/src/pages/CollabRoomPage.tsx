@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  CollabCodeEditor,
-  wsStatusColor,
-  type CollabCodeEditorHandle,
-} from '@/components/CollabCodeEditor'
-import {
-  CollabExcalidrawEditor,
-  type CollabExcalidrawHandle,
-} from '@/components/CollabExcalidrawEditor'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import type { CollabCodeEditorHandle } from '@/components/CollabCodeEditor'
+import type { CollabExcalidrawHandle } from '@/components/CollabExcalidrawEditor'
+import { wsStatusColor } from '@/lib/live/wsStatusColor'
+
+const CollabCodeEditor = lazy(() =>
+  import('@/components/CollabCodeEditor').then((m) => ({ default: m.CollabCodeEditor })),
+)
+const CollabExcalidrawEditor = lazy(() =>
+  import('@/components/CollabExcalidrawEditor').then((m) => ({ default: m.CollabExcalidrawEditor })),
+)
 import { isDesignRoom } from '@/lib/live/roomKind'
 import type { CollabPeer } from '@/lib/codemirror/collabPresence'
 import { LiveRoomBottomBar } from '@/components/live/LiveRoomBottomBar'
@@ -30,6 +31,9 @@ import {
   guestJoin,
   persistGuestRoom,
   persistGuestToken,
+  clearGuestSession,
+  guestSessionExpired,
+  isGuestSessionFatalError,
   readGuestRoom,
   readGuestToken,
 } from '@/lib/api/rooms'
@@ -72,7 +76,6 @@ export default function CollabRoomPage() {
   const { t } = useI18n()
   const { roomId = '' } = useParams()
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const codeEditorRef = useRef<CollabCodeEditorHandle>(null)
   const diagramEditorRef = useRef<CollabExcalidrawHandle>(null)
   const [copied, setCopied] = useState(false)
@@ -89,7 +92,7 @@ export default function CollabRoomPage() {
   const [runPanelWidth, setRunPanelWidth] = useState(readRunPanelWidth)
   const { isResizing: isRunPanelResizing, start: startRunPanelResize } =
     useHorizontalResize(setRunPanelWidth)
-  const hasSession = !!guestToken
+  const hasSession = !!guestToken && !guestSessionExpired(roomId)
 
   useEffect(() => {
     setGuestToken(readGuestToken(roomId))
@@ -127,7 +130,7 @@ export default function CollabRoomPage() {
       return guestJoin(roomId, name)
     },
     onSuccess: (result) => {
-      persistGuestToken(roomId, result.access_token)
+      persistGuestToken(roomId, result.access_token, result.expires_in)
       persistGuestRoom(roomId, result.room)
       setGuestToken(result.access_token)
       setGuestRoom(result.room)
@@ -146,9 +149,6 @@ export default function CollabRoomPage() {
 
   const closeM = useMutation({
     mutationFn: () => closeRoom(roomId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['my-active-rooms'] })
-    },
   })
 
   const wsToken = guestToken
@@ -156,8 +156,23 @@ export default function CollabRoomPage() {
   const fmt = useFormatCode(wsToken)
 
   const handleRoomExpired = useCallback(() => {
+    clearGuestSession(roomId)
+    setGuestToken(null)
+    setGuestRoom(null)
     navigate('/', { replace: true, state: { liveExpired: true } })
-  }, [navigate])
+  }, [navigate, roomId])
+
+  useEffect(() => {
+    if (!roomQ.isError || !isGuestSessionFatalError(roomQ.error)) return
+    handleRoomExpired()
+  }, [handleRoomExpired, roomQ.isError, roomQ.error])
+
+  useEffect(() => {
+    if (wsStatus !== 'failed' || !roomId || !guestToken) return
+    void getRoom(roomId).catch((err: unknown) => {
+      if (isGuestSessionFatalError(err)) handleRoomExpired()
+    })
+  }, [guestToken, handleRoomExpired, roomId, wsStatus])
 
   useLayoutEffect(() => {
     document.documentElement.classList.remove('light', 'dark')
@@ -217,11 +232,11 @@ export default function CollabRoomPage() {
     )
   }
 
-  if (roomQ.isLoading) {
+  if (roomQ.isLoading && !guestRoom) {
     return <EditorShell message={t('live.loadingRoom')} />
   }
 
-  const room = guestRoom ?? roomQ.data ?? null
+  const room = roomQ.data ?? guestRoom
 
   if (!room) {
     return (
@@ -282,7 +297,12 @@ export default function CollabRoomPage() {
 
   const handleClose = () => {
     if (isOwner) {
-      closeM.mutate(undefined, { onSettled: () => navigate(closeTo) })
+      closeM.mutate(undefined, {
+        onSuccess: () => {
+          clearGuestSession(roomId)
+          navigate(closeTo)
+        },
+      })
       return
     }
     navigate(closeTo)
@@ -318,7 +338,7 @@ export default function CollabRoomPage() {
 
   const statusLabel = liveWsStatusLabel(t, wsStatus)
   const statusColor = wsStatus === 'open' ? brand.green : wsStatusColor(wsStatus)
-  const isGo = normalizeEditorLang(room.language) === 'go'
+  const isGo = !designRoom && normalizeEditorLang(room.language) === 'go'
 
   return (
     <div className="flex h-[100dvh] flex-col bg-bg text-text-primary">
@@ -344,37 +364,41 @@ export default function CollabRoomPage() {
 
       <div className={cn('flex min-h-0 flex-1', designRoom ? 'bg-bg' : 'bg-surface-1')}>
         {designRoom ? (
-          <CollabExcalidrawEditor
-            ref={diagramEditorRef}
-            roomId={room.id}
-            boardTheme={theme}
-            userId={sessionUserId}
-            displayName={displayName}
-            accessToken={wsToken}
-            onPeersChange={setPeers}
-            onWsStatusChange={setWsStatus}
-            onRoomClosed={handleRoomExpired}
-          />
+          <Suspense fallback={<div className="min-h-0 flex-1 bg-bg" />}>
+            <CollabExcalidrawEditor
+              ref={diagramEditorRef}
+              roomId={room.id}
+              boardTheme={theme}
+              userId={sessionUserId}
+              displayName={displayName}
+              accessToken={wsToken}
+              onPeersChange={setPeers}
+              onWsStatusChange={setWsStatus}
+              onRoomClosed={handleRoomExpired}
+            />
+          </Suspense>
         ) : (
           <>
-            <div className="relative min-w-0 flex-1">
-              <CollabCodeEditor
-                ref={codeEditorRef}
-                roomId={room.id}
-                language={room.language}
-                theme={theme}
-                autocompleteEnabled={autocompleteEnabled}
-                userId={sessionUserId}
-                displayName={displayName}
-                accessToken={wsToken}
-                fontSize={fontSize}
-                onRun={canRun ? () => void handleRun() : undefined}
-                onFormat={isGo ? () => void handleFormat() : undefined}
-                onPeersChange={setPeers}
-                onWsStatusChange={setWsStatus}
-                onRoomClosed={handleRoomExpired}
-                onRemoteCodeRun={handleRemoteCodeRun}
-              />
+            <div className="relative min-h-0 min-w-0 flex-1">
+              <Suspense fallback={<div className="absolute inset-0 bg-surface-1" />}>
+                <CollabCodeEditor
+                  ref={codeEditorRef}
+                  roomId={room.id}
+                  language={room.language}
+                  theme={theme}
+                  autocompleteEnabled={autocompleteEnabled}
+                  userId={sessionUserId}
+                  displayName={displayName}
+                  accessToken={wsToken}
+                  fontSize={fontSize}
+                  onRun={canRun ? () => void handleRun() : undefined}
+                  onFormat={isGo ? () => void handleFormat() : undefined}
+                  onPeersChange={setPeers}
+                  onWsStatusChange={setWsStatus}
+                  onRoomClosed={handleRoomExpired}
+                  onRemoteCodeRun={handleRemoteCodeRun}
+                />
+              </Suspense>
 
               {fmt.formatError ? (
                 <div
@@ -479,18 +503,12 @@ function GuestGate({
   error,
   loading,
   onJoin,
-  title,
-  description,
-  hideJoin = false,
 }: {
   guestName: string
   onNameChange: (v: string) => void
   error: unknown
   loading: boolean
   onJoin: () => void
-  title?: string
-  description?: string
-  hideJoin?: boolean
 }) {
   const { t } = useI18n()
 
@@ -498,45 +516,35 @@ function GuestGate({
     <PublicPageShell>
       <main className="mx-auto flex max-w-lg flex-col items-center px-6 py-16">
         <div className="w-full rounded-2xl border border-site-border bg-site-card p-6 sm:p-7">
-          <h1 className="text-xl font-semibold tracking-[-0.02em] text-site-text">{title ?? t('live.guestTitle')}</h1>
+          <h1 className="text-xl font-semibold tracking-[-0.02em] text-site-text">{t('live.guestTitle')}</h1>
           <p className="mt-2 text-sm leading-relaxed text-site-muted">
-            {description ?? t('live.guestDescription')}
+            {t('live.guestDescription')}
           </p>
-          {!hideJoin ? (
-            <>
-              <label htmlFor="guest-name" className="mt-5 block text-sm font-medium text-site-text">
-                {t('live.name')}
-              </label>
-              <input
-                id="guest-name"
-                value={guestName}
-                onChange={(e) => onNameChange(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-sm text-site-text outline-none focus:border-site-muted"
-                placeholder={t('live.namePlaceholder')}
+          <label htmlFor="guest-name" className="mt-5 block text-sm font-medium text-site-text">
+            {t('live.name')}
+          </label>
+          <input
+            id="guest-name"
+            value={guestName}
+            onChange={(e) => onNameChange(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-sm text-site-text outline-none focus:border-site-muted"
+            placeholder={t('live.namePlaceholder')}
+          />
+          {error ? (
+            <div className="mt-3">
+              <ErrorMessage
+                message={error instanceof Error ? error.message : t('live.joinError')}
               />
-              {error ? (
-                <div className="mt-3">
-                  <ErrorMessage
-                    message={error instanceof Error ? error.message : t('live.joinError')}
-                  />
-                </div>
-              ) : null}
-              <Button
-                className="mt-5 w-full"
-                loading={loading}
-                disabled={!guestName.trim()}
-                onClick={onJoin}
-              >
-                {t('live.joinRoom')}
-              </Button>
-            </>
-          ) : (
-            <div className="mt-5">
-              <Link to={liveNewPath()}>
-                <Button className="w-full">{t('live.createOwnRoom')}</Button>
-              </Link>
             </div>
-          )}
+          ) : null}
+          <Button
+            className="mt-5 w-full"
+            loading={loading}
+            disabled={!guestName.trim()}
+            onClick={onJoin}
+          >
+            {t('live.joinRoom')}
+          </Button>
         </div>
       </main>
     </PublicPageShell>

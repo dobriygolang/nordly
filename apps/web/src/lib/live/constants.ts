@@ -5,9 +5,11 @@ export const LIVE_LANGS = [
   { id: 'typescript', label: 'TypeScript' },
 ] as const
 
+import { GuestRoomType } from '@/lib/api/rooms'
+
 export const LIVE_ROOM_MODES = [
-  { id: 'code', roomType: 'practice', language: 'go' },
-  { id: 'diagram', roomType: 'system_design', language: 'diagram' },
+  { id: 'code', roomType: GuestRoomType.Practice, language: 'go' },
+  { id: 'diagram', roomType: GuestRoomType.SystemDesign, language: 'diagram' },
 ] as const
 
 export type LiveLanguageId = (typeof LIVE_LANGS)[number]['id']

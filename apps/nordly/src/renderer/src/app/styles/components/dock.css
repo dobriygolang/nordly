@@ -1,0 +1,132 @@
+@keyframes nordly-dock-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.nordly-dock {
+  animation: nordly-dock-enter var(--motion-dur-xxlarge) var(--motion-ease-standard) both;
+}
+
+.nordly-dock-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--ink);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast),
+    opacity var(--t-fast);
+}
+
+.nordly-dock-btn:hover {
+  color: var(--ink);
+  background: rgb(var(--ink-rgb) / 0.1);
+}
+
+.nordly-dock-btn[data-variant='menu']:hover {
+  opacity: 1;
+}
+
+.nordly-dock-btn__icon {
+  display: flex;
+  transition: transform var(--motion-dur-medium) var(--motion-ease-interactive);
+}
+
+.nordly-dock-btn[data-variant='menu']:hover .nordly-dock-btn__icon {
+  transform: rotate(180deg);
+}
+
+.nordly-dock-btn[data-variant='action']:hover {
+  transform: scale(1.02);
+}
+
+.nordly-dock-btn[data-variant='action']:active {
+  transform: scale(0.98);
+}
+
+.nordly-dock-timer {
+  position: relative;
+  min-width: 96px;
+  height: 36px;
+  padding: 0 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.nordly-dock-timer-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity var(--motion-dur-medium) var(--motion-ease-interactive),
+    transform var(--motion-dur-medium) var(--motion-ease-interactive);
+}
+
+.nordly-dock-timer-layer--time {
+  gap: 6px;
+  transition-delay: 25ms;
+}
+
+.nordly-dock-timer-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--ink);
+  opacity: 0.86;
+}
+
+.nordly-dock-timer-display {
+  font-size: 14px;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.nordly-dock-timer-layer--reset {
+  gap: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition-delay: 0ms;
+  transform: translateY(-4px);
+}
+
+.nordly-dock-timer:hover .nordly-dock-timer-layer--time {
+  opacity: 0;
+  transition-delay: 0ms;
+  transform: translateY(4px);
+}
+
+.nordly-dock-timer:hover .nordly-dock-timer-layer--reset {
+  pointer-events: auto;
+  opacity: 1;
+  transition-delay: 30ms;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-dock,
+  .nordly-dock-btn,
+  .nordly-dock-timer {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+
+  .nordly-dock-btn[data-variant='menu']:hover .nordly-dock-btn__icon,
+  .nordly-dock-btn[data-variant='action']:hover,
+  .nordly-dock-btn[data-variant='action']:active {
+    transform: none;
+  }
+}

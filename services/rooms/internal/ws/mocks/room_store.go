@@ -23,63 +23,6 @@ func (_m *RoomStore) EXPECT() *RoomStore_Expecter {
 	return &RoomStore_Expecter{mock: &_m.Mock}
 }
 
-// AddParticipant provides a mock function with given fields: ctx, p
-func (_m *RoomStore) AddParticipant(ctx context.Context, p model.Participant) (model.Participant, error) {
-	ret := _m.Called(ctx, p)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AddParticipant")
-	}
-
-	var r0 model.Participant
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, model.Participant) (model.Participant, error)); ok {
-		return rf(ctx, p)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, model.Participant) model.Participant); ok {
-		r0 = rf(ctx, p)
-	} else {
-		r0 = ret.Get(0).(model.Participant)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, model.Participant) error); ok {
-		r1 = rf(ctx, p)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// RoomStore_AddParticipant_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddParticipant'
-type RoomStore_AddParticipant_Call struct {
-	*mock.Call
-}
-
-// AddParticipant is a helper method to define mock.On call
-//   - ctx context.Context
-//   - p model.Participant
-func (_e *RoomStore_Expecter) AddParticipant(ctx interface{}, p interface{}) *RoomStore_AddParticipant_Call {
-	return &RoomStore_AddParticipant_Call{Call: _e.mock.On("AddParticipant", ctx, p)}
-}
-
-func (_c *RoomStore_AddParticipant_Call) Run(run func(ctx context.Context, p model.Participant)) *RoomStore_AddParticipant_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(model.Participant))
-	})
-	return _c
-}
-
-func (_c *RoomStore_AddParticipant_Call) Return(_a0 model.Participant, _a1 error) *RoomStore_AddParticipant_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *RoomStore_AddParticipant_Call) RunAndReturn(run func(context.Context, model.Participant) (model.Participant, error)) *RoomStore_AddParticipant_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetRole provides a mock function with given fields: ctx, roomID, userID
 func (_m *RoomStore) GetRole(ctx context.Context, roomID uuid.UUID, userID uuid.UUID) (model.Role, error) {
 	ret := _m.Called(ctx, roomID, userID)

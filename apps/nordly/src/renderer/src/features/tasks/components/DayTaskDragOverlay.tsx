@@ -1,4 +1,4 @@
-import type { TaskCard } from '@features/tasks/api/tasks';
+import type { TaskCard } from '@features/tasks/model/task';
 import type { TaskEpic } from '@features/tasks/api/epics';
 import type { TrackerSettings } from '@features/calendar/api/calendarClient';
 

@@ -8,7 +8,7 @@ cd "$ROOT"
 
 echo "==> Stop app services"
 docker compose -f docker-compose.prod.yml --env-file .env stop \
-  caddy identity identity-bot billing sandbox rooms tracker notes focus migrate 2>/dev/null || true
+  caddy identity identity-bot sandbox rooms tracker notes focus migrate 2>/dev/null || true
 
 echo "==> Reset databases"
 make reset-db

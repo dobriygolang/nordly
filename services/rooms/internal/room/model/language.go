@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 type Language string
 
 const (
@@ -19,3 +21,11 @@ func (l Language) IsValid() bool {
 }
 
 func (l Language) String() string { return string(l) }
+
+func ParseLanguage(value string) (Language, error) {
+	language := Language(value)
+	if !language.IsValid() {
+		return "", fmt.Errorf("%w: invalid language %q", ErrInvalidState, value)
+	}
+	return language, nil
+}

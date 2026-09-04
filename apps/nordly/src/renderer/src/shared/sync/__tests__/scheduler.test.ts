@@ -5,6 +5,7 @@ import {
   STARTUP_DEFER_MS,
   STARTUP_PUSH_DEFER_MS,
   SYNC_DEBOUNCE_MS,
+  SYNC_INTERVAL_MS,
   SyncScheduler,
 } from '@shared/sync/scheduler';
 
@@ -53,6 +54,30 @@ describe('SyncScheduler', () => {
     vi.advanceTimersByTime(SYNC_DEBOUNCE_MS);
     expect(enqueueBackground).toHaveBeenCalledWith(undefined, 'focus');
     scheduler.stop();
+  });
+
+  it('skips idle interval sync while hidden unless outbox is pending', () => {
+    const enqueueBackground = vi.fn();
+    const scheduler = makeScheduler({
+      enqueueBackground,
+      isVisible: () => false,
+      getSyncState: () => ({ pendingCount: 0, status: 'idle' }),
+    });
+
+    scheduler.start();
+    vi.advanceTimersByTime(SYNC_INTERVAL_MS);
+    expect(enqueueBackground).not.toHaveBeenCalledWith(undefined, 'interval');
+    scheduler.stop();
+
+    const pending = makeScheduler({
+      enqueueBackground,
+      isVisible: () => false,
+      getSyncState: () => ({ pendingCount: 2, status: 'idle' }),
+    });
+    pending.start();
+    vi.advanceTimersByTime(SYNC_INTERVAL_MS);
+    expect(enqueueBackground).toHaveBeenCalledWith(undefined, 'interval');
+    pending.stop();
   });
 
   it('cancels lifecycle timers when stopped', () => {

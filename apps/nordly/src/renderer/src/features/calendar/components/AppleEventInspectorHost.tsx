@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useLocale, useT } from '@nordly-i18n';
 
@@ -9,11 +9,12 @@ import {
 } from '@features/calendar/api/appleCalendarClient';
 import { openExternalUrl } from '@features/calendar/api/calendarClient';
 import type { CalendarInspectPayload } from '@features/calendar/lib/calendarInspect';
+import { CalendarEntrySource } from '@features/calendar/model/entry';
 import { parseScheduleInstant } from '@shared/lib/dates';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { zIndex } from '@shared/lib/z-index';
-import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
+import { useDialogSurface } from '@shared/hooks/useDialogSurface';
 
 type InspectorView = {
   title: string;
@@ -47,8 +48,8 @@ function formatWhen(
 function fromApple(detail: AppleCalendarEventDetail, openInCalendarLabel: string): InspectorView {
   return {
     title: detail.title,
-    start: new Date(detail.start),
-    end: new Date(detail.end),
+    start: parseScheduleInstant(detail.start),
+    end: parseScheduleInstant(detail.end),
     allDay: detail.allDay,
     calendarLabel: detail.calendarTitle,
     location: detail.location,
@@ -66,7 +67,7 @@ function fromApple(detail: AppleCalendarEventDetail, openInCalendarLabel: string
 }
 
 function fromPayload(payload: CalendarInspectPayload, t: (key: string) => string): InspectorView | null {
-  if (payload.source === 'google') {
+  if (payload.source === CalendarEntrySource.Google) {
     return {
       title: payload.title,
       start: parseScheduleInstant(payload.start),
@@ -82,7 +83,7 @@ function fromPayload(payload: CalendarInspectPayload, t: (key: string) => string
         : undefined,
     };
   }
-  if (payload.source === 'task') {
+  if (payload.source === CalendarEntrySource.Task) {
     return {
       title: payload.title,
       start: parseScheduleInstant(payload.start),
@@ -112,6 +113,7 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
   const [view, setView] = useState<InspectorView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onInspect = (e: Event) => {
@@ -120,7 +122,7 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
       setPayload(detail);
       setView(null);
       setError(null);
-      setLoading(detail.source === 'apple');
+      setLoading(detail.source === CalendarEntrySource.Apple);
     };
     window.addEventListener(NORDLY_EVENTS.calendarInspect, onInspect);
     return () => {
@@ -130,7 +132,7 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
 
   useEffect(() => {
     if (!payload) return;
-    if (payload.source !== 'apple') {
+    if (payload.source !== CalendarEntrySource.Apple) {
       setView(fromPayload(payload, t));
       setLoading(false);
       return;
@@ -155,15 +157,15 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
     };
   }, [payload, t]);
 
-  useEscapeLayer(() => setPayload(null), Boolean(payload));
+  useDialogSurface(dialogRef, () => setPayload(null), { active: Boolean(payload) });
 
   if (!payload) return null;
 
   const close = () => setPayload(null);
   const heading =
-    payload.source === 'google'
+    payload.source === CalendarEntrySource.Google
       ? t('nordly.calendar.inspect.title_google')
-      : payload.source === 'task'
+      : payload.source === CalendarEntrySource.Task
         ? t('nordly.calendar.inspect.title_meeting')
         : t('nordly.calendar.apple_detail.title');
 
@@ -174,10 +176,12 @@ export function CalendarEventInspectorHost(): JSX.Element | null {
       onClick={close}
     >
       <div
+        ref={dialogRef}
         className="nordly-calendar-editor nordly-calendar-apple-detail motion-pop-in"
         role="dialog"
         aria-modal="true"
         aria-label={heading}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="nordly-calendar-editor__heading">{heading}</h3>

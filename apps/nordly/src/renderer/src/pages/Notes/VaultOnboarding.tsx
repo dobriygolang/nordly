@@ -7,7 +7,7 @@ import {
   vaultPickFolder,
   vaultSetConfig,
   vaultStartWatch,
-} from '@features/notes/vault';
+} from '@features/notes/api/vault';
 import {
   refreshNotesVaultBoundCache,
   setNotesVaultBoundCache,

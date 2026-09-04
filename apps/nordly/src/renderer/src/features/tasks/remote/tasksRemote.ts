@@ -1,17 +1,33 @@
 import { API_BASE_URL } from '@shared/api/config';
+import { ApiHttpError, requireOk } from '@shared/api/errors';
 import { optionalJsonNumber, optionalJsonString, requireJsonString } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { scheduleStartISO } from '@shared/lib/dates';
 
-import type { TaskCard, TaskKind, TaskStatus, ConferenceProvider } from '../api/tasks';
+import type { TaskCard } from '../model/task';
 import type { TaskEpic } from '../api/epics';
+import { clampTaskDurationMin } from '../model/duration';
+import type {
+  ConferenceProvider,
+  TaskKind,
+  TaskStatus,
+} from '../model/status';
+import {
+  TaskActionError,
+  TaskActionErrorCode,
+} from '../lib/taskActionErrors';
+import {
+  conferenceProviderFromWire,
+  conferenceProviderToWire,
+  taskKindFromWire,
+  taskKindToWire,
+  taskStatusFromWire,
+  taskStatusToWire,
+} from './wireEnums';
 
 const BASE = `${API_BASE_URL}/v1/tracker/work/tasks`;
 const EPICS_BASE = `${API_BASE_URL}/v1/tracker/work/epics`;
-const TASK_KINDS = new Set<TaskKind>(['algo', 'sysdesign', 'quiz', 'reflection', 'reading', 'ml', 'custom']);
-const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'in_review', 'done', 'dismissed']);
-const CONFERENCE_PROVIDERS = new Set<ConferenceProvider>(['meet', 'zoom']);
 
 type JsonWorkTask = Record<string, unknown>;
 
@@ -23,14 +39,12 @@ function pickTs(obj: JsonWorkTask, key: string): string | undefined {
 }
 
 function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
-  const status = requireJsonString(raw, 'status') as TaskStatus;
-  if (!TASK_STATUSES.has(status)) throw new Error(`Invalid task response: status ${status}`);
-  const kind = requireJsonString(raw, 'kind') as TaskKind;
-  if (!TASK_KINDS.has(kind)) throw new Error(`Invalid task response: kind ${kind}`);
-  const conferenceProvider = optionalJsonString(raw, 'conferenceProvider');
-  if (conferenceProvider && !CONFERENCE_PROVIDERS.has(conferenceProvider as ConferenceProvider)) {
-    throw new Error(`Invalid task response: conferenceProvider ${conferenceProvider}`);
-  }
+  const status = taskStatusFromWire(requireJsonString(raw, 'status'));
+  const kind = taskKindFromWire(requireJsonString(raw, 'kind'));
+  const conferenceProviderRaw = optionalJsonString(raw, 'conferenceProvider');
+  const conferenceProvider = conferenceProviderRaw
+    ? conferenceProviderFromWire(conferenceProviderRaw)
+    : undefined;
   return {
     id: requireJsonString(raw, 'id'),
     status,
@@ -42,9 +56,11 @@ function unwrapWorkTask(raw: JsonWorkTask): TaskCard {
     scheduledStart: pickTs(raw, 'scheduledStart'),
     scheduledDurationMin: optionalJsonNumber(raw, 'scheduledDurationMin'),
     googleEventId: optionalJsonString(raw, 'googleEventId'),
+    googleCalendarId: optionalJsonString(raw, 'googleCalendarId'),
     epicId: optionalJsonString(raw, 'epicId'),
     conferenceUrl: optionalJsonString(raw, 'conferenceUrl'),
-    conferenceProvider: conferenceProvider ? (conferenceProvider as ConferenceProvider) : undefined,
+    conferenceProvider: conferenceProvider,
+    zoomMeetingId: optionalJsonString(raw, 'zoomMeetingId'),
   };
 }
 
@@ -56,9 +72,16 @@ function unwrapTaskResponse(j: unknown): TaskCard {
   return unwrapWorkTask(task as JsonWorkTask);
 }
 
+function trackerErrorMessage(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid tracker error response: expected object');
+  }
+  return requireJsonString(raw as Record<string, unknown>, 'message');
+}
+
 export async function remoteListTasks(): Promise<TaskCard[]> {
   const resp = await apiFetch(BASE, { headers: syncAuthHeaders() });
-  if (!resp.ok) throw new Error(`listTasks: ${resp.status}`);
+  requireOk(resp, 'listTasks');
   const j = (await resp.json()) as { tasks?: JsonWorkTask[] };
   if (!Array.isArray(j.tasks)) throw new Error('Invalid task response: missing tasks');
   return j.tasks.map(unwrapWorkTask);
@@ -70,9 +93,9 @@ export async function remoteCreateTask(input: { title: string; kind: TaskKind })
   const resp = await apiFetch(BASE, {
     method: 'POST',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: input.kind, title }),
+    body: JSON.stringify({ kind: taskKindToWire(input.kind), title }),
   });
-  if (!resp.ok) throw new Error(`createTask: ${resp.status}`);
+  requireOk(resp, 'createTask');
   return unwrapTaskResponse(await resp.json());
 }
 
@@ -80,9 +103,9 @@ export async function remoteMoveTaskStatus(taskId: string, status: TaskStatus): 
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/status`, {
     method: 'POST',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ id: taskId, status }),
+    body: JSON.stringify({ id: taskId, status: taskStatusToWire(status) }),
   });
-  if (!resp.ok) throw new Error(`moveTaskStatus: ${resp.status}`);
+  requireOk(resp, 'moveTaskStatus');
   return unwrapTaskResponse(await resp.json());
 }
 
@@ -91,7 +114,7 @@ export async function remoteDeleteTask(taskId: string): Promise<void> {
     method: 'DELETE',
     headers: syncAuthHeaders(),
   });
-  if (!resp.ok) throw new Error(`deleteTask: ${resp.status}`);
+  requireOk(resp, 'deleteTask');
 }
 
 export async function remoteScheduleTask(
@@ -100,23 +123,13 @@ export async function remoteScheduleTask(
   durationMin: number,
 ): Promise<TaskCard> {
   const startIso = scheduleStartISO(start);
-  const duration = Math.max(15, Math.min(480, durationMin));
+  const duration = clampTaskDurationMin(durationMin);
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/schedule`, {
     method: 'POST',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ scheduledStartIso: startIso, durationMin: duration }),
   });
-  if (!resp.ok) throw new Error(`scheduleTask: ${resp.status}`);
-  return unwrapTaskResponse(await resp.json());
-}
-
-export async function remoteUnscheduleTask(taskId: string): Promise<TaskCard> {
-  const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/unschedule`, {
-    method: 'POST',
-    headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ id: taskId }),
-  });
-  if (!resp.ok) throw new Error(`unscheduleTask: ${resp.status}`);
+  requireOk(resp, 'scheduleTask');
   return unwrapTaskResponse(await resp.json());
 }
 
@@ -129,6 +142,7 @@ export async function remotePatchTask(
     conferenceUrl?: string;
     conferenceProvider?: ConferenceProvider;
     googleEventId?: string | null;
+    googleCalendarId?: string | null;
     zoomMeetingId?: string | null;
   },
 ): Promise<TaskCard> {
@@ -137,15 +151,26 @@ export async function remotePatchTask(
   else if (patch.epicId) body.epicId = patch.epicId;
   if (patch.clearConference) body.clearConference = true;
   if (patch.conferenceUrl !== undefined) body.conferenceUrl = patch.conferenceUrl;
-  if (patch.conferenceProvider !== undefined) body.conferenceProvider = patch.conferenceProvider;
-  if (patch.googleEventId !== undefined) body.googleEventId = patch.googleEventId ?? '';
+  if (patch.conferenceProvider !== undefined) {
+    body.conferenceProvider = conferenceProviderToWire(patch.conferenceProvider);
+  }
+  if ((patch.googleEventId === undefined) !== (patch.googleCalendarId === undefined)) {
+    throw new Error('patchTask requires googleEventId and googleCalendarId together');
+  }
+  if (patch.googleEventId !== undefined) {
+    if (!patch.googleEventId || !patch.googleCalendarId) {
+      throw new Error('patchTask cannot clear Google ids without clearConference');
+    }
+    body.googleEventId = patch.googleEventId;
+    body.googleCalendarId = patch.googleCalendarId;
+  }
   if (patch.zoomMeetingId !== undefined) body.zoomMeetingId = patch.zoomMeetingId ?? '';
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`patchTask: ${resp.status}`);
+  requireOk(resp, 'patchTask');
   return unwrapTaskResponse(await resp.json());
 }
 
@@ -156,23 +181,29 @@ export async function remoteCreateTaskConference(
   const resp = await apiFetch(`${BASE}/${encodeURIComponent(taskId)}/conference`, {
     method: 'POST',
     headers: { ...syncAuthHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ id: taskId, provider }),
+    body: JSON.stringify({ id: taskId, provider: conferenceProviderToWire(provider) }),
   });
   if (!resp.ok) {
-    const msg = await resp.text();
-    if (msg.includes('google_not_connected')) throw new Error('google_not_connected');
-    if (msg.includes('google_reauth_required')) throw new Error('google_reauth_required');
-    if (msg.includes('zoom_not_connected')) throw new Error('zoom_not_connected');
-    if (msg.includes('zoom_reauth_required')) throw new Error('zoom_reauth_required');
-    if (resp.status === 404) throw new Error('conference_not_available');
-    throw new Error(`createTaskConference: ${resp.status}`);
+    if (resp.status === 404) {
+      throw new TaskActionError(TaskActionErrorCode.ConferenceNotAvailable);
+    }
+    const message = trackerErrorMessage(await resp.json());
+    switch (message) {
+      case TaskActionErrorCode.GoogleNotConnected:
+      case TaskActionErrorCode.GoogleReauthRequired:
+      case TaskActionErrorCode.ZoomNotConnected:
+      case TaskActionErrorCode.ZoomReauthRequired:
+        throw new TaskActionError(message);
+      default:
+        throw new ApiHttpError('createTaskConference', resp.status);
+    }
   }
   return unwrapTaskResponse(await resp.json());
 }
 
 export async function remoteListEpics(): Promise<TaskEpic[]> {
   const resp = await apiFetch(EPICS_BASE, { headers: syncAuthHeaders() });
-  if (!resp.ok) throw new Error(`listEpics: ${resp.status}`);
+  requireOk(resp, 'listEpics');
   const j = (await resp.json()) as { epics?: Record<string, unknown>[] };
   if (!Array.isArray(j.epics)) throw new Error('Invalid epics response: missing epics');
   return j.epics.map((raw) => ({

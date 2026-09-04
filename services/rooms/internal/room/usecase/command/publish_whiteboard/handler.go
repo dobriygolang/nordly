@@ -2,6 +2,7 @@ package publish_whiteboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,17 +31,17 @@ type Handler struct {
 }
 
 // New constructs the publish-whiteboard command handler.
-func New(cfg Config) *Handler {
+func New(cfg Config) (*Handler, error) {
 	if cfg.Store == nil {
-		panic("publish_whiteboard: Store is required")
+		return nil, errors.New("publish_whiteboard: Store is required")
 	}
 	if strings.TrimSpace(cfg.PublicBaseURL) == "" {
-		panic("publish_whiteboard: PublicBaseURL is required")
+		return nil, errors.New("publish_whiteboard: PublicBaseURL is required")
 	}
 	return &Handler{
 		store:         cfg.Store,
 		publicBaseURL: cfg.PublicBaseURL,
-	}
+	}, nil
 }
 
 // Handle executes the command.
@@ -50,10 +51,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*dto.PublishBoardRes
 	}
 
 	sceneJSON := strings.TrimSpace(cmd.SceneJSON)
-	uid, err := uuid.Parse(strings.TrimSpace(cmd.UserID))
-	if err != nil {
-		return nil, fmt.Errorf("PublishWhiteboard: invalid user id: %w", err)
-	}
+	uid := uuid.MustParse(strings.TrimSpace(cmd.UserID))
 	title := strings.TrimSpace(cmd.Title)
 	slug := repository.NewBoardSlug(title)
 	if _, err := h.store.InsertPublishedBoard(ctx, uid, slug, title, sceneJSON); err != nil {

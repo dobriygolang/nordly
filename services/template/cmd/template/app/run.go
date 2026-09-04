@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dobriygolang/project-nordly/services/template/internal/config"
 	examplerepo "github.com/dobriygolang/project-nordly/services/template/internal/example/repository"
 	exampleservice "github.com/dobriygolang/project-nordly/services/template/internal/example/service"
-	"github.com/dobriygolang/project-nordly/services/template/internal/config"
 	"github.com/dobriygolang/project-nordly/services/template/internal/tools/logger"
 )
 
@@ -36,7 +36,11 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	repo := examplerepo.New(pg)
-	svc := exampleservice.New(exampleservice.Deps{Repo: repo})
+	svc, err := exampleservice.New(exampleservice.Deps{Repo: repo})
+	if err != nil {
+		pg.Close()
+		return nil, fmt.Errorf("init example service: %w", err)
+	}
 
 	return &App{
 		Config:   cfg,

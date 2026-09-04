@@ -1,9 +1,10 @@
 package trackerapi
 
 import (
-	googleadapter "github.com/dobriygolang/project-nordly/services/tracker/internal/adapter/google"
+	"errors"
+	"strings"
+
 	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
-	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
 	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -18,7 +19,7 @@ func userSettingsToProto(s *model.UserSettingsView) *trackerv1.UserSettings {
 	}
 }
 
-func calendarEventToProto(ev googleadapter.CalendarEvent) *trackerv1.GoogleCalendarEvent {
+func calendarEventToProto(ev model.CalendarEvent) *trackerv1.GoogleCalendarEvent {
 	return &trackerv1.GoogleCalendarEvent{
 		Id:         ev.ID,
 		Title:      ev.Title,
@@ -31,7 +32,7 @@ func calendarEventToProto(ev googleadapter.CalendarEvent) *trackerv1.GoogleCalen
 	}
 }
 
-func calendarToProto(c googleadapter.Calendar) *trackerv1.GoogleCalendarListEntry {
+func calendarToProto(c model.Calendar) *trackerv1.GoogleCalendarListEntry {
 	return &trackerv1.GoogleCalendarListEntry{
 		Id:              c.ID,
 		Summary:         c.Summary,
@@ -41,9 +42,26 @@ func calendarToProto(c googleadapter.Calendar) *trackerv1.GoogleCalendarListEntr
 	}
 }
 
-func workTaskToProto(t trackerservice.WorkTask) *trackerv1.WorkTask {
+func workTaskToProto(t model.WorkTask) (*trackerv1.WorkTask, error) {
+	hasGoogleEvent := t.GoogleEventID != nil && strings.TrimSpace(*t.GoogleEventID) != ""
+	hasGoogleCalendar := t.GoogleCalendarID != nil && strings.TrimSpace(*t.GoogleCalendarID) != ""
+	hasZoomMeeting := t.ZoomMeetingID != nil && strings.TrimSpace(*t.ZoomMeetingID) != ""
+	if hasGoogleEvent != hasGoogleCalendar {
+		return nil, errors.New("work task has incomplete google event reference")
+	}
+	if hasGoogleEvent && hasZoomMeeting {
+		return nil, errors.New("work task has conflicting conference references")
+	}
+	status, err := workStatusToProto(t.Status)
+	if err != nil {
+		return nil, err
+	}
+	kind, err := workKindToProto(t.Kind)
+	if err != nil {
+		return nil, err
+	}
 	out := &trackerv1.WorkTask{
-		Id: t.ID, Status: t.Status, Kind: t.Kind, Title: t.Title,
+		Id: t.ID, Status: status, Kind: kind, Title: t.Title,
 		CreatedAt: timestamppb.New(t.CreatedAt), UpdatedAt: timestamppb.New(t.UpdatedAt),
 	}
 	if t.CompletedAt != nil {
@@ -56,21 +74,31 @@ func workTaskToProto(t trackerservice.WorkTask) *trackerv1.WorkTask {
 		v := int32(*t.ScheduledDurationMin)
 		out.ScheduledDurationMin = &v
 	}
-	if t.GoogleEventID != "" {
-		out.GoogleEventId = &t.GoogleEventID
+	if hasGoogleEvent {
+		out.GoogleEventId = t.GoogleEventID
 	}
-	if t.EpicID != "" {
-		out.EpicId = &t.EpicID
+	if hasGoogleCalendar {
+		out.GoogleCalendarId = t.GoogleCalendarID
 	}
-	if t.ConferenceURL != "" {
-		out.ConferenceUrl = &t.ConferenceURL
+	if t.EpicID != nil && *t.EpicID != "" {
+		out.EpicId = t.EpicID
 	}
-	if t.ConferenceProvider != "" {
-		out.ConferenceProvider = &t.ConferenceProvider
+	if t.ConferenceURL != nil && *t.ConferenceURL != "" {
+		out.ConferenceUrl = t.ConferenceURL
 	}
-	return out
+	if t.ConferenceProvider != nil {
+		provider, err := conferenceProviderToProto(*t.ConferenceProvider)
+		if err != nil {
+			return nil, err
+		}
+		out.ConferenceProvider = &provider
+	}
+	if hasZoomMeeting {
+		out.ZoomMeetingId = t.ZoomMeetingID
+	}
+	return out, nil
 }
 
-func epicToProto(e trackerservice.Epic) *trackerv1.Epic {
+func epicToProto(e model.Epic) *trackerv1.Epic {
 	return &trackerv1.Epic{Id: e.ID, Name: e.Name, Color: e.Color}
 }

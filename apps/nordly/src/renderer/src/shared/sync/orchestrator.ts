@@ -1,12 +1,13 @@
 import { ensureAccessTokenForSync } from '@shared/api/authSession';
 import { HEALTH_CHECK_URL } from '@shared/api/config';
-import { ensureDevice, getDeviceId } from '@shared/api/device';
+import { ensureDevice } from '@shared/api/device';
 import { apiFetch } from '@shared/api/http';
-import { DeviceRegisterError, registerSyncDevice } from '@shared/api/registerSyncDevice';
+import { registerSyncDevice } from '@shared/api/registerSyncDevice';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { canReachNetwork } from '@shared/lib/network';
 import { readAppVersion } from '@shared/lib/updater';
-import { useFeatureUsageStore } from '@shared/model/featureUsage';
+import { useDeviceRegistrationStore } from '@shared/model/deviceRegistration';
 import { useSyncStore } from '@shared/model/sync';
 import {
   pullAllDomains,
@@ -22,12 +23,11 @@ import {
   resetOutboxAttempts,
 } from '@shared/sync/outbox';
 import {
-  canReachNetwork,
   canUseLocalApp,
   isCloudEnabled,
   isSyncEnabled,
 } from '@shared/sync/syncConfig';
-import type { OutboxEntry } from '@shared/sync/types';
+import { SyncStatus, type OutboxEntry } from '@shared/sync/types';
 
 const MIN_IDLE_SYNC_GAP_MS = 45_000;
 const MAX_ATTEMPTS = 8;
@@ -57,13 +57,8 @@ async function probeServer(): Promise<boolean> {
 
 async function ensureCloudSyncRegistration(options: SyncOptions | undefined): Promise<boolean> {
   const syncStore = useSyncStore.getState();
-  const featureStore = useFeatureUsageStore.getState();
+  const featureStore = useDeviceRegistrationStore.getState();
   const knownRegistration = featureStore.deviceRegistration;
-  if (knownRegistration && !knownRegistration.cloudSyncEnabled) {
-    syncStore.setStatus('idle');
-    syncStore.setLastError(null);
-    return false;
-  }
 
   try {
     const appVersion = await readCachedAppVersion();
@@ -92,38 +87,8 @@ async function ensureCloudSyncRegistration(options: SyncOptions | undefined): Pr
         cloudSyncEnabled: registration.cloudSyncEnabled,
       });
     }
-    syncStore.setCloudSyncBlocked(false);
-
-    if (!registration.cloudSyncEnabled) {
-      syncStore.setStatus('idle');
-      syncStore.setLastError(null);
-      return false;
-    }
     return true;
   } catch (err) {
-    if (err instanceof DeviceRegisterError) {
-      if (err.code === 'cloud_sync_disabled') {
-        const deviceId = getDeviceId();
-        if (!deviceId) {
-          throw new SyncError('device_register_failed', 'device id missing after cloud_sync_disabled');
-        }
-        featureStore.setDeviceRegistration({
-          deviceId,
-          devicesRegistered: 0,
-          deviceLimit: 0,
-          cloudSyncEnabled: false,
-        });
-        syncStore.setStatus('idle');
-        syncStore.setLastError(null);
-        return false;
-      }
-      syncStore.setCloudSyncBlocked(true, err.code);
-      syncStore.setStatus('idle');
-      syncStore.setLastError(null);
-      if (options?.explicit) throw new SyncError(err.code, err.message);
-      return false;
-    }
-
     const message = errorMessage(err);
     syncStore.setLastError(message);
     if (options?.explicit) {
@@ -192,7 +157,7 @@ export async function runSync(options?: SyncOptions): Promise<void> {
 
   const store = useSyncStore.getState();
   if (!canReachNetwork()) {
-    store.setStatus('offline');
+    store.setStatus(SyncStatus.Offline);
     store.setServerReachable(false);
     store.setLastError(null);
     if (options?.explicit) throw new SyncError('no_network', 'No internet connection');
@@ -201,11 +166,12 @@ export async function runSync(options?: SyncOptions): Promise<void> {
 
   const tokenReady = await ensureAccessTokenForSync();
   if (!tokenReady) {
-    store.setStatus('offline');
+    store.setStatus(SyncStatus.Offline);
     store.setLastError(null);
     if (options?.explicit) throw new SyncError('session_expired', 'Session expired');
     return;
   }
+  if (!(await ensureCloudSyncRegistration(options))) return;
   if (!isSyncEnabled()) return;
 
   if (!options?.explicit && !options?.retry && store.pendingCount === 0) {
@@ -213,12 +179,10 @@ export async function runSync(options?: SyncOptions): Promise<void> {
     if (lastSyncedAt > 0 && Date.now() - lastSyncedAt < MIN_IDLE_SYNC_GAP_MS) return;
   }
 
-  if (!(await ensureCloudSyncRegistration(options))) return;
-
   const reachable = await probeServer();
   store.setServerReachable(reachable);
   if (!reachable) {
-    store.setStatus('offline');
+    store.setStatus(SyncStatus.Offline);
     store.setLastError(null);
     if (options?.explicit) throw new SyncError('server_unreachable', 'Cannot reach server');
     return;
@@ -229,7 +193,7 @@ export async function runSync(options?: SyncOptions): Promise<void> {
     await resetOutboxAttempts();
   }
 
-  store.setStatus('syncing');
+  store.setStatus(SyncStatus.Syncing);
   try {
     await reconcileDomainOutbox();
     const queue = await listOutbox();
@@ -271,16 +235,16 @@ export async function runSync(options?: SyncOptions): Promise<void> {
     }
     if (deferred) {
       store.setLastError(null);
-      store.setStatus('idle');
+      store.setStatus(SyncStatus.Idle);
       return;
     }
     if (options?.pushOnly) {
-      store.setStatus('idle');
+      store.setStatus(SyncStatus.Idle);
       return;
     }
 
     store.setLastSyncedAt(Date.now());
-    store.setStatus('idle');
+    store.setStatus(SyncStatus.Idle);
     window.dispatchEvent(new Event(NORDLY_EVENTS.syncChanged));
   } catch (err) {
     const message = errorMessage(err);

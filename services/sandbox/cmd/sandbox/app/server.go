@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 
 // RunAPI starts HTTP and gRPC servers.
 func RunAPI(ctx context.Context, a *App) error {
+	authInterceptor, err := sandboxapi.NewAuthInterceptor(a.JWT)
+	if err != nil {
+		return err
+	}
 	listenAddr := fmt.Sprintf("%s:%d", a.Config.GRPCHost, a.Config.GRPCPort)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", a.Config.GRPCPort)
 	lis, err := net.Listen("tcp", listenAddr)
@@ -23,16 +28,15 @@ func RunAPI(ctx context.Context, a *App) error {
 	}
 
 	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		sandboxapi.AuthInterceptor(a.JWT),
+		authInterceptor,
 	))
 	sandboxapi.NewRegisteredImplementation(grpcSrv, a.Service)
 	reflection.Register(grpcSrv)
 
+	grpcErrCh := make(chan error, 1)
 	go func() {
 		a.Logger.Info("grpc server starting", "addr", listenAddr)
-		if serveErr := grpcSrv.Serve(lis); serveErr != nil {
-			a.Logger.Error("grpc server stopped", "err", serveErr)
-		}
+		grpcErrCh <- grpcSrv.Serve(lis)
 	}()
 
 	httpMux := http.NewServeMux()
@@ -42,6 +46,7 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	if err := sandboxapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()
+		<-grpcErrCh
 		return fmt.Errorf("register gateway: %w", err)
 	}
 
@@ -56,23 +61,73 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	a.Logger.Info("http server starting", "addr", httpAddr)
 
-	errCh := make(chan error, 1)
+	httpErrCh := make(chan error, 1)
 	go func() {
-		errCh <- srv.ListenAndServe()
+		httpErrCh <- srv.ListenAndServe()
 	}()
 
+	var serveErr error
+	grpcExited := false
+	httpExited := false
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		grpcSrv.GracefulStop()
-		return srv.Shutdown(shutdownCtx)
-	case err := <-errCh:
-		grpcSrv.Stop()
-		if err == http.ErrServerClosed {
-			return nil
+	case err := <-grpcErrCh:
+		grpcExited = true
+		if err == nil {
+			serveErr = errors.New("grpc server stopped unexpectedly")
+		} else if !errors.Is(err, grpc.ErrServerStopped) {
+			serveErr = fmt.Errorf("serve grpc: %w", err)
 		}
-		return err
+	case err := <-httpErrCh:
+		httpExited = true
+		if err == nil {
+			serveErr = errors.New("http server stopped unexpectedly")
+		} else if !errors.Is(err, http.ErrServerClosed) {
+			serveErr = fmt.Errorf("serve http: %w", err)
+		}
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	grpcDone := make(chan struct{})
+	go func() {
+		gracefulStopGRPC(grpcSrv, 10*time.Second)
+		close(grpcDone)
+	}()
+	shutdownErr := srv.Shutdown(shutdownCtx)
+	<-grpcDone
+	if !grpcExited {
+		if err := <-grpcErrCh; err != nil && !errors.Is(err, grpc.ErrServerStopped) && serveErr == nil {
+			serveErr = fmt.Errorf("serve grpc: %w", err)
+		}
+	}
+	if !httpExited {
+		if err := <-httpErrCh; err != nil && !errors.Is(err, http.ErrServerClosed) && serveErr == nil {
+			serveErr = fmt.Errorf("serve http: %w", err)
+		}
+	}
+
+	if serveErr != nil {
+		return serveErr
+	}
+	if shutdownErr != nil {
+		return fmt.Errorf("shutdown http: %w", shutdownErr)
+	}
+	return nil
+}
+
+func gracefulStopGRPC(server *grpc.Server, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		server.GracefulStop()
+		close(done)
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		server.Stop()
+		<-done
 	}
 }

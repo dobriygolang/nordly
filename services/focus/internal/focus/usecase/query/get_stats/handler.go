@@ -2,6 +2,7 @@ package get_stats
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 )
 
 // Store loads focus stats.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Store --output=./mocks --outpkg=mocks --filename=store.go
 type Store interface {
 	GetStats(ctx context.Context, userID string, upTo time.Time) (*focusmodel.Stats, error)
 }
@@ -19,11 +22,11 @@ type Handler struct {
 }
 
 // New constructs the get-stats query handler.
-func New(store Store) *Handler {
+func New(store Store) (*Handler, error) {
 	if store == nil {
-		panic("get_stats: Store is required")
+		return nil, errors.New("get_stats: Store is required")
 	}
-	return &Handler{store: store}
+	return &Handler{store: store}, nil
 }
 
 // Handle executes the query.

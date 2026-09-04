@@ -49,6 +49,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid ROOM_ARCHIVE_INTERVAL: %w", err)
 	}
+	if archiveInterval <= 0 {
+		return nil, fmt.Errorf("ROOM_ARCHIVE_INTERVAL must be > 0")
+	}
 
 	publicKey, err := loadPEM("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")
 	if err != nil {

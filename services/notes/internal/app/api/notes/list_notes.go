@@ -15,7 +15,9 @@ func (i *Implementation) ListNotes(ctx context.Context, req *notesv1.ListNotesRe
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := &notesv1.ListNotesResponse{}
+	out := &notesv1.ListNotesResponse{
+		Notes: make([]*notesv1.NoteSummary, 0, len(notes)),
+	}
 	for _, n := range notes {
 		out.Notes = append(out.Notes, toProtoNoteSummary(n))
 	}

@@ -2,6 +2,7 @@ import { translate } from '@nordly-i18n';
 
 import { notify } from '@shared/api/notifications';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { canReachNetwork } from '@shared/lib/network';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 import { readSettings } from '@shared/model/settings';
 
@@ -78,7 +79,7 @@ function formatVersion(version: string): string {
 
 async function runCheck(force = false): Promise<void> {
   if (checking || !isTauriRuntime()) return;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (!canReachNetwork()) return;
 
   const state = readCheckState();
   const now = Date.now();
@@ -119,12 +120,17 @@ async function runCheck(force = false): Promise<void> {
 function schedule(): void {
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = window.setInterval(() => {
+    if (document.hidden) return;
     void runCheck();
   }, CHECK_INTERVAL_MS);
 }
 
 function onFocus(): void {
   void runCheck();
+}
+
+function onVisible(): void {
+  if (document.visibilityState === 'visible') void runCheck();
 }
 
 export function startUpdateCheckWorker(): void {
@@ -138,6 +144,7 @@ export function startUpdateCheckWorker(): void {
   }, STARTUP_DEFER_MS);
   window.addEventListener('focus', onFocus);
   window.addEventListener(NORDLY_EVENTS.settingsChanged, onFocus);
+  document.addEventListener('visibilitychange', onVisible);
 }
 
 export function stopUpdateCheckWorker(): void {
@@ -149,4 +156,5 @@ export function stopUpdateCheckWorker(): void {
   intervalId = null;
   window.removeEventListener('focus', onFocus);
   window.removeEventListener(NORDLY_EVENTS.settingsChanged, onFocus);
+  document.removeEventListener('visibilitychange', onVisible);
 }

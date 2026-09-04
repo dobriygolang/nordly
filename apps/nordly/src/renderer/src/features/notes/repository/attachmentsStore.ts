@@ -6,15 +6,14 @@ import {
   requireUserId,
 } from '@shared/db/nordlyDb';
 import { decryptBytes, encryptBytes, isVaultUnlocked } from '@shared/crypto/vault';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { areVaultPrefsReady, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { base64ToBytes, bytesToBase64 } from '@shared/lib/base64';
 import { shouldAcceptRemoteEntity } from '@shared/sync/tombstone';
 
 import {
   AttachmentError,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS_PER_NOTE,
-  base64ToBytes,
-  bytesToBase64,
   isAllowedImageMime,
 } from '../lib/noteAttachments';
 
@@ -150,6 +149,9 @@ export async function attachmentsStoreUpsert(input: {
   }
 
   const now = new Date().toISOString();
+  if (!areVaultPrefsReady()) {
+    throw new Error('Vault prefs not loaded');
+  }
   const vaultOn = isVaultEnabledSync();
   let dataB64: string;
   let atRestEncrypted = false;

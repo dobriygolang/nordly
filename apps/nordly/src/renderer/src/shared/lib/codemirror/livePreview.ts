@@ -49,6 +49,10 @@ export const imageHrefResolverFacet = Facet.define<
   },
 });
 
+function isRelativeImageHref(href: string): boolean {
+  return !/^[a-z][a-z\d+.-]*:/i.test(href) && !href.startsWith('//');
+}
+
 function rangeTouches(from: number, to: number, start: number, end: number): boolean {
   return from < end && to > start;
 }
@@ -140,7 +144,10 @@ class MarkdownImageWidget extends WidgetType {
     if (/^https:\/\//i.test(this.href)) {
       img.onerror = () => showPlaceholder();
       showImg(this.href);
-    } else if (this.href.startsWith(NORDLY_ASSET_SCHEME) && this.resolver) {
+    } else if (
+      this.resolver &&
+      (this.href.startsWith(NORDLY_ASSET_SCHEME) || isRelativeImageHref(this.href))
+    ) {
       wrap.appendChild(placeholder);
       wrap.classList.add('nordly-md-image--loading');
       void this.resolver(this.href)

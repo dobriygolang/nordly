@@ -14,7 +14,7 @@ if [ "$FROM" = "$TO" ]; then
   exit 0
 fi
 
-files="$(git diff --name-only "$FROM" "$TO" 2>/dev/null || true)"
+files="$(git diff --name-only "$FROM" "$TO")"
 if [ -z "$files" ]; then
   exit 0
 fi
@@ -42,8 +42,7 @@ add() {
 
 expand() {
   case "$1" in
-    identity) add billing; add rooms ;;
-    billing) add sandbox ;;
+    identity) add rooms ;;
     sandbox) add caddy ;;
     rooms) add caddy ;;
     tracker) add caddy ;;

@@ -1,55 +1,204 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import {
   applyPersistedSnapshot,
   completePomodoroTimer,
   finishFocusSession,
+  FocusSessionTransitionQueue,
+  shouldApplyPersistedSnapshot,
 } from '@features/focus/lib/pomodoroSession';
-import { POMODORO_EXPIRED_EVENT } from '@features/focus/lib/pomodoroCrossWindow';
+import {
+  POMODORO_EXPIRED_EVENT,
+  type PomodoroExpiredPayload,
+} from '@features/focus/lib/pomodoroCrossWindow';
 import { isTauriRuntime } from '@platform/runtime';
 import { startFocusSession } from '@features/focus/api/focusClient';
+import {
+  createLatestOnlyWriter,
+  type LatestOnlyWriter,
+} from '@shared/lib/latestOnlyWriter';
 import { listenEffect } from '@shared/lib/tauriListen';
 import { usePomodoroStore, type FocusTimerMode } from '@shared/model/pomodoro';
+import { TimerMode } from '@shared/model/settings';
 
 function timerValueSec(mode: FocusTimerMode, remain: number, elapsed: number): number {
-  return mode === 'pomodoro' ? remain : elapsed;
+  return mode === TimerMode.Pomodoro ? remain : elapsed;
+}
+
+interface TimerVersionState {
+  mode: FocusTimerMode;
+  remain: number;
+  elapsed: number;
+  running: boolean;
+  durationSec: number;
+  pinnedTitle: string | null;
+  pinnedPlanItemId: string | null;
+  resetToken: number;
+}
+
+interface PendingPomodoroSave {
+  snapshot: {
+    remainSec: number;
+    running: boolean;
+    savedAt: number;
+    mode: FocusTimerMode;
+  };
+  version: number;
+}
+
+function isRegularClockTick(state: TimerVersionState, prev: TimerVersionState): boolean {
+  if (
+    !state.running ||
+    !prev.running ||
+    state.mode !== prev.mode ||
+    state.durationSec !== prev.durationSec ||
+    state.pinnedTitle !== prev.pinnedTitle ||
+    state.pinnedPlanItemId !== prev.pinnedPlanItemId ||
+    state.resetToken !== prev.resetToken
+  ) {
+    return false;
+  }
+  if (state.mode === TimerMode.Pomodoro) {
+    return state.remain === prev.remain - 1 && state.elapsed === prev.elapsed;
+  }
+  return state.elapsed === prev.elapsed + 1 && state.remain === prev.remain;
+}
+
+function reportPomodoroError(err: unknown): void {
+  console.error('[nordly:pomodoro]', err);
 }
 
 /** Side effects for the dock timer — keeps App shell off the 1 Hz render path. */
 export function PomodoroController(): null {
   const sessionRef = useRef<string | null>(null);
   const lastSavedRef = useRef(0);
-  const startPromiseRef = useRef<Promise<void> | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const sessionTransitionQueueRef = useRef(new FocusSessionTransitionQueue());
+  const snapshotLoadRef = useRef<Promise<void> | null>(null);
+  const applyingSnapshotRef = useRef(false);
+  const stateVersionRef = useRef(0);
+  const lastMutationAtRef = useRef(0);
+  const knownPersistedVersionRef = useRef<{ savedAt: number; version: number } | null>(
+    null,
+  );
+  const snapshotWriterRef = useRef<LatestOnlyWriter<PendingPomodoroSave> | null>(
+    null,
+  );
 
-  const finishSession = useCallback(async () => {
-    if (startPromiseRef.current) {
-      try {
-        await startPromiseRef.current;
-      } catch {
-        // Start failure already reported via setError; still try finish if a session exists.
+  const snapshotWriter = useCallback(
+    (bridge: NonNullable<Window['nordly']>): LatestOnlyWriter<PendingPomodoroSave> => {
+      if (!snapshotWriterRef.current) {
+        snapshotWriterRef.current = createLatestOnlyWriter({
+          write: ({ snapshot }) => bridge.pomodoro.save(snapshot),
+          onSaved: ({ snapshot, version }) => {
+            knownPersistedVersionRef.current = {
+              savedAt: snapshot.savedAt,
+              version,
+            };
+          },
+          onError: reportPomodoroError,
+        });
       }
-    }
-    await finishFocusSession(sessionRef);
-  }, []);
+      return snapshotWriterRef.current;
+    },
+    [],
+  );
 
-  const loadPersistedSnapshot = useCallback(async () => {
-    const bridge = typeof window !== 'undefined' ? window.nordly : undefined;
-    if (!bridge) return;
-    const snap = await bridge.pomodoro.load();
-    if (!snap) return;
-    await applyPersistedSnapshot(snap, sessionRef);
+  const queueSessionTransition = useCallback(
+    (transition: () => Promise<void>): Promise<void> =>
+      sessionTransitionQueueRef.current.enqueue(transition),
+    [],
+  );
+
+  const completeSession = useCallback(
+    (durationSec: number): Promise<void> =>
+      queueSessionTransition(() =>
+        completePomodoroTimer(sessionRef, durationSec),
+      ),
+    [queueSessionTransition],
+  );
+
+  const finishSession = useCallback(
+    (
+      secondsFocused: number,
+      pomodorosCompleted: number,
+    ): Promise<void> =>
+      queueSessionTransition(() =>
+        finishFocusSession(sessionRef, {
+          secondsFocused,
+          pomodorosCompleted,
+        }),
+      ),
+    [queueSessionTransition],
+  );
+
+  const startSession = useCallback(
+    (
+      planItemId: string | null,
+      pinnedTitle: string | null,
+      mode: FocusTimerMode,
+    ): Promise<void> =>
+      queueSessionTransition(async () => {
+        if (sessionRef.current) return;
+        const session = await startFocusSession({
+          planItemId: planItemId ?? undefined,
+          pinnedTitle: pinnedTitle ?? undefined,
+          mode,
+        });
+        sessionRef.current = session.id;
+      }),
+    [queueSessionTransition],
+  );
+
+  const loadPersistedSnapshot = useCallback((): Promise<void> => {
+    if (snapshotLoadRef.current) return snapshotLoadRef.current;
+    const requestedAtVersion = stateVersionRef.current;
+    const pending = (async () => {
+      const bridge = typeof window !== 'undefined' ? window.nordly : undefined;
+      if (!bridge) return;
+      const snap = await bridge.pomodoro.load();
+      if (!snap) return;
+      if (
+        !shouldApplyPersistedSnapshot(snap, {
+          requestedAtVersion,
+          currentVersion: stateVersionRef.current,
+          lastMutationAt: lastMutationAtRef.current,
+          knownPersistedVersion: knownPersistedVersionRef.current ?? undefined,
+        })
+      ) {
+        return;
+      }
+      applyingSnapshotRef.current = true;
+      try {
+        await applyPersistedSnapshot(snap, sessionRef);
+      } finally {
+        applyingSnapshotRef.current = false;
+      }
+    })();
+    snapshotLoadRef.current = pending;
+    const clear = () => {
+      if (snapshotLoadRef.current === pending) snapshotLoadRef.current = null;
+    };
+    void pending.then(clear, clear);
+    return pending;
   }, []);
 
   useEffect(() => {
-    void loadPersistedSnapshot();
+    return usePomodoroStore.subscribe((state, prev) => {
+      if (isRegularClockTick(state, prev)) return;
+      stateVersionRef.current += 1;
+      lastMutationAtRef.current = Date.now();
+    });
+  }, []);
+
+  useEffect(() => {
+    void loadPersistedSnapshot().catch(reportPomodoroError);
     let focusTimer: number | null = null;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
       if (focusTimer !== null) window.clearTimeout(focusTimer);
       focusTimer = window.setTimeout(() => {
         focusTimer = null;
-        void loadPersistedSnapshot();
+        void loadPersistedSnapshot().catch(reportPomodoroError);
       }, 2_000);
     };
     window.addEventListener('focus', onVisible);
@@ -63,10 +212,19 @@ export function PomodoroController(): null {
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    return listenEffect(POMODORO_EXPIRED_EVENT, () => {
-      void completePomodoroTimer(sessionRef, usePomodoroStore.getState().durationSec);
+    return listenEffect<PomodoroExpiredPayload>(POMODORO_EXPIRED_EVENT, ({ payload }) => {
+      const known = knownPersistedVersionRef.current;
+      if (
+        payload.savedAt < lastMutationAtRef.current ||
+        (known && payload.savedAt < known.savedAt)
+      ) {
+        return;
+      }
+      void completeSession(
+        usePomodoroStore.getState().durationSec,
+      ).catch(reportPomodoroError);
     });
-  }, []);
+  }, [completeSession]);
 
   useEffect(() => {
     let id: number | undefined;
@@ -110,61 +268,55 @@ export function PomodoroController(): null {
         state.mode !== prev.mode
       ) {
         lastSavedRef.current = now;
-        void bridge.pomodoro.save({
-          remainSec: value,
-          running: state.running,
-          savedAt: now,
-          mode: state.mode,
+        const writer = snapshotWriter(bridge);
+        writer.update({
+          snapshot: {
+            remainSec: value,
+            running: state.running,
+            savedAt: now,
+            mode: state.mode,
+          },
+          version: stateVersionRef.current,
         });
+        void writer.flush();
       }
 
       if (!state.running) return;
     });
-  }, []);
+  }, [snapshotWriter]);
 
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
-      if (state.running && !prev.running && !sessionRef.current) {
-        const pending = startFocusSession({
-          planItemId: state.pinnedPlanItemId ?? undefined,
-          pinnedTitle: state.pinnedTitle ?? undefined,
-          mode: state.mode,
-        })
-          .then((s) => {
-            sessionRef.current = s.id;
-          })
-          .catch((err: unknown) => {
-            setError(err instanceof Error ? err : new Error(String(err)));
-          });
-        startPromiseRef.current = pending.finally(() => {
-          if (startPromiseRef.current === pending) startPromiseRef.current = null;
-        });
+      if (applyingSnapshotRef.current) return;
+      if (state.running && !prev.running) {
+        void startSession(
+          state.pinnedPlanItemId,
+          state.pinnedTitle,
+          state.mode,
+        ).catch(reportPomodoroError);
         return;
       }
       if (!state.running && prev.running) {
-        void finishSession().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
+        const secondsFocused =
+          prev.mode === TimerMode.Pomodoro
+            ? Math.max(0, prev.durationSec - prev.remain)
+            : Math.max(0, prev.elapsed);
+        const pomodorosCompleted =
+          prev.mode === TimerMode.Pomodoro && prev.remain === 0 ? 1 : 0;
+        void finishSession(secondsFocused, pomodorosCompleted).catch(
+          reportPomodoroError,
+        );
       }
     });
-  }, [finishSession]);
+  }, [finishSession, startSession]);
 
   useEffect(() => {
     return usePomodoroStore.subscribe((state, prev) => {
-      if (state.mode !== 'pomodoro') return;
+      if (state.mode !== TimerMode.Pomodoro) return;
       if (!state.running || state.remain !== 0 || prev.remain === 0) return;
-      void (async () => {
-        if (startPromiseRef.current) {
-          try {
-            await startPromiseRef.current;
-          } catch {
-            // Start failure already reported; complete is a no-op without a session.
-          }
-        }
-        await completePomodoroTimer(sessionRef, state.durationSec);
-      })().catch((err: unknown) => setError(err instanceof Error ? err : new Error(String(err))));
+      void completeSession(state.durationSec).catch(reportPomodoroError);
     });
-  }, []);
-
-  if (error) throw error;
+  }, [completeSession]);
 
   return null;
-};
+}

@@ -16,5 +16,9 @@ func (i *Implementation) AuthTelegram(ctx context.Context, req *identityv1.AuthT
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return toAuthResponse(result), nil
+	response, err := toAuthResponse(result)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return response, nil
 }

@@ -7,6 +7,12 @@ option go_package = "github.com/dobriygolang/project-nordly/services/identity/pk
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
+enum ScopedRole {
+  SCOPED_ROLE_UNSPECIFIED = 0;
+  SCOPED_ROLE_GUEST = 1;
+  SCOPED_ROLE_OWNER = 2;
+}
+
 service IdentityService {
   rpc AuthTelegram(AuthTelegramRequest) returns (AuthResponse) {
     option (google.api.http) = {
@@ -74,10 +80,14 @@ message ValidateTokenResponse {
 }
 
 message MintScopedAccessTokenRequest {
-  string role = 1;
+  ScopedRole role = 1;
+  // Canonical editor:{uuid} scope.
   string scope = 2;
   string display_name = 3;
+  // Lifetime in whole seconds, from 1 through 86400.
   int32 ttl_seconds = 4;
+  // Optional. When set, the token subject is this UUID (persist-then-mint).
+  string user_id = 5;
 }
 
 message MintScopedAccessTokenResponse {

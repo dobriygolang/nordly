@@ -8,9 +8,16 @@ import (
 )
 
 func parseUserID(userID string) (uuid.UUID, error) {
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("%w: invalid user_id", model.ErrInvalidArgument)
+	return parseID("user_id", userID)
+}
+
+func parseID(field, value string) (uuid.UUID, error) {
+	if err := model.ValidateUUID(field, value); err != nil {
+		return uuid.Nil, err
 	}
-	return uid, nil
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("parse validated %s: %w", field, err)
+	}
+	return id, nil
 }

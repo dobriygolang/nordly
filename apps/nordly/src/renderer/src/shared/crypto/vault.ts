@@ -8,6 +8,7 @@ import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
 import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { dbDelete, dbGet, dbGetAllByUser, dbPut, requireUserId } from '@shared/db/nordlyDb';
+import { base64ToBytes, bytesToBase64 } from '@shared/lib/base64';
 
 let derivedKey: CryptoKey | null = null;
 let derivedKeyUserId: string | null = null;
@@ -81,7 +82,7 @@ async function initLocalVaultSalt(): Promise<{ saltB64: string; isNew: boolean }
   const existing = await dbGet<{ saltB64: string }>('meta', key);
   if (existing?.saltB64) return { saltB64: existing.saltB64, isNew: false };
   const salt = crypto.getRandomValues(new Uint8Array(32));
-  const saltB64 = base64Encode(salt);
+  const saltB64 = bytesToBase64(salt);
   await dbPut('meta', { key, userId, saltB64 });
   return { saltB64, isNew: true };
 }
@@ -100,7 +101,6 @@ export async function fetchVaultSalt(): Promise<string | null> {
     // Cloud said vault is absent — do not invent a local salt as if it were the server's.
     if (resp.status === 404) return null;
     if (!resp.ok) {
-      if (local?.saltB64) return local.saltB64;
       throw new Error(`vault salt: ${resp.status}`);
     }
     const j = (await resp.json()) as SaltResponse;
@@ -108,7 +108,9 @@ export async function fetchVaultSalt(): Promise<string | null> {
     await cacheLocalSalt(saltB64);
     return saltB64;
   } catch (err) {
-    if (local?.saltB64) return local.saltB64;
+    if (!isCloudApiAvailable() && local?.saltB64) {
+      return local.saltB64;
+    }
     throw err;
   }
 }
@@ -163,7 +165,7 @@ export async function unlockVault(passphrase: string): Promise<void> {
     throw new Error('Vault not initialised');
   }
   const userId = requireUserId();
-  const salt = base64Decode(saltB64);
+  const salt = base64ToBytes(saltB64);
   const candidate = await deriveKey(passphrase, salt);
   await verifyCandidateKey(candidate, userId);
   derivedKey = candidate;
@@ -199,7 +201,7 @@ async function encryptWithKey(key: CryptoKey, plaintext: Uint8Array): Promise<st
   const out = new Uint8Array(IV_BYTES + ctBytes.length);
   out.set(iv, 0);
   out.set(ctBytes, IV_BYTES);
-  return base64Encode(out);
+  return bytesToBase64(out);
 }
 
 export async function decryptText(b64: string): Promise<string> {
@@ -218,7 +220,7 @@ async function decryptWithKey(key: CryptoKey, b64: string): Promise<string> {
 }
 
 async function decryptBytesWithKey(key: CryptoKey, b64: string): Promise<Uint8Array> {
-  const buf = base64Decode(b64);
+  const buf = base64ToBytes(b64);
   if (buf.length <= IV_BYTES) throw new Error('Invalid ciphertext');
   const iv = buf.slice(0, IV_BYTES);
   const ct = buf.slice(IV_BYTES);
@@ -320,15 +322,3 @@ async function findAuthenticatedCiphertext(userId: string): Promise<string | nul
   return null;
 }
 
-function base64Encode(bytes: Uint8Array): string {
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
-  return btoa(bin);
-}
-
-function base64Decode(s: string): Uint8Array {
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}

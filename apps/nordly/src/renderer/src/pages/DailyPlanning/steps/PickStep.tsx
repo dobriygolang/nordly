@@ -22,7 +22,6 @@ interface PickStepProps {
 export function PickStep({ todayKey, epics, settings, board }: PickStepProps): JSX.Element {
   const t = useT();
   const [locale] = useLocale();
-  const todayDate = parseDayKey(todayKey);
   const { dnd, pool } = board;
 
   // The pool is a date window, so name the range it covers instead of "from all your
@@ -83,7 +82,7 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
           insertPreviewAt={dnd.getColumnInsertPreviewAt(todayKey)}
           showAdd
           onAddClick={() => void board.handleAddTask(todayKey)}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min)}
           {...columnProps}
         />
         <PlanningTaskColumn
@@ -96,7 +95,7 @@ export function PickStep({ todayKey, epics, settings, board }: PickStepProps): J
           insertPreviewAt={dnd.getColumnInsertPreviewAt(PLANNING_POOL_DAY_KEY)}
           footer={poolFooter}
           onAddClick={() => undefined}
-          onDurationChange={(task, min) => void board.handleDurationChange(task, min, todayDate)}
+          onDurationChange={(task, min) => void board.handleDurationChange(task, min)}
           {...columnProps}
         />
       </div>

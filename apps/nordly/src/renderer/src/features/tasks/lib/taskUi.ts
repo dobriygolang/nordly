@@ -1,4 +1,9 @@
 /** Task board UI helpers — conference display. Tag colors: `@features/tasks/lib/epicColor`. */
+import {
+  ConferenceDisplayProvider,
+  ConferenceProvider,
+  type ConferenceDisplayProvider as ConferenceDisplayProviderValue,
+} from '@features/tasks/model/status';
 
 export {
   TASK_EPIC_PALETTE,
@@ -16,12 +21,14 @@ export {
 export function conferenceProvider(
   url: string | null | undefined,
   provider?: string | null,
-): 'meet' | 'zoom' | 'other' | null {
-  if (provider === 'meet' || provider === 'zoom') return provider;
+): ConferenceDisplayProviderValue | null {
+  if (provider === ConferenceProvider.Meet || provider === ConferenceProvider.Zoom) {
+    return provider;
+  }
   if (!url) return null;
-  if (/meet\.google\.com/i.test(url)) return 'meet';
-  if (/zoom\.us/i.test(url)) return 'zoom';
-  return 'other';
+  if (/meet\.google\.com/i.test(url)) return ConferenceDisplayProvider.Meet;
+  if (/zoom\.us/i.test(url)) return ConferenceDisplayProvider.Zoom;
+  return ConferenceDisplayProvider.Other;
 }
 
 /** Short display for generated meeting links in the popover. */

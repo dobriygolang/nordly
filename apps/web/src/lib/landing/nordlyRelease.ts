@@ -34,6 +34,17 @@ function parseRelease(body: unknown): NordlyReleaseInfo | null {
   const strOrNull = (v: unknown) => (typeof v === 'string' && v ? v : null)
   const downloadPage = strOrNull(o.downloadPageUrl)
   if (!downloadPage) return null
+  const allowedPage =
+    downloadPage.startsWith('/') && !downloadPage.startsWith('//')
+      ? true
+      : (() => {
+          try {
+            return new URL(downloadPage).origin === SITE_ORIGIN
+          } catch {
+            return false
+          }
+        })()
+  if (!allowedPage) return null
   return {
     version: o.version,
     tagName: o.tagName,
@@ -65,10 +76,9 @@ function writeCache(data: NordlyReleaseInfo): void {
   }
 }
 
-export async function fetchLatestNordlyRelease(): Promise<NordlyReleaseInfo | null> {
-  const cached = readCache()
-  if (cached) return cached
+let inflight: Promise<NordlyReleaseInfo | null> | null = null
 
+async function fetchReleaseNetwork(): Promise<NordlyReleaseInfo | null> {
   try {
     const res = await fetch(RELEASES_JSON_URL, { cache: 'no-store' })
     if (!res.ok) {
@@ -86,6 +96,16 @@ export async function fetchLatestNordlyRelease(): Promise<NordlyReleaseInfo | nu
     console.error('[nordlyRelease] fetchLatestNordlyRelease failed', err)
     return null
   }
+}
+
+export async function fetchLatestNordlyRelease(): Promise<NordlyReleaseInfo | null> {
+  const cached = readCache()
+  if (cached) return cached
+  if (inflight) return inflight
+  inflight = fetchReleaseNetwork().finally(() => {
+    inflight = null
+  })
+  return inflight
 }
 
 export async function detectMacArch(): Promise<'aarch64' | 'x64' | null> {

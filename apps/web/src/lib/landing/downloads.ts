@@ -1,3 +1,4 @@
+import { siteOrigin } from '@/lib/site/brand'
 import {
   detectMacArch,
   fetchLatestNordlyRelease,
@@ -44,12 +45,48 @@ function urlFromEnv(platform: DownloadPlatform): string | null {
   return null
 }
 
+function allowedDownloadOrigins(): string[] {
+  const origins = new Set<string>([siteOrigin()])
+  try {
+    if (NORDLY_DESKTOP_PUBLIC_BASE.startsWith('http')) {
+      origins.add(new URL(NORDLY_DESKTOP_PUBLIC_BASE).origin)
+    }
+  } catch {
+    /* ignore invalid public desktop base */
+  }
+  return [...origins]
+}
+
+/** Same-origin / relative / configured desktop CDN only — never an arbitrary host. */
+export function isAllowedDownloadUrl(url: string): boolean {
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true
+  try {
+    return allowedDownloadOrigins().includes(new URL(trimmed).origin)
+  } catch {
+    return false
+  }
+}
+
 export function isDirectInstallerUrl(url: string): boolean {
+  if (!isAllowedDownloadUrl(url)) return false
   return (
     url.startsWith(`${NORDLY_DESKTOP_PUBLIC_BASE}/`) ||
     url.startsWith(`${NORDLY_DESKTOP_BASE}/`) ||
     /\.(dmg|exe|msi)(\?|#|$)/i.test(url)
   )
+}
+
+/** Same-origin `/download` page — never treat as an installer redirect target. */
+export function isDownloadLandingPath(url: string): boolean {
+  if (!isAllowedDownloadUrl(url)) return false
+  try {
+    const parsed = url.startsWith('/') ? new URL(url, 'https://trynordly.app') : new URL(url)
+    return parsed.pathname.replace(/\/$/, '') === NORDLY_DOWNLOAD_PATH
+  } catch {
+    return false
+  }
 }
 
 export function triggerDownload(url: string): void {

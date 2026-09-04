@@ -10,7 +10,7 @@ Cross-reference of **what ships in proto/HTTP** vs **what Nordly desktop + web c
 | ⚠️ | HTTP exists; **no app client** (s2s, admin, or dead) |
 | 🔸 | Called but **some response/request fields unused** by all clients |
 
-Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
+Last reviewed: 2026-08-27 (backend consistency pass).
 
 ---
 
@@ -21,10 +21,10 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 | POST `/v1/auth/telegram` | ✅ `code` → tokens + `user.id` | — | |
 | POST `/v1/auth/refresh` | ✅ `refreshToken` | 🔸 dormant if no tokens | Web clears JWT on boot |
 | GET `/v1/auth/config` | ✅ `telegramBotUsername` | — | Custom HTTP |
-| POST `/v1/devices/register` | ✅ `deviceId`, `name`, `appVersion` → all response fields | — | Custom HTTP; JWT |
+| POST `/v1/devices/register` | ✅ `deviceId`, `name`, `appVersion` → all response fields | — | Custom HTTP; user-session JWT |
 | HEAD `/healthz` | ✅ status only | — | SyncEngine |
 | GET `/v1/users/{id}/avatar` | 🔸 via `avatar_url` path in user | — | Not fetched directly; relative URL in user |
-| GetUser / GetUserByTelegramID / ValidateToken / MintScopedAccessToken | — | — | **s2s only** (rooms, billing, sandbox) |
+| GetUser / GetUserByTelegramID / ValidateToken / MintScopedAccessToken | — | — | **s2s only** (rooms, sandbox). Mint role is proto `SCOPED_ROLE_GUEST` / `SCOPED_ROLE_OWNER`. ValidateToken accepts user-session JWTs only (scoped collab/guest tokens are invalid). |
 
 **Removed (no client):** Yandex OAuth, GetMe, UpdateMe, Logout.
 
@@ -34,10 +34,10 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 
 | RPC / HTTP | Nordly | Web | Unused / local-only |
 |------------|--------|-----|------------------------|
-| Work tasks CRUD + schedule + patch + conference | ✅ | — | |
+| Work tasks CRUD + schedule + patch + conference | ✅ proto `WORK_STATUS_*` / `WORK_KIND_*` / `CONFERENCE_PROVIDER_*` (IDB stays `todo` / `meet`); patch sends `googleEventId`+`googleCalendarId` together | — | |
 | ListEpics | ✅ `id,name,color` | — | |
 | Settings get/patch | ✅ Google + Zoom flags | — | |
-| Google Calendar events CRUD + calendars + url + disconnect | ✅ | — | |
+| Google Calendar events CRUD + calendars + url + disconnect | ✅ update/delete require exact `calendarId` | — | |
 | Zoom url + disconnect | ✅ | — | |
 | Google OAuth callback HTTP | ✅ browser | — | Not called from TS |
 
@@ -51,11 +51,10 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 | RPC / HTTP | Nordly | Web | Unused fields |
 |------------|--------|-----|----------------|
 | Notes CRUD | ✅ | — | `CreateNote` / `UpdateNote` also accept `wikiLinks[]` (`linkText`, `targetNoteId`) |
-| GET `/v1/notes/{id}/backlinks` | — | — | API only (no UI yet) |
 | PUT/GET/DELETE `/v1/notes/{noteId}/attachments/{id}` | ✅ sync + editor | — | PNG/JPEG/GIF/WebP ≤5 MiB; 50/note; body base64 |
 | GET `/v1/notes/{noteId}/attachments` | ✅ sync list | — | metadata only (no dataB64) |
 | Vault init/salt/encrypt | ✅ | — | |
-| Publish flow (status, share, unpublish, make-private) | ✅ `attachments[]` on share | — | client sends plaintext image bytes; server rewrites `nordly-asset:`; password shares embed data URLs (≤15 MiB raw) |
+| Publish flow (status, share, unpublish, make-private) | ✅ proto `PUBLISH_ACCESS_MODE_*` / `PUBLISH_EXPIRY_POLICY_*`; `attachments[]` on share | — | reserved `passwordProtected` / `expiresInDays`; client sends plaintext image bytes; server rewrites `nordly-asset:`; password shares embed data URLs (≤15 MiB raw) |
 | GET `/v1/notes/public/{slug}` | — | ✅ `title`, `body_md`, `password_required` | `published_at` parsed, **not shown** |
 | POST `/v1/notes/public/{slug}/access` | — | ✅ `password` → `title`, `body_md` | `published_at` parsed, **not shown** |
 | GET `/v1/notes/public/{slug}/assets/{assetId}` | — | ✅ published `<img>` | raw bytes + nosniff; public shares only (`publish_password_hash IS NULL`) |
@@ -68,7 +67,7 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 
 | RPC / HTTP | Nordly | Web |
 |------------|--------|-----|
-| start / end session | ✅ | — |
+| start / end session | ✅ proto `SESSION_MODE_POMODORO` / `SESSION_MODE_STOPWATCH` (local stays `pomodoro`) | — |
 | GET stats | ✅ heatmap, streaks, totals | — |
 
 **Removed from API:** `queue` (client zeros locally).
@@ -80,28 +79,16 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 | RPC / HTTP | Nordly | Web | Unused fields |
 |------------|--------|-----|----------------|
 | POST share-whiteboard | ✅ `accessToken`, `roomId`, `invite.url`, `expiresIn` | — | |
-| POST publish-whiteboard | ✅ `slug`, `url` | — | |
-| POST guest-create | — | ✅ | `invite.url`; client builds share URL from `room.id` |
-| GET room | — | ✅ `id`, `owner_id`, `room_type`, `language`, `created_at`, `expires_at` | |
-| POST guest-join | — | ✅ `displayName` body | |
-| POST close | — | ✅ | |
-| GET `/v1/rooms/{id}/initial-scene` | — | ✅ `scene_json` | |
+| POST publish-whiteboard | ✅ `slug`, `url` | — | reserved `publishedAt` |
+| POST guest-create | — | ✅ proto `ROOM_TYPE_*` / `ROOM_LANGUAGE_*` | `invite.url`; client builds share URL from `room.id` |
+| GET room | — | ✅ `id`, `owner_id`, proto `room_type` / `language`, `created_at`, `expires_at` | expired → HTTP 410 |
+| POST guest-join | — | ✅ `displayName` body | expired → HTTP 410 |
+| POST close | — | ✅ | expired → HTTP 410 |
+| GET `/v1/rooms/{id}/initial-scene` | — | ✅ `scene_json` | expired → HTTP 410 |
 | GET boards/public/{slug} | — | ✅ `title`, `sceneJson` | |
-| WS `/ws/editor/{roomId}` | — | ✅ | |
+| WS `/ws/editor/{roomId}` | — | ✅ `Sec-WebSocket-Protocol: access_token.<JWT>` | expired → HTTP 410; close 1000/1008 are terminal |
 
-**Removed:** legacy `invite_token`, `InviteLink.token`.
-
----
-
-## billing
-
-| RPC / HTTP | Nordly | Web | Notes |
-|------------|--------|-----|-------|
-| GET `/v1/billing/me` | ✅ `features`, `limits` | — | JWT |
-| Admin grant/revoke/entitlement | — | — | **Ops only** |
-| BillingInternalService gRPC | — | — | notes, identity, sandbox (required at startup) |
-
-**Removed (no client):** `GET /v1/billing/plans`, `POST /v1/billing/trial/start`.
+**Removed:** legacy `invite_token`, `InviteLink.token`, `ws_url`, `visibility`, `participants`, `ListParticipants`.
 
 ---
 
@@ -109,18 +96,17 @@ Last reviewed: 2026-07-15 (grep-based inventory, not OpenAPI diff).
 
 | RPC / HTTP | Nordly | Web | Unused fields |
 |------------|--------|-----|----------------|
-| POST code-runs, GET code-runs/{id} | — | ✅ | `tests_total` / `tests_passed` only |
+| POST code-runs, GET code-runs/{id} | — | ✅ proto `LANGUAGE_*` / `RUN_STATUS_*`; stdout, stderr, compile output, error, exit code, duration | reserved `RUN_STATUS_FAILED`, `run_type`, `memory_kb`, `tests_*` |
 | POST format | — | ✅ Go only | |
-| WS `/ws/lsp/go` | — | — | Proxied in vite, **no web caller** |
 
 ---
 
 ## Wire-format debt
 
-None tracked — single read path per field (2026-07-02):
+Closed-set fields are proto enums (grpc-gateway emits names). HTTP remotes map to snake_case domain/UI. No dual-read of old string literals.
 
-- **Nordly:** camelCase via `shared/api/json.ts`
-- **Web:** camelCase on wire → `normalizeProtoJson()` → snake_case internal types; `parseAuthTokens` vs `parseGuestAccessToken`
+- **Nordly:** camelCase via `shared/api/json.ts`; task/focus remotes map `WORK_STATUS_*` / `SESSION_MODE_*`
+- **Web:** camelCase on wire → `normalizeProtoJson()` → snake_case keys; rooms/sandbox remotes map `ROOM_TYPE_*` / `LANGUAGE_*` / `RUN_STATUS_*`
 
 ---
 

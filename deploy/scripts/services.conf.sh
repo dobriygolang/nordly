@@ -10,7 +10,6 @@ TEMPLATE_SERVICE=template
 # go.work must include every entry (plus template).
 CI_SERVICES=(
   identity
-  billing
   sandbox
   rooms
   tracker
@@ -24,7 +23,6 @@ PROTO_SERVICES=("${CI_SERVICES[@]}")
 # Prod docker-compose app services (HTTP backends). Add here when the service ships.
 PROD_APP_SERVICES=(
   identity
-  billing
   sandbox
   rooms
   tracker
@@ -35,7 +33,6 @@ PROD_APP_SERVICES=(
 # Postgres DBs in prod migrate image (Dockerfile.migrate + migrate-all.sh + init-databases.sql).
 DB_SERVICES=(
   identity
-  billing
   sandbox
   rooms
   tracker
@@ -46,7 +43,6 @@ DB_SERVICES=(
 db_name_for_service() {
   case "$1" in
     identity) echo nordly ;;
-    billing) echo nordly_billing ;;
     sandbox) echo nordly_sandbox ;;
     rooms) echo nordly_rooms ;;
     tracker) echo nordly_tracker ;;
@@ -59,7 +55,6 @@ db_name_for_service() {
 dsn_env_for_service() {
   case "$1" in
     identity) echo IDENTITY_POSTGRES_DSN ;;
-    billing) echo BILLING_POSTGRES_DSN ;;
     sandbox) echo SANDBOX_POSTGRES_DSN ;;
     rooms) echo ROOMS_POSTGRES_DSN ;;
     tracker) echo TRACKER_POSTGRES_DSN ;;
@@ -78,7 +73,6 @@ done
 service_http_port() {
   case "$1" in
     identity) echo 8080 ;;
-    billing) echo 8085 ;;
     sandbox) echo 8086 ;;
     rooms) echo 8087 ;;
     tracker) echo 8089 ;;
@@ -122,7 +116,11 @@ migrations_changed() {
     return 1
   fi
 
-  if git diff --name-only "$from" "$to" 2>/dev/null | grep -qE '^services/.+/scripts/migrations/|^deploy/Dockerfile\.migrate|^deploy/scripts/migrate-all\.sh'; then
+  files="$(git diff --name-only "$from" "$to")" || {
+    echo "migrations_changed: git diff failed" >&2
+    return 2
+  }
+  if echo "$files" | grep -qE '^services/.+/scripts/migrations/|^deploy/Dockerfile\.migrate|^deploy/scripts/migrate-all\.sh'; then
     return 0
   fi
 

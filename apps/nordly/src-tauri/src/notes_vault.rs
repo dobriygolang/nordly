@@ -680,6 +680,12 @@ pub fn write_bytes(app: &AppHandle, rel: String, bytes: Vec<u8>) -> Result<Strin
     let cfg = require_cfg(app)?;
     let root = PathBuf::from(&cfg.root);
     let path = resolve_under_root(&root, &rel)?;
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    assert_image_ext(&ext)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

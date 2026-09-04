@@ -5,7 +5,7 @@ Architecture overview for the **Nordly productivity stack**.
 ## Platform (current)
 
 ```
-Nordly (Tauri desktop) ──HTTP──► identity | billing | tracker | notes | focus | rooms (whiteboard share/publish)
+Nordly (Tauri desktop) ──HTTP──► identity | tracker | notes | focus | rooms (whiteboard share/publish)
 Web (landing + live) ──HTTP/WS──► rooms | sandbox | notes (public)
 ```
 
@@ -30,20 +30,12 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 | focus | Pomodoro sessions, stats | nordly |
 | rooms | Live collab, Yjs WS, board publish | web, nordly (share) |
 | sandbox | Code run, format | web (live rooms) |
-| billing | Entitlements, quotas, subscription/webhook ops | nordly (feature usage), identity/notes/sandbox (gates) |
-
-Plan matrix: [docs/billing-features.md](../billing-features.md).
-
-**Billing note:** `live_rooms_per_month` / `live_rooms_concurrent` entitlements exist in billing; **rooms does not consume them yet** (reserved for future wiring).
 
 ## gRPC dependencies (active)
 
 | From | To | Why |
 |------|-----|-----|
-| identity | billing | `cloud_sync_enabled` and `cloud_sync_devices` on device registration |
-| notes | billing | `published_notes_active` on share-to-web; `publish_password` for private links |
 | rooms | identity | scoped guest JWT mint |
-| sandbox | billing | code run quotas |
 
 ## Cross-app flows
 
@@ -62,7 +54,7 @@ Nordly `share-to-web` → notes service stores slug → web `/notes/{slug}` (pub
 
 ### Live collab (web)
 
-Guest creates room → scoped JWT → WS `/ws/editor/{roomId}`. Code (`practice`) or Excalidraw (`system_design`).
+Guest creates room → scoped JWT → WS `/ws/editor/{roomId}` (`Sec-WebSocket-Protocol: access_token.<JWT>`, not the query string). Code (`practice`) or Excalidraw (`system_design`). Scoped collab tokens are valid for rooms + sandbox only; notes/tracker/focus/`POST /v1/devices/register` require an unrestricted user session.
 
 ## Local dev
 
@@ -77,7 +69,6 @@ cd apps/nordly && cp .env.example .env && npm install && npm run dev
 
 ```bash
 cd services/identity && make start
-cd services/billing && make start
 cd services/sandbox && make start
 cd services/rooms && make start
 cd services/notes && make start

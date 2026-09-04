@@ -2,7 +2,8 @@ package identityapi
 
 import (
 	"context"
-	"strings"
+	"crypto/sha256"
+	"crypto/subtle"
 
 	identityv1 "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1"
 	"google.golang.org/grpc"
@@ -16,14 +17,15 @@ const internalTokenHeader = "x-internal-token"
 // internalMethods are service-to-service RPCs with no HTTP mapping. They must be
 // callable only by trusted internal callers presenting the shared token.
 var internalMethods = map[string]struct{}{
-	identityv1.IdentityService_GetUser_FullMethodName:              {},
-	identityv1.IdentityService_GetUserByTelegramID_FullMethodName:  {},
-	identityv1.IdentityService_ValidateToken_FullMethodName:           {},
+	identityv1.IdentityService_GetUser_FullMethodName:               {},
+	identityv1.IdentityService_GetUserByTelegramID_FullMethodName:   {},
+	identityv1.IdentityService_ValidateToken_FullMethodName:         {},
 	identityv1.IdentityService_MintScopedAccessToken_FullMethodName: {},
 }
 
 // InternalAuthInterceptor enforces the internal token on service-to-service RPCs.
 func InternalAuthInterceptor(token string) grpc.UnaryServerInterceptor {
+	expectedHash := sha256.Sum256([]byte(token))
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if _, ok := internalMethods[info.FullMethod]; !ok {
 			return handler(ctx, req)
@@ -36,9 +38,19 @@ func InternalAuthInterceptor(token string) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Unauthenticated, "missing metadata")
 		}
 		vals := md.Get(internalTokenHeader)
-		if len(vals) == 0 || strings.TrimSpace(vals[0]) != token {
+		if len(vals) != 1 || !internalTokenHashMatches(expectedHash, vals[0]) {
 			return nil, status.Error(codes.Unauthenticated, "invalid internal token")
 		}
 		return handler(ctx, req)
 	}
+}
+
+func internalTokenMatches(expected, presented string) bool {
+	expectedHash := sha256.Sum256([]byte(expected))
+	return internalTokenHashMatches(expectedHash, presented)
+}
+
+func internalTokenHashMatches(expectedHash [sha256.Size]byte, presented string) bool {
+	presentedHash := sha256.Sum256([]byte(presented))
+	return subtle.ConstantTimeCompare(presentedHash[:], expectedHash[:]) == 1
 }

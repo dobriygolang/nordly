@@ -570,10 +570,15 @@ fn resolve_under_root(root: &str, relative_path: &str) -> Result<std::path::Path
     Ok(canon)
 }
 
+/// Read a dropped markdown file under an import root (rejects path traversal).
 #[tauri::command]
-fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String> {
+fn read_text_file(
+    window: WebviewWindow,
+    root: String,
+    relative_path: String,
+) -> Result<String, String> {
     require_main_window(&window)?;
-    let p = std::path::Path::new(&path);
+    let p = resolve_under_root(&root, &relative_path)?;
     let name = p
         .file_name()
         .and_then(|s| s.to_str())
@@ -582,13 +587,13 @@ fn read_text_file(window: WebviewWindow, path: String) -> Result<String, String>
         return Err(format!("not a markdown file: {name}"));
     }
     if !p.is_file() {
-        return Err(format!("not a file: {path}"));
+        return Err("not_found".into());
     }
-    let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
     if meta.len() > MAX_IMPORT_BYTES {
         return Err("file exceeds 2 MiB import limit".into());
     }
-    std::fs::read_to_string(p).map_err(|e| format!("failed to read file: {e}"))
+    std::fs::read_to_string(&p).map_err(|e| format!("failed to read file: {e}"))
 }
 
 /// Read a local image under an import root (rejects path traversal).
@@ -617,7 +622,7 @@ fn read_binary_file(
     std::fs::read(&p).map_err(|e| format!("failed to read file: {e}"))
 }
 
-/// Recursively list markdown files under a dropped directory (paths for `read_text_file`).
+/// Recursively list markdown files under a dropped directory (`root` + relative path for `read_text_file`).
 #[tauri::command]
 fn list_markdown_import_entries(
     window: WebviewWindow,
@@ -683,6 +688,16 @@ mod tests {
             resolve_under_root(nested.to_str().unwrap(), "/etc/passwd").unwrap_err(),
             "path escape"
         );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resolve_under_root_allows_nested_relative() {
+        let tmp = std::env::temp_dir().join(format!("nordly-import-md-{}", std::process::id()));
+        std::fs::create_dir_all(tmp.join("a")).expect("tmpdir");
+        std::fs::write(tmp.join("a").join("note.md"), b"# hi").expect("write");
+        let p = resolve_under_root(tmp.to_str().unwrap(), "a/note.md").expect("ok");
+        assert!(p.ends_with("note.md"));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

@@ -3,7 +3,7 @@ package trackerapi
 import (
 	"context"
 
-	trackerservice "github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/service"
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	trackerv1 "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1"
 )
 
@@ -15,7 +15,7 @@ func (i *Implementation) CreateGoogleCalendarEvent(
 	if err != nil {
 		return nil, err
 	}
-	in := trackerservice.GoogleEventInput{
+	in := model.CalendarEventInput{
 		Title:      req.GetTitle(),
 		AllDay:     req.GetAllDay(),
 		CalendarID: req.GetCalendarId(),

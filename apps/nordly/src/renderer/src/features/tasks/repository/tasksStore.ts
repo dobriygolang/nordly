@@ -3,16 +3,18 @@ import {
   dbGet,
   dbGetAllByUser,
   dbPut,
+  dbPutMany,
   entityKey,
   requireUserId,
 } from '@shared/db/nordlyDb';
 import { getServerId, setServerId } from '@shared/sync/idMap';
+import { SyncDomain } from '@shared/sync/types';
 import {
   shouldAcceptRemoteEntity,
   syncedIdsAbsentFromRemote,
 } from '@shared/sync/tombstone';
 
-import type { TaskCard } from '../api/tasks';
+import type { TaskCard } from '../model/task';
 
 export interface StoredTask extends TaskCard {
   userId: string;
@@ -78,7 +80,7 @@ export async function reconcileTasksStore(userId?: string): Promise<number> {
   }
 
   for (const row of active) {
-    const mapped = await getServerId('tasks', row.id, uid);
+    const mapped = await getServerId(SyncDomain.Tasks, row.id, uid);
     if (!mapped || mapped === row.id) continue;
     const serverRow = await dbGet<StoredTask>('tasks', entityKey(mapped, uid));
     if (serverRow && !serverRow.deleted) {
@@ -136,6 +138,14 @@ export async function tasksStorePut(task: TaskCard): Promise<void> {
   await dbPut('tasks', rowFrom(userId, task));
 }
 
+export async function tasksStorePutMany(tasks: readonly TaskCard[]): Promise<void> {
+  const userId = requireUserId();
+  await dbPutMany(
+    'tasks',
+    tasks.map((task) => rowFrom(userId, task)),
+  );
+}
+
 /** Apply a remote/API task while keeping device-only fields from the local row. */
 export async function tasksStoreApplyRemote(task: TaskCard): Promise<TaskCard> {
   const userId = requireUserId();
@@ -148,7 +158,7 @@ export async function tasksStoreApplyRemote(task: TaskCard): Promise<TaskCard> {
   }
   const merged = local ? preserveLocalOnlyTaskFields(local, task) : task;
   await dbPut('tasks', rowFrom(userId, merged));
-  await setServerId('tasks', task.id, task.id, userId);
+  await setServerId(SyncDomain.Tasks, task.id, task.id, userId);
   return merged;
 }
 
@@ -162,7 +172,7 @@ export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
     await dbPut('tasks', rowFrom(userId, preserveLocalOnlyTaskFields(local, task)));
   }
   // Identity map so remote-absence deletion works for pull-origin rows.
-  await setServerId('tasks', task.id, task.id, userId);
+  await setServerId(SyncDomain.Tasks, task.id, task.id, userId);
 }
 
 export async function tasksStoreBulkImport(
@@ -213,7 +223,7 @@ export async function tasksStoreApplyRemoteAbsences(
   const candidates: { id: string; serverId: string | null }[] = [];
   for (const row of rows) {
     if (row.deleted) continue;
-    const serverId = await getServerId('tasks', row.id, uid);
+    const serverId = await getServerId(SyncDomain.Tasks, row.id, uid);
     candidates.push({ id: row.id, serverId });
   }
   const absent = syncedIdsAbsentFromRemote(candidates, remoteIds);

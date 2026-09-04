@@ -1,7 +1,7 @@
 /** Epic/tag color resolution — prefer server epicId; `epicColor` is read only from existing rows. */
 
 import type { TaskEpic } from '../api/epics';
-import type { TaskCard } from '../api/tasks';
+import type { TaskCard } from '../model/task';
 
 export const TASK_EPIC_PALETTE = [
   '#5b8def',

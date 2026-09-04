@@ -1,7 +1,15 @@
 import { type Locale } from '@nordly-i18n';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
+import { TASK_DURATION_MIN, taskDurationMin } from '@shared/lib/taskDuration';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function requireValidDate(date: Date, context: string): Date {
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid ${context}`);
+  }
+  return date;
+}
 
 export interface DayKey {
   /** YYYY-MM-DD in local timezone */
@@ -10,10 +18,12 @@ export interface DayKey {
 }
 
 export function startOfLocalDay(d: Date): Date {
+  requireValidDate(d, 'date');
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 export function toDayKey(d: Date): string {
+  requireValidDate(d, 'date');
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -21,14 +31,53 @@ export function toDayKey(d: Date): string {
 }
 
 export function parseDayKey(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!match) throw new Error(`Invalid day key: ${key}`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    throw new Error(`Invalid day key: ${key}`);
+  }
+  return parsed;
+}
+
+export function parseOptionalDate(
+  value: string | null | undefined,
+  context: string,
+): Date | null {
+  if (value == null || value === '') return null;
+  return requireValidDate(new Date(value), context);
 }
 
 export function addDays(base: Date, offset: number): Date {
   const d = startOfLocalDay(base);
   d.setDate(d.getDate() + offset);
   return d;
+}
+
+export function differenceInCalendarDays(
+  target: Date,
+  anchor: Date,
+): number {
+  requireValidDate(target, 'target date');
+  requireValidDate(anchor, 'anchor date');
+  const targetDay = Date.UTC(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate(),
+  );
+  const anchorDay = Date.UTC(
+    anchor.getFullYear(),
+    anchor.getMonth(),
+    anchor.getDate(),
+  );
+  return Math.round((targetDay - anchorDay) / DAY_MS);
 }
 
 /** Window of days centered on today (inclusive). */
@@ -61,27 +110,25 @@ export function formatTimelineHeader(date: Date, locale?: Locale): string {
 }
 
 export function formatWeekdayShort(iso: string, locale?: Locale): string {
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return '';
+  const d = parseDayKey(iso);
   return formatLocaleDate(d, locale, { weekday: 'short' });
 }
 
 export function taskDayKey(task: { scheduledStart?: string; createdAt: string }): string {
   if (task.scheduledStart) {
-    const d = parseScheduleInstant(task.scheduledStart);
-    if (!Number.isNaN(d.getTime())) return toDayKey(d);
+    try {
+      return toDayKey(parseScheduleInstant(task.scheduledStart));
+    } catch (error) {
+      throw new Error(`Invalid task schedule: ${task.scheduledStart}`, {
+        cause: error,
+      });
+    }
   }
   const created = new Date(task.createdAt);
-  if (!Number.isNaN(created.getTime())) return toDayKey(created);
-  return toDayKey(new Date());
-}
-
-export function defaultDurationMin(task: { scheduledDurationMin?: number }): number {
-  return task.scheduledDurationMin && task.scheduledDurationMin > 0 ? task.scheduledDurationMin : 30;
-}
-
-export function sumDurationMin(tasks: Array<{ scheduledDurationMin?: number }>): number {
-  return tasks.reduce((acc, t) => acc + defaultDurationMin(t), 0);
+  if (Number.isNaN(created.getTime())) {
+    throw new Error(`Invalid task createdAt: ${task.createdAt}`);
+  }
+  return toDayKey(created);
 }
 
 export function formatDuration(totalMin: number): string {
@@ -94,14 +141,7 @@ export function formatDuration(totalMin: number): string {
 }
 
 /** Compact label for task row / duration menu (30m, 1h, 2h). */
-export function formatDurationShort(totalMin: number): string {
-  if (totalMin <= 0) return '0m';
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
+export const formatDurationShort = formatDuration;
 
 /** Snap a minutes-of-day value to the nearest step (default 5 min). Calendar grids pass 30. */
 export function snapMinutes(totalMin: number, step = 5): number {
@@ -142,6 +182,7 @@ export function buildCreateScheduleDate(
 
 /** RFC3339 with explicit local UTC offset (wall clock the user sees). Prefer for schedules. */
 export function toLocalISO(d: Date): string {
+  requireValidDate(d, 'schedule date');
   const pad = (n: number) => String(n).padStart(2, '0');
   const y = d.getFullYear();
   const m = pad(d.getMonth() + 1);
@@ -162,11 +203,7 @@ export function toLocalISO(d: Date): string {
  */
 export function scheduleStartISO(start: Date | string): string {
   if (typeof start === 'string') {
-    const parsed = parseScheduleInstant(start);
-    if (Number.isNaN(parsed.getTime())) {
-      throw new Error(`Invalid schedule date: ${start}`);
-    }
-    return toLocalISO(parsed);
+    return toLocalISO(parseScheduleInstant(start));
   }
   if (Number.isNaN(start.getTime())) {
     throw new Error('Invalid schedule date');
@@ -180,22 +217,55 @@ export function scheduleStartISO(start: Date | string): string {
  */
 export function parseScheduleInstant(iso: string): Date {
   const trimmed = iso.trim();
-  if (!trimmed) return new Date(Number.NaN);
-  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
-    return new Date(trimmed);
+  const local = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/,
+  );
+  if (local) {
+    const year = Number(local[1]);
+    const month = Number(local[2]);
+    const day = Number(local[3]);
+    const hours = Number(local[4] ?? 0);
+    const minutes = Number(local[5] ?? 0);
+    const seconds = Number(local[6] ?? 0);
+    const milliseconds = Number((local[7] ?? '').padEnd(3, '0') || 0);
+    const parsed = new Date(
+      year,
+      month - 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+      milliseconds,
+    );
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day &&
+      parsed.getHours() === hours &&
+      parsed.getMinutes() === minutes &&
+      parsed.getSeconds() === seconds &&
+      parsed.getMilliseconds() === milliseconds
+    ) {
+      return parsed;
+    }
+    throw new Error(`Invalid schedule instant: ${iso}`);
   }
-  const m = trimmed.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/,
-  );
-  if (!m) return new Date(trimmed);
-  return new Date(
-    Number(m[1]),
-    Number(m[2]) - 1,
-    Number(m[3]),
-    Number(m[4] ?? 0),
-    Number(m[5] ?? 0),
-    Number(m[6] ?? 0),
-  );
+
+  const zoned =
+    /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})$/i.exec(
+      trimmed,
+    );
+  if (!zoned) throw new Error(`Invalid schedule instant: ${iso}`);
+  try {
+    parseDayKey(zoned[1]!);
+  } catch (error) {
+    throw new Error(`Invalid schedule instant: ${iso}`, { cause: error });
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid schedule instant: ${iso}`);
+  }
+  return parsed;
 }
 
 export function applyTimeToDay(day: Date, hours: number, minutes: number): Date {
@@ -219,8 +289,13 @@ export function formatWhenChipWithTime(date: Date, locale?: Locale): string {
 
 export function taskScheduleStart(task: { scheduledStart?: string }): Date | null {
   if (!task.scheduledStart) return null;
-  const d = parseScheduleInstant(task.scheduledStart);
-  return Number.isNaN(d.getTime()) ? null : d;
+  try {
+    return parseScheduleInstant(task.scheduledStart);
+  } catch (error) {
+    throw new Error(`Invalid task schedule: ${task.scheduledStart}`, {
+      cause: error,
+    });
+  }
 }
 
 interface ScheduledBlock {
@@ -239,11 +314,11 @@ export function resolveScheduleStart(
     .filter((t) => {
       if (t.id === excludeTaskId || !t.scheduledStart) return false;
       const d = parseScheduleInstant(t.scheduledStart);
-      return !Number.isNaN(d.getTime()) && toDayKey(d) === dayKey;
+      return toDayKey(d) === dayKey;
     })
     .map((t) => {
       const start = parseScheduleInstant(t.scheduledStart!);
-      const dur = defaultDurationMin(t);
+      const dur = taskDurationMin(t);
       return {
         startMs: start.getTime(),
         endMs: start.getTime() + dur * 60_000,
@@ -259,10 +334,10 @@ export function resolveScheduleStart(
   let candidate = new Date(preferred);
   for (let i = 0; i < 48; i++) {
     if (candidate.getTime() >= dayEnd.getTime()) return preferred;
-    const candEnd = candidate.getTime() + defaultDurationMin({}) * 60_000;
+    const candEnd = candidate.getTime() + taskDurationMin({}) * 60_000;
     const conflict = blocks.some((b) => candidate.getTime() < b.endMs && candEnd > b.startMs);
     if (!conflict) return candidate;
-    candidate = new Date(candidate.getTime() + 15 * 60_000);
+    candidate = new Date(candidate.getTime() + TASK_DURATION_MIN * 60_000);
   }
   return preferred;
 }

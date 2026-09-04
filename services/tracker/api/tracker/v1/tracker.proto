@@ -7,6 +7,28 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/dobriygolang/project-nordly/services/tracker/pkg/api/tracker/v1;trackerv1";
 
+enum WorkStatus {
+  WORK_STATUS_UNSPECIFIED = 0;
+  WORK_STATUS_TODO = 1;
+  reserved 2, 3;
+  reserved "WORK_STATUS_IN_PROGRESS", "WORK_STATUS_IN_REVIEW";
+  WORK_STATUS_DONE = 4;
+  WORK_STATUS_DISMISSED = 5;
+}
+
+enum WorkKind {
+  WORK_KIND_UNSPECIFIED = 0;
+  reserved 1, 2, 3, 4, 5, 6;
+  reserved "WORK_KIND_ALGO", "WORK_KIND_SYSDESIGN", "WORK_KIND_QUIZ", "WORK_KIND_REFLECTION", "WORK_KIND_READING", "WORK_KIND_ML";
+  WORK_KIND_CUSTOM = 7;
+}
+
+enum ConferenceProvider {
+  CONFERENCE_PROVIDER_UNSPECIFIED = 0;
+  CONFERENCE_PROVIDER_MEET = 1;
+  CONFERENCE_PROVIDER_ZOOM = 2;
+}
+
 service TrackerService {
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse) {
     option (google.api.http) = {get: "/v1/tracker/settings"};
@@ -128,7 +150,7 @@ message UserSettings {
   bool google_calendar_connected = 3;
   // Set when the stored Google token was revoked/expired and the user must reconnect.
   bool google_reauth_required = 4;
-  // Calendar used for Google Meet creation and inbound event sync (defaults to "primary").
+  // Calendar used for direct event and Google Meet creation (defaults to "primary").
   string google_calendar_id = 5;
   bool zoom_connected = 6;
   bool zoom_reauth_required = 7;
@@ -212,6 +234,7 @@ message UpdateGoogleCalendarEventRequest {
   google.protobuf.Timestamp start = 3;
   google.protobuf.Timestamp end = 4;
   bool all_day = 5;
+  // Required: exact calendar containing id.
   string calendar_id = 6;
 }
 
@@ -221,6 +244,7 @@ message UpdateGoogleCalendarEventResponse {
 
 message DeleteGoogleCalendarEventRequest {
   string id = 1;
+  // Required: exact calendar containing id.
   string calendar_id = 2;
 }
 
@@ -254,8 +278,8 @@ message ListEpicsResponse {
 
 message WorkTask {
   string id = 1;
-  string status = 2;
-  string kind = 3;
+  WorkStatus status = 2;
+  WorkKind kind = 3;
   string title = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
@@ -265,7 +289,10 @@ message WorkTask {
   optional string google_event_id = 10;
   optional string epic_id = 11;
   optional string conference_url = 12;
-  optional string conference_provider = 13;
+  optional ConferenceProvider conference_provider = 13;
+  optional string zoom_meeting_id = 14;
+  // Exact calendar containing google_event_id; both fields are set or cleared together.
+  optional string google_calendar_id = 15;
 }
 
 message ListWorkTasksRequest {}
@@ -275,7 +302,7 @@ message ListWorkTasksResponse {
 }
 
 message CreateWorkTaskRequest {
-  string kind = 1;
+  WorkKind kind = 1;
   string title = 2;
 }
 
@@ -285,7 +312,7 @@ message CreateWorkTaskResponse {
 
 message UpdateWorkTaskStatusRequest {
   string id = 1;
-  string status = 2;
+  WorkStatus status = 2;
 }
 
 message UpdateWorkTaskStatusResponse {
@@ -323,9 +350,10 @@ message PatchWorkTaskRequest {
   optional bool clear_conference = 4;
   // Device-owned Meet/Zoom links pushed from desktop outbox (when sync is on).
   optional string conference_url = 5;
-  optional string conference_provider = 6;
+  optional ConferenceProvider conference_provider = 6;
   optional string google_event_id = 7;
   optional string zoom_meeting_id = 8;
+  optional string google_calendar_id = 9;
 }
 
 message PatchWorkTaskResponse {
@@ -334,8 +362,7 @@ message PatchWorkTaskResponse {
 
 message CreateWorkTaskConferenceRequest {
   string id = 1;
-  // "meet" or "zoom"
-  string provider = 2;
+  ConferenceProvider provider = 2;
 }
 
 message CreateWorkTaskConferenceResponse {

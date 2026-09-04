@@ -59,7 +59,7 @@ describe('SerialSyncQueue', () => {
 
     const oldInFlight = queue.enqueue();
     let discardedSettled = false;
-    void queue.enqueue().finally(() => {
+    const discarded = queue.enqueue().finally(() => {
       discardedSettled = true;
     });
 
@@ -69,11 +69,28 @@ describe('SerialSyncQueue', () => {
 
     oldRun.resolve();
     await oldInFlight;
+    await discarded;
     await flushMicrotasks();
-    expect(discardedSettled).toBe(false);
+    expect(discardedSettled).toBe(true);
 
     newRun.resolve();
     await current;
     expect(run).toHaveBeenNthCalledWith(2, { retry: true });
+  });
+
+  it('rejects an explicit queued job when its generation stops', async () => {
+    const oldRun = deferred();
+    const queue = new SerialSyncQueue({
+      run: vi.fn().mockReturnValue(oldRun.promise),
+      onBatchError: vi.fn(),
+    });
+
+    const inFlight = queue.enqueue();
+    const discarded = queue.enqueue({ explicit: true });
+    queue.stopGeneration();
+
+    await expect(discarded).rejects.toMatchObject({ name: 'SyncAbortedError' });
+    oldRun.resolve();
+    await inFlight;
   });
 });

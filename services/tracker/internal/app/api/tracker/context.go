@@ -36,17 +36,6 @@ func BearerTokenFromContext(ctx context.Context) string {
 	return strings.TrimSpace(value[7:])
 }
 
-func InternalTokenFromContext(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ""
-	}
-	if values := md.Get("x-internal-token"); len(values) > 0 {
-		return strings.TrimSpace(values[0])
-	}
-	return ""
-}
-
 func requireUserID(ctx context.Context) (string, error) {
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {

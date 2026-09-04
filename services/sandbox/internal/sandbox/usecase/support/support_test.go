@@ -1,74 +1,96 @@
 package support_test
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/adapter/runner"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
+	runmocks "github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/command/run_code/mocks"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/usecase/support"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
-
-func TestSanitizeTestResultsRedactsHiddenFailures(t *testing.T) {
-	t.Parallel()
-	expected := "secret"
-	actual := "wrong"
-	results := support.SanitizeTestResults([]model.TestResult{{
-		Name: "hidden test 1", Status: model.TestStatusFailed,
-		ExpectedOutput: &expected, ActualOutput: &actual,
-	}})
-	if results[0].ExpectedOutput != nil || results[0].ActualOutput != nil {
-		t.Fatalf("hidden failed test should not leak outputs")
-	}
-}
 
 func TestCanReadCodeRun(t *testing.T) {
 	t.Parallel()
 	room := "550e8400-e29b-41d4-a716-446655440000"
 	run := &model.CodeRun{UserID: "owner", RoomID: room}
 
-	if !support.CanReadCodeRun(run, "owner", "") {
-		t.Fatal("owner should read own run")
-	}
-	if !support.CanReadCodeRun(run, "guest", "editor:"+room) {
-		t.Fatal("room guest should read shared run")
-	}
-	if support.CanReadCodeRun(run, "guest", "editor:other-room") {
-		t.Fatal("guest in other room should not read run")
-	}
-	if support.CanReadCodeRun(&model.CodeRun{UserID: "owner"}, "guest", "editor:"+room) {
-		t.Fatal("legacy run without room_id should stay private")
-	}
+	require.True(t, support.CanReadCodeRun(run, "owner", ""))
+	require.True(t, support.CanReadCodeRun(run, "guest", room))
+	require.False(t, support.CanReadCodeRun(run, "owner", uuid.NewString()),
+		"an editor token must remain restricted even when its subject owns the run")
+	require.False(t, support.CanReadCodeRun(&model.CodeRun{UserID: "owner"}, "guest", room))
 }
 
-func TestFakeRunnerCustomRun(t *testing.T) {
+func TestApplyRunResultCapsEveryTextField(t *testing.T) {
 	t.Parallel()
-	r := runner.DefaultFakeRunner()
-	res, err := r.Run(t.Context(), runner.RunRequest{Language: model.LangPython, Code: "print(1)", Stdin: "hello"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Status != model.StatusSuccess || res.Stdout != "hello" {
-		t.Fatalf("unexpected fake result: %+v", res)
-	}
+	run := &model.CodeRun{Status: model.StatusRunning}
+	long := strings.Repeat("x", 1024)
+
+	err := support.ApplyRunResult(run, &runner.RunResult{
+		Status:        model.StatusRuntimeError,
+		Stdout:        long,
+		Stderr:        long,
+		CompileOutput: long,
+		Error:         long,
+		TimeMS:        1,
+		RunnerName:    "test",
+	}, 64)
+	require.NoError(t, err)
+	require.Len(t, *run.Stdout, 64)
+	require.Len(t, *run.Stderr, 64)
+	require.Len(t, *run.CompileOutput, 64)
+	require.Len(t, *run.Error, 64)
 }
 
-func TestFakeRunnerHiddenFailureRedaction(t *testing.T) {
+func TestExecuteRunCancellationLeavesLeaseForReclaim(t *testing.T) {
 	t.Parallel()
-	r := runner.DefaultFakeRunner()
-	res, err := r.Run(t.Context(), runner.RunRequest{
-		Language: model.LangGo,
-		Code:     "package main",
-		Tests: []runner.TestCase{{
-			Name: "hidden: edge", Input: "bad", ExpectedOutput: "good", IsHidden: true,
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	lease := time.Now().Add(time.Minute)
+	run := &model.CodeRun{
+		ID:             uuid.NewString(),
+		Language:       model.LangGo,
+		Status:         model.StatusRunning,
+		ClaimToken:     uuid.NewString(),
+		LeaseExpiresAt: &lease,
 	}
-	if len(res.TestResults) != 1 {
-		t.Fatalf("expected one test result")
+	store := runmocks.NewStore(t)
+	codeRunner := &runner.FakeCodeRunner{
+		Hook: func(ctx context.Context, _ runner.RunRequest) (*runner.RunResult, error) {
+			return nil, ctx.Err()
+		},
 	}
-	if res.TestResults[0].ExpectedOutput != nil || res.TestResults[0].ActualOutput != nil {
-		t.Fatalf("hidden test outputs must be redacted")
+
+	_, err := support.ExecuteRun(ctx, store, codeRunner, support.Defaults{
+		TimeoutMS:      1000,
+		MemoryMB:       64,
+		MaxOutputBytes: 64,
+		LeaseDuration:  time.Minute,
+	}, time.Now, run, "")
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotEmpty(t, run.ClaimToken)
+	require.NotNil(t, run.LeaseExpiresAt)
+}
+
+func TestSanitizeRunResponseClearsPrivateExecutionData(t *testing.T) {
+	t.Parallel()
+	lease := time.Now().Add(time.Minute)
+	run := &model.CodeRun{
+		Code:           "secret",
+		Stdin:          "input",
+		ClaimToken:     uuid.NewString(),
+		LeaseExpiresAt: &lease,
 	}
+
+	got := support.SanitizeRunResponse(run)
+	require.Empty(t, got.Code)
+	require.Empty(t, got.Stdin)
+	require.Empty(t, got.ClaimToken)
+	require.Nil(t, got.LeaseExpiresAt)
+	require.Equal(t, "secret", run.Code)
 }

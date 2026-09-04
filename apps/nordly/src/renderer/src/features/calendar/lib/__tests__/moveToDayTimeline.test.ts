@@ -90,13 +90,12 @@ describe('move Fri→Thu timeline visibility', () => {
     expect(clamped.getHours()).toBe(15);
   });
 
-  it('still paints a stub for same-day pre-grid hours already stored', () => {
-    // 03:00 is after overnight spill (00–02) but before grid start (06:00).
+  it('does not invent a stub for same-day pre-grid hours already stored', () => {
     const { task } = movedTask(3);
-    const { block, layout } = layoutFor(task);
-    expect(block).not.toBeNull();
-    expect(block!.top).toBe(0);
-    expect(layout).toHaveLength(1);
+    const { planned, block, layout } = layoutFor(task);
+    expect(planned).toHaveLength(1);
+    expect(block).toBeNull();
+    expect(layout).toHaveLength(0);
   });
 
   it('does not double-paint overnight clock times on both adjacent days', () => {

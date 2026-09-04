@@ -40,10 +40,10 @@ export default defineConfig({
       ],
       exclude: ['**/__tests__/**', '**/*.{test,spec}.{ts,tsx}'],
       thresholds: {
-        statements: 15,
+        statements: 28,
         branches: 65,
         functions: 30,
-        lines: 15,
+        lines: 28,
       },
     },
   },

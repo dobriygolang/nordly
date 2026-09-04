@@ -7,6 +7,20 @@ option go_package = "github.com/dobriygolang/project-nordly/services/notes/pkg/a
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
+enum PublishAccessMode {
+  PUBLISH_ACCESS_MODE_UNSPECIFIED = 0;
+  PUBLISH_ACCESS_MODE_PUBLIC = 1;
+  PUBLISH_ACCESS_MODE_PASSWORD = 2;
+}
+
+enum PublishExpiryPolicy {
+  PUBLISH_EXPIRY_POLICY_UNSPECIFIED = 0;
+  PUBLISH_EXPIRY_POLICY_NEVER = 1;
+  PUBLISH_EXPIRY_POLICY_SEVEN_DAYS = 2;
+  PUBLISH_EXPIRY_POLICY_THIRTY_DAYS = 3;
+  PUBLISH_EXPIRY_POLICY_NINETY_DAYS = 4;
+}
+
 service NotesService {
   // Vault
   rpc InitVault(InitVaultRequest) returns (InitVaultResponse) {
@@ -59,12 +73,6 @@ service NotesService {
   rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse) {
     option (google.api.http) = {
       delete: "/v1/notes/{id}"
-    };
-  }
-
-  rpc GetBacklinks(GetBacklinksRequest) returns (GetBacklinksResponse) {
-    option (google.api.http) = {
-      get: "/v1/notes/{id}/backlinks"
     };
   }
 
@@ -165,12 +173,6 @@ message WikiLinkRef {
   string link_text = 2;
 }
 
-message BacklinkEntry {
-  string note_id = 1;
-  string title = 2;
-  google.protobuf.Timestamp updated_at = 3;
-}
-
 message InitVaultRequest {}
 
 message InitVaultResponse {
@@ -181,8 +183,10 @@ message InitVaultResponse {
 message GetVaultSaltRequest {}
 
 message GetVaultSaltResponse {
+  reserved 2;
+  reserved "initialized";
+
   string salt_b64 = 1;
-  bool initialized = 2;
 }
 
 message EncryptNoteRequest {
@@ -221,14 +225,6 @@ message UpdateNoteRequest {
   string title = 2;
   string body_md = 3;
   repeated WikiLinkRef wiki_links = 4;
-}
-
-message GetBacklinksRequest {
-  string id = 1;
-}
-
-message GetBacklinksResponse {
-  repeated BacklinkEntry backlinks = 1;
 }
 
 message UpdateNoteResponse {
@@ -311,21 +307,27 @@ message GetPublishStatusRequest {
 }
 
 message GetPublishStatusResponse {
+  reserved 5;
+  reserved "password_protected";
+
   bool published = 1;
   string slug = 2;
   string url = 3;
   google.protobuf.Timestamp published_at = 4;
-  bool password_protected = 5;
   google.protobuf.Timestamp expires_at = 6;
+  PublishAccessMode access_mode = 7;
 }
 
 message ShareNoteToWebRequest {
+  reserved 3, 5;
+  reserved "password_protected", "expires_in_days";
+
   string note_id = 1;
   string plaintext_md = 2;
-  bool password_protected = 3;
   string password = 4;
-  int32 expires_in_days = 5;
   repeated PublishedAttachmentInput attachments = 6;
+  PublishAccessMode access_mode = 7;
+  PublishExpiryPolicy expiry_policy = 8;
 }
 
 message PublishedAttachmentInput {

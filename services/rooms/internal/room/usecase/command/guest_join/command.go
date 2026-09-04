@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
+	"github.com/google/uuid"
+
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 )
 
 // Command joins an existing shared guest room.
@@ -15,8 +17,11 @@ type Command struct {
 
 // Validate checks guest-join payload.
 func (c Command) Validate() error {
+	if _, err := uuid.Parse(strings.TrimSpace(c.RoomID)); err != nil {
+		return fmt.Errorf("invalid room id: %w", model.ErrInvalidArgument)
+	}
 	if strings.TrimSpace(c.DisplayName) == "" {
-		return fmt.Errorf("display name is required: %w", repository.ErrInvalidState)
+		return fmt.Errorf("display name is required: %w", model.ErrInvalidArgument)
 	}
 	return nil
 }

@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/dobriygolang/project-nordly/services/focus/internal/tools/humanerror"
 	focusv1 "github.com/dobriygolang/project-nordly/services/focus/pkg/api/focus/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/dobriygolang/project-nordly/services/focus/internal/tools/humanerror"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

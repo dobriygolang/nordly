@@ -2,12 +2,26 @@ import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 
-export type TextScale = 'normal' | 'large' | 'xlarge';
+export const TextScale = {
+  Normal: 'normal',
+  Large: 'large',
+  ExtraLarge: 'xlarge',
+} as const;
+export type TextScale = (typeof TextScale)[keyof typeof TextScale];
 
-/** Default focus timer mode shown in the dock. Mirrors `FocusTimerMode` in
- * `@shared/model/pomodoro` — declared here (not imported) to avoid a cycle,
- * since pomodoro reads its defaults from this module. */
-export type TimerMode = 'pomodoro' | 'stopwatch';
+/** Default focus timer mode shown in the dock. Pomodoro re-exports this as
+ * `FocusTimerMode` (type-only) so the store can import defaults without a cycle. */
+export const TimerMode = {
+  Pomodoro: 'pomodoro',
+  Stopwatch: 'stopwatch',
+} as const;
+export type TimerMode = (typeof TimerMode)[keyof typeof TimerMode];
+export const TIMER_MODES = Object.values(TimerMode);
+const TIMER_MODE_SET = new Set<TimerMode>(TIMER_MODES);
+
+export function isTimerMode(value: unknown): value is TimerMode {
+  return typeof value === 'string' && TIMER_MODE_SET.has(value as TimerMode);
+}
 
 /** How often the desktop app refetches Google events in the background. */
 export const GOOGLE_CALENDAR_POLL_MINUTES = [1, 5, 15, 30] as const;
@@ -18,7 +32,11 @@ export const APPLE_CALENDAR_POLL_MINUTES = GOOGLE_CALENDAR_POLL_MINUTES;
 export type AppleCalendarPollMinutes = GoogleCalendarPollMinutes;
 
 /** First column of week / month grids in the calendar. */
-export type WeekStartsOn = 'monday' | 'sunday';
+export const WeekStartsOn = {
+  Monday: 'monday',
+  Sunday: 'sunday',
+} as const;
+export type WeekStartsOn = (typeof WeekStartsOn)[keyof typeof WeekStartsOn];
 
 export interface NordlySettings {
   pomodoroMinutes: number;
@@ -57,42 +75,42 @@ export function clampInt(v: unknown, lo: number, hi: number, fieldName = 'value'
   return Math.max(lo, Math.min(hi, Math.round(v)));
 }
 
-export const TEXT_SCALES: TextScale[] = ['normal', 'large', 'xlarge'];
+export const TEXT_SCALES = Object.values(TextScale);
 
 export const DEFAULTS: NordlySettings = {
   pomodoroMinutes: 25,
-  timerMode: 'pomodoro',
+  timerMode: TimerMode.Pomodoro,
   endBell: true,
   notifications: true,
   calendarNotifications: true,
   taskNotifications: true,
   notificationVolume: 80,
   autoUpdate: false,
-  taskRollover: true,
+  taskRollover: false,
   dailyGoalMin: 120,
-  textScale: 'normal',
+  textScale: TextScale.Normal,
   boardCanvas: 'dark',
   googleCalendarPollMinutes: 5,
   appleCalendarEnabled: false,
   appleCalendarIds: [],
   appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
-  weekStartsOn: 'monday',
+  weekStartsOn: WeekStartsOn.Monday,
 };
 
 function parseWeekStartsOn(v: unknown): WeekStartsOn {
-  if (v === 'monday' || v === 'sunday') return v;
+  if (v === WeekStartsOn.Monday || v === WeekStartsOn.Sunday) return v;
   throw new Error(`Invalid weekStartsOn: ${String(v)}`);
 }
 
 function parseTimerMode(v: unknown): TimerMode {
-  if (v === 'pomodoro' || v === 'stopwatch') return v;
+  if (isTimerMode(v)) return v;
   throw new Error(`Invalid timer mode: ${String(v)}`);
 }
 
 function parseTextScale(v: unknown): TextScale {
-  if (v === 'large' || v === 'xlarge') return v;
-  if (v === 'normal') return v;
+  if (v === TextScale.Large || v === TextScale.ExtraLarge) return v;
+  if (v === TextScale.Normal) return v;
   throw new Error(`Invalid text scale: ${String(v)}`);
 }
 
@@ -201,13 +219,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
 
 export function readSettings(): NordlySettings {
   if (typeof window === 'undefined') return DEFAULTS;
-  let raw: string | null;
-  try {
-    raw = window.localStorage.getItem(SETTINGS_KEY);
-  } catch (err) {
-    console.warn('[settings] localStorage read failed', err);
-    return DEFAULTS;
-  }
+  const raw = window.localStorage.getItem(SETTINGS_KEY);
   if (!raw) return DEFAULTS;
   const parsed = JSON.parse(raw) as Partial<NordlySettings>;
   const { settings, migrated } = parseStoredSettings(parsed);
@@ -217,12 +229,7 @@ export function readSettings(): NordlySettings {
 
 export function persistSettings(next: NordlySettings): void {
   if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-  } catch (err) {
-    console.warn('[settings] localStorage write failed', err);
-    return;
-  }
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event(NORDLY_EVENTS.settingsChanged));
 }
 
@@ -266,6 +273,10 @@ export function readDailyGoalMin(): number {
 
 export function readWeekStartsOn(): WeekStartsOn {
   return readSettings().weekStartsOn;
+}
+
+export function readAppleCalendarEnabled(): boolean {
+  return readSettings().appleCalendarEnabled;
 }
 
 export function themeLabelKey(id: string): string {

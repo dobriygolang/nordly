@@ -2,14 +2,24 @@ package mint_scoped_access_token
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"github.com/google/uuid"
 )
 
 // ScopedTokenIssuer signs scoped JWT access tokens.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=ScopedTokenIssuer --output=./mocks --outpkg=mocks --filename=scoped_token_issuer.go
 type ScopedTokenIssuer interface {
-	IssueScopedAccessToken(userID, role, scope, displayName string, ttl time.Duration) (string, error)
+	IssueScopedAccessToken(
+		userID string,
+		role identityjwt.Role,
+		scope identityjwt.EditorScope,
+		displayName string,
+		ttl time.Duration,
+	) (string, error)
 }
 
 // Result holds a minted scoped access token.
@@ -25,11 +35,11 @@ type Handler struct {
 }
 
 // New constructs the mint-scoped-access-token handler.
-func New(tokens ScopedTokenIssuer) *Handler {
+func New(tokens ScopedTokenIssuer) (*Handler, error) {
 	if tokens == nil {
-		panic("mint_scoped_access_token: ScopedTokenIssuer is required")
+		return nil, errors.New("mint_scoped_access_token: ScopedTokenIssuer is required")
 	}
-	return &Handler{tokens: tokens}
+	return &Handler{tokens: tokens}, nil
 }
 
 // Handle executes the command.
@@ -39,7 +49,10 @@ func (h *Handler) Handle(_ context.Context, cmd Command) (*Result, error) {
 	}
 
 	ttl := time.Duration(cmd.TTLSeconds) * time.Second
-	guestID := uuid.New().String()
+	guestID := cmd.UserID
+	if guestID == "" {
+		guestID = uuid.New().String()
+	}
 	token, err := h.tokens.IssueScopedAccessToken(guestID, cmd.Role, cmd.Scope, cmd.DisplayName, ttl)
 	if err != nil {
 		return nil, err

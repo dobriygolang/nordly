@@ -32,3 +32,26 @@ export interface GoogleEventInput {
   allDay: boolean;
   calendarId?: string;
 }
+
+export function googleEventDisplayDate(value: string, allDay: boolean): Date {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid Google Calendar event date: ${value}`);
+  }
+  if (!allDay) return parsed;
+
+  // Tracker timestamps encode Google's date-only values at UTC midnight.
+  return new Date(
+    parsed.getUTCFullYear(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
+  );
+}
+
+/** Encode a local all-day selection as the UTC date carrier expected by Tracker. */
+export function googleEventWireDate(date: Date, allDay: boolean): Date {
+  if (!allDay) return date;
+  return new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+}

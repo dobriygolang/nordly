@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
@@ -12,11 +13,29 @@ func normalizeLinkText(s string) string {
 	return strings.TrimSpace(s)
 }
 
-func (r *Repository) validateWikiLinkTargets(
+func lockWikiLinkTargetsTx(
 	ctx context.Context,
+	tx pgx.Tx,
 	userID string,
 	links []notesmodel.WikiLinkRef,
 ) error {
+	return lockActiveNoteIDsTx(ctx, tx, userID, wikiLinkTargetIDs(links))
+}
+
+func lockNoteAndWikiLinkTargetsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID, sourceNoteID string,
+	links []notesmodel.WikiLinkRef,
+) error {
+	noteIDs := wikiLinkTargetIDs(links)
+	if !slices.Contains(noteIDs, sourceNoteID) {
+		noteIDs = append(noteIDs, sourceNoteID)
+	}
+	return lockActiveNoteIDsTx(ctx, tx, userID, noteIDs)
+}
+
+func wikiLinkTargetIDs(links []notesmodel.WikiLinkRef) []string {
 	targets := make(map[string]struct{}, len(links))
 	for _, l := range links {
 		targetID := strings.TrimSpace(l.TargetNoteID)
@@ -32,15 +51,44 @@ func (r *Repository) validateWikiLinkTargets(
 	for targetID := range targets {
 		targetIDs = append(targetIDs, targetID)
 	}
-	var found int
-	if err := r.pg.QueryRow(ctx, `
-		SELECT COUNT(*)::int
+	slices.Sort(targetIDs)
+	return targetIDs
+}
+
+func lockActiveNoteIDsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID string,
+	noteIDs []string,
+) error {
+	if len(noteIDs) == 0 {
+		return nil
+	}
+	slices.Sort(noteIDs)
+	rows, err := tx.Query(ctx, `
+		SELECT id
 		FROM notes
 		WHERE user_id = $1 AND id = ANY($2::uuid[]) AND archived_at IS NULL
-	`, userID, targetIDs).Scan(&found); err != nil {
+		ORDER BY id
+		FOR UPDATE
+	`, userID, noteIDs)
+	if err != nil {
 		return err
 	}
-	if found != len(targetIDs) {
+	defer rows.Close()
+
+	found := 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		found++
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if found != len(noteIDs) {
 		return notesmodel.ErrNotFound
 	}
 	return nil
@@ -60,9 +108,6 @@ func replaceNoteLinksTx(
 	}
 	for _, l := range links {
 		linkText := normalizeLinkText(l.LinkText)
-		if linkText == "" {
-			continue
-		}
 		var targetID *string
 		if tid := strings.TrimSpace(l.TargetNoteID); tid != "" {
 			targetID = &tid
@@ -75,45 +120,4 @@ func replaceNoteLinksTx(
 		}
 	}
 	return nil
-}
-
-func (r *Repository) ListBacklinks(
-	ctx context.Context,
-	userID, targetNoteID string,
-) ([]notesmodel.BacklinkEntry, error) {
-	var exists bool
-	if err := r.pg.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM notes
-			WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-		)
-	`, targetNoteID, userID).Scan(&exists); err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, notesmodel.ErrNotFound
-	}
-	rows, err := r.pg.Query(ctx, `
-		SELECT n.id, n.title, n.updated_at
-		FROM note_links nl
-		JOIN notes n ON n.id = nl.source_note_id AND n.user_id = nl.user_id
-		WHERE nl.user_id = $1
-		  AND nl.target_note_id = $2
-		  AND n.archived_at IS NULL
-		ORDER BY n.updated_at DESC, n.id DESC
-	`, userID, targetNoteID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := make([]notesmodel.BacklinkEntry, 0, 16)
-	for rows.Next() {
-		var e notesmodel.BacklinkEntry
-		if err := rows.Scan(&e.NoteID, &e.Title, &e.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
 }

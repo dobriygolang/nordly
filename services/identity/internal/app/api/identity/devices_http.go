@@ -40,11 +40,12 @@ func RegisterDeviceHTTP(validator *jwt.Validator, devices deviceservice.Service)
 			writeDeviceError(w, http.StatusUnauthorized, "unauthorized", "authorization required")
 			return
 		}
-		userID, err := validator.UserID(token)
+		claims, err := validator.ParseUserSession(token)
 		if err != nil {
 			writeDeviceError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
 			return
 		}
+		userID := claims.UserID
 
 		var req registerDeviceRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -86,10 +87,8 @@ func bearerToken(header string) string {
 
 func mapDeviceError(w http.ResponseWriter, err error) {
 	switch {
-	case deviceservice.IsCloudSyncDisabled(err):
-		writeDeviceError(w, http.StatusForbidden, "cloud_sync_disabled", "Cloud sync is disabled for this account")
-	case deviceservice.IsDeviceLimitExceeded(err):
-		writeDeviceError(w, http.StatusForbidden, "device_limit_exceeded", "Device limit reached")
+	case deviceservice.IsNotFound(err):
+		writeDeviceError(w, http.StatusUnauthorized, "unauthorized", "user not found")
 	case deviceservice.IsInvalidArgument(err):
 		writeDeviceError(w, http.StatusBadRequest, "invalid_argument", err.Error())
 	default:

@@ -26,27 +26,31 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := app.RunWorker(ctx, a); err != nil {
-			errCh <- err
-		}
+		errCh <- app.RunWorker(ctx, a)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := app.RunAPI(ctx, a); err != nil {
-			errCh <- err
-		}
+		errCh <- app.RunAPI(ctx, a)
 	}()
 
+	var runErr error
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
-		if err != nil {
-			panic(err)
-		}
+		runErr = err
 	}
 
 	stop()
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if runErr == nil && err != nil {
+			runErr = err
+		}
+	}
+	if runErr != nil {
+		panic(runErr)
+	}
 }

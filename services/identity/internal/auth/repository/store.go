@@ -20,7 +20,7 @@ type LoginCodeStore interface {
 type RefreshTokenStore interface {
 	Save(ctx context.Context, tokenHash, userID string, ttlSeconds int) error
 	GetUserID(ctx context.Context, tokenHash string) (string, error)
-	Delete(ctx context.Context, tokenHash string) error
+	Rotate(ctx context.Context, oldHash, newHash, userID string, ttlSeconds int) error
 }
 
 var (

@@ -42,6 +42,21 @@ export function basenameFromPath(path: string): string {
   return path.replace(/^.*[/\\]/, '');
 }
 
+/** Parent directory of an absolute OS path (POSIX or Windows separators). */
+export function parentDirFromPath(path: string): string {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  if (cut <= 0) {
+    throw new Error('invalid import path');
+  }
+  return path.slice(0, cut);
+}
+
+/** Join a listed import entry into a root-relative path for `read_text_file`. */
+export function joinImportRelative(relativeDir: string, name: string): string {
+  const dir = relativeDir.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return dir ? `${dir}/${name}` : name;
+}
+
 export function titleFromMarkdownFilename(name: string): string {
   const base = basenameFromPath(name);
   const withoutExt = base.replace(MARKDOWN_EXT, '').trim();

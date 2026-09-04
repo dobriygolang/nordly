@@ -2,6 +2,20 @@
  * Nordly motion preset classes — keyframes + utility classes.
  */
 
+:root {
+  --motion-dur-page: 400ms;
+  --motion-dur-content: 500ms;
+  --motion-dur-poster: 700ms;
+  --motion-dur-long: 640ms;
+  --motion-ease-interactive: cubic-bezier(0.46, 0.03, 0.52, 0.96);
+  --motion-ease-page-in: ease-in;
+  --motion-ease-poster: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-ease-content: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: var(--motion-dur-small) var(--motion-ease-standard);
+  --t-base: var(--motion-dur-medium) var(--motion-ease-interactive);
+  --t-slow: var(--motion-dur-content) var(--motion-ease-content);
+}
+
 @keyframes motion-page-in {
   from { opacity: 0; }
   to   { opacity: 1; }

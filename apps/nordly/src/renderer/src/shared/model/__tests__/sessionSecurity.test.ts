@@ -12,7 +12,7 @@ import { useSessionStore } from '../session';
 
 const USER_A = '33333333-3333-4333-8333-333333333333';
 const USER_B = '44444444-4444-4444-8444-444444444444';
-const STORAGE_KEY = 'nordly:dev-session:v1';
+const STORAGE_KEY = STORAGE_KEYS.devSession;
 const originalBridge = window.nordly;
 
 function installNativeBridge(session: unknown = null): void {
@@ -85,6 +85,27 @@ describe('session security boundaries', () => {
     });
 
     expect(isVaultUnlocked()).toBe(false);
+  });
+
+  it('fails boot instead of inventing a local profile when keychain IPC errors', async () => {
+    vi.mocked(window.nordly!.auth.session).mockRejectedValue(new Error('keychain unavailable'));
+    await expect(useSessionStore.getState().bootstrap()).rejects.toThrow('keychain unavailable');
+    expect(useSessionStore.getState().authKind).toBeNull();
+    expect(useSessionStore.getState().status).toBe('guest');
+  });
+
+  it('surfaces keychain persist failure from hydrate', async () => {
+    vi.mocked(window.nordly!.auth.persist).mockRejectedValue(new Error('keychain write failed'));
+    await expect(
+      useSessionStore.getState().hydrate({
+        userId: USER_A,
+        accessToken: 'tok',
+        refreshToken: 'ref',
+        expiresAt: Date.now() + 60_000,
+      }),
+    ).rejects.toThrow('keychain write failed');
+    expect(useSessionStore.getState().authKind).toBeNull();
+    expect(useSessionStore.getState().status).toBe('guest');
   });
 
   it('bootstraps a local profile when keychain is empty', async () => {

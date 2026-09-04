@@ -3,53 +3,64 @@
  * Wraps vault passphrase for Settings recovery flow.
  */
 import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
+import { base64ToBytes, bytesToBase64 } from '@shared/lib/base64';
 
 const PBKDF2_ITERATIONS = 100_000;
 const IV_BYTES = 12;
+const RECOVERY_WORD_COUNT = 256;
+const RECOVERY_ENTROPY_BYTES = 24;
 
-const WORDS = (
-  'ace atom axis back barn beam beta bird blue bolt book boot bulb burn ' +
-  'cafe cage calm cart cave chip city clay clip cloud coal code coin cool ' +
-  'core corn cube dark dawn deck desk dial disk door dove drop drum dusk ' +
-  'dust east edge epic fact fair fall farm fast fern file film fire fish ' +
-  'flag flat flux foam fold font fork fort frog fuel fuse gain gate gift ' +
-  'glow gold gray grid grip grow gulf hail half hall hand hawk head heat ' +
-  'hill hive hold hole home hope horn hub ice icon idea idle inch iron ' +
-  'item jack jade jazz join jump keen keep kelp key king kite knot lake ' +
-  'lamp land lane leaf lens lift lime line link lion list lock log loop ' +
-  'lord luck lunar mail map mark mars mask mile mind mint mist moon moss ' +
-  'moth move myth nail name nest news node north note nova oak oar ocean ' +
-  'olive open orbit oval pace pack page palm park path peak pine pink pipe ' +
-  'plan plot plug poem pond pool port post pure rain ramp reef ring rise ' +
-  'road rock root rose ruby ruin rune rush rust sage sand seal seed ship ' +
-  'shop silk site ski sky slate slip snow soil solar song star stem step ' +
-  'stone storm sun surf tank tape task tide tile time toad tree trim trip ' +
-  'tube tune twin unit vale vein view vine void volt vote walk wall wave ' +
-  'west wind wing wire wolf wood word work yard yarn zero zone'
-)
-  .trim()
-  .split(/\s+/);
+export const RECOVERY_WORDS = Object.freeze(
+  (
+    'ace atom axis back barn beam beta bird blue bolt book boot bulb burn ' +
+    'cafe cage calm cart cave chip city clay clip cloud coal code coin cool ' +
+    'core corn cube dark dawn deck desk dial disk door dove drop drum dusk ' +
+    'dust east edge epic fact fair fall farm fast fern file film fire fish ' +
+    'flag flat flux foam fold font fork fort frog fuel fuse gain gate gift ' +
+    'glow gold gray grid grip grow gulf hail half hall hand hawk head heat ' +
+    'hill hive hold hole home hope horn hub ice icon idea idle inch iron ' +
+    'item jack jade jazz join jump keen keep kelp key king kite knot lake ' +
+    'lamp land lane leaf lens lift lime line link lion list lock log loop ' +
+    'lord luck lunar mail map mark mars mask mile mind mint mist moon moss ' +
+    'moth move myth nail name nest news node north note nova oak oar ocean ' +
+    'olive open orbit oval pace pack page palm park path peak pine pink pipe ' +
+    'plan plot plug poem pond pool port post pure rain ramp reef ring rise ' +
+    'road rock root rose ruby ruin rune rush rust sage sand seal seed ship ' +
+    'shop silk site ski sky slate slip snow soil solar song star stem step ' +
+    'stone storm sun surf tank tape task tide tile time toad tree trim trip ' +
+    'tube tune twin unit vale vein view vine void volt vote walk wall wave ' +
+    'west wind wing wire wolf wood word work yard yarn zero zone ' +
+    'amber bloom crisp delta ember quartz'
+  )
+    .trim()
+    .split(/\s+/),
+);
+const RECOVERY_WORD_SET = new Set(RECOVERY_WORDS);
+
+if (
+  RECOVERY_WORDS.length !== RECOVERY_WORD_COUNT ||
+  RECOVERY_WORD_SET.size !== RECOVERY_WORD_COUNT
+) {
+  throw new Error('Recovery wordlist must contain exactly 256 unique words');
+}
 
 function wrapKey(userId: string): string {
   return `${userId}::vault_recovery_wrap`;
 }
 
-function base64Encode(bytes: Uint8Array): string {
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
-  return btoa(bin);
-}
-
-function base64Decode(s: string): Uint8Array {
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+export function recoveryPhraseFromEntropy(bytes: Uint8Array): string {
+  if (bytes.length !== RECOVERY_ENTROPY_BYTES) {
+    throw new Error(`Recovery entropy must be exactly ${RECOVERY_ENTROPY_BYTES} bytes`);
+  }
+  // The list has exactly 2^8 words, so each random byte maps directly to one
+  // word with no modulo reduction or rejection bias.
+  return Array.from(bytes, (byte) => RECOVERY_WORDS[byte]!).join(' ');
 }
 
 export function generateRecoveryPhrase(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return Array.from(bytes, (b) => WORDS[b % WORDS.length]!).join(' ');
+  return recoveryPhraseFromEntropy(
+    crypto.getRandomValues(new Uint8Array(RECOVERY_ENTROPY_BYTES)),
+  );
 }
 
 export function normalizeRecoveryPhrase(input: string): string {
@@ -58,9 +69,8 @@ export function normalizeRecoveryPhrase(input: string): string {
 
 export function validateRecoveryPhrase(phrase: string): boolean {
   const words = normalizeRecoveryPhrase(phrase).split(' ');
-  if (words.length !== 24) return false;
-  const set = new Set(WORDS);
-  return words.every((w) => set.has(w));
+  if (words.length !== RECOVERY_ENTROPY_BYTES) return false;
+  return words.every((word) => RECOVERY_WORD_SET.has(word));
 }
 
 async function deriveRecoveryKey(phrase: string): Promise<CryptoKey> {
@@ -96,7 +106,11 @@ export async function saveRecoveryWrap(passphrase: string, recoveryPhrase: strin
   const out = new Uint8Array(IV_BYTES + ctBytes.length);
   out.set(iv, 0);
   out.set(ctBytes, IV_BYTES);
-  await dbPut('meta', { key: wrapKey(userId), userId, wrappedB64: base64Encode(out) });
+  await dbPut('meta', {
+    key: wrapKey(userId),
+    userId,
+    wrappedB64: bytesToBase64(out),
+  });
 }
 
 export async function hasRecoveryWrap(userId?: string): Promise<boolean> {
@@ -112,7 +126,7 @@ export async function recoverPassphraseFromPhrase(recoveryPhrase: string): Promi
   const userId = requireUserId();
   const row = await dbGet<{ wrappedB64?: string }>('meta', wrapKey(userId));
   if (!row?.wrappedB64) throw new Error('No recovery backup on this device');
-  const buf = base64Decode(row.wrappedB64);
+  const buf = base64ToBytes(row.wrappedB64);
   if (buf.length <= IV_BYTES) throw new Error('Corrupted recovery backup');
   const iv = buf.slice(0, IV_BYTES);
   const ct = buf.slice(IV_BYTES);

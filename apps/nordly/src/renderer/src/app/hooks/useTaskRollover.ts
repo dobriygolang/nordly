@@ -1,16 +1,15 @@
 import { useEffect } from 'react';
 
 import { runTaskRollover } from '@features/tasks/lib/taskRollover';
+import { AuthStatus } from '@shared/model/session';
 import { startTaskRolloverLifecycle } from './taskRolloverLifecycle';
-
-type AuthStatus = 'unknown' | 'guest' | 'signed_in';
 
 export function useTaskRollover(
   status: AuthStatus,
   onError: (error: unknown) => void,
 ): void {
   useEffect(() => {
-    if (status !== 'signed_in') return;
+    if (status !== AuthStatus.SignedIn) return;
     return startTaskRolloverLifecycle({ run: runTaskRollover, onError });
   }, [status, onError]);
 }

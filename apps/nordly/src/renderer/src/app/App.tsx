@@ -10,18 +10,12 @@ import { Wordmark, AppVersionBadge } from '@widgets/Chrome';
 import { TitlebarDrag } from '@widgets/TitlebarDrag';
 import { TrafficLightsHover } from '@widgets/TrafficLightsHover';
 import { Dock } from '@widgets/Dock';
-import { AnimatedStatsOverlay } from '@widgets/AnimatedStatsOverlay';
 import { PomodoroController } from '@widgets/PomodoroController';
-import { type PageId, type PaletteAction } from '@shared/model/navigation';
+import { PageId, PaletteAction, isPageId } from '@shared/model/navigation';
 import { SyncStatusBanner } from '@widgets/SyncStatusBanner';
 import { ReauthLoginOverlay } from '@widgets/ReauthLoginOverlay';
 import { VaultUnlockGate } from '@widgets/VaultUnlockGate';
-import { createTask, listTasks, scheduleTask } from '@features/tasks/api/tasks';
-import {
-  parseDayKey,
-  resolveScheduleStart,
-  toDayKey,
-} from '@shared/lib/dates';
+import { parseDayKey, toDayKey } from '@shared/lib/dates';
 import { HomePage } from '@pages/Home';
 import { patchSettings } from '@shared/model/settings';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
@@ -31,7 +25,11 @@ import { subscribeVaultEnabled } from '@shared/crypto/vaultPrefs';
 import { listenEffect } from '@shared/lib/tauriListen';
 import { usePomodoroStore, type PomodoroStartArgs } from '@shared/model/pomodoro';
 import { rejectPendingCloudAuth, resetAuthRefreshState } from '@shared/api/authSession';
-import { useSessionStore } from '@shared/model/session';
+import {
+  AuthKind,
+  AuthStatus,
+  useSessionStore,
+} from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
@@ -41,7 +39,13 @@ import { MOTION_MS } from '@shared/lib/motionMs';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useBackgroundWorkers } from './hooks/useBackgroundWorkers';
 import { useDeepLinkNavigation } from './hooks/useDeepLinkNavigation';
+import { usePaletteTaskCreation } from './hooks/usePaletteTaskCreation';
 import { useTaskRollover } from './hooks/useTaskRollover';
+import {
+  classifyBackgroundError,
+  normalizeError,
+  shouldSurfaceBackgroundError,
+} from './backgroundErrorPolicy';
 
 const TaskBoardPage = lazy(() => import('@pages/TaskBoard').then((m) => ({ default: m.TaskBoardPage })));
 const NotesPage = lazy(() => import('@pages/Notes').then((m) => ({ default: m.NotesPage })));
@@ -68,16 +72,20 @@ const AppleEventInspectorHost = lazy(() =>
     default: m.AppleEventInspectorHost,
   })),
 );
+const AnimatedStatsOverlay = lazy(() =>
+  import('@widgets/AnimatedStatsOverlay').then((m) => ({ default: m.AnimatedStatsOverlay })),
+);
 
 /** Must match palette close transition (`--motion-dur-medium`). */
 const PALETTE_CLOSE_MS = MOTION_MS.medium;
 
 function preloadPalettePages(): void {
-  void import('@pages/TaskBoard');
-  void import('@pages/DailyPlanning/DailyPlanningModal');
-  void import('@pages/Notes');
-  void import('@pages/Settings');
-  void import('@pages/Whiteboard');
+  const reportPreloadFailure = (error: unknown): void => {
+    console.warn('[nordly:app] page preload failed', error);
+  };
+  void import('@pages/TaskBoard').catch(reportPreloadFailure);
+  void import('@pages/DailyPlanning/DailyPlanningModal').catch(reportPreloadFailure);
+  void import('@pages/Settings').catch(reportPreloadFailure);
 }
 
 type StartFocusArgs = PomodoroStartArgs;
@@ -103,6 +111,7 @@ export default function App() {
     () => boardCanvasForTheme(readStoredTheme()),
   );
   const [vaultGateActive, setVaultGateActive] = useState(false);
+  const [vaultPrefsReady, setVaultPrefsReady] = useState(false);
   const [reauthOpen, setReauthOpen] = useState(false);
 
   useEffect(() => {
@@ -113,17 +122,14 @@ export default function App() {
 
   const [operationError, setOperationError] = useState<Error | null>(null);
   const captureOperationError = useCallback((error: unknown) => {
-    // Auth/network blips must not tear down the signed-in shell (feels like logout).
-    const msg = error instanceof Error ? error.message : String(error);
-    const recoverable =
-      /session expired|missing access token|failed to fetch|load failed|network|offline|no internet|server unreachable/i.test(
-        msg,
+    if (!shouldSurfaceBackgroundError(error)) {
+      console.error(
+        `[nordly:app] ${classifyBackgroundError(error)} background error`,
+        error,
       );
-    if (recoverable) {
-      console.error('[nordly:app] recoverable background error', error);
       return;
     }
-    setOperationError(error instanceof Error ? error : new Error(String(error)));
+    setOperationError(normalizeError(error));
   }, []);
   const {
     page,
@@ -142,25 +148,30 @@ export default function App() {
     openNoteRequest,
     consumeTaskOpenRequest,
     consumeNoteOpenRequest,
-    registerNotesFlush,
-    beforeNavigate,
-  } = useAppNavigation();
+    registerPageFlush,
+  } = useAppNavigation(captureOperationError);
 
   useEffect(() => {
     applyTheme(theme);
     const nextBoardCanvas = boardCanvasForTheme(theme);
     setBoardCanvas(nextBoardCanvas);
-    patchSettings({ boardCanvas: nextBoardCanvas });
-    if (isTauriRuntime()) {
-      void emit('theme:sync', theme);
+    try {
+      patchSettings({ boardCanvas: nextBoardCanvas });
+    } catch (error) {
+      captureOperationError(error);
     }
-  }, [theme]);
+    if (isTauriRuntime()) {
+      void emit('theme:sync', theme).catch(captureOperationError);
+    }
+  }, [captureOperationError, theme]);
 
   useBackgroundWorkers({
     status,
     userId,
     sessionReauthRequired,
+    vaultPrefsReady,
     setVaultGateActive,
+    setVaultPrefsReady,
     onError: captureOperationError,
   });
   useTaskRollover(status, captureOperationError);
@@ -174,48 +185,56 @@ export default function App() {
   useEffect(() => {
     // Definitive cloud reauth cleared → close sticky reauth overlay.
     // Local-profile auth overlay is closed only via success / explicit dismiss.
-    if (!sessionReauthRequired && useSessionStore.getState().authKind === 'cloud') {
+    if (
+      !sessionReauthRequired &&
+      useSessionStore.getState().authKind === AuthKind.Cloud
+    ) {
       setReauthOpen(false);
     }
   }, [sessionReauthRequired]);
 
   useEffect(() => {
-    void bootstrap();
+    void bootstrap().catch(captureOperationError);
     const bridge = typeof window !== 'undefined' ? window.nordly : undefined;
     if (!bridge) return;
 
     const offAuth = bridge.on('authChanged', (session) => {
       if (session) {
         // Ignore stale auth_persist emissions after explicit sign-out to local.
-        if (useSessionStore.getState().authKind === 'local' && !session.accessToken) return;
+        if (
+          useSessionStore.getState().authKind === AuthKind.Local &&
+          !session.accessToken
+        ) {
+          return;
+        }
         void hydrate({
           userId: session.userId,
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
           expiresAt: session.expiresAt,
-        });
+        }).catch(captureOperationError);
         resetAuthRefreshState();
       } else {
-        void clear({ skipNativeLogout: true });
+        void clear({ skipNativeLogout: true }).catch(captureOperationError);
       }
     });
 
     return () => {
       offAuth();
     };
-  }, [bootstrap, clear, hydrate]);
+  }, [bootstrap, captureOperationError, clear, hydrate]);
 
   const startFocus = useCallback(
-    (args?: StartFocusArgs) => {
+    async (args?: StartFocusArgs): Promise<boolean> => {
+      if (!(await navigateTo(PageId.Home))) return false;
       usePomodoroStore.getState().start(args);
-      navigateTo('home');
+      return true;
     },
     [navigateTo],
   );
 
   useDeepLinkNavigation({
     navigateTo,
-    beforeNavigate,
     openTask: openTaskRequest,
     openNote: openNoteRequest,
     startFocus,
@@ -225,24 +244,32 @@ export default function App() {
   const openImpl = useCallback(
     (id: PaletteAction, args?: StartFocusArgs) => {
       if (args) {
-        startFocus(args);
+        void startFocus(args).catch(captureOperationError);
         return;
       }
-      if (id === 'stats') {
-        openStats();
+      if (id === PaletteAction.Stats) {
+        void openStats().catch(captureOperationError);
         return;
       }
-      if (id === 'calendar') {
-        openCalendar();
+      if (id === PageId.Calendar) {
+        void openCalendar().catch(captureOperationError);
         return;
       }
-      if (id === 'planning') {
-        openPlanning();
+      if (id === PageId.Planning) {
+        void openPlanning().catch(captureOperationError);
         return;
       }
-      navigateTo(id as PageId);
+      if (!isPageId(id)) return;
+      void navigateTo(id).catch(captureOperationError);
     },
-    [startFocus, navigateTo, openStats, openCalendar, openPlanning],
+    [
+      startFocus,
+      navigateTo,
+      openStats,
+      openCalendar,
+      openPlanning,
+      captureOperationError,
+    ],
   );
 
   const openPalette = useCallback((taskDate?: Date | null) => {
@@ -286,22 +313,10 @@ export default function App() {
     [closePalette, openImpl],
   );
 
-  const handlePaletteCreateTask = useCallback(
-    async (title: string, date: Date) => {
-      closePalette();
-      const dayKey = toDayKey(date);
-      try {
-        const existing = await listTasks();
-        let created = await createTask({ title, kind: 'custom' });
-        const start = resolveScheduleStart(dayKey, existing, date);
-        created = await scheduleTask(created.id, start, 30);
-        window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.tasksChanged));
-      } catch (err) {
-        captureOperationError(err);
-      }
-    },
-    [captureOperationError, closePalette],
-  );
+  const handlePaletteCreateTask = usePaletteTaskCreation({
+    closePalette,
+    onError: captureOperationError,
+  });
 
   useEffect(() => {
     const onAddTask = (e: Event) => {
@@ -319,8 +334,8 @@ export default function App() {
     page,
     paletteOpen,
     statsOpen,
-    calendarOpen: page === 'calendar',
-    planningOpen: page === 'planning',
+    calendarOpen: page === PageId.Calendar,
+    planningOpen: page === PageId.Planning,
     setPaletteOpen: (fn) => {
       const next = fn(paletteOpen);
       if (next) openPalette();
@@ -340,30 +355,35 @@ export default function App() {
     () =>
       function renderPage(id: PageId) {
         switch (id) {
-          case 'home':
+          case PageId.Home:
             return <HomePage />;
-          case 'today':
+          case PageId.Today:
             return (
               <TaskBoardPage
                 openRequest={taskOpenRequest}
                 onConsumeOpenRequest={consumeTaskOpenRequest}
               />
             );
-          case 'notes':
+          case PageId.Notes:
             return (
               <NotesPage
                 openRequest={noteOpenRequest}
                 onConsumeOpenRequest={consumeNoteOpenRequest}
-                onRegisterFlush={registerNotesFlush}
+                onRegisterFlush={registerPageFlush}
               />
             );
-          case 'whiteboard':
-            return <WhiteboardPage boardCanvas={boardCanvas} />;
-          case 'calendar':
-            return <CalendarPage onClose={() => navigateTo('home')} />;
-          case 'planning':
-            return <DailyPlanningPage onClose={() => navigateTo('home')} />;
-          case 'settings':
+          case PageId.Whiteboard:
+            return <WhiteboardPage boardCanvas={boardCanvas} onRegisterFlush={registerPageFlush} />;
+          case PageId.Calendar:
+            return <CalendarPage onClose={() => navigateTo(PageId.Home)} onRegisterFlush={registerPageFlush} />;
+          case PageId.Planning:
+            return (
+              <DailyPlanningPage
+                onClose={() => navigateTo(PageId.Home)}
+                onRegisterFlush={registerPageFlush}
+              />
+            );
+          case PageId.Settings:
             return (
               <SettingsPage
                 theme={theme}
@@ -372,7 +392,7 @@ export default function App() {
                 onBoardCanvasChange={setBoardCanvas}
                 onPomoChange={(secs) => usePomodoroStore.getState().setDurationSec(secs)}
                 onTimerModeChange={(mode) => usePomodoroStore.getState().setMode(mode)}
-                onBack={() => navigateTo('home')}
+                onBack={() => navigateTo(PageId.Home)}
               />
             );
           default:
@@ -387,13 +407,11 @@ export default function App() {
       noteOpenRequest,
       consumeTaskOpenRequest,
       consumeNoteOpenRequest,
-      registerNotesFlush,
+      registerPageFlush,
     ],
   );
 
   const posterBoost = statsOpen || paletteMounted;
-
-  if (operationError) throw operationError;
 
   const renderScreen = (screenId: string): JSX.Element => {
     if (screenId === 'loading') {
@@ -405,7 +423,7 @@ export default function App() {
     }
 
     // ScreenFade keeps the signed-in layer mounted briefly during logout crossfade.
-    if (status !== 'signed_in' || !userId) {
+    if (status !== AuthStatus.SignedIn || !userId) {
       return <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)' }} aria-hidden />;
     }
 
@@ -418,11 +436,11 @@ export default function App() {
       <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
         <div
           className="nordly-canvas-shell"
-          data-visible={page === 'home' ? 'true' : 'false'}
+          data-visible={page === PageId.Home ? 'true' : 'false'}
           data-boost={posterBoost ? 'true' : 'false'}
         >
           <CanvasBg
-            mode={page === 'home' ? 'full' : 'quiet'}
+            mode={page === PageId.Home ? 'full' : 'quiet'}
             theme={theme}
             boost={posterBoost}
           />
@@ -432,15 +450,31 @@ export default function App() {
 
         <SyncStatusBanner />
 
+        {operationError ? (
+          <div className="nordly-sync-banner" role="alert" data-kind="reauth" data-no-drag>
+            <span className="nordly-sync-banner__text">{operationError.message}</span>
+            <div className="nordly-sync-banner__actions">
+              <button
+                type="button"
+                className="nordly-sync-banner__close focus-ring"
+                aria-label={translate('nordly.sync.banner_dismiss')}
+                onClick={() => setOperationError(null)}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {reauthOpen ? <ReauthLoginOverlay onClose={closeAuthOverlay} /> : null}
 
         <TrafficLightsHover />
-        <div className="nordly-chrome-shell" data-visible={page === 'home' ? 'true' : 'false'}>
+        <div className="nordly-chrome-shell" data-visible={page === PageId.Home ? 'true' : 'false'}>
           <Wordmark />
           <AppVersionBadge />
         </div>
 
-        {page === 'home' ? (
+        {page === PageId.Home ? (
           <Suspense fallback={null}>
             <HomeTodayTasks />
           </Suspense>
@@ -448,7 +482,11 @@ export default function App() {
 
         <PageStack page={page}>{renderPage}</PageStack>
 
-        {page === 'home' && <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />}
+        {page === PageId.Home ? (
+          <Suspense fallback={null}>
+            <AnimatedStatsOverlay open={statsOpen} onClose={closeStats} />
+          </Suspense>
+        ) : null}
 
         <PomodoroController />
         <Suspense fallback={null}>
@@ -474,8 +512,10 @@ export default function App() {
     return vaultGateActive ? <VaultUnlockGate>{signedInShell}</VaultUnlockGate> : signedInShell;
   };
 
-  const sessionReady = status === 'signed_in' && userId != null;
-  const screen = status === 'unknown' ? 'loading' : sessionReady ? 'app' : 'loading';
+  const sessionReady =
+    status === AuthStatus.SignedIn && userId != null && vaultPrefsReady;
+  const screen =
+    status === AuthStatus.Unknown ? 'loading' : sessionReady ? 'app' : 'loading';
 
   return <ScreenFade screen={screen}>{renderScreen}</ScreenFade>;
 }

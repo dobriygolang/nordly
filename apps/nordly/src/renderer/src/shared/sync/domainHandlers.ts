@@ -1,12 +1,26 @@
 import { requireSyncHandlers } from '@shared/sync/registry';
-import type { OutboxEntry } from '@shared/sync/types';
+import { SyncDomain, type OutboxEntry } from '@shared/sync/types';
 
 export async function pushOutboxEntry(entry: OutboxEntry): Promise<void> {
   const handlers = requireSyncHandlers();
-  if (entry.domain === 'notes') await handlers.pushNotesOutbox(entry);
-  else if (entry.domain === 'tasks') await handlers.pushTasksOutbox(entry);
-  else if (entry.domain === 'vault') await handlers.pushVaultOutbox(entry);
-  else await handlers.pushFocusOutbox(entry);
+  switch (entry.domain) {
+    case SyncDomain.Notes:
+      await handlers.pushNotesOutbox(entry);
+      return;
+    case SyncDomain.Tasks:
+      await handlers.pushTasksOutbox(entry);
+      return;
+    case SyncDomain.Vault:
+      await handlers.pushVaultOutbox(entry);
+      return;
+    case SyncDomain.Focus:
+      await handlers.pushFocusOutbox(entry);
+      return;
+    default:
+      throw new Error(
+        `Unknown sync domain: ${String((entry as { domain: unknown }).domain)}`,
+      );
+  }
 }
 
 export async function pullAllDomains(): Promise<void> {

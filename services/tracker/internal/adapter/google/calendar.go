@@ -8,48 +8,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/google/uuid"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
-// CalendarEvent is a normalized Google Calendar event for the tracker API.
-type CalendarEvent struct {
-	ID         string
-	CalendarID string
-	Title      string
-	Start      time.Time
-	End        time.Time
-	AllDay     bool
-	HTMLLink   string
-	Editable   bool
-}
-
-// EventInput describes a create/update payload for a calendar event.
-type EventInput struct {
-	Title  string
-	Start  time.Time
-	End    time.Time
-	AllDay bool
-}
-
-// Calendar is a normalized entry from the user's calendar list.
-type Calendar struct {
-	ID              string
-	Summary         string
-	Primary         bool
-	Writable        bool
-	BackgroundColor string
-}
-
-// SyncResult is the delta returned by an incremental events sync.
-type SyncResult struct {
-	Upserts       []CalendarEvent
-	DeletedIDs    []string
-	NextSyncToken string
-	FullResync    bool // caller must clear its cache + syncToken and retry from scratch
-}
+// Aliases retain adapter call-site compatibility while the canonical calendar
+// contracts live in the domain model.
+type CalendarEvent = model.CalendarEvent
+type EventInput = model.CalendarEventInput
+type Calendar = model.Calendar
+type SyncResult = model.CalendarSyncResult
 
 func requireCalendarID(id string) (string, error) {
 	id = strings.TrimSpace(id)
@@ -87,11 +58,7 @@ func toEventDateTimes(in EventInput) (start, end *calendar.EventDateTime, err er
 		&calendar.EventDateTime{DateTime: in.End.Format(time.RFC3339)}, nil
 }
 
-// EventWithMeet is a calendar event plus an auto-generated Meet join URL.
-type EventWithMeet struct {
-	Event   CalendarEvent
-	MeetURL string
-}
+type EventWithMeet = model.CalendarEventWithMeet
 
 func meetURLFromEvent(ev *calendar.Event) string {
 	if ev == nil {

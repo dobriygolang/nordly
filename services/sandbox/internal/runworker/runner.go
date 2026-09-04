@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dobriygolang/project-nordly/services/sandbox/internal/sandbox/model"
 	"github.com/dobriygolang/project-nordly/services/sandbox/internal/tools/logger"
 )
 
 // Processor executes claimed queued code runs.
+//
+//go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Processor --output=./mocks --outpkg=mocks --filename=processor.go
 type Processor interface {
 	ProcessQueuedRuns(ctx context.Context, limit int) (int, error)
 }
@@ -21,6 +24,15 @@ func Run(ctx context.Context, log logger.Logger, interval time.Duration, batchSi
 	if batchSize <= 0 {
 		return fmt.Errorf("run worker batch size must be > 0")
 	}
+	if batchSize > model.MaxQueueBatchSize {
+		return fmt.Errorf("run worker batch size must be <= %d", model.MaxQueueBatchSize)
+	}
+	if log == nil {
+		return fmt.Errorf("run worker logger is required")
+	}
+	if svc == nil {
+		return fmt.Errorf("run worker processor is required")
+	}
 
 	log.Info("run worker started", "interval", interval.String(), "batch", batchSize)
 	ticker := time.NewTicker(interval)
@@ -29,10 +41,13 @@ func Run(ctx context.Context, log logger.Logger, interval time.Duration, batchSi
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case <-ticker.C:
 			n, err := svc.ProcessQueuedRuns(ctx, batchSize)
 			if err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
 				log.Error("process queued runs failed", "err", err)
 				continue
 			}

@@ -7,15 +7,13 @@ import {
   requireJsonString,
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
+import { requireOk } from '@shared/api/errors';
 import { apiFetch } from '@shared/api/http';
-import { throwIfLimitResponse } from '@shared/api/limitErrors';
 
-import type { Note, NoteSummary } from '../api/notesClient';
+import type { Note, NoteSummary, WireNote } from '../model/note';
 import type { StoredNote } from '../repository/notesStore';
 
 import type { WikiLinkWire } from '../lib/wikiLinks';
-
-export type WireNote = Note & { encrypted: boolean };
 
 function wikiLinksBody(links: WikiLinkWire[]): Record<string, unknown>[] {
   return links.map((l) => ({
@@ -63,7 +61,7 @@ function noteToStored(n: Note, userId: string, encrypted = false): StoredNote {
 
 export async function remoteListNotes(): Promise<NoteSummary[]> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes`, { headers: syncAuthHeaders() });
-  if (!resp.ok) throw new Error(`listNotes: ${resp.status}`);
+  requireOk(resp, 'listNotes');
   const j = (await resp.json()) as { notes?: Record<string, unknown>[] };
   if (!Array.isArray(j.notes)) throw new Error('Invalid notes response: missing notes');
   return j.notes.map(unwrapNoteSummary);
@@ -78,7 +76,7 @@ export async function remoteGetNote(id: string): Promise<WireNote> {
   const resp = await apiFetch(`${API_BASE_URL}/v1/notes/${encodeURIComponent(id)}`, {
     headers: syncAuthHeaders(),
   });
-  if (!resp.ok) throw new Error(`getNote: ${resp.status}`);
+  requireOk(resp, 'getNote');
   const j = (await resp.json()) as { note?: Record<string, unknown> };
   return unwrapNoteEnvelope(j, 'getNote');
 }
@@ -93,8 +91,7 @@ export async function remoteCreateNote(
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ title, bodyMd, wikiLinks: wikiLinksBody(wikiLinks) }),
   });
-  await throwIfLimitResponse(resp, 'notes_create');
-  if (!resp.ok) throw new Error(`createNote: ${resp.status}`);
+  requireOk(resp, 'createNote');
   const j = (await resp.json()) as { note?: Record<string, unknown> };
   return unwrapNoteEnvelope(j, 'createNote');
 }
@@ -110,7 +107,7 @@ export async function remoteUpdateNote(
     headers: syncAuthHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ id, title, bodyMd, wikiLinks: wikiLinksBody(wikiLinks) }),
   });
-  if (!resp.ok) throw new Error(`updateNote: ${resp.status}`);
+  requireOk(resp, 'updateNote');
   const j = (await resp.json()) as { note?: Record<string, unknown> };
   return unwrapNoteEnvelope(j, 'updateNote');
 }
@@ -120,7 +117,7 @@ export async function remoteDeleteNote(id: string): Promise<void> {
     method: 'DELETE',
     headers: syncAuthHeaders(),
   });
-  if (!resp.ok) throw new Error(`deleteNote: ${resp.status}`);
+  requireOk(resp, 'deleteNote');
 }
 
 export { noteToStored, unwrapNote };

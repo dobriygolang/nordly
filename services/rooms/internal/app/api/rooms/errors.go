@@ -20,3 +20,7 @@ func unauthorized() error {
 func permissionDenied(message string) error {
 	return status.Error(codes.PermissionDenied, message)
 }
+
+func gone(message string) error {
+	return status.Error(codes.FailedPrecondition, message)
+}

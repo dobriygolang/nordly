@@ -18,10 +18,14 @@ func (i *Implementation) StartFocusSession(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	mode, err := sessionModeFromProto(req.GetMode())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
 	sess, err := i.service.StartFocusSession(
 		ctx,
 		userID,
-		req.GetMode(),
+		mode,
 		req.GetPinnedTitle(),
 		req.GetTaskId(),
 		req.GetClientSessionId(),
@@ -30,5 +34,9 @@ func (i *Implementation) StartFocusSession(
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &focusv1.StartFocusSessionResponse{Session: toProtoSession(sess)}, nil
+	pb, err := toProtoSession(sess)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &focusv1.StartFocusSessionResponse{Session: pb}, nil
 }

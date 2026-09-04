@@ -12,11 +12,19 @@ func (i *Implementation) CreateWorkTask(ctx context.Context, req *trackerv1.Crea
 	if err != nil {
 		return nil, err
 	}
+	kind, err := workKindFromProto(req.GetKind())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
 	task, err := i.svc.CreateWorkTask(ctx, userID, trackerservice.CreateWorkTaskParams{
-		Kind: req.GetKind(), Title: req.GetTitle(),
+		Kind: kind, Title: req.GetTitle(),
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &trackerv1.CreateWorkTaskResponse{Task: workTaskToProto(*task)}, nil
+	pb, err := workTaskToProto(*task)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &trackerv1.CreateWorkTaskResponse{Task: pb}, nil
 }

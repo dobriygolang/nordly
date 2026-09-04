@@ -2,13 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
 	identityapi "github.com/dobriygolang/project-nordly/services/identity/internal/app/api/identity"
-	userrepo "github.com/dobriygolang/project-nordly/services/identity/internal/user/repository"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/ops"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -23,7 +23,7 @@ func RunAPI(ctx context.Context, a *App) error {
 		return fmt.Errorf("listen grpc %s: %w", listenAddr, err)
 	}
 
-	impl := identityapi.NewImplementation(a.Service, userrepo.New(a.Postgres), a.Postgres, a.Config.TelegramBotToken)
+	impl := identityapi.NewImplementation(a.Service, a.Config.TelegramBotToken)
 	grpcSrv := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		identityapi.InternalAuthInterceptor(a.Config.InternalAPIToken),
 	))
@@ -31,11 +31,10 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	reflection.Register(grpcSrv)
 
+	grpcErrCh := make(chan error, 1)
 	go func() {
 		a.Logger.Info("grpc server starting", "addr", listenAddr)
-		if serveErr := grpcSrv.Serve(lis); serveErr != nil {
-			a.Logger.Error("grpc server stopped", "err", serveErr)
-		}
+		grpcErrCh <- grpcSrv.Serve(lis)
 	}()
 
 	httpMux := http.NewServeMux()
@@ -77,13 +76,35 @@ func RunAPI(ctx context.Context, a *App) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		grpcSrv.GracefulStop()
-		return srv.Shutdown(shutdownCtx)
+		grpcStopped := make(chan struct{})
+		go func() {
+			grpcSrv.GracefulStop()
+			close(grpcStopped)
+		}()
+		httpErr := srv.Shutdown(shutdownCtx)
+		select {
+		case <-grpcStopped:
+		case <-shutdownCtx.Done():
+			grpcSrv.Stop()
+		}
+		return httpErr
+	case serveErr := <-grpcErrCh:
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		shutdownErr := srv.Shutdown(shutdownCtx)
+		if serveErr == nil {
+			serveErr = errors.New("grpc server stopped unexpectedly")
+		}
+		serveErr = fmt.Errorf("serve grpc: %w", serveErr)
+		if shutdownErr != nil {
+			return errors.Join(serveErr, fmt.Errorf("shutdown http after grpc failure: %w", shutdownErr))
+		}
+		return serveErr
 	case err := <-errCh:
 		grpcSrv.Stop()
 		if err == http.ErrServerClosed {
 			return nil
 		}
-		return err
+		return fmt.Errorf("serve http: %w", err)
 	}
 }

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useSiteTheme } from '@/lib/site/useSiteTheme'
 import { heroPosterUrl, heroVideoUrl } from '@/lib/landing/media'
 import { useI18n } from '@/lib/i18n'
@@ -8,11 +9,30 @@ export function LandingHeroMedia() {
   const videoSrc = heroVideoUrl()
   const poster = heroPosterUrl()
   const isDark = theme === 'dark'
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+    const sync = (): void => {
+      if (document.hidden) {
+        el.pause()
+        return
+      }
+      void el.play().catch((err) => {
+        console.warn('[landing] hero video play failed', err)
+      })
+    }
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
+  }, [videoSrc])
 
   return (
     <div className="relative aspect-video overflow-hidden rounded-xl border border-site-border bg-site-card shadow-2xl">
       {videoSrc ? (
         <video
+          ref={videoRef}
           src={videoSrc}
           poster={poster ?? undefined}
           autoPlay

@@ -13,17 +13,20 @@ import (
 type Store interface {
 	CreateSession(
 		ctx context.Context,
-		userID, mode, pinnedTitle string,
+		userID string,
+		mode focusmodel.SessionMode,
+		pinnedTitle string,
 		taskID, clientSessionID *string,
-		startedAt *time.Time,
-	) (*focusmodel.Session, error)
+		startedAt time.Time,
+	) (*focusmodel.Session, bool, error)
+	GetSessionByClientID(ctx context.Context, userID, clientSessionID string) (*focusmodel.Session, error)
 	EndSession(
 		ctx context.Context,
 		userID, sessionID string,
 		secondsFocused, pomodorosCompleted int,
-		endedAt *time.Time,
-	) (*focusmodel.Session, error)
-	AbandonSessionsStartedBefore(ctx context.Context, cutoff time.Time) (int64, error)
+		endedAt time.Time,
+	) (*focusmodel.Session, focusmodel.SessionEndOutcome, error)
+	AbandonSessionsStartedBefore(ctx context.Context, cutoff, now time.Time) (int64, error)
 	GetStats(ctx context.Context, userID string, upTo time.Time) (*focusmodel.Stats, error)
 }
 

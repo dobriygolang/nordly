@@ -2,8 +2,6 @@
 
 import {
   AttachmentError,
-  MD_IMAGE_RE,
-  OBSIDIAN_EMBED_RE,
   markdownImage,
   mimeFromFilename,
 } from '@features/notes/lib/noteAttachments';
@@ -103,9 +101,7 @@ export async function rewriteImportedImages(
   };
 
   // Collect Obsidian embeds (positions from original body).
-  OBSIDIAN_EMBED_RE.lastIndex = 0;
-  let em = OBSIDIAN_EMBED_RE.exec(bodyMd);
-  while (em) {
+  for (const em of bodyMd.matchAll(/!\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g)) {
     const full = em[0];
     const path = (em[1] ?? '').trim();
     const start = em.index;
@@ -115,19 +111,15 @@ export async function rewriteImportedImages(
       const alt = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '') || 'image';
       replacements.push({ start, end, text: markdownImage(alt, href) });
     }
-    em = OBSIDIAN_EMBED_RE.exec(bodyMd);
   }
 
   // Standard markdown images — skip https; warn on http; ingest relative.
-  MD_IMAGE_RE.lastIndex = 0;
-  let im = MD_IMAGE_RE.exec(bodyMd);
-  while (im) {
+  for (const im of bodyMd.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)) {
     const full = im[0];
     const alt = im[1] ?? '';
     const href = (im[2] ?? '').trim();
     const start = im.index;
     const end = start + full.length;
-    im = MD_IMAGE_RE.exec(bodyMd);
 
     if (/^https:\/\//i.test(href) || parseNordlyAssetId(href)) continue;
     if (/^http:\/\//i.test(href)) {

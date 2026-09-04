@@ -11,9 +11,15 @@ import {
   type BoardSummary,
   type WhiteboardScene,
 } from '@features/whiteboard/repository/whiteboardStore';
+import {
+  remotePublishWhiteboard,
+  remoteShareWhiteboard,
+  type PublishWhiteboardResult,
+  type ShareWhiteboardResult,
+} from '@features/whiteboard/remote/whiteboardRemote';
 
 export { parseSceneJson, serializeScene };
-export type { Board, BoardSummary, WhiteboardScene };
+export type { Board, BoardSummary, WhiteboardScene, PublishWhiteboardResult, ShareWhiteboardResult };
 
 export async function listBoards(): Promise<BoardSummary[]> {
   return boardsStoreList();
@@ -39,4 +45,12 @@ export async function updateBoardTitle(id: string, title: string): Promise<Board
 
 export async function deleteBoard(id: string): Promise<void> {
   await boardsStoreDelete(id);
+}
+
+export function shareWhiteboard(sceneJson: string, title: string): Promise<ShareWhiteboardResult> {
+  return remoteShareWhiteboard(sceneJson, title);
+}
+
+export function publishWhiteboard(sceneJson: string, title: string): Promise<PublishWhiteboardResult> {
+  return remotePublishWhiteboard(sceneJson, title);
 }

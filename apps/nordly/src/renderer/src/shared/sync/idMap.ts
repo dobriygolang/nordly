@@ -1,6 +1,6 @@
 import { dbDelete, dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
-import type { SyncDomain } from './types';
+import { SyncDomain } from './types';
 
 function mapKey(userId: string, domain: SyncDomain, localId: string): string {
   return `${userId}::map::${domain}::${localId}`;
@@ -68,5 +68,5 @@ export async function resolveNotesServerId(
   localOrServerId: string,
   userId?: string,
 ): Promise<string> {
-  return resolveEntityId('notes', localOrServerId, userId);
+  return resolveEntityId(SyncDomain.Notes, localOrServerId, userId);
 }

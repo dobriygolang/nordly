@@ -9,25 +9,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"golang.org/x/oauth2"
 )
 
-var ErrReauthRequired = errors.New("zoom reauthentication required")
+var ErrReauthRequired = model.ErrZoomReauthRequired
 
-// MeetingInput describes a Zoom meeting to create for a work task.
-type MeetingInput struct {
-	Topic    string
-	Start    time.Time
-	Duration int // minutes
-}
-
-// MeetingResult is the normalized create-meeting response.
-type MeetingResult struct {
-	ID      string
-	JoinURL string
-}
+type MeetingInput = model.MeetingInput
+type MeetingResult = model.Meeting
 
 type createMeetingRequest struct {
 	Topic     string `json:"topic"`
@@ -62,8 +52,8 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 		Type:     2,
 		Timezone: "UTC",
 	}
-	if in.Duration > 0 {
-		reqBody.Duration = in.Duration
+	if in.DurationMin > 0 {
+		reqBody.Duration = in.DurationMin
 	}
 	if !in.Start.IsZero() {
 		reqBody.StartTime = in.Start.UTC().Format("2006-01-02T15:04:05Z")
@@ -88,7 +78,10 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 		return MeetingResult{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return MeetingResult{}, fmt.Errorf("zoom create meeting read body: %w", err)
+	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return MeetingResult{}, ErrReauthRequired
 	}
@@ -100,6 +93,9 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 	if err := json.Unmarshal(body, &out); err != nil {
 		return MeetingResult{}, fmt.Errorf("zoom create meeting decode: %w", err)
 	}
+	if out.ID.String() == "" {
+		return MeetingResult{}, fmt.Errorf("zoom create meeting: empty id")
+	}
 	if out.JoinURL == "" {
 		return MeetingResult{}, fmt.Errorf("zoom create meeting: empty join_url")
 	}
@@ -109,13 +105,57 @@ func (c *Client) CreateMeeting(ctx context.Context, refreshToken string, in Meet
 	}, nil
 }
 
+// DeleteMeeting removes a Zoom meeting; already-deleted meetings are treated as success.
+func (c *Client) DeleteMeeting(ctx context.Context, refreshToken, meetingID string) error {
+	if !c.Configured() {
+		return fmt.Errorf("zoom not configured")
+	}
+	id := strings.TrimSpace(meetingID)
+	if id == "" {
+		return fmt.Errorf("zoom meeting id required")
+	}
+	tok, err := c.TokenSource(ctx, refreshToken).Token()
+	if err != nil {
+		return classifyErr(fmt.Errorf("zoom token: %w", err))
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, "https://api.zoom.us/v2/meetings/"+id, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return ErrReauthRequired
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("zoom delete meeting: status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("zoom delete meeting: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
+}
+
 func classifyErr(err error) error {
 	if err == nil {
 		return nil
 	}
 	var re *oauth2.RetrieveError
 	if errors.As(err, &re) {
-		return ErrReauthRequired
+		body := strings.ToLower(string(re.Body))
+		if strings.Contains(body, "invalid_grant") ||
+			strings.Contains(body, "unauthorized_client") ||
+			(re.Response != nil && re.Response.StatusCode == http.StatusUnauthorized) {
+			return ErrReauthRequired
+		}
 	}
 	return err
 }

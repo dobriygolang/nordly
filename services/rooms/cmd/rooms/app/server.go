@@ -17,13 +17,18 @@ import (
 )
 
 func RunAPI(ctx context.Context, a *App) error {
+	authInterceptor, err := roomsapi.NewAuthInterceptor(a.JWT)
+	if err != nil {
+		return fmt.Errorf("init auth interceptor: %w", err)
+	}
+
 	grpcAddr := fmt.Sprintf("127.0.0.1:%d", a.Config.GRPCPort)
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		return fmt.Errorf("listen grpc %s: %w", grpcAddr, err)
 	}
 
-	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(roomsapi.AuthInterceptor(a.JWT)))
+	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(authInterceptor))
 	roomsapi.NewRegisteredImplementation(grpcSrv, a.Service, a.Hub)
 	reflection.Register(grpcSrv)
 
@@ -37,7 +42,11 @@ func RunAPI(ctx context.Context, a *App) error {
 	repo := roomrepo.New(a.Postgres)
 	wsHandler := ws.NewHandler(a.Hub, a.JWT, repo, a.Logger, a.Config.WebAllowedOrigins)
 
-	go archive.Run(ctx, repo, a.Hub, a.Config.RoomArchiveInterval, a.Logger)
+	go func() {
+		if err := archive.Run(ctx, repo, a.Hub, a.Config.RoomArchiveInterval, a.Logger); err != nil {
+			a.Logger.Error("room archive stopped", "err", err)
+		}
+	}()
 
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", roomsapi.HealthzHTTP())

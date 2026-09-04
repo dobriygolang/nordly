@@ -1,12 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/ops"
 )
 
@@ -32,29 +34,42 @@ type Config struct {
 	CORSAllowedOrigins     []string
 	AuthRateLimitPerMinute int
 	InternalAPIToken       string
-	BillingGRPCAddr        string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
 func Load() (*Config, error) {
-	httpPort, err := strconv.Atoi(getEnv("HTTP_PORT", "8080"))
+	httpPort, err := parsePort("HTTP_PORT", "8080")
 	if err != nil {
-		return nil, fmt.Errorf("invalid HTTP_PORT: %w", err)
+		return nil, err
 	}
 
-	grpcPort, err := strconv.Atoi(getEnv("GRPC_PORT", "9090"))
+	grpcPort, err := parsePort("GRPC_PORT", "9090")
 	if err != nil {
-		return nil, fmt.Errorf("invalid GRPC_PORT: %w", err)
+		return nil, err
 	}
 
 	accessTTL, err := time.ParseDuration(getEnv("JWT_ACCESS_TTL", "15m"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_TTL: %w", err)
 	}
+	if !authmodel.IsValidAccessTokenTTL(accessTTL) {
+		return nil, fmt.Errorf(
+			"JWT_ACCESS_TTL must be whole seconds within [%s, %s]",
+			authmodel.MinTokenTTL,
+			authmodel.MaxAccessTokenTTL,
+		)
+	}
 
 	refreshTTL, err := time.ParseDuration(getEnv("JWT_REFRESH_TTL", "720h"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_TTL: %w", err)
+	}
+	if !authmodel.IsValidRefreshTokenTTL(refreshTTL) {
+		return nil, fmt.Errorf(
+			"JWT_REFRESH_TTL must be whole seconds within [%s, %s]",
+			authmodel.MinTokenTTL,
+			authmodel.MaxRefreshTokenTTL,
+		)
 	}
 
 	authRateLimit, err := strconv.Atoi(getEnv("AUTH_RATE_LIMIT_PER_MINUTE", "60"))
@@ -62,7 +77,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid AUTH_RATE_LIMIT_PER_MINUTE: %w", err)
 	}
 	if authRateLimit <= 0 {
-		return nil, fmt.Errorf("AUTH_RATE_LIMIT_PER_MINUTE must be greater than zero")
+		return nil, errors.New("AUTH_RATE_LIMIT_PER_MINUTE must be greater than zero")
 	}
 
 	privateKey, err := loadPEM("JWT_PRIVATE_KEY", "JWT_PRIVATE_KEY_FILE")
@@ -78,7 +93,7 @@ func Load() (*Config, error) {
 	appEnv := getEnv("APP_ENV", "development")
 	internalToken := getEnv("INTERNAL_API_TOKEN", "dev-internal-token")
 	if appEnv == "production" {
-		if os.Getenv("INTERNAL_API_TOKEN") == "" || internalToken == "dev-internal-token" {
+		if strings.TrimSpace(internalToken) == "" || internalToken == "dev-internal-token" {
 			return nil, fmt.Errorf("INTERNAL_API_TOKEN must be set in production")
 		}
 		if strings.TrimSpace(os.Getenv("REDIS_PASSWORD")) == "" {
@@ -87,7 +102,7 @@ func Load() (*Config, error) {
 	}
 
 	telegramToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if telegramToken == "" {
+	if strings.TrimSpace(telegramToken) == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
 	}
 	telegramUsername := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_USERNAME"))
@@ -113,7 +128,6 @@ func Load() (*Config, error) {
 		CORSAllowedOrigins:     ops.ParseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		AuthRateLimitPerMinute: authRateLimit,
 		InternalAPIToken:       internalToken,
-		BillingGRPCAddr:        getEnv("BILLING_GRPC_ADDR", "127.0.0.1:9095"),
 	}, nil
 }
 
@@ -122,6 +136,18 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parsePort(key, fallback string) (int, error) {
+	value := getEnv(key, fallback)
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("%s must be within [1, 65535]", key)
+	}
+	return port, nil
 }
 
 func grpcListenHost() string {

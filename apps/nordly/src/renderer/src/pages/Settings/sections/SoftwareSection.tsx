@@ -31,7 +31,12 @@ export function SoftwareSection() {
 
   const refreshPublished = useCallback(() => {
     if (!desktop) return;
-    void fetchPublishedVersion().then(setPublishedVersion);
+    void fetchPublishedVersion()
+      .then(setPublishedVersion)
+      .catch((err: unknown) => {
+        setPublishedVersion(null);
+        setStatus(err instanceof Error ? err.message : String(err));
+      });
   }, [desktop]);
 
   useEffect(() => {
@@ -39,7 +44,11 @@ export function SoftwareSection() {
       setVersion('dev');
       return;
     }
-    void readAppVersion().then(setVersion);
+    void readAppVersion()
+      .then(setVersion)
+      .catch((err: unknown) => {
+        setStatus(err instanceof Error ? err.message : String(err));
+      });
     refreshPublished();
   }, [desktop, refreshPublished]);
 

@@ -1,20 +1,22 @@
 import { create } from 'zustand';
 
-import { readPomodoroSeconds, readTimerMode } from '@shared/model/settings';
+import {
+  TIMER_MODES,
+  TimerMode,
+  isTimerMode,
+  readPomodoroSeconds,
+  readTimerMode,
+} from '@shared/model/settings';
 
-export type FocusTimerMode = 'pomodoro' | 'stopwatch';
-
-const FOCUS_TIMER_MODES: FocusTimerMode[] = ['pomodoro', 'stopwatch'];
+export type FocusTimerMode = TimerMode;
 
 /** Missing mode migrates once to pomodoro; unknown values throw. */
 export function parseFocusTimerMode(mode: string | undefined | null): FocusTimerMode {
   if (mode === undefined || mode === null || mode === '') {
     console.warn('[pomodoro] snapshot missing mode; migrating to pomodoro');
-    return 'pomodoro';
+    return TimerMode.Pomodoro;
   }
-  if ((FOCUS_TIMER_MODES as readonly string[]).includes(mode)) {
-    return mode as FocusTimerMode;
-  }
+  if (isTimerMode(mode)) return mode;
   throw new Error(`Invalid pomodoro snapshot mode: ${mode}`);
 }
 export interface PomodoroStartArgs {
@@ -57,12 +59,16 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
     set((s) => ({
       mode,
       remain:
-        mode === 'pomodoro'
-          ? Math.max(0, s.durationSec - (s.mode === 'stopwatch' ? s.elapsed : s.durationSec - s.remain))
+        mode === TimerMode.Pomodoro
+          ? Math.max(
+              0,
+              s.durationSec -
+                (s.mode === TimerMode.Stopwatch ? s.elapsed : s.durationSec - s.remain),
+            )
           : s.remain,
       elapsed:
-        mode === 'stopwatch'
-          ? s.mode === 'pomodoro'
+        mode === TimerMode.Stopwatch
+          ? s.mode === TimerMode.Pomodoro
             ? Math.max(0, s.durationSec - s.remain)
             : s.elapsed
           : s.elapsed,
@@ -71,20 +77,23 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
 
   cycleMode: () => {
     const { mode } = get();
-    const idx = FOCUS_TIMER_MODES.indexOf(mode);
-    const next = FOCUS_TIMER_MODES[(idx + 1) % FOCUS_TIMER_MODES.length] ?? 'pomodoro';
+    const idx = TIMER_MODES.indexOf(mode);
+    const next = TIMER_MODES[(idx + 1) % TIMER_MODES.length];
+    if (!next) {
+      throw new Error(`pomodoro.cycleMode: no next mode after ${mode}`);
+    }
     get().setMode(next);
   },
 
   setDurationSec: (sec) => {
     const clamped = Math.max(60, sec);
     set({ durationSec: clamped });
-    if (!get().running && get().mode === 'pomodoro') set({ remain: clamped });
+    if (!get().running && get().mode === TimerMode.Pomodoro) set({ remain: clamped });
   },
 
   hydrate: (valueSec, running, mode) => {
     const nextMode = mode ?? get().mode;
-    if (nextMode === 'stopwatch') {
+    if (nextMode === TimerMode.Stopwatch) {
       set({ mode: nextMode, elapsed: Math.max(0, valueSec), running });
       return;
     }
@@ -112,8 +121,8 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
     const mode = get().mode;
     set({
       running: true,
-      remain: mode === 'pomodoro' ? get().durationSec : get().remain,
-      elapsed: mode === 'stopwatch' ? 0 : get().elapsed,
+      remain: mode === TimerMode.Pomodoro ? get().durationSec : get().remain,
+      elapsed: mode === TimerMode.Stopwatch ? 0 : get().elapsed,
       pinnedPlanItemId: args?.planItemId ?? null,
       pinnedTitle: args?.pinnedTitle ?? null,
     });
@@ -122,7 +131,7 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
   tick: () => {
     const { running, mode, remain, elapsed } = get();
     if (!running) return;
-    if (mode === 'pomodoro') {
+    if (mode === TimerMode.Pomodoro) {
       if (remain <= 0) return;
       set({ remain: remain - 1 });
       return;

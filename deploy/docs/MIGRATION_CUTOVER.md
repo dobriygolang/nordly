@@ -7,7 +7,6 @@ Each active service has a single forward-only `00001_init.sql` (final schema + s
 | Database | Service |
 |----------|---------|
 | `nordly` | identity |
-| `nordly_billing` | billing |
 | `nordly_sandbox` | sandbox |
 | `nordly_rooms` | rooms |
 | `nordly_tracker` | tracker |
@@ -27,7 +26,6 @@ Each active service has a single forward-only `00001_init.sql` (final schema + s
 - [ ] Nordly login (Telegram)
 - [ ] Live room join + sandbox run (guest JWT)
 - [ ] Published note/board public URLs
-- [ ] Billing limits match expected (`GET /v1/billing/me`)
 - [ ] `./scripts/smoke-core-loop.sh` passes (see deploy Makefile)
 
 See also: [RUNBOOK.md](../RUNBOOK.md) § migrations failed, [PRODUCTION_CHECKLIST.md](../PRODUCTION_CHECKLIST.md).

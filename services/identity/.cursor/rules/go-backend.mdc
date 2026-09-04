@@ -11,4 +11,4 @@ Follow [AGENTS.md](../../AGENTS.md), root [fail-fast-no-fallbacks.mdc](../../../
 
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, JWT keys required in `config.Load()`.
 - Auth flows use explicit `ErrNotFound` branches — not `user == nil` without error.
-- Ports use mockery; `service.New` / usecase `New` panic on missing required deps (including Logger when wired).
+- Ports use mockery; `service.New` / usecase `New` return an error on missing required deps (including Logger when wired).

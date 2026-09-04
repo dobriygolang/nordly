@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/humanerror"
 	roomsv1 "github.com/dobriygolang/project-nordly/services/rooms/pkg/api/rooms/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/tools/humanerror"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

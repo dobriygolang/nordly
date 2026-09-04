@@ -59,7 +59,7 @@ if grep -E '^[A-Z][A-Z0-9_]*=.*CHANGE_ME' "$ENV_FILE" >/dev/null; then
   fail_check "$ENV_FILE contains a CHANGE_ME placeholder"
 fi
 
-for key in GRAFANA_ADMIN_PASSWORD TRIBUTE_WEBHOOK_SECRET REDIS_PASSWORD; do
+for key in GRAFANA_ADMIN_PASSWORD REDIS_PASSWORD; do
   if [[ -z "$(value_of "$key")" ]]; then
     fail_check "$key must be set for $app_env"
   fi

@@ -5,16 +5,15 @@ import (
 	"strings"
 
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
-	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/repository"
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/usecase/command/publish_whiteboard"
 )
 
 func (s *roomService) GetInitialScene(ctx context.Context, userID, roomID string) (string, error) {
-	uid, rid, room, participants, err := s.loadRoom(ctx, userID, roomID)
+	uid, rid, room, err := s.loadRoom(ctx, userID, roomID)
 	if err != nil {
 		return "", err
 	}
-	if err := s.ensureAccess(uid, room, participants); err != nil {
+	if err := s.ensureAccess(ctx, uid, rid, room); err != nil {
 		return "", err
 	}
 	return s.repo.GetInitialScene(ctx, rid)
@@ -30,7 +29,7 @@ func (s *roomService) PublishWhiteboard(ctx context.Context, userID, sceneJSON, 
 
 func (s *roomService) GetPublishedBoard(ctx context.Context, slug string) (*model.PublishedBoard, error) {
 	if strings.TrimSpace(slug) == "" {
-		return nil, repository.ErrNotFound
+		return nil, model.ErrNotFound
 	}
 	row, err := s.repo.GetPublishedBoardBySlug(ctx, slug)
 	if err != nil {

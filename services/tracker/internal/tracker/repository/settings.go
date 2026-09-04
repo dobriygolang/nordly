@@ -64,22 +64,17 @@ func (r *Repository) UpsertUserSettings(ctx context.Context, userID string, patc
 	if err != nil {
 		return nil, err
 	}
-	current, err := r.GetUserSettings(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	calendarID := current.GoogleCalendarID
-	if patch.GoogleCalendarID != nil {
-		calendarID = patch.GoogleCalendarID
-	}
 	row := r.conn(ctx).QueryRow(ctx, `
 		INSERT INTO user_settings (user_id, google_calendar_sync_enabled, google_calendar_id)
 		VALUES ($1, false, $2)
 		ON CONFLICT (user_id) DO UPDATE SET
-			google_calendar_id = EXCLUDED.google_calendar_id,
+			google_calendar_id = CASE
+				WHEN $3 THEN EXCLUDED.google_calendar_id
+				ELSE user_settings.google_calendar_id
+			END,
 			updated_at = now()
 		RETURNING `+userSettingsColumns+`
-	`, uid, calendarID)
+	`, uid, patch.GoogleCalendarID, patch.GoogleCalendarID != nil)
 	return scanUserSettings(row)
 }
 
@@ -115,63 +110,75 @@ func (r *Repository) ConsumeGoogleOAuthState(ctx context.Context, state string) 
 // SaveGoogleRefreshToken stores a fresh refresh token and resets connection
 // state so the next read performs a full incremental resync.
 func (r *Repository) SaveGoogleRefreshToken(ctx context.Context, userID, refreshToken string) error {
-	uid, err := parseUserID(userID)
-	if err != nil {
-		return err
-	}
-	_, err = r.conn(ctx).Exec(ctx, `
-		INSERT INTO user_settings (user_id, google_refresh_token, google_reauth_required)
-		VALUES ($1, $2, false)
-		ON CONFLICT (user_id) DO UPDATE SET
-			google_refresh_token = $2,
-			google_reauth_required = false,
-			updated_at = now()
-	`, uid, refreshToken)
-	if err != nil {
-		return err
-	}
-	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
+	return r.WithTx(ctx, func(txCtx context.Context) error {
+		uid, err := parseUserID(userID)
+		if err != nil {
+			return err
+		}
+		if _, err := r.conn(txCtx).Exec(txCtx, `
+			INSERT INTO user_settings (user_id, google_refresh_token, google_reauth_required)
+			VALUES ($1, $2, false)
+			ON CONFLICT (user_id) DO UPDATE SET
+				google_refresh_token = $2,
+				google_reauth_required = false,
+				updated_at = now()
+		`, uid, refreshToken); err != nil {
+			return err
+		}
+		if err := r.ClearGoogleEventsCache(txCtx, userID); err != nil {
+			return err
+		}
+		return r.ClearAllGoogleCalendarSyncState(txCtx, userID)
+	})
 }
 
-// MarkGoogleReauthRequired drops the invalid token and flags the connection as
-// needing re-authentication.
+// MarkGoogleReauthRequired preserves connection identity, sets its independent
+// reauthentication flag, and atomically invalidates all cached sync state.
 func (r *Repository) MarkGoogleReauthRequired(ctx context.Context, userID string) error {
-	uid, err := parseUserID(userID)
-	if err != nil {
-		return err
-	}
-	_, err = r.conn(ctx).Exec(ctx, `
-		UPDATE user_settings SET
-			google_refresh_token = NULL,
-			google_reauth_required = true,
-			updated_at = now()
-		WHERE user_id = $1
-	`, uid)
-	if err != nil {
-		return err
-	}
-	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
+	return r.WithTx(ctx, func(txCtx context.Context) error {
+		uid, err := parseUserID(userID)
+		if err != nil {
+			return err
+		}
+		if _, err := r.conn(txCtx).Exec(txCtx, `
+			UPDATE user_settings SET
+				google_reauth_required = true,
+				updated_at = now()
+			WHERE user_id = $1
+		`, uid); err != nil {
+			return err
+		}
+		if err := r.ClearGoogleEventsCache(txCtx, userID); err != nil {
+			return err
+		}
+		return r.ClearAllGoogleCalendarSyncState(txCtx, userID)
+	})
 }
 
 // ClearGoogleConnection wipes all Google state on disconnect.
 func (r *Repository) ClearGoogleConnection(ctx context.Context, userID string) error {
-	uid, err := parseUserID(userID)
-	if err != nil {
-		return err
-	}
-	_, err = r.conn(ctx).Exec(ctx, `
-		UPDATE user_settings SET
-			google_refresh_token = NULL,
-			google_oauth_state = NULL,
-			google_reauth_required = false,
-			google_calendar_sync_enabled = false,
-			updated_at = now()
-		WHERE user_id = $1
-	`, uid)
-	if err != nil {
-		return err
-	}
-	return r.ClearAllGoogleCalendarSyncState(ctx, userID)
+	return r.WithTx(ctx, func(txCtx context.Context) error {
+		uid, err := parseUserID(userID)
+		if err != nil {
+			return err
+		}
+		if _, err := r.conn(txCtx).Exec(txCtx, `
+			UPDATE user_settings SET
+				google_refresh_token = NULL,
+				google_oauth_state = NULL,
+				google_calendar_id = NULL,
+				google_reauth_required = false,
+				google_calendar_sync_enabled = false,
+				updated_at = now()
+			WHERE user_id = $1
+		`, uid); err != nil {
+			return err
+		}
+		if err := r.ClearGoogleEventsCache(txCtx, userID); err != nil {
+			return err
+		}
+		return r.ClearAllGoogleCalendarSyncState(txCtx, userID)
+	})
 }
 
 func scanUserSettings(row pgx.Row) (*model.UserSettings, error) {
@@ -241,7 +248,6 @@ func (r *Repository) MarkZoomReauthRequired(ctx context.Context, userID string) 
 	}
 	_, err = r.conn(ctx).Exec(ctx, `
 		UPDATE user_settings SET
-			zoom_refresh_token = NULL,
 			zoom_reauth_required = true,
 			updated_at = now()
 		WHERE user_id = $1

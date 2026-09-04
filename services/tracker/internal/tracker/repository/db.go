@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dobriygolang/project-nordly/services/tracker/internal/tracker/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,7 +14,7 @@ type ctxKey int
 
 const txKey ctxKey = 1
 
-var ErrNotFound = fmt.Errorf("not found")
+var ErrNotFound = model.ErrNotFound
 
 type Pool struct {
 	*pgxpool.Pool
@@ -41,8 +42,13 @@ type DB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+type transactionPool interface {
+	DB
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 type Repository struct {
-	pool *Pool
+	pool transactionPool
 }
 
 func New(pool *Pool) *Repository {

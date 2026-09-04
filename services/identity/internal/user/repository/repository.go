@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
+	"github.com/jackc/pgx/v5"
 )
 
 const userColumns = `id, username, telegram_id, avatar_url, timezone, created_at, updated_at`
@@ -40,15 +40,6 @@ func (r *Repository) GetByTelegramID(ctx context.Context, telegramID int64) (*mo
 	return scanUser(row)
 }
 
-func (r *Repository) GetByUsername(ctx context.Context, username string) (*model.User, error) {
-	row := r.pg.QueryRow(ctx, `
-		SELECT `+userColumns+`
-		FROM users
-		WHERE username = $1
-	`, username)
-	return scanUser(row)
-}
-
 func (r *Repository) Create(ctx context.Context, user *model.User) (*model.User, error) {
 	now := time.Now().UTC()
 	row := r.pg.QueryRow(ctx, `
@@ -64,10 +55,7 @@ func (r *Repository) Create(ctx context.Context, user *model.User) (*model.User,
 	)
 	created, err := scanUser(row)
 	if err != nil {
-		if uniqueViolation(err) {
-			return nil, ErrAlreadyExists
-		}
-		return nil, err
+		return nil, mapCreateError(err)
 	}
 	return created, nil
 }
@@ -121,4 +109,16 @@ func scanUser(row pgx.Row) (*model.User, error) {
 		return nil, fmt.Errorf("scan user: %w", err)
 	}
 	return &user, nil
+}
+
+func mapCreateError(err error) error {
+	if constraint, ok := uniqueViolationConstraint(err); ok {
+		switch constraint {
+		case usersUsernameConstraint:
+			return fmt.Errorf("create user: %w", model.ErrUsernameAlreadyExists)
+		case usersTelegramIDConstraint:
+			return fmt.Errorf("create user: %w", model.ErrTelegramIDAlreadyExists)
+		}
+	}
+	return fmt.Errorf("create user: %w", err)
 }

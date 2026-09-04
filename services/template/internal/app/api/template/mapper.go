@@ -9,9 +9,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toProtoItem(item *examplemodel.Item) *templatev1.Item {
+func toProtoItem(item *examplemodel.Item) (*templatev1.Item, error) {
 	if item == nil {
-		return nil
+		return nil, status.Error(codes.Internal, "toProtoItem: item is nil")
 	}
 	return &templatev1.Item{
 		Id:        item.ID,
@@ -19,7 +19,7 @@ func toProtoItem(item *examplemodel.Item) *templatev1.Item {
 		Title:     item.Title,
 		CreatedAt: timestamppb.New(item.CreatedAt),
 		UpdatedAt: timestamppb.New(item.UpdatedAt),
-	}
+	}, nil
 }
 
 func mapServiceError(err error) error {

@@ -28,7 +28,7 @@ under `internal/<worker>/` or `internal/services/`.
 
 - Query: `services/template/internal/example/usecase/query/get_item/`
 - Command: `services/interview/internal/interview/usecase/command/submit_attempt/`
-- Repository port: `services/billing/internal/billing/repository/store.go`
+- Repository port: `services/notes/internal/notes/repository/store.go`
 
 ## Domain package layout (search-performance shape)
 
@@ -51,7 +51,7 @@ internal/app/api/<name>/     # transport: service.go + one RPC per file + mapper
 ```
 
 External reference: Ozon `search-performance` (full mature CQRS service).
-Nordly exemplars: `services/template` (query), `services/billing` (commands + Store port).
+Nordly exemplars: `services/template` (query), `services/notes` (commands + Store port).
 
 ## File declaration order (within a `.go` file)
 
@@ -134,7 +134,7 @@ forced `slices` call — idioms first, cleverness never.
 ### Fail at construction; delete dead branches
 
 - Required deps: reject in `config.Load()`, `cmd/*/app/run.go`, or `New(Deps)` /
-  `NewHandler(Config)` (panic or return error). **No** `if deps.X == nil { return Err… }`
+  `NewHandler(Config)` by returning an error. **No** `if deps.X == nil { return Err… }`
   mid-`Handle`.
 - After `Validate()` / constructor invariants, do not re-check the same conditions
   “just in case”.
@@ -142,11 +142,11 @@ forced `slices` call — idioms first, cleverness never.
 
 ```go
 // DO
-func New(deps Deps) *Handler {
+func New(deps Deps) (*Handler, error) {
     if deps.Store == nil {
-        panic("foo.Handler: Store is required")
+        return nil, errors.New("foo.Handler: Store is required")
     }
-    return &Handler{store: deps.Store}
+    return &Handler{store: deps.Store}, nil
 }
 
 // DON'T — mid-request nil guard on a wired dep
@@ -168,7 +168,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) error {
 
 ### Transport, validation, errors
 
-- **Transport mappers**: panic (or error before map) on nil required entities — never
+- **Transport mappers**: return an error on nil required entities — never
   return empty proto as success.
 - **Validation**: each `Command`/`Query` has `Validate()`; missing/bad input wraps a
   sentinel (`ErrInvalidArgument`/`ErrInvalidInput`) → gRPC `InvalidArgument`.
@@ -190,7 +190,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) error {
 | Narrow consumer-side port in handler package | Depend on `*repository.Repository` from usecase |
 | `//go:generate mockery` + `mocks.NewX(t)` expecters | Hand-write `fakeRepo` / `stubX` in tests |
 | `slices.Contains` / `SortFunc` / `Clone` / `DeleteFunc` | Manual membership/sort/clone boilerplate |
-| Panic/error in `New`/`Load` on missing required dep | `if s.repo == nil` inside `Handle` |
+| Return error from `New`/`Load` on missing required dep | `if s.repo == nil` inside `Handle` |
 | Delete unreachable branches after `Validate()` | Keep “defensive” invent-default arms |
 | Drop unused struct fields and unused `SELECT`s | Leave dead DTO fields “for later” |
 | Extract complex writes into `usecase/command/<op>/` | Big-bang rewrite of whole service |

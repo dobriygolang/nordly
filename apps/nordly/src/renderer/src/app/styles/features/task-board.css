@@ -100,6 +100,10 @@ body.nordly-task-dragging .nordly-day-column {
   contain: layout style;
 }
 
+body.nordly-task-dragging .nordly-day-add-btn {
+  pointer-events: none;
+}
+
 .nordly-task-row[data-done='true'] .nordly-task-row__card {
   opacity: 0.5;
 }

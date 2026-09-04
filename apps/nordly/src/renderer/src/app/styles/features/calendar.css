@@ -664,51 +664,6 @@ button.nordly-calendar-event:hover {
   background: rgb(66 133 244 / 0.16);
   border-color: rgb(66 133 244 / 0.35);
 }
-.nordly-settings-google-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.nordly-settings-google-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--ink-40);
-}
-.nordly-settings-google-status[data-loading='true'] {
-  color: var(--ink-60);
-}
-.nordly-inline-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  border: 1.5px solid var(--ink-tint-08);
-  border-top-color: var(--ink-60);
-  border-radius: 50%;
-  animation: nordly-inline-spin 0.7s linear infinite;
-}
-@keyframes nordly-inline-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.nordly-settings-vault-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.nordly-settings-vault-btn .nordly-inline-spinner {
-  margin-right: 6px;
-  vertical-align: -2px;
-}
-.nordly-settings-google-error {
-  margin: 0 0 12px;
-  font-size: 11px;
-  color: var(--ink-60);
-}
-
 .nordly-floating-menu {
   background: rgba(22, 22, 24, 0.96);
   border: 1px solid var(--ink-tint-08);

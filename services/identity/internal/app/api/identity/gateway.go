@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/humanerror"
 	identityv1 "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/humanerror"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

@@ -1,6 +1,13 @@
 import { dbDelete, dbGetAllByUser, dbPut, requireUserId } from '@shared/db/nordlyDb';
 
-import type { OutboxEntry, OutboxOp, SyncDomain } from './types';
+import {
+  OutboxOp,
+  type OutboxEntry,
+  type OutboxEntryFor,
+  type SyncDomain,
+  type SyncOp,
+  type SyncPayload,
+} from './types';
 
 type OutboxRow = OutboxEntry & { key: string };
 
@@ -9,6 +16,12 @@ function rowKey(userId: string, id: string): string {
 }
 
 const entityMutationTails = new Map<string, Promise<void>>();
+let lastOutboxCreatedAt = 0;
+
+function nextOutboxCreatedAt(): number {
+  lastOutboxCreatedAt = Math.max(Date.now(), lastOutboxCreatedAt + 1);
+  return lastOutboxCreatedAt;
+}
 
 async function serializeEntityMutation<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = entityMutationTails.get(key) ?? Promise.resolve();
@@ -26,16 +39,19 @@ async function serializeEntityMutation<T>(key: string, fn: () => Promise<T>): Pr
   }
 }
 
-export async function enqueueOutbox(
-  domain: SyncDomain,
-  op: OutboxOp,
+export async function enqueueOutbox<
+  D extends SyncDomain,
+  O extends SyncOp<D>,
+>(
+  domain: D,
+  op: O,
   entityId: string,
-  payload: unknown,
+  payload: SyncPayload<D, O>,
   serverId?: string,
 ): Promise<void> {
   const userId = requireUserId();
   const id = crypto.randomUUID();
-  const entry: OutboxRow = {
+  const entry = {
     key: rowKey(userId, id),
     id,
     userId,
@@ -44,18 +60,21 @@ export async function enqueueOutbox(
     entityId,
     serverId,
     payload,
-    createdAt: Date.now(),
+    createdAt: nextOutboxCreatedAt(),
     attempts: 0,
-  };
+  } as OutboxEntryFor<D> & { key: string };
   await dbPut('outbox', entry);
 }
 
 /** In-process idempotent enqueue for reconciliation and repeated UI actions. */
-export async function enqueueOutboxOnce(
-  domain: SyncDomain,
-  op: OutboxOp,
+export async function enqueueOutboxOnce<
+  D extends SyncDomain,
+  O extends SyncOp<D>,
+>(
+  domain: D,
+  op: O,
   entityId: string,
-  payload: unknown,
+  payload: SyncPayload<D, O>,
   serverId?: string,
 ): Promise<boolean> {
   const userId = requireUserId();
@@ -128,8 +147,8 @@ export async function cancelOutboxForEntity(
     if (
       row.domain === domain &&
       row.entityId === entityId &&
-      row.op !== 'delete' &&
-      row.op !== 'attachment_delete'
+      row.op !== OutboxOp.Delete &&
+      row.op !== OutboxOp.AttachmentDelete
     ) {
       await removeOutbox(row.id, uid);
     }

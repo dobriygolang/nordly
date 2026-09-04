@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 
 import { useLocale, useT } from '@nordly-i18n';
 
+import { inspectCalendarEntry } from '@features/calendar/lib/calendarInspect';
 import {
   allDayEntriesForDay,
   appleToCalendarEntries,
@@ -9,25 +10,26 @@ import {
   googleToCalendarEntries,
   layoutTimedEntriesForDay,
   linkedGoogleEventIds,
-  inspectCalendarEntry,
   taskIsMeeting,
   tasksPlannedForDayGrid,
-  useAppleCalendarEvents,
-  useGoogleCalendarConnection,
-  useGoogleCalendarEvents,
-  useCalendarRangeSelect,
   CALENDAR_GRID_END_HOUR,
   CALENDAR_GRID_START_HOUR,
+  CALENDAR_HOUR_HEIGHT_PX,
   CALENDAR_TIME_SNAP_MIN,
   dateFromGridMinutes,
   gridMinutesFromDate,
   type CalendarEntry,
-} from '@features/calendar/api/calendar';
-import type { TaskCard } from '@features/tasks/api/tasks';
+} from '@features/calendar/lib/events';
+import { useAppleCalendarEvents } from '@features/calendar/lib/useAppleCalendarEvents';
+import { useCalendarRangeSelect } from '@features/calendar/lib/useCalendarRangeSelect';
+import { useGoogleCalendarConnection } from '@features/calendar/lib/useGoogleCalendarConnection';
+import { useGoogleCalendarEvents } from '@features/calendar/lib/useGoogleCalendarEvents';
+import { CalendarEntrySource } from '@features/calendar/model/entry';
 import { displayTaskTitle } from '@features/tasks/api/tasks';
 import type { TaskEpic } from '@features/tasks/api/epics';
+import { useNowTick } from '@shared/hooks/useNowTick';
 import { isCloudEnabled } from '@shared/model/features';
-import { readSettings } from '@shared/model/settings';
+import { useAppleCalendarEnabled } from '@shared/model/useAppleCalendarEnabled';
 import { useVerticalDrag } from '@shared/lib/useVerticalDrag';
 import { useVerticalResize } from '@shared/lib/useVerticalResize';
 import {
@@ -38,17 +40,20 @@ import {
   toDayKey,
 } from '@shared/lib/dates';
 import { epicTimelineSurfaceStyle, resolveTaskEpicColor } from '@features/tasks/lib/taskUi';
+import { TASK_DURATION_MAX } from '@features/tasks/model/duration';
+import { isTaskDone } from '@features/tasks/model/status';
+import type { TaskCard } from '@features/tasks/model/task';
 
 /** Visible day hours — same daytime window as the week calendar grid. */
 const HOUR_START = CALENDAR_GRID_START_HOUR;
 const HOUR_END = CALENDAR_GRID_END_HOUR - 1;
 const HOUR_COUNT = CALENDAR_GRID_END_HOUR - CALENDAR_GRID_START_HOUR;
-const HOUR_PX_DEFAULT = 52;
+const HOUR_PX_DEFAULT = CALENDAR_HOUR_HEIGHT_PX;
 const HOUR_PX_MIN = 28;
 const GRID_PAD_TOP = 12;
 const GRID_PAD_BOTTOM = 24;
 const MIN_DURATION_MIN = CALENDAR_TIME_SNAP_MIN;
-const MAX_DURATION_MIN = 480;
+const MAX_DURATION_MIN = TASK_DURATION_MAX;
 
 interface DayTimelineProps {
   date: Date;
@@ -74,7 +79,7 @@ function taskEntryFromPlanned(
 ): CalendarEntry {
   return {
     id: `task:${task.id}`,
-    source: 'task',
+    source: CalendarEntrySource.Task,
     title: displayTaskTitle(task.title, task.id),
     start,
     end,
@@ -101,12 +106,6 @@ export const DayTimeline = memo(function DayTimeline({
   const [locale] = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
   const dayKey = toDayKey(date);
-  const now = new Date();
-  const nowGridMin = gridMinutesFromDate(dayKey, now);
-  const showNowLine =
-    nowGridMin != null &&
-    nowGridMin >= HOUR_START * 60 &&
-    nowGridMin < CALENDAR_GRID_END_HOUR * 60;
   const { dragId, dragTop, start: startDrag } = useVerticalDrag();
   const { resizeId, resizeHeight, start: startResize } = useVerticalResize();
 
@@ -116,9 +115,9 @@ export const DayTimeline = memo(function DayTimeline({
     return dateFromGridMinutes(toDayKey(date), CALENDAR_GRID_END_HOUR * 60);
   }, [date]);
 
-  const { connected, ready: connectionReady } = useGoogleCalendarConnection();
-  const googleEnabled = isCloudEnabled() && connected && connectionReady;
-  const appleCalendarEnabled = readSettings().appleCalendarEnabled;
+  const { cachedEventsAvailable } = useGoogleCalendarConnection();
+  const googleEnabled = isCloudEnabled() && cachedEventsAvailable;
+  const appleCalendarEnabled = useAppleCalendarEnabled();
   const { events: googleEvents } = useGoogleCalendarEvents(dayStart, dayEnd, googleEnabled);
   const { events: appleEvents } = useAppleCalendarEvents(
     dayStart,
@@ -240,7 +239,8 @@ export const DayTimeline = memo(function DayTimeline({
         <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {allDayCalendar.map((entry) => {
             const canOpen =
-              entry.source === 'google' || entry.source === 'apple';
+              entry.source === CalendarEntrySource.Google ||
+              entry.source === CalendarEntrySource.Apple;
             return (
               <button
                 key={entry.id}
@@ -337,37 +337,15 @@ export const DayTimeline = memo(function DayTimeline({
             </div>
           ) : null}
 
-          {showNowLine && nowGridMin != null ? (
-            <div
-              style={{
-                position: 'absolute',
-                top: GRID_PAD_TOP + (nowGridMin / 60 - HOUR_START) * hourPx,
-                left: -6,
-                right: 0,
-                height: 2,
-                background: '#e85d4c',
-                zIndex: 2,
-                pointerEvents: 'none',
-              }}
-            >
-              <span
-                style={{
-                  position: 'absolute',
-                  left: -4,
-                  top: -4,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#e85d4c',
-                }}
-              />
-            </div>
-          ) : null}
+          <TimelineNowLine dayKey={dayKey} hourPx={hourPx} />
 
           {timedLayout.map(({ entry, top: layoutTop, height: layoutHeight, column, columnCount }) => {
             const colStyle = calendarColumnStyle(column, columnCount);
 
-            if (entry.source === 'task' && entry.taskId) {
+            if (
+              entry.source === CalendarEntrySource.Task &&
+              entry.taskId
+            ) {
               const block = plannedByTaskId.get(entry.taskId);
               if (!block) return null;
               const { task } = block;
@@ -383,7 +361,7 @@ export const DayTimeline = memo(function DayTimeline({
               const height = isResizing ? resizeHeight : baseHeight;
               const minHeight = (MIN_DURATION_MIN / 60) * hourPx;
               const maxHeight = Math.max(minHeight, gridBottom - top);
-              const done = task.status === 'done';
+              const done = isTaskDone(task.status);
               const canDrag = Boolean(onReschedule);
               const canResize = Boolean(onDurationChange);
               const epicColor = resolveTaskEpicColor(task, epics);
@@ -419,7 +397,7 @@ export const DayTimeline = memo(function DayTimeline({
                   <div
                     key={entry.id}
                     className="nordly-calendar-event nordly-timeline-meeting focus-ring"
-                    data-source="task"
+                    data-source={CalendarEntrySource.Task}
                     data-meeting="true"
                     data-done={done ? 'true' : undefined}
                     data-epic={epicColor ? 'true' : undefined}
@@ -550,8 +528,10 @@ export const DayTimeline = memo(function DayTimeline({
             }
 
             const canOpen =
-              (entry.source === 'google' && Boolean(entry.googleHtmlLink || entry.googleEventId)) ||
-              (entry.source === 'apple' && Boolean(entry.appleEventId));
+              (entry.source === CalendarEntrySource.Google &&
+                Boolean(entry.googleHtmlLink || entry.googleEventId)) ||
+              (entry.source === CalendarEntrySource.Apple &&
+                Boolean(entry.appleEventId));
 
             return (
               <button
@@ -560,7 +540,8 @@ export const DayTimeline = memo(function DayTimeline({
                 className="nordly-calendar-event focus-ring"
                 data-source={entry.source}
                 data-readonly={
-                  entry.source === 'google' && entry.googleEditable === false
+                  entry.source === CalendarEntrySource.Google &&
+                  entry.googleEditable === false
                     ? 'true'
                     : undefined
                 }
@@ -590,3 +571,46 @@ export const DayTimeline = memo(function DayTimeline({
     </aside>
   );
 });
+
+const NOW_LINE_TICK_MS = 30_000;
+
+function TimelineNowLine({ dayKey, hourPx }: { dayKey: string; hourPx: number }): JSX.Element | null {
+  const now = useNowTick(NOW_LINE_TICK_MS);
+
+  const nowGridMin = gridMinutesFromDate(dayKey, now);
+  if (
+    nowGridMin == null ||
+    nowGridMin < HOUR_START * 60 ||
+    nowGridMin >= CALENDAR_GRID_END_HOUR * 60
+  ) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: GRID_PAD_TOP + (nowGridMin / 60 - HOUR_START) * hourPx,
+        left: -6,
+        right: 0,
+        height: 2,
+        background: '#e85d4c',
+        zIndex: 2,
+        pointerEvents: 'none',
+      }}
+      aria-hidden
+    >
+      <span
+        style={{
+          position: 'absolute',
+          left: -4,
+          top: -4,
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: '#e85d4c',
+        }}
+      />
+    </div>
+  );
+}

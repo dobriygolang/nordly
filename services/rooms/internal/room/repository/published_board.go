@@ -12,18 +12,6 @@ import (
 	"github.com/dobriygolang/project-nordly/services/rooms/internal/room/model"
 )
 
-func (r *Repository) SetInitialScene(ctx context.Context, roomID uuid.UUID, sceneJSON string) error {
-	const q = `UPDATE code_rooms SET initial_scene_json = $2 WHERE id = $1 AND archived_at IS NULL`
-	tag, err := r.pg.Exec(ctx, q, roomID, sceneJSON)
-	if err != nil {
-		return fmt.Errorf("SetInitialScene: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
 func (r *Repository) GetInitialScene(ctx context.Context, roomID uuid.UUID) (string, error) {
 	const q = `SELECT initial_scene_json FROM code_rooms WHERE id = $1 AND archived_at IS NULL`
 	var scene *string
@@ -103,4 +91,3 @@ func NewBoardSlug(title string) string {
 	suffix := uuid.NewString()[:8]
 	return slug + "-" + suffix
 }
-

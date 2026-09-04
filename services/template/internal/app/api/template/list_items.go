@@ -15,7 +15,11 @@ func (i *Implementation) ListItems(ctx context.Context, req *templatev1.ListItem
 
 	protoItems := make([]*templatev1.Item, 0, len(items))
 	for idx := range items {
-		protoItems = append(protoItems, toProtoItem(&items[idx]))
+		protoItem, err := toProtoItem(&items[idx])
+		if err != nil {
+			return nil, err
+		}
+		protoItems = append(protoItems, protoItem)
 	}
 	return &templatev1.ListItemsResponse{Items: protoItems}, nil
 }

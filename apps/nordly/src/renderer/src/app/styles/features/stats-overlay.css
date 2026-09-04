@@ -1,0 +1,14 @@
+.nordly-stats-overlay {
+  position: absolute;
+  right: 32px;
+  top: 56px;
+  bottom: 24px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 12;
+  pointer-events: auto;
+  overflow: auto;
+  padding-bottom: 24px;
+}

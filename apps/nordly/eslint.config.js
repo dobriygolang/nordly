@@ -37,7 +37,10 @@ export default [
     },
     rules: {
       'no-undef': 'off',
+      'no-redeclare': 'off',
       'no-unused-vars': 'off',
+      // Canonical const-object + union types intentionally share a name.
+      '@typescript-eslint/no-redeclare': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
     },
@@ -50,8 +53,8 @@ export default [
         {
           patterns: [
             {
-              group: ['@pages/*', '@widgets/*'],
-              message: 'shared/ must not import pages/ or widgets/',
+              group: ['@app/*', '@features/*', '@pages/*', '@widgets/*'],
+              message: 'shared/ must not import features or composition layers',
             },
           ],
         },
@@ -66,8 +69,8 @@ export default [
         {
           patterns: [
             {
-              group: ['@pages/*'],
-              message: 'features/ must not import pages/',
+              group: ['@app/*', '@pages/*', '@widgets/*'],
+              message: 'features/ must not import composition layers',
             },
           ],
         },
@@ -75,10 +78,37 @@ export default [
     },
   },
   {
-    files: [
-      'src/renderer/src/pages/**/*.{ts,tsx}',
-      'src/renderer/src/widgets/**/*.{ts,tsx}',
-    ],
+    files: ['src/renderer/src/pages/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@pages/*'],
+              message: 'pages must not import another page; use features/',
+            },
+            {
+              group: [
+                '@features/*/repository/*',
+                '@features/*/remote/*',
+                '@features/*/sync/*',
+                '@features/*/vault',
+                '@features/*/vault/*',
+                '@features/calendar/lib/googleCalendarSyncWorker',
+                '@features/calendar/lib/googleCalendarCache',
+                '@features/calendar/lib/googleCalendarConnectionStore',
+                '@features/calendar/lib/appleCalendarEventsStore',
+              ],
+              message: 'pages must use a feature public api or component',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/renderer/src/widgets/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -89,8 +119,14 @@ export default [
                 '@features/*/repository/*',
                 '@features/*/remote/*',
                 '@features/*/sync/*',
+                '@features/*/vault',
+                '@features/*/vault/*',
+                '@features/calendar/lib/googleCalendarSyncWorker',
+                '@features/calendar/lib/googleCalendarCache',
+                '@features/calendar/lib/googleCalendarConnectionStore',
+                '@features/calendar/lib/appleCalendarEventsStore',
               ],
-              message: 'pages/widgets must use a feature public api or component',
+              message: 'widgets must use a feature public api or component',
             },
           ],
         },
@@ -109,13 +145,39 @@ export default [
           patterns: [
             {
               group: [
-                '@features/calendar/lib/*',
-                '@features/calendar/model/*',
+                '@app/*',
+                '@pages/*',
+                '@widgets/*',
                 '@features/calendar/remote/*',
                 '@features/calendar/repository/*',
                 '@features/calendar/sync/*',
               ],
-              message: 'cross-feature calendar imports must use @features/calendar/api/*',
+              message:
+                'task/planning features must avoid composition layers and calendar internals',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/renderer/src/features/*/sync/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@app/*',
+                '@pages/*',
+                '@widgets/*',
+                '@features/*/hooks/*',
+                '@features/calendar/remote/*',
+                '@features/calendar/repository/*',
+                '@features/calendar/sync/*',
+              ],
+              message: 'feature sync must depend on APIs, repositories, remotes, and models only',
             },
           ],
         },

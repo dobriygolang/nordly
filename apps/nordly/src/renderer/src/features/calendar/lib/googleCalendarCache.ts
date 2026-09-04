@@ -1,14 +1,23 @@
 import {
+  GoogleNotConnectedError,
   GoogleReauthError,
   listGoogleCalendarEvents,
   type GoogleCalendarEvent,
 } from '@features/calendar/api/calendarClient';
+import {
+  CalendarProvider,
+  CalendarProviderErrorKind,
+  calendarProviderError,
+  type CalendarProviderError,
+} from '@features/calendar/model/provider';
+import { googleEventDisplayDate } from '@features/calendar/model/calendar';
 import {
   calendarStoreClear,
   calendarStoreLoadSnapshot,
   calendarStoreSaveSnapshot,
 } from '@features/calendar/repository/calendarStore';
 import { startOfWeekMonday } from '@features/calendar/lib/events';
+import { requireUserId } from '@shared/db/nordlyDb';
 import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 
 /** Background worker refetches after this age (from app settings). */
@@ -38,6 +47,31 @@ interface RangeEntry {
 let snapshot: Snapshot | null = null;
 const rangeCache = new Map<string, RangeEntry>();
 const listeners = new Set<() => void>();
+let lastError: CalendarProviderError | null = null;
+
+export function googleCalendarLastError(): CalendarProviderError | null {
+  return lastError;
+}
+
+function setLastError(error: CalendarProviderError | null): void {
+  lastError = error;
+}
+
+export function googleCalendarProviderError(error: unknown): CalendarProviderError {
+  const kind =
+    error instanceof GoogleReauthError
+      ? CalendarProviderErrorKind.Reauth
+      : error instanceof GoogleNotConnectedError
+        ? CalendarProviderErrorKind.NotConnected
+        : CalendarProviderErrorKind.Fetch;
+  return calendarProviderError(CalendarProvider.Google, kind, error);
+}
+
+export function reportGoogleCalendarError(err: unknown): void {
+  setLastError(googleCalendarProviderError(err));
+  notifyListeners();
+}
+
 let hydratePromise: Promise<void> | null = null;
 /** Bumped on invalidate so late hydrates cannot resurrect a cleared cache. */
 let cacheGeneration = 0;
@@ -46,6 +80,11 @@ const rangeFetchSeq = new Map<string, number>();
 
 export function googleRangeKey(timeMin: Date, timeMax: Date): string {
   return `${timeMin.toISOString()}|${timeMax.toISOString()}`;
+}
+
+export function isInsideDefaultGoogleSyncWindow(timeMin: Date, timeMax: Date, now = new Date()): boolean {
+  const win = defaultGoogleSyncWindow(now);
+  return timeMin.getTime() >= win.timeMin.getTime() && timeMax.getTime() <= win.timeMax.getTime();
 }
 
 /** Default window synced by the background worker (~3 months rolling). */
@@ -66,11 +105,11 @@ function filterEventsInRange(
   const min = timeMin.getTime();
   const max = timeMax.getTime();
   return events.filter((ev) => {
-    const start = new Date(ev.start).getTime();
-    if (Number.isNaN(start)) return false;
-    if (!ev.end) return false;
-    const end = new Date(ev.end).getTime();
-    if (Number.isNaN(end)) return false;
+    const start = googleEventDisplayDate(ev.start, ev.allDay).getTime();
+    const end = googleEventDisplayDate(ev.end, ev.allDay).getTime();
+    if (end <= start) {
+      throw new Error(`Invalid Google Calendar event range: ${ev.id}`);
+    }
     return start < max && end > min;
   });
 }
@@ -87,15 +126,22 @@ export function subscribeGoogleCalendarCache(listener: () => void): () => void {
 function persistSnapshot(gen: number): void {
   if (!snapshot) return;
   const snap = snapshot;
-  void calendarStoreSaveSnapshot(
-    snap.events,
-    new Date(snap.timeMin),
-    new Date(snap.timeMax),
-  ).then(() => {
-    // Outdated writers must not clear a newer cache — only no-op.
+  const uid = requireUserId();
+  void (async () => {
     if (gen !== cacheGeneration) return;
-  }).catch((err: unknown) => {
-    console.warn('[googleCalendarCache] persist failed:', err);
+    await calendarStoreSaveSnapshot(
+      snap.events,
+      new Date(snap.timeMin),
+      new Date(snap.timeMax),
+      uid,
+    );
+    // User switch / invalidate raced the write — drop the resurrected snapshot.
+    if (gen !== cacheGeneration) {
+      await calendarStoreClear(uid);
+    }
+  })().catch((err: unknown) => {
+    setLastError(googleCalendarProviderError(err));
+    notifyListeners();
   });
 }
 
@@ -110,6 +156,7 @@ export function setGoogleCalendarSnapshot(
     events,
     fetchedAt: Date.now(),
   };
+  setLastError(null);
   persistSnapshot(cacheGeneration);
   notifyListeners();
 }
@@ -150,9 +197,11 @@ export function hydrateGoogleCalendarCache(): Promise<void> {
         events: row.events,
         fetchedAt: row.fetchedAt,
       };
+      setLastError(null);
       notifyListeners();
     } catch (err) {
-      console.warn('[googleCalendarCache] hydrate failed:', err);
+      setLastError(googleCalendarProviderError(err));
+      notifyListeners();
     }
   })();
   return hydratePromise;
@@ -202,6 +251,7 @@ export async function fetchGoogleCalendarEvents(
     .then((events) => {
       if (gen !== cacheGeneration || rangeFetchSeq.get(key) !== seq) return events;
       rangeCache.set(key, { events, fetchedAt: Date.now() });
+      setLastError(null);
       notifyListeners();
       return events;
     })
@@ -246,16 +296,22 @@ export async function syncGoogleCalendarSnapshot(
   return events;
 }
 
-export function invalidateGoogleCalendarCache(): void {
+export function invalidateGoogleCalendarCache(persistUserId?: string): void {
   cacheGeneration += 1;
   snapshot = null;
   rangeCache.clear();
   rangeFetchSeq.clear();
   hydratePromise = null;
-  void calendarStoreClear().catch((err: unknown) => {
-    console.warn('[googleCalendarCache] clear failed:', err);
-  });
+  void calendarStoreClear(persistUserId)
+    .then(() => {
+      setLastError(null);
+      notifyListeners();
+    })
+    .catch((err: unknown) => {
+      setLastError(googleCalendarProviderError(err));
+      notifyListeners();
+    });
   notifyListeners();
 }
 
-export { GoogleReauthError };
+export { GoogleNotConnectedError, GoogleReauthError };

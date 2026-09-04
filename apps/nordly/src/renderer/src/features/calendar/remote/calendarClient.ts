@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@shared/api/config';
+import { ApiHttpError } from '@shared/api/errors';
 import {
   jsonBoolTrue,
   optionalJsonStringOrEmpty,
@@ -6,7 +7,8 @@ import {
 } from '@shared/api/json';
 import { syncAuthHeaders } from '@shared/api/authToken';
 import { apiFetch } from '@shared/api/http';
-import { scheduleStartISO } from '@shared/lib/dates';
+import { parseScheduleInstant, scheduleStartISO } from '@shared/lib/dates';
+import { googleEventWireDate } from '../model/calendar';
 import type {
   GoogleCalendarEvent,
   GoogleCalendarListEntry,
@@ -39,26 +41,29 @@ export class GoogleNotConnectedError extends Error {
 }
 
 async function readError(resp: Response): Promise<string> {
-  const body = (await resp.clone().json()) as { message?: string };
-  if (typeof body.message === 'string' && body.message) return body.message;
-  return resp.statusText;
+  const body = (await resp.json()) as Record<string, unknown>;
+  return requireJsonString(body, 'message');
 }
 
 async function throwForStatus(resp: Response, label: string): Promise<never> {
-  let msg = '';
-  try {
-    msg = await readError(resp);
-  } catch {
-    msg = resp.statusText;
-  }
-  if (msg.includes('google_reauth_required')) throw new GoogleReauthError();
-  if (msg.includes('google_not_connected')) throw new GoogleNotConnectedError();
-  throw new Error(`${label}: ${resp.status}${msg ? ` ${msg}` : ''}`);
+  const message = await readError(resp);
+  if (message === 'google_reauth_required') throw new GoogleReauthError();
+  if (message === 'google_not_connected') throw new GoogleNotConnectedError();
+  throw new ApiHttpError(label, resp.status);
 }
 
 function eventTimeIso(raw: unknown, field: string): string {
-  if (typeof raw === 'string' && raw.length > 0) return raw;
-  throw new Error(`Invalid calendar event response: missing ${field}`);
+  if (typeof raw !== 'string' || raw.length === 0) {
+    throw new Error(`Invalid calendar event response: missing ${field}`);
+  }
+  try {
+    parseScheduleInstant(raw);
+  } catch (cause) {
+    throw new Error(`Invalid calendar event response: bad ${field}`, {
+      cause,
+    });
+  }
+  return raw;
 }
 
 function unwrapGoogleEvent(raw: Record<string, unknown>): GoogleCalendarEvent {
@@ -97,12 +102,18 @@ function unwrapCalendar(raw: Record<string, unknown>): GoogleCalendarListEntry {
 function eventBody(input: GoogleEventInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     title: input.title,
-    start: scheduleStartISO(input.start),
-    end: scheduleStartISO(input.end),
+    start: scheduleStartISO(googleEventWireDate(input.start, input.allDay)),
+    end: scheduleStartISO(googleEventWireDate(input.end, input.allDay)),
     allDay: input.allDay,
   };
   if (input.calendarId) body.calendarId = input.calendarId;
   return body;
+}
+
+function requireEventCalendarId(calendarId: string | undefined, action: string): string {
+  const id = calendarId?.trim();
+  if (!id) throw new Error(`${action} requires calendarId`);
+  return id;
 }
 
 export async function listGoogleCalendarEvents(
@@ -138,10 +149,12 @@ export async function updateGoogleCalendarEvent(
   eventId: string,
   input: GoogleEventInput,
 ): Promise<GoogleCalendarEvent> {
+  const body = eventBody(input);
+  body.calendarId = requireEventCalendarId(input.calendarId, 'updateGoogleCalendarEvent');
   const resp = await apiFetch(`${EVENTS_BASE}/${encodeURIComponent(eventId)}`, {
     method: 'PATCH',
     headers: jsonHeaders(),
-    body: JSON.stringify(eventBody(input)),
+    body: JSON.stringify(body),
   });
   if (!resp.ok) await throwForStatus(resp, 'updateGoogleCalendarEvent');
   const j = (await resp.json()) as { event?: Record<string, unknown> };
@@ -151,9 +164,10 @@ export async function updateGoogleCalendarEvent(
 
 export async function deleteGoogleCalendarEvent(
   eventId: string,
-  calendarId?: string,
+  calendarId: string,
 ): Promise<void> {
-  const params = calendarId ? `?calendar_id=${encodeURIComponent(calendarId)}` : '';
+  const exactCalendarId = requireEventCalendarId(calendarId, 'deleteGoogleCalendarEvent');
+  const params = `?calendar_id=${encodeURIComponent(exactCalendarId)}`;
   const resp = await apiFetch(`${EVENTS_BASE}/${encodeURIComponent(eventId)}${params}`, {
     method: 'DELETE',
     headers: syncAuthHeaders(),

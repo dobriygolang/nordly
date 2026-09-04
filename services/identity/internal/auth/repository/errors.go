@@ -1,6 +1,6 @@
 package repository
 
-import "errors"
+import authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
 
 // ErrNotFound is returned when a requested session entity does not exist.
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = authmodel.ErrCredentialNotFound

@@ -7,7 +7,6 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 
-import { wikiLinkAtPosition, noteTitlesSet } from '@features/notes/lib/wikiLinks';
 import {
   codeBlockField,
   imageHrefResolverFacet,
@@ -22,6 +21,7 @@ import {
 } from '@shared/lib/codemirror/notesCodeLanguages';
 import { notesKeymap, fenceAutoCloseInput } from '@shared/lib/codemirror/notesKeymap';
 import { wikiLinkAutocomplete } from '@shared/lib/codemirror/wikiLinkAutocomplete';
+import { normalizedWikiTitles, wikiLinkAtPosition } from '@shared/lib/wikiLinkText';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
@@ -92,7 +92,7 @@ export function LiveMarkdownEditor({
   onInsertImageFileRef.current = onInsertImageFile;
   onAttachmentErrorRef.current = onAttachmentError;
 
-  const resolvedTitles = useMemo(() => noteTitlesSet(noteTitles.map((t) => ({ id: '', title: t }))), [noteTitles]);
+  const resolvedTitles = useMemo(() => normalizedWikiTitles(noteTitles), [noteTitles]);
 
   const [slash, setSlash] = useState<{ x: number; y: number; query: string; slashStart: number } | null>(
     null,
@@ -157,7 +157,7 @@ export function LiveMarkdownEditor({
                   let pos = view.state.selection.main.from;
                   for (const file of files) {
                     const md = await insert(file);
-                    if (!md) continue;
+                    if (!md) throw new Error('image insert returned empty markdown');
                     const insertText = (pos > 0 && view.state.doc.sliceString(pos - 1, pos) !== '\n' ? '\n' : '') + md + '\n';
                     view.dispatch({
                       changes: { from: pos, to: pos, insert: insertText },
@@ -187,7 +187,7 @@ export function LiveMarkdownEditor({
                   let cursor = pos;
                   for (const file of files) {
                     const md = await insert(file);
-                    if (!md) continue;
+                    if (!md) throw new Error('image insert returned empty markdown');
                     const insertText = '\n' + md + '\n';
                     view.dispatch({
                       changes: { from: cursor, to: cursor, insert: insertText },

@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // DefaultGoogleCalendarID is the write/read target when no calendar is chosen.
 const DefaultGoogleCalendarID = "primary"
@@ -19,14 +22,16 @@ type UserSettings struct {
 	UpdatedAt            time.Time
 }
 
-// Connected reports whether a usable refresh token is stored.
+// Connected reports whether a Google connection exists. Reauthentication is a
+// separate state so clients can distinguish a revoked token from no connection.
 func (s *UserSettings) Connected() bool {
-	return s.GoogleRefreshToken != nil && *s.GoogleRefreshToken != ""
+	return s.GoogleRefreshToken != nil && strings.TrimSpace(*s.GoogleRefreshToken) != ""
 }
 
-// ZoomConnected reports whether a usable Zoom refresh token is stored.
+// ZoomConnected reports whether a Zoom connection exists. Reauthentication is
+// reported independently from connection presence.
 func (s *UserSettings) ZoomConnected() bool {
-	return s.ZoomRefreshToken != nil && *s.ZoomRefreshToken != ""
+	return s.ZoomRefreshToken != nil && strings.TrimSpace(*s.ZoomRefreshToken) != ""
 }
 
 // CalendarID returns the selected calendar, defaulting to the primary calendar.
@@ -47,13 +52,11 @@ type UserSettingsView struct {
 }
 
 func (s *UserSettings) View() UserSettingsView {
-	connected := s.Connected()
-	zoomConnected := s.ZoomConnected()
 	return UserSettingsView{
-		GoogleCalendarConnected: connected,
+		GoogleCalendarConnected: s.Connected(),
 		GoogleCalendarID:        s.CalendarID(),
-		GoogleReauthRequired:    connected && s.GoogleReauthRequired,
-		ZoomConnected:           zoomConnected,
-		ZoomReauthRequired:      zoomConnected && s.ZoomReauthRequired,
+		GoogleReauthRequired:    s.Connected() && s.GoogleReauthRequired,
+		ZoomConnected:           s.ZoomConnected(),
+		ZoomReauthRequired:      s.ZoomConnected() && s.ZoomReauthRequired,
 	}
 }

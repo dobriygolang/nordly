@@ -1,4 +1,5 @@
 import { mergeSyncOptions, type SyncOptions } from '@shared/sync/options';
+import { SyncAbortedError } from '@shared/sync/errors';
 
 type SyncJob = {
   options?: SyncOptions;
@@ -28,6 +29,7 @@ export class SerialSyncQueue {
 
   stopGeneration(): void {
     this.generation += 1;
+    for (const job of this.jobs) this.settleAborted(job);
     this.jobs = [];
     this.draining = false;
   }
@@ -65,5 +67,13 @@ export class SerialSyncQueue {
         }
       }
     })();
+  }
+
+  private settleAborted(job: SyncJob): void {
+    if (job.options?.explicit) {
+      job.reject(new SyncAbortedError());
+      return;
+    }
+    job.resolve();
   }
 }

@@ -79,7 +79,7 @@ func runAbandonedSessionCleanup(ctx context.Context, a *App) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 	for {
-		count, err := a.Service.CleanupAbandonedSessions(ctx, time.Now())
+		count, err := a.Service.CleanupAbandonedSessions(ctx)
 		if err != nil && ctx.Err() == nil {
 			a.Logger.Error("cleanup abandoned focus sessions", "err", err)
 		} else if count > 0 {

@@ -4,24 +4,39 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/dobriygolang/project-nordly/services/identity/internal/adapter/telegram"
-	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
-	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	authmodel "github.com/dobriygolang/project-nordly/services/identity/internal/auth/model"
+	authservice "github.com/dobriygolang/project-nordly/services/identity/internal/auth/service"
 	"github.com/dobriygolang/project-nordly/services/identity/internal/tools/humanerror"
+	"github.com/dobriygolang/project-nordly/services/identity/internal/user/model"
 	identityv1 "github.com/dobriygolang/project-nordly/services/identity/pkg/api/identity/v1"
+	identityjwt "github.com/dobriygolang/project-nordly/services/identity/pkg/jwt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toProtoUser(user *model.User) *identityv1.User {
+func toProtoUser(user *model.User) (*identityv1.User, error) {
+	if user == nil {
+		return nil, errors.New("map user: nil user")
+	}
+	if err := identityjwt.ValidateSubject(user.ID); err != nil {
+		return nil, fmt.Errorf("map user id: %w", err)
+	}
+	avatarPath, err := telegramAvatarPath(user.AvatarURL)
+	if err != nil {
+		return nil, err
+	}
+	avatarURL := ""
+	if avatarPath != "" {
+		avatarURL = fmt.Sprintf("/v1/users/%s/avatar", user.ID)
+	}
+
 	out := &identityv1.User{
 		Id:        user.ID,
 		Username:  user.Username,
-		AvatarUrl: publicAvatarURL(user),
+		AvatarUrl: avatarURL,
 		CreatedAt: timestamppb.New(user.CreatedAt),
 	}
 	if user.TelegramID != nil {
@@ -30,28 +45,33 @@ func toProtoUser(user *model.User) *identityv1.User {
 	if user.Timezone != "" {
 		out.Timezone = user.Timezone
 	}
-	return out
+	return out, nil
 }
 
-func publicAvatarURL(user *model.User) string {
-	if user.AvatarURL == "" {
-		return ""
+func telegramAvatarPath(stored string) (string, error) {
+	if stored == "" {
+		return "", nil
 	}
-	if path, ok := telegram.ParseStoreRef(user.AvatarURL); ok && path != "" {
-		return fmt.Sprintf("/v1/users/%s/avatar", user.ID)
+	path, ok := telegram.ParseStoreRef(stored)
+	if !ok || path == "" {
+		return "", errors.New("invalid stored avatar reference")
 	}
-	if strings.HasPrefix(user.AvatarURL, "/v1/users/") {
-		return user.AvatarURL
-	}
-	return user.AvatarURL
+	return path, nil
 }
 
-func toAuthResponse(result *authmodel.AuthResult) *identityv1.AuthResponse {
+func toAuthResponse(result *authmodel.AuthResult) (*identityv1.AuthResponse, error) {
+	if result == nil {
+		return nil, errors.New("map auth response: nil result")
+	}
+	user, err := toProtoUser(result.User)
+	if err != nil {
+		return nil, err
+	}
 	return &identityv1.AuthResponse{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
-		User:         toProtoUser(result.User),
-	}
+		User:         user,
+	}, nil
 }
 
 func mapServiceError(err error) error {

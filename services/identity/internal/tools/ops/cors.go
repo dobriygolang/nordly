@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"net"
 	"net/http"
 	"strings"
 )
@@ -57,18 +58,23 @@ func AuthRateLimit(maxPerMinute int, h http.Handler) http.Handler {
 }
 
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			return strings.TrimSpace(xff[:i])
-		}
-		return strings.TrimSpace(xff)
+	if ip := rightmostForwardedIP(r.Header.Get("X-Forwarded-For")); ip != "" {
+		return ip
 	}
-	if xri := r.Header.Get("X-Real-Ip"); xri != "" {
-		return strings.TrimSpace(xri)
+	if xri := strings.TrimSpace(r.Header.Get("X-Real-Ip")); xri != "" {
+		return xri
 	}
-	host := r.RemoteAddr
-	if i := strings.LastIndexByte(host, ':'); i >= 0 {
-		return host[:i]
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
 	}
-	return host
+	return r.RemoteAddr
+}
+
+func rightmostForwardedIP(forwarded string) string {
+	if forwarded == "" {
+		return ""
+	}
+	parts := strings.Split(forwarded, ",")
+	return strings.TrimSpace(parts[len(parts)-1])
 }

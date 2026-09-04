@@ -3,15 +3,6 @@
 ARG SERVICE=identity
 ARG CMD=
 
-FROM golang:1.25-alpine AS gopls
-ARG SERVICE
-RUN if [ "$SERVICE" = "sandbox" ]; then \
-      mkdir -p /out && \
-      go install golang.org/x/tools/gopls@v0.19.1 && cp /go/bin/gopls /out/gopls; \
-    else \
-      mkdir -p /out; \
-    fi
-
 FROM golang:1.25-alpine AS builder
 ARG SERVICE
 ARG CMD
@@ -49,9 +40,6 @@ ARG SERVICE
 RUN apk add --no-cache ca-certificates tzdata wget \
   && if [ "$SERVICE" = "sandbox" ]; then apk add --no-cache docker-cli; fi
 COPY --from=builder /src/services/${SERVICE}/.bin/${SERVICE} /usr/local/bin/service
-COPY --from=gopls /out /tmp/gopls-stage
-RUN if [ -f /tmp/gopls-stage/gopls ]; then mv /tmp/gopls-stage/gopls /usr/local/bin/gopls; fi \
-  && rm -rf /tmp/gopls-stage
 COPY --from=builder /out/migrations /migrations
 USER nobody
 EXPOSE 8080 9090

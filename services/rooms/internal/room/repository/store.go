@@ -12,14 +12,13 @@ import (
 //
 //go:generate go run github.com/vektra/mockery/v2@v2.53.5 --case=underscore --with-expecter --name=Store --output=./mocks --outpkg=mocks --filename=store.go
 type Store interface {
-	CreateRoomWithID(ctx context.Context, id uuid.UUID, room model.Room) (model.Room, error)
+	CreateRoom(ctx context.Context, room model.Room, owner model.Participant, initialSceneJSON string) (model.Room, error)
 	GetRoom(ctx context.Context, id uuid.UUID) (model.Room, error)
 	AddParticipant(ctx context.Context, p model.Participant) (model.Participant, error)
-	ListParticipants(ctx context.Context, roomID uuid.UUID) ([]model.Participant, error)
+	DeleteParticipant(ctx context.Context, roomID, userID uuid.UUID) error
 	GetRole(ctx context.Context, roomID, userID uuid.UUID) (model.Role, error)
 	DeleteExpired(ctx context.Context) ([]uuid.UUID, error)
 	DeleteRoom(ctx context.Context, id, ownerID uuid.UUID) error
-	SetInitialScene(ctx context.Context, roomID uuid.UUID, sceneJSON string) error
 	GetInitialScene(ctx context.Context, roomID uuid.UUID) (string, error)
 	InsertPublishedBoard(ctx context.Context, userID uuid.UUID, slug, title, sceneJSON string) (model.PublishedBoard, error)
 	GetPublishedBoardBySlug(ctx context.Context, slug string) (model.PublishedBoard, error)

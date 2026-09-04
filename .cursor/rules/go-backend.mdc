@@ -11,7 +11,7 @@ Follow service-local `AGENTS.md`, [.cursor/rules/architecture-standard.mdc](arch
 ## Fail fast (every service)
 
 - Required env → error in `internal/config/config.go` `Load()`; wire deps in `cmd/<service>/app/run.go` only.
-- No `if s.repo == nil` / `if s.billing == nil` in service layer for required deps.
+- No `if s.repo == nil` / `if s.store == nil` in service layer for required deps.
 - Transport mappers: no `if x == nil { return empty }` on success paths.
 - One wire format per RPC; remove deprecated proto fields and dead handlers with client grep.
 - Typed domain errors → gRPC codes in transport; no swallowed errors.
@@ -46,18 +46,18 @@ Keep a `map` for non-consecutive uniqueness / set membership.
 ## Construction fail-fast
 
 ```go
-func New(deps Deps) Service {
-	if deps.Repo == nil || deps.Billing == nil {
-		panic("notes service: Repo and Billing are required")
+func New(deps Deps) (Service, error) {
+	if deps.Repo == nil {
+		return nil, errors.New("notes service: Repo is required")
 	}
 	if strings.TrimSpace(deps.PublicBaseURL) == "" {
-		panic("notes service: PublicBaseURL is required")
+		return nil, errors.New("notes service: PublicBaseURL is required")
 	}
-	return &notesService{repo: deps.Repo, billing: deps.Billing, publicBaseURL: deps.PublicBaseURL}
+	return &notesService{repo: deps.Repo, publicBaseURL: deps.PublicBaseURL}, nil
 }
 ```
 
-Do **not** add later `if s.billing == nil { return invent }` — wiring bugs must surface at process start.
+Do **not** add later `if s.repo == nil { return invent }` — wiring bugs must surface at process start.
 
 ## Tests: generated mocks only
 

@@ -81,27 +81,27 @@ func (_c *Store_AddParticipant_Call) RunAndReturn(run func(context.Context, mode
 	return _c
 }
 
-// CreateRoomWithID provides a mock function with given fields: ctx, id, room
-func (_m *Store) CreateRoomWithID(ctx context.Context, id uuid.UUID, room model.Room) (model.Room, error) {
-	ret := _m.Called(ctx, id, room)
+// CreateRoom provides a mock function with given fields: ctx, room, owner, initialSceneJSON
+func (_m *Store) CreateRoom(ctx context.Context, room model.Room, owner model.Participant, initialSceneJSON string) (model.Room, error) {
+	ret := _m.Called(ctx, room, owner, initialSceneJSON)
 
 	if len(ret) == 0 {
-		panic("no return value specified for CreateRoomWithID")
+		panic("no return value specified for CreateRoom")
 	}
 
 	var r0 model.Room
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.Room) (model.Room, error)); ok {
-		return rf(ctx, id, room)
+	if rf, ok := ret.Get(0).(func(context.Context, model.Room, model.Participant, string) (model.Room, error)); ok {
+		return rf(ctx, room, owner, initialSceneJSON)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.Room) model.Room); ok {
-		r0 = rf(ctx, id, room)
+	if rf, ok := ret.Get(0).(func(context.Context, model.Room, model.Participant, string) model.Room); ok {
+		r0 = rf(ctx, room, owner, initialSceneJSON)
 	} else {
 		r0 = ret.Get(0).(model.Room)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, model.Room) error); ok {
-		r1 = rf(ctx, id, room)
+	if rf, ok := ret.Get(1).(func(context.Context, model.Room, model.Participant, string) error); ok {
+		r1 = rf(ctx, room, owner, initialSceneJSON)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -109,32 +109,33 @@ func (_m *Store) CreateRoomWithID(ctx context.Context, id uuid.UUID, room model.
 	return r0, r1
 }
 
-// Store_CreateRoomWithID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRoomWithID'
-type Store_CreateRoomWithID_Call struct {
+// Store_CreateRoom_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRoom'
+type Store_CreateRoom_Call struct {
 	*mock.Call
 }
 
-// CreateRoomWithID is a helper method to define mock.On call
+// CreateRoom is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
 //   - room model.Room
-func (_e *Store_Expecter) CreateRoomWithID(ctx interface{}, id interface{}, room interface{}) *Store_CreateRoomWithID_Call {
-	return &Store_CreateRoomWithID_Call{Call: _e.mock.On("CreateRoomWithID", ctx, id, room)}
+//   - owner model.Participant
+//   - initialSceneJSON string
+func (_e *Store_Expecter) CreateRoom(ctx interface{}, room interface{}, owner interface{}, initialSceneJSON interface{}) *Store_CreateRoom_Call {
+	return &Store_CreateRoom_Call{Call: _e.mock.On("CreateRoom", ctx, room, owner, initialSceneJSON)}
 }
 
-func (_c *Store_CreateRoomWithID_Call) Run(run func(ctx context.Context, id uuid.UUID, room model.Room)) *Store_CreateRoomWithID_Call {
+func (_c *Store_CreateRoom_Call) Run(run func(ctx context.Context, room model.Room, owner model.Participant, initialSceneJSON string)) *Store_CreateRoom_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(model.Room))
+		run(args[0].(context.Context), args[1].(model.Room), args[2].(model.Participant), args[3].(string))
 	})
 	return _c
 }
 
-func (_c *Store_CreateRoomWithID_Call) Return(_a0 model.Room, _a1 error) *Store_CreateRoomWithID_Call {
+func (_c *Store_CreateRoom_Call) Return(_a0 model.Room, _a1 error) *Store_CreateRoom_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Store_CreateRoomWithID_Call) RunAndReturn(run func(context.Context, uuid.UUID, model.Room) (model.Room, error)) *Store_CreateRoomWithID_Call {
+func (_c *Store_CreateRoom_Call) RunAndReturn(run func(context.Context, model.Room, model.Participant, string) (model.Room, error)) *Store_CreateRoom_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -193,6 +194,54 @@ func (_c *Store_DeleteExpired_Call) Return(_a0 []uuid.UUID, _a1 error) *Store_De
 }
 
 func (_c *Store_DeleteExpired_Call) RunAndReturn(run func(context.Context) ([]uuid.UUID, error)) *Store_DeleteExpired_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteParticipant provides a mock function with given fields: ctx, roomID, userID
+func (_m *Store) DeleteParticipant(ctx context.Context, roomID uuid.UUID, userID uuid.UUID) error {
+	ret := _m.Called(ctx, roomID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteParticipant")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, roomID, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Store_DeleteParticipant_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteParticipant'
+type Store_DeleteParticipant_Call struct {
+	*mock.Call
+}
+
+// DeleteParticipant is a helper method to define mock.On call
+//   - ctx context.Context
+//   - roomID uuid.UUID
+//   - userID uuid.UUID
+func (_e *Store_Expecter) DeleteParticipant(ctx interface{}, roomID interface{}, userID interface{}) *Store_DeleteParticipant_Call {
+	return &Store_DeleteParticipant_Call{Call: _e.mock.On("DeleteParticipant", ctx, roomID, userID)}
+}
+
+func (_c *Store_DeleteParticipant_Call) Run(run func(ctx context.Context, roomID uuid.UUID, userID uuid.UUID)) *Store_DeleteParticipant_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *Store_DeleteParticipant_Call) Return(_a0 error) *Store_DeleteParticipant_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Store_DeleteParticipant_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) error) *Store_DeleteParticipant_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -530,113 +579,6 @@ func (_c *Store_InsertPublishedBoard_Call) Return(_a0 model.PublishedBoard, _a1 
 }
 
 func (_c *Store_InsertPublishedBoard_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, string, string) (model.PublishedBoard, error)) *Store_InsertPublishedBoard_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListParticipants provides a mock function with given fields: ctx, roomID
-func (_m *Store) ListParticipants(ctx context.Context, roomID uuid.UUID) ([]model.Participant, error) {
-	ret := _m.Called(ctx, roomID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListParticipants")
-	}
-
-	var r0 []model.Participant
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.Participant, error)); ok {
-		return rf(ctx, roomID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.Participant); ok {
-		r0 = rf(ctx, roomID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]model.Participant)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = rf(ctx, roomID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Store_ListParticipants_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListParticipants'
-type Store_ListParticipants_Call struct {
-	*mock.Call
-}
-
-// ListParticipants is a helper method to define mock.On call
-//   - ctx context.Context
-//   - roomID uuid.UUID
-func (_e *Store_Expecter) ListParticipants(ctx interface{}, roomID interface{}) *Store_ListParticipants_Call {
-	return &Store_ListParticipants_Call{Call: _e.mock.On("ListParticipants", ctx, roomID)}
-}
-
-func (_c *Store_ListParticipants_Call) Run(run func(ctx context.Context, roomID uuid.UUID)) *Store_ListParticipants_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID))
-	})
-	return _c
-}
-
-func (_c *Store_ListParticipants_Call) Return(_a0 []model.Participant, _a1 error) *Store_ListParticipants_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *Store_ListParticipants_Call) RunAndReturn(run func(context.Context, uuid.UUID) ([]model.Participant, error)) *Store_ListParticipants_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SetInitialScene provides a mock function with given fields: ctx, roomID, sceneJSON
-func (_m *Store) SetInitialScene(ctx context.Context, roomID uuid.UUID, sceneJSON string) error {
-	ret := _m.Called(ctx, roomID, sceneJSON)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SetInitialScene")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
-		r0 = rf(ctx, roomID, sceneJSON)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Store_SetInitialScene_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetInitialScene'
-type Store_SetInitialScene_Call struct {
-	*mock.Call
-}
-
-// SetInitialScene is a helper method to define mock.On call
-//   - ctx context.Context
-//   - roomID uuid.UUID
-//   - sceneJSON string
-func (_e *Store_Expecter) SetInitialScene(ctx interface{}, roomID interface{}, sceneJSON interface{}) *Store_SetInitialScene_Call {
-	return &Store_SetInitialScene_Call{Call: _e.mock.On("SetInitialScene", ctx, roomID, sceneJSON)}
-}
-
-func (_c *Store_SetInitialScene_Call) Run(run func(ctx context.Context, roomID uuid.UUID, sceneJSON string)) *Store_SetInitialScene_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *Store_SetInitialScene_Call) Return(_a0 error) *Store_SetInitialScene_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Store_SetInitialScene_Call) RunAndReturn(run func(context.Context, uuid.UUID, string) error) *Store_SetInitialScene_Call {
 	_c.Call.Return(run)
 	return _c
 }

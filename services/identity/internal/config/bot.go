@@ -16,7 +16,7 @@ type BotConfig struct {
 // LoadBot reads bot configuration from environment variables.
 func LoadBot() (*BotConfig, error) {
 	token := getEnv("TELEGRAM_BOT_TOKEN", "")
-	if token == "" {
+	if strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
 	}
 	if getEnv("APP_ENV", "development") == "production" && strings.TrimSpace(os.Getenv("REDIS_PASSWORD")) == "" {

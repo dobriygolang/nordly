@@ -14,6 +14,7 @@ import {
   vaultReadBytes,
   vaultWritePastedImage,
 } from './ipc';
+import { withVaultNotePathMutation } from './vaultIo';
 import { enqueueVaultFilePut, suppressVaultWatch } from './vaultOutbox';
 
 const blobCache = new Map<string, string>();
@@ -122,14 +123,16 @@ export async function createVaultPastedImageMarkdown(
     throw new AttachmentError('too_large');
   }
   const ext = (file.name.split('.').pop() || mime.split('/')[1] || 'png').toLowerCase();
-  suppressVaultWatch();
-  const relLink = await vaultWritePastedImage(notePath, buf, ext);
-  const absRel = joinNoteRelative(notePath, relLink);
-  await enqueueVaultFilePut(absRel, buf, 'bin', Date.now());
-  const encoded = relLink
-    .split('/')
-    .map((s) => encodeURIComponent(s))
-    .join('/');
-  const alt = file.name.replace(/\.[^.]+$/, '') || 'image';
-  return markdownImage(alt, encoded);
+  return withVaultNotePathMutation(notePath, async (resolvedNotePath) => {
+    suppressVaultWatch();
+    const relLink = await vaultWritePastedImage(resolvedNotePath, buf, ext);
+    const absRel = joinNoteRelative(resolvedNotePath, relLink);
+    await enqueueVaultFilePut(absRel, buf, 'bin', Date.now());
+    const encoded = relLink
+      .split('/')
+      .map((s) => encodeURIComponent(s))
+      .join('/');
+    const alt = file.name.replace(/\.[^.]+$/, '') || 'image';
+    return markdownImage(alt, encoded);
+  });
 }

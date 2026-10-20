@@ -4,7 +4,7 @@ set -euo pipefail
 
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
-export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-4}"
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
 
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env)
 if [ "$#" -eq 0 ]; then

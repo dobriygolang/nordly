@@ -9,9 +9,11 @@ const budgets = {
   // Shared shell + device OAuth helpers (PKCE/keychain) ride the main graph.
   main: { source: 'index.html', bytes: 420 * 1024 },
   // Notes cold graph: Esc/vault shell + attachments + multi-select + filesystem vault (ADR 005).
-  Notes: { source: 'src/pages/Notes/index.ts', bytes: 1360 * 1024 },
+  // Board wiki-link preview hides the `board:` prefix inside the shared editor chunk.
+  Notes: { source: 'src/pages/Notes/index.ts', bytes: 1370 * 1024 },
   // Excalidraw route; shared-chunk drift from vault/OAuth shared deps.
-  Whiteboard: { entry: 'whiteboard', bytes: 1865 * 1024 },
+  // Folder drag uses the same @dnd-kit graph as the notes sidebar.
+  Whiteboard: { entry: 'whiteboard', bytes: 1920 * 1024 },
 };
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

@@ -30,6 +30,7 @@ vi.mock('@shared/api/notifications', () => ({
 }));
 vi.mock('@shared/model/settings', () => ({
   readEndBell: () => false,
+  readSettings: () => ({ flashcards: { enabled: false } }),
 }));
 vi.mock('@shared/model/pomodoro', () => ({
   parseFocusTimerMode: (mode?: string) => mode ?? 'pomodoro',

@@ -129,9 +129,7 @@ export function GoogleCalendarSection({
 
   const statusLabel = loading
     ? t('nordly.settings.google.loading')
-    : oauthPending
-      ? t('nordly.settings.google.oauth_pending')
-      : reauthNeeded
+    : reauthNeeded
       ? t('nordly.settings.google.reauth')
       : connected
         ? t('nordly.settings.google.connected')
@@ -163,7 +161,7 @@ export function GoogleCalendarSection({
         <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
           <span className="mono nordly-settings-google-status" data-loading={loading ? 'true' : undefined}>
             {loading ? <InlineOAuthSpinner /> : null}
-            {statusLabel}
+            {oauthPending ? null : statusLabel}
           </span>
           {connected ? (
             <button
@@ -188,7 +186,7 @@ export function GoogleCalendarSection({
               disabled={controlsDisabled}
               onClick={() => void connect()}
             >
-              {busy ? (
+              {busy || oauthPending ? (
                 <>
                   <InlineOAuthSpinner />
                   {t('nordly.settings.google.connecting')}
@@ -225,6 +223,9 @@ export function GoogleCalendarSection({
         </SettingRow>
       )}
 
+      {oauthPending && !error ? (
+        <p className="nordly-settings-google-error mono">{t('nordly.settings.google.oauth_pending')}</p>
+      ) : null}
       {(error || calendarsError) && (
         <p className="nordly-settings-google-error mono">{error ?? calendarsError}</p>
       )}

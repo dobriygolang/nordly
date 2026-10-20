@@ -40,8 +40,8 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-setting-row__meta {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 240px;
+  min-width: min(100%, 200px);
 }
 
 .nordly-setting-row__label {
@@ -61,7 +61,7 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-setting-row__control {
-  flex-shrink: 0;
+  flex: 0 1 280px;
   min-width: 0;
   max-width: 100%;
 }
@@ -165,15 +165,22 @@ html.light .nordly-settings-group__body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  max-width: 100%;
 }
 
 .nordly-settings-google-status {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  max-width: 240px;
   font-size: 11px;
+  line-height: 1.45;
   color: var(--ink-40);
+  white-space: normal;
+  text-align: right;
 }
 
 .nordly-settings-google-status[data-loading='true'] {

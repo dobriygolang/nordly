@@ -72,13 +72,11 @@ export function ZoomSection(): JSX.Element | null {
 
   const statusLabel = loading
     ? t('nordly.settings.zoom.loading')
-    : oauthPending
-      ? t('nordly.settings.zoom.oauth_pending')
-      : reauthNeeded
-        ? t('nordly.settings.zoom.reauth')
-        : connected
-          ? t('nordly.settings.zoom.connected')
-          : t('nordly.settings.zoom.not_connected');
+    : reauthNeeded
+      ? t('nordly.settings.zoom.reauth')
+      : connected
+        ? t('nordly.settings.zoom.connected')
+        : t('nordly.settings.zoom.not_connected');
 
   return (
     <>
@@ -86,7 +84,7 @@ export function ZoomSection(): JSX.Element | null {
         <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
           <span className="mono nordly-settings-google-status" data-loading={loading ? 'true' : undefined}>
             {loading ? <InlineOAuthSpinner /> : null}
-            {statusLabel}
+            {oauthPending ? null : statusLabel}
           </span>
           {connected && !reauthNeeded ? (
             <button
@@ -126,6 +124,9 @@ export function ZoomSection(): JSX.Element | null {
         </div>
       </SettingRow>
 
+      {oauthPending && !error ? (
+        <p className="nordly-settings-google-error mono">{t('nordly.settings.zoom.oauth_pending')}</p>
+      ) : null}
       {error && <p className="nordly-settings-google-error mono">{error}</p>}
     </>
   );

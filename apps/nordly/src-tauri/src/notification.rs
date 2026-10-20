@@ -18,7 +18,12 @@ pub struct NotificationPayload {
     pub review_cards: bool,
 }
 
-pub fn show(app: &AppHandle, title: String, body: String, review_cards: bool) -> Result<(), String> {
+pub fn show(
+    app: &AppHandle,
+    title: String,
+    body: String,
+    review_cards: bool,
+) -> Result<(), String> {
     let window = aux_windows::ensure_notification(app)?;
 
     position_top_right(app, &window)?;

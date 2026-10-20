@@ -26,7 +26,7 @@ Last reviewed: 2026-08-27 (backend consistency pass).
 | GET `/v1/users/{id}/avatar` | 🔸 via `avatar_url` path in user | — | Not fetched directly; relative URL in user |
 | GetUser / GetUserByTelegramID / ValidateToken / MintScopedAccessToken | — | — | **s2s only** (rooms, sandbox). Mint role is proto `SCOPED_ROLE_GUEST` / `SCOPED_ROLE_OWNER`. ValidateToken accepts user-session JWTs only (scoped collab/guest tokens are invalid). |
 
-**Removed (no client):** Yandex OAuth, GetMe, UpdateMe, Logout.
+**Removed (no client):** GetMe, UpdateMe, Logout.
 
 ---
 

@@ -4,7 +4,7 @@
 #
 # Usage:
 #   bash deploy/scripts/setup-host.sh
-#   CERTBOT_DOMAINS="trynordly.app www.trynordly.app api.trynordly.app app.trynordly.app grafana.trynordly.app cdn.trynordly.app s3.trynordly.app" \
+#   CERTBOT_DOMAINS="trynordly.app www.trynordly.app api.trynordly.app app.trynordly.app code.trynordly.app grafana.trynordly.app cdn.trynordly.app s3.trynordly.app" \
 #     bash deploy/scripts/setup-host.sh --certs
 set -euo pipefail
 
@@ -14,7 +14,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 EMAIL="${CADDY_EMAIL:-admin@trynordly.app}"
-DOMAINS="${CERTBOT_DOMAINS:-trynordly.app www.trynordly.app api.trynordly.app app.trynordly.app grafana.trynordly.app cdn.trynordly.app s3.trynordly.app}"
+DOMAINS="${CERTBOT_DOMAINS:-trynordly.app www.trynordly.app api.trynordly.app app.trynordly.app code.trynordly.app grafana.trynordly.app cdn.trynordly.app s3.trynordly.app}"
 ISSUE_CERTS=0
 if [[ "${1:-}" == "--certs" ]]; then
   ISSUE_CERTS=1
@@ -24,7 +24,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get -y dist-upgrade
 apt-get install -y --no-install-recommends \
-  ca-certificates curl git gnupg lsb-release \
+  ca-certificates curl git gnupg lsb-release make \
   nginx certbot python3-certbot-nginx \
   ufw fail2ban unattended-upgrades
 

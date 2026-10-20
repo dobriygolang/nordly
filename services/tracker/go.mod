@@ -1,6 +1,6 @@
 module github.com/dobriygolang/project-nordly/services/tracker
 
-go 1.25.12
+go 1.25.14
 
 require (
 	github.com/dobriygolang/project-nordly/services/identity v0.0.0

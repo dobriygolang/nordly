@@ -3,7 +3,7 @@
 ARG SERVICE=identity
 ARG CMD=
 
-FROM golang:1.25.14-alpine AS builder
+FROM golang:1.26.10-alpine AS builder
 ARG SERVICE
 ARG CMD
 RUN apk add --no-cache git bash make

@@ -109,10 +109,10 @@ Sandbox run/format send the guest JWT **and** `roomId` (editor-scoped tokens req
 
 | Mode | `room_type` | Editor |
 |------|-------------|--------|
-| Code | `practice` | `CollabCodeEditor` (CodeMirror + Yjs) |
+| Code | `practice` | `CollabCodeEditor` and `CollabExcalidrawEditor` on one Y.Doc. Top bar switches surfaces with the same circular view transition as the theme toggle. |
 | Diagram | `system_design` | `CollabExcalidrawEditor` |
 
-Yjs Excalidraw schema: `lib/collab/excalidrawYjsDoc.ts` — maps `elements`, `elementIds`, `files`.
+`useLiveCollabSession` owns the Y.Doc and the editor websocket. Practice rooms keep `Y.Text code` and the Excalidraw maps in that document from the moment the room opens, so the board is not a second room. Yjs Excalidraw schema: `lib/collab/excalidrawYjsDoc.ts` — maps `elements`, `elementIds`, `files`.
 
 Room types in prod UI: `practice`, `system_design` only.
 

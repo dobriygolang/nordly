@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { CollabCodeEditorHandle } from '@/components/CollabCodeEditor'
-import type { CollabExcalidrawHandle } from '@/components/CollabExcalidrawEditor'
 import { wsStatusColor } from '@/lib/live/wsStatusColor'
 
 const CollabCodeEditor = lazy(() =>
@@ -46,6 +45,7 @@ import {
 import { liveWsStatusLabel, useI18n } from '@/lib/i18n'
 import { runThemeTransition, type ThemeToggleOrigin } from '@/lib/site/themeTransition'
 import { liveNewPath, publicLiveRoomUrl } from '@/lib/live/liveRoomUrl'
+import { useLiveCollabSession } from '@/lib/ws/useLiveCollabSession'
 import {
   clampRunPanelWidth,
   persistRunPanelWidth,
@@ -77,7 +77,6 @@ export default function CollabRoomPage() {
   const { roomId = '' } = useParams()
   const navigate = useNavigate()
   const codeEditorRef = useRef<CollabCodeEditorHandle>(null)
-  const diagramEditorRef = useRef<CollabExcalidrawHandle>(null)
   const [copied, setCopied] = useState(false)
   const [wsStatus, setWsStatus] = useState<import('@/lib/ws/collabEditor').EditorWsStatus>('connecting')
   const [guestName, setGuestName] = useState(() => readGuestDisplayName())
@@ -88,6 +87,7 @@ export default function CollabRoomPage() {
   const [fontSize, setFontSize] = useState(14)
   const [peers, setPeers] = useState<CollabPeer[]>([])
   const [theme, setTheme] = useState<LiveRoomTheme>(() => readLiveRoomTheme())
+  const [surface, setSurface] = useState<'code' | 'board'>('code')
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(true)
   const [runPanelWidth, setRunPanelWidth] = useState(readRunPanelWidth)
   const { isResizing: isRunPanelResizing, start: startRunPanelResize } =
@@ -97,6 +97,7 @@ export default function CollabRoomPage() {
   useEffect(() => {
     setGuestToken(readGuestToken(roomId))
     setGuestRoom(readGuestRoom(roomId))
+    setSurface('code')
   }, [roomId])
 
   useEffect(() => {
@@ -162,6 +163,34 @@ export default function CollabRoomPage() {
     navigate('/', { replace: true, state: { liveExpired: true } })
   }, [navigate, roomId])
 
+  let sessionUserId = ''
+  if (guestToken) {
+    try {
+      sessionUserId = jwtSubject(guestToken)
+    } catch {
+      sessionUserId = ''
+    }
+  }
+
+  const session = useLiveCollabSession({
+    roomId,
+    accessToken: guestToken ?? '',
+    userId: sessionUserId,
+    displayName: guestName,
+    onPeersChange: setPeers,
+    onWsStatusChange: setWsStatus,
+    onRoomClosed: handleRoomExpired,
+    onRemoteCodeRun: (payload) => {
+      run.followRun(payload.run_id, payload.triggered_by)
+    },
+  })
+
+  const handleSurfaceToggle = useCallback((origin?: ThemeToggleOrigin) => {
+    runThemeTransition(() => {
+      setSurface((prev) => (prev === 'code' ? 'board' : 'code'))
+    }, origin)
+  }, [])
+
   useEffect(() => {
     if (!roomQ.isError || !isGuestSessionFatalError(roomQ.error)) return
     handleRoomExpired()
@@ -197,13 +226,6 @@ export default function CollabRoomPage() {
       setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
     }, origin)
   }, [])
-
-  const handleRemoteCodeRun = useCallback(
-    (payload: { run_id: string; triggered_by?: string }) => {
-      run.followRun(payload.run_id, payload.triggered_by)
-    },
-    [run],
-  )
 
   if (!roomId.trim()) {
     return (
@@ -258,7 +280,7 @@ export default function CollabRoomPage() {
     return (
       <EditorShell
         message={t('live.roomNotFound')}
-        sub="Invalid session token"
+        sub="This sign-in link is not valid. Join the room again."
         action={
           <Link to={liveNewPath()}>
             <Button variant="secondary" size="sm">
@@ -270,21 +292,19 @@ export default function CollabRoomPage() {
     )
   }
 
-  let sessionUserId: string
-  try {
-    sessionUserId = jwtSubject(wsToken)
-  } catch (err) {
-    console.error('[live] invalid session token', err)
+  if (!sessionUserId || !session) {
     return (
       <EditorShell
-        message={t('live.roomNotFound')}
-        sub="Invalid session token"
+        message={sessionUserId ? t('live.loadingRoom') : t('live.roomNotFound')}
+        sub={sessionUserId ? undefined : 'This sign-in link is not valid. Join the room again.'}
         action={
-          <Link to={liveNewPath()}>
-            <Button variant="secondary" size="sm">
-              {t('live.createNew')}
-            </Button>
-          </Link>
+          sessionUserId ? undefined : (
+            <Link to={liveNewPath()}>
+              <Button variant="secondary" size="sm">
+                {t('live.createNew')}
+              </Button>
+            </Link>
+          )
         }
       />
     )
@@ -309,8 +329,7 @@ export default function CollabRoomPage() {
   }
 
   const editorReconnect = () => {
-    if (designRoom) diagramEditorRef.current?.reconnect()
-    else codeEditorRef.current?.reconnect()
+    session.reconnect()
   }
 
   const handleFormat = async () => {
@@ -339,6 +358,8 @@ export default function CollabRoomPage() {
   const statusLabel = liveWsStatusLabel(t, wsStatus)
   const statusColor = wsStatus === 'open' ? brand.green : wsStatusColor(wsStatus)
   const isGo = !designRoom && normalizeEditorLang(room.language) === 'go'
+  const boardVisible = designRoom || surface === 'board'
+  const codeVisible = !designRoom && surface === 'code'
 
   return (
     <div className="flex h-[100dvh] flex-col bg-bg text-text-primary">
@@ -359,111 +380,129 @@ export default function CollabRoomPage() {
         onDisplayNameChange={handleDisplayNameChange}
         theme={theme}
         onThemeToggle={handleThemeToggle}
+        surface={surface}
+        onSurfaceToggle={designRoom ? undefined : handleSurfaceToggle}
       />
 
-      <div className={cn('flex min-h-0 flex-1 flex-col lg:flex-row', designRoom ? 'bg-bg' : 'bg-surface-1')}>
+      <div className={cn('relative min-h-0 flex-1', boardVisible ? 'bg-bg' : 'bg-surface-1')}>
         {designRoom ? (
-          <Suspense fallback={<div className="min-h-0 flex-1 bg-bg" />}>
+          <Suspense fallback={<div className="h-full min-h-0 bg-bg" />}>
             <CollabExcalidrawEditor
-              ref={diagramEditorRef}
+              session={session}
               roomId={room.id}
               boardTheme={theme}
               userId={sessionUserId}
-              displayName={displayName}
-              accessToken={wsToken}
-              onPeersChange={setPeers}
-              onWsStatusChange={setWsStatus}
-              onRoomClosed={handleRoomExpired}
             />
           </Suspense>
         ) : (
           <>
-            <div className="relative min-h-0 min-w-0 flex-1">
-              <Suspense fallback={<div className="absolute inset-0 bg-surface-1" />}>
-                <CollabCodeEditor
-                  ref={codeEditorRef}
-                  roomId={room.id}
-                  language={room.language}
-                  theme={theme}
-                  autocompleteEnabled={autocompleteEnabled}
-                  userId={sessionUserId}
-                  displayName={displayName}
-                  accessToken={wsToken}
-                  fontSize={fontSize}
-                  onRun={canRun ? () => void handleRun() : undefined}
-                  onFormat={isGo ? () => void handleFormat() : undefined}
-                  onPeersChange={setPeers}
-                  onWsStatusChange={setWsStatus}
-                  onRoomClosed={handleRoomExpired}
-                  onRemoteCodeRun={handleRemoteCodeRun}
-                />
-              </Suspense>
+            <div
+              ref={setSurfaceInert(codeVisible)}
+              aria-hidden={!codeVisible}
+              className={cn(
+                'absolute inset-0 flex min-h-0 flex-col lg:flex-row',
+                !codeVisible && 'pointer-events-none opacity-0 [&_*]:!pointer-events-none',
+              )}
+            >
+              <div className="relative min-h-0 min-w-0 flex-1">
+                <Suspense fallback={<div className="absolute inset-0 bg-surface-1" />}>
+                  <CollabCodeEditor
+                    ref={codeEditorRef}
+                    session={session}
+                    language={room.language}
+                    theme={theme}
+                    autocompleteEnabled={autocompleteEnabled}
+                    userId={sessionUserId}
+                    fontSize={fontSize}
+                    onRun={canRun && codeVisible ? () => void handleRun() : undefined}
+                    onFormat={isGo && codeVisible ? () => void handleFormat() : undefined}
+                  />
+                </Suspense>
 
-              {fmt.formatError ? (
-                <div
-                  role="alert"
-                  className="absolute left-4 right-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
-                >
-                  <span className="min-w-0 flex-1 leading-relaxed">{fmt.formatError}</span>
-                  <button
-                    type="button"
-                    onClick={() => fmt.clearFormatError()}
-                    className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
-                    aria-label={t('live.dismissError')}
+                {fmt.formatError ? (
+                  <div
+                    role="alert"
+                    className="absolute left-4 right-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
                   >
-                    ×
-                  </button>
-                </div>
-              ) : null}
+                    <span className="min-w-0 flex-1 leading-relaxed">{fmt.formatError}</span>
+                    <button
+                      type="button"
+                      onClick={() => fmt.clearFormatError()}
+                      className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+                      aria-label={t('live.dismissError')}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={t('live.resizeOutput')}
+                aria-valuenow={runPanelWidth}
+                aria-valuemin={RUN_PANEL_MIN}
+                aria-valuemax={runPanelMaxWidth()}
+                onPointerDown={(e) =>
+                  startRunPanelResize(e, {
+                    baseWidth: runPanelWidth,
+                    min: RUN_PANEL_MIN,
+                    max: runPanelMaxWidth(),
+                    onCommit: persistRunPanelWidth,
+                  })
+                }
+                className={cn(
+                  'group relative z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none select-none lg:block',
+                  'before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border',
+                  'hover:before:bg-border-strong',
+                  isRunPanelResizing && 'before:bg-border-strong',
+                )}
+              />
+
+              <RunOutputPanel
+                width={runPanelWidth}
+                tab={run.outputTab}
+                onTabChange={run.setOutputTab}
+                run={run.activeRun}
+                running={run.running}
+                error={run.runError}
+                triggeredBy={run.triggeredBy}
+                canRun={canRun}
+                onRun={() => void handleRun()}
+              />
             </div>
 
             <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={t('live.resizeOutput')}
-              aria-valuenow={runPanelWidth}
-              aria-valuemin={RUN_PANEL_MIN}
-              aria-valuemax={runPanelMaxWidth()}
-              onPointerDown={(e) =>
-                startRunPanelResize(e, {
-                  baseWidth: runPanelWidth,
-                  min: RUN_PANEL_MIN,
-                  max: runPanelMaxWidth(),
-                  onCommit: persistRunPanelWidth,
-                })
-              }
+              ref={setSurfaceInert(boardVisible)}
+              aria-hidden={!boardVisible}
               className={cn(
-                'group relative z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none select-none lg:block',
-                'before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border',
-                'hover:before:bg-border-strong',
-                isRunPanelResizing && 'before:bg-border-strong',
+                'absolute inset-0',
+                !boardVisible && 'pointer-events-none opacity-0 [&_*]:!pointer-events-none',
               )}
-            />
-
-            <RunOutputPanel
-              width={runPanelWidth}
-              tab={run.outputTab}
-              onTabChange={run.setOutputTab}
-              run={run.activeRun}
-              running={run.running}
-              error={run.runError}
-              triggeredBy={run.triggeredBy}
-              canRun={canRun}
-              onRun={() => void handleRun()}
-            />
+            >
+              <Suspense fallback={<div className="h-full bg-bg" />}>
+                <CollabExcalidrawEditor
+                  session={session}
+                  roomId={room.id}
+                  boardTheme={theme}
+                  userId={sessionUserId}
+                />
+              </Suspense>
+            </div>
           </>
         )}
       </div>
 
       <LiveRoomBottomBar
-        mode={designRoom ? 'diagram' : 'code'}
+        mode={boardVisible ? 'diagram' : 'code'}
         language={room.language}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
         peers={peers}
         statusLabel={statusLabel}
         statusColor={statusColor}
-        canFormat={isGo && !designRoom}
+        canFormat={isGo && codeVisible}
         formatting={fmt.formatting}
         onFormat={() => void handleFormat()}
         autocompleteEnabled={autocompleteEnabled}
@@ -471,6 +510,14 @@ export default function CollabRoomPage() {
       />
     </div>
   )
+}
+
+function setSurfaceInert(active: boolean) {
+  return (node: HTMLDivElement | null) => {
+    if (!node) return
+    if (active) node.removeAttribute('inert')
+    else node.setAttribute('inert', '')
+  }
 }
 
 function EditorShell({

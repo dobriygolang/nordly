@@ -170,7 +170,7 @@ func TestCalculateStreaksHandlesInactivityAndOutOfOrderDates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			activity := make([]dailyAggregate, 0, len(tt.dates))
 			for _, date := range tt.dates {
-				activity = append(activity, dailyAggregate{Date: date, Seconds: 1, Sessions: 1})
+				activity = append(activity, dailyAggregate{Date: date, Seconds: 60, Sessions: 1})
 			}
 
 			current, longest := calculateStreaks(activity, tt.upTo)

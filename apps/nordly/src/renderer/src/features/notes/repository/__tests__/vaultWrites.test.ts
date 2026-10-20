@@ -32,7 +32,7 @@ describe('vault note writes', () => {
 
   it('rejects a plaintext write while an enabled vault is locked', async () => {
     await expect(notesStoreUpsert('locked-note', 'secret', 'plaintext')).rejects.toThrow(
-      'plaintext note writes are disabled',
+      'Notes are locked. Unlock them in Settings before editing.',
     );
     expect(
       await dbGet<StoredNote>('notes', entityKey('locked-note', USER_ID)),

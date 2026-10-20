@@ -51,6 +51,6 @@ export function marketingHomeHref(): string {
 
 export function formatPageTitle(pageTitle?: string): string {
   const trimmed = pageTitle?.trim()
-  if (!trimmed) return `${SITE_NAME} — calm workspace for builders`
+  if (!trimmed) return `${SITE_NAME} - calm workspace for builders`
   return `${trimmed} · ${SITE_NAME}`
 }

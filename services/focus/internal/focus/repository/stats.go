@@ -10,6 +10,9 @@ import (
 
 const focusDateLayout = "2006-01-02"
 
+// A streak day needs a minute of focus. A one-second timer tap is still stored.
+const focusDayMinSeconds = 60
+
 type dailyAggregate struct {
 	Date     time.Time
 	Seconds  int
@@ -75,6 +78,9 @@ func calculateStreaks(activity []dailyAggregate, upTo time.Time) (current, longe
 	upTo = upTo.UTC().Truncate(24 * time.Hour)
 	activeDays := make([]time.Time, 0, len(activity))
 	for _, aggregate := range activity {
+		if aggregate.Seconds < focusDayMinSeconds {
+			continue
+		}
 		day := aggregate.Date.UTC().Truncate(24 * time.Hour)
 		if !day.After(upTo) {
 			activeDays = append(activeDays, day)

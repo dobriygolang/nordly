@@ -87,7 +87,7 @@ async function encryptAtRest(
     return { ...base, atRestEncrypted: false };
   }
   if (!isVaultUnlocked()) {
-    throw new Error('Vault locked — plaintext note writes are disabled');
+    throw new Error('Notes are locked. Unlock them in Settings before editing.');
   }
   const { encTitle, encBody } = await encryptNoteFields(partial.title, partial.bodyMd);
   return {

@@ -11,4 +11,10 @@
   pointer-events: auto;
   overflow: auto;
   padding-bottom: 24px;
+  outline: none;
+}
+
+.nordly-stats-overlay:focus,
+.nordly-stats-overlay:focus-visible {
+  outline: none;
 }

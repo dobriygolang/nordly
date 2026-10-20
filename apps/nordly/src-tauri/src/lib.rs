@@ -62,6 +62,7 @@ pub fn run() {
             auth_session,
             auth_persist,
             auth_logout,
+            confirm_app_exit,
             vault_pass_load,
             vault_pass_save,
             vault_pass_clear,
@@ -201,6 +202,17 @@ fn auth_logout(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
     window
         .emit("auth:changed", Option::<AuthSession>::None)
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Quit only after the renderer has rewritten the keychain session.
+#[tauri::command]
+fn confirm_app_exit(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    require_main_window(&window)?;
+    #[cfg(desktop)]
+    tray::confirm_process_exit(&app);
+    #[cfg(not(desktop))]
+    app.exit(0);
     Ok(())
 }
 

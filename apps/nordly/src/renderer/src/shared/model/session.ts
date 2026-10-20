@@ -139,7 +139,26 @@ function queueNativePersist(session: PersistedSession): Promise<void> {
 }
 
 export async function flushNativeSessionPersist(): Promise<void> {
-  if (pendingNativePersist) await pendingNativePersist;
+  const previous = pendingNativePersist;
+  const state = useSessionStore.getState();
+  if (
+    state.authKind === AuthKind.Cloud &&
+    state.userId &&
+    (state.accessToken || state.refreshToken)
+  ) {
+    const write = queueNativePersist({
+      userId: state.userId,
+      accessToken: state.accessToken ?? '',
+      refreshToken: state.refreshToken,
+      expiresAt: state.expiresAt,
+    });
+    if (previous) {
+      await previous.catch(() => undefined);
+    }
+    await write;
+    return;
+  }
+  if (previous) await previous;
 }
 
 function writeBrowserPersist(s: PersistedSession): void {

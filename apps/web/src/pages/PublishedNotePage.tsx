@@ -169,12 +169,12 @@ export default function PublishedNotePage() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
           <div className="w-full max-w-2xl mx-auto px-6 sm:px-8 relative z-10 text-center">
             <h1 className="text-2xl font-bold text-white mb-3">
-              {state.status === 404 ? 'Note not found' : 'Could not load note'}
+              {state.status === 404 ? 'Note not found' : 'Could not load the note'}
             </h1>
             <p className="text-zinc-400 text-sm mb-8">
               {state.status === 404
-                ? 'This link may be expired or the note was made private.'
-                : 'Try again later.'}
+                ? 'This link may have expired, or the note is private now.'
+                : 'Try again in a bit.'}
             </p>
             <Link
               to="/"

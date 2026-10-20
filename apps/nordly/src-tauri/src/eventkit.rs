@@ -422,7 +422,7 @@ mod macos {
             }
             if Instant::now() >= deadline {
                 return Err(
-                    "Calendar access request timed out — try System Settings → Privacy → Calendars"
+                    "Calendar access request timed out. Open System Settings → Privacy → Calendars"
                         .into(),
                 );
             }
@@ -445,7 +445,7 @@ mod macos {
                 let status = auth_status_raw();
                 if status == 5 {
                     return Err(
-                        "Calendar access is write-only — choose Full Access for Nordly in System Settings"
+                        "Calendar access is write-only. Choose Full Access for Nordly in System Settings"
                             .into(),
                     );
                 }
@@ -474,7 +474,7 @@ mod macos {
             ),
             1 => Err("Calendar access is restricted on this Mac".into()),
             5 => Err(
-                "Calendar access is write-only — choose Full Access for Nordly in System Settings"
+                "Calendar access is write-only. Choose Full Access for Nordly in System Settings"
                     .into(),
             ),
             0 => Err("Calendar access not granted".into()),
@@ -597,7 +597,7 @@ mod macos {
     pub fn request_access() -> Result<AppleCalendarAccessResult, String> {
         if !running_in_app_bundle() {
             return Err(
-                "Apple Calendar requires Nordly.app — macOS only registers privacy requests from .app bundles. Quit and run: npm run dev"
+                "Apple Calendar needs Nordly.app. Quit and run npm run dev so macOS can ask for access"
                     .into(),
             );
         }

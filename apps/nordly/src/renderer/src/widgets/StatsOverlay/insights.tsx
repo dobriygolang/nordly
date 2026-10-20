@@ -13,7 +13,7 @@ const STREAK_GOAL_DAYS = 14;
 export interface StatsInsights {
   thisWeekSeconds: number;
   previousWeekSeconds: number;
-  weekDeltaPercent: number;
+  weekDeltaPercent: number | null;
   streakPercent: number;
   todayMinutes: number;
   totalSessions: number;
@@ -43,9 +43,7 @@ export function deriveStatsInsights(
       ? Math.round(
           ((thisWeekSeconds - previousWeekSeconds) / previousWeekSeconds) * 100,
         )
-      : thisWeekSeconds > 0
-        ? 100
-        : 0;
+      : null;
   const streakPercent = Math.min(
     100,
     ((data?.currentStreakDays ?? 0) / STREAK_GOAL_DAYS) * 100,
@@ -67,7 +65,7 @@ export function deriveStatsInsights(
     previousWeekSeconds,
     weekDeltaPercent,
     streakPercent,
-    todayMinutes: todaySeconds > 0 ? Math.ceil(todaySeconds / 60) : 0,
+    todayMinutes: Math.floor(todaySeconds / 60),
     totalSessions,
     averageSessionMinutes:
       totalSessions > 0 ? Math.round(totalSeconds / totalSessions / 60) : 0,
@@ -210,10 +208,10 @@ function CompareWeekCell({
 }: {
   thisHours: number;
   previousHours: number;
-  deltaPercent: number;
+  deltaPercent: number | null;
   t: TFunc;
 }): JSX.Element {
-  const isUp = deltaPercent >= 0;
+  const isUp = (deltaPercent ?? 0) >= 0;
   const tone = isUp ? 'var(--ink)' : 'var(--red)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -222,16 +220,18 @@ function CompareWeekCell({
         <span style={{ fontSize: 10, color: 'var(--ink-40)' }}>
           {t('nordly.stats.hrs')}
         </span>
-        <span
-          style={{
-            marginLeft: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            color: tone,
-          }}
-        >
-          {isUp ? '↑' : '↓'} {Math.abs(deltaPercent)}%
-        </span>
+        {deltaPercent != null ? (
+          <span
+            style={{
+              marginLeft: 4,
+              fontSize: 11,
+              fontWeight: 600,
+              color: tone,
+            }}
+          >
+            {isUp ? '↑' : '↓'} {Math.abs(deltaPercent)}%
+          </span>
+        ) : null}
       </div>
       <div style={{ fontSize: 10, color: 'var(--ink-40)' }}>
         {t('nordly.stats.vs_last_week', {

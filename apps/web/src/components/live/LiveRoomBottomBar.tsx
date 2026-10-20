@@ -56,13 +56,13 @@ export function LiveRoomBottomBar({
             type="button"
             onClick={onFormat}
             disabled={formatting}
-            title="gofmt (⌘⇧F)"
+            title="Format Go (⌘⇧F)"
             className={cn(
               'inline-flex items-center rounded-lg border border-border px-3 py-1.5',
               'font-mono text-[11px] tracking-[0.06em] text-text-secondary transition-colors hover:bg-surface-2 disabled:opacity-50',
             )}
           >
-            {formatting ? 'FMT…' : 'FMT'}
+            {formatting ? 'Format…' : 'Format'}
           </button>
         ) : null}
 

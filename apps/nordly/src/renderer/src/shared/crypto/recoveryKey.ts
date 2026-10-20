@@ -121,13 +121,13 @@ export async function hasRecoveryWrap(userId?: string): Promise<boolean> {
 
 export async function recoverPassphraseFromPhrase(recoveryPhrase: string): Promise<string> {
   if (!validateRecoveryPhrase(recoveryPhrase)) {
-    throw new Error('Invalid recovery phrase — need exactly 24 words');
+    throw new Error('The recovery phrase needs exactly 24 words');
   }
   const userId = requireUserId();
   const row = await dbGet<{ wrappedB64?: string }>('meta', wrapKey(userId));
-  if (!row?.wrappedB64) throw new Error('No recovery backup on this device');
+  if (!row?.wrappedB64) throw new Error('There is no recovery phrase saved on this device');
   const buf = base64ToBytes(row.wrappedB64);
-  if (buf.length <= IV_BYTES) throw new Error('Corrupted recovery backup');
+  if (buf.length <= IV_BYTES) throw new Error('The saved recovery data on this device is damaged');
   const iv = buf.slice(0, IV_BYTES);
   const ct = buf.slice(IV_BYTES);
   const key = await deriveRecoveryKey(recoveryPhrase);
@@ -139,7 +139,7 @@ export async function recoverPassphraseFromPhrase(recoveryPhrase: string): Promi
       ct as BufferSource,
     );
   } catch {
-    throw new Error('Recovery phrase did not match backup');
+    throw new Error('That recovery phrase does not match the one saved on this device');
   }
   return new TextDecoder().decode(pt);
 }

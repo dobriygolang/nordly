@@ -173,7 +173,7 @@ export async function ensureNoteServerId(localId: string): Promise<string | null
     if (!local) return null;
 
     if (isVaultEnabledSync() && !isVaultUnlocked()) {
-      throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+      throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can continue.');
     }
 
     const localRow = await notesStoreGetRow(localId, userId);
@@ -261,7 +261,7 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
   const e2ee = shouldPushE2ee();
 
   if (isVaultEnabledSync() && !isVaultUnlocked()) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+    throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can continue.');
   }
 
   if (entry.op === OutboxOp.Create) {
@@ -359,7 +359,7 @@ async function resolveAttachmentNoteServerId(
 
 async function pushAttachmentPut(entry: OutboxEntry, userId: string): Promise<void> {
   if (isVaultEnabledSync() && !isVaultUnlocked()) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+    throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can continue.');
   }
   const row = await attachmentsStoreGetRow(entry.entityId, userId);
   if (!row) {
@@ -488,14 +488,14 @@ export async function pullNotes(): Promise<void> {
   // Fail closed before any merge — a plaintext-first probe still lets workers
   // partially apply encrypted notes when vault is locked.
   if (vaultLocked) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to pull encrypted notes');
+    throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can download them.');
   }
 
   await mapPool(summaries, NOTE_PULL_CONCURRENCY, async (s) => {
     const wire = await remoteGetNote(s.id);
     if (wire.encrypted) {
       if (!vaultEnabled || !isVaultUnlocked()) {
-        throw new SyncDeferredError('Vault locked — unlock in Settings to pull encrypted notes');
+        throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can download them.');
       }
       const plain = await decryptNoteFromRemote(wire);
       await notesStoreMergeRemote(noteToStored(plain, userId, true));

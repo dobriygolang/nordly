@@ -79,6 +79,13 @@ function aggregateDays(sessions: StoredSession[]): Map<string, FocusDay> {
   return map;
 }
 
+/** A day counts toward the streak only after a real minute of focus, not a tap. */
+const FOCUS_DAY_MIN_SECONDS = 60;
+
+function isFocusDay(seconds: number): boolean {
+  return seconds >= FOCUS_DAY_MIN_SECONDS;
+}
+
 function streakFromDays(days: Set<string>, anchor: string): number {
   let streak = 0;
   let d = parseDayKey(anchor);
@@ -105,7 +112,7 @@ function statsFromSessions(sessions: StoredSession[], upToDate?: string): StatsC
     heatmap.filter((d) => d.date <= anchor),
     anchor,
   );
-  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+  const activeDays = new Set(heatmap.filter((d) => isFocusDay(d.seconds)).map((d) => d.date));
   const totalFocusedSeconds = sessions.reduce((sum, s) => sum + s.secondsFocused, 0);
 
   let longest = 0;
@@ -162,7 +169,7 @@ function statsFromHeatmap(heatmap: FocusDay[], upToDate?: string): StatsCore {
     heatmap.filter((d) => d.date <= anchor),
     anchor,
   );
-  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+  const activeDays = new Set(heatmap.filter((d) => isFocusDay(d.seconds)).map((d) => d.date));
   const totalFocusedSeconds = heatmap.reduce((sum, d) => sum + d.seconds, 0);
 
   let longest = 0;
@@ -186,7 +193,7 @@ function mergeStats(base: StatsCore, extra: StatsCore, upToDate?: string): Stats
     heatmap.filter((d) => d.date <= anchor),
     anchor,
   );
-  const activeDays = new Set(heatmap.filter((d) => d.seconds > 0).map((d) => d.date));
+  const activeDays = new Set(heatmap.filter((d) => isFocusDay(d.seconds)).map((d) => d.date));
 
   let longest = 0;
   for (const date of [...activeDays].sort()) {

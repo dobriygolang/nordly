@@ -9,17 +9,15 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 )
 
-func newGatewayMux(ctx context.Context, endpoint string) (http.Handler, error) {
-	mux := runtime.NewServeMux(
-		runtime.WithMetadata(func(_ context.Context, r *http.Request) metadata.MD {
-			if auth := r.Header.Get("Authorization"); auth != "" {
-				return metadata.Pairs("authorization", auth)
-			}
-			return nil
-		}),
+// gatewayServeMuxOptions is the production grpc-gateway setup.
+// Authorization is forwarded once by grpc-gateway itself (runtime/context.go).
+// Copying it again with WithMetadata yields two metadata values, and
+// bearerTokenFromMetadata rejects that as unauthenticated — every guest run
+// then returns HTTP 401.
+func gatewayServeMuxOptions() []runtime.ServeMuxOption {
+	return []runtime.ServeMuxOption{
 		runtime.WithErrorHandler(func(
 			ctx context.Context,
 			_ *runtime.ServeMux,
@@ -30,7 +28,11 @@ func newGatewayMux(ctx context.Context, endpoint string) (http.Handler, error) {
 		) {
 			humanerror.WriteHTTP(w, err)
 		}),
-	)
+	}
+}
+
+func newGatewayMux(ctx context.Context, endpoint string) (http.Handler, error) {
+	mux := runtime.NewServeMux(gatewayServeMuxOptions()...)
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := sandboxv1.RegisterSandboxServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); err != nil {
 		return nil, err

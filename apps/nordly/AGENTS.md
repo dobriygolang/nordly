@@ -152,7 +152,7 @@ Scoped by `setDbUserId()` on sign-in.
 
 **Local app access** (`canUseLocalApp()`): `signed_in` with `userId` — works for both `authKind: 'local'` (tokenless offline profile) and `authKind: 'cloud'` (even when access JWT is expired).
 
-**Auth boot** (`shared/model/session.ts`): keychain cloud session if present; otherwise `ensureLocalProfile()` opens the shell without Telegram. Keychain IPC failure after retry throws (error boundary) instead of inventing a local profile. Native persist errors from `hydrate` / token apply propagate. Hard full-screen `LoginScreen` is not a boot gate. Cloud `hydrate` from another profile **does not** rebind IndexedDB (no silent merge across users on a shared Mac). Sign-out clears Nordly tokens + device Google/Zoom OAuth and rotates to a **new** local profile id.
+**Auth boot** (`shared/model/session.ts`): keychain cloud session if present; otherwise `ensureLocalProfile()` opens the shell without Telegram. Keychain IPC failure after retry throws (error boundary) instead of inventing a local profile. Native persist errors from `hydrate` / token apply propagate. Hard full-screen `LoginScreen` is not a boot gate. Cloud `hydrate` from another profile **does not** rebind IndexedDB (no silent merge across users on a shared Mac). Sign-out clears Nordly tokens + device Google/Zoom OAuth and rotates to a **new** local profile id. Dock Quit / ⌘Q is held until the renderer rewrites the current cloud session to the keychain (`confirm_app_exit`); a second `ExitRequested` does not kill the process first. The red button only hides the window.
 
 **Sync enabled** (`isSyncEnabled()`): signed in, `LOCAL_ONLY === false`, valid (non-expired) access token, and registered sync device. Local profiles enqueue outbox when `isSyncQueueEnabled()` but never push until cloud auth exists.
 
@@ -169,7 +169,7 @@ Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/foc
 | tasks | create, status, schedule, delete, patch | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
-**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with unsynced local sessions, then **max-merges** that heatmap with full local (avoids double-count and stale remote undercount). Remote fetch errors propagate.
+**Stats overlay** (`getStats` in `features/focus/api/focusClient.ts`): builds from local `focus_sessions` first. When sync is on, merges remote `/v1/focus/stats` with unsynced local sessions, then **max-merges** that heatmap with full local (avoids double-count and stale remote undercount). Remote fetch errors propagate. On the home page, a two-finger trackpad swipe left opens the overlay and a swipe right closes it; other pages ignore that gesture. `S` toggles it without a focus ring on the panel. A streak day needs at least 60 seconds. Heatmap and week bars scale with time (today is not forced bright); the streak sparkline uses a one-hour floor; week-over-week percent is hidden when the previous week is zero.
 
 Task fields **device-only** (preserved on pull/replace): `order`.
 
@@ -265,6 +265,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_session` | Load session from keychain |
 | `auth_persist` | Save session to keychain (no event; renderer already updated store) |
 | `auth_logout` | Clear session |
+| `confirm_app_exit` | Finish quit after the renderer rewrites the keychain session |
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
 | `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |

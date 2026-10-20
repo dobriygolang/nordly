@@ -31,7 +31,7 @@ describe('vault verifier', () => {
 
     lockVault();
     await expect(unlockVault('incorrect horse battery staple')).rejects.toThrow(
-      'wrong passphrase or corrupted data',
+      'Wrong password, or the data is damaged',
     );
     expect(isVaultUnlocked()).toBe(false);
 

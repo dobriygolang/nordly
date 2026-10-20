@@ -1,4 +1,4 @@
-import { Code2, Moon, Settings, Sun, UserPlus, X } from 'lucide-react'
+import { Code2, CodeXml, Moon, PenLine, Settings, Sun, UserPlus, X } from 'lucide-react'
 import { RoomSessionTimer } from '@/components/live/RoomSessionTimer'
 import { brand } from '@/lib/brand/tokens'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
@@ -24,6 +24,8 @@ type Props = {
   onDisplayNameChange: (name: string) => void
   theme: LiveRoomTheme
   onThemeToggle: (origin?: ThemeToggleOrigin) => void
+  surface?: 'code' | 'board'
+  onSurfaceToggle?: (origin?: ThemeToggleOrigin) => void
 }
 
 export function LiveRoomTopBar({
@@ -43,6 +45,8 @@ export function LiveRoomTopBar({
   onDisplayNameChange,
   theme,
   onThemeToggle,
+  surface = 'code',
+  onSurfaceToggle,
 }: Props) {
   const { t } = useI18n()
 
@@ -60,6 +64,24 @@ export function LiveRoomTopBar({
         </a>
 
         <div className="flex items-center gap-2">
+          {onSurfaceToggle ? (
+            <TopBarButton
+              variant="outline"
+              icon={
+                surface === 'board' ? (
+                  <CodeXml className="h-3.5 w-3.5" />
+                ) : (
+                  <PenLine className="h-3.5 w-3.5" />
+                )
+              }
+              onClick={(event) => onSurfaceToggle(themeToggleOrigin(event))}
+              ariaLabel={surface === 'board' ? t('live.openCode') : t('live.openBoard')}
+            >
+              <span className="hidden sm:inline">
+                {surface === 'board' ? t('live.openCode') : t('live.openBoard')}
+              </span>
+            </TopBarButton>
+          ) : null}
           <TopBarButton
             variant="outline"
             icon={<X className="h-3.5 w-3.5" />}
@@ -153,15 +175,6 @@ export function LiveRoomTopBar({
               )}
               {theme === 'light' ? t('live.themeDark') : t('live.themeLight')}
             </button>
-
-            {isOwner ? (
-              <>
-                <div className="my-3 h-px bg-border" />
-                <MenuButton loading={inviteLoading} onClick={onInvite}>
-                  {inviteCopied ? t('live.inviteCopiedMenu') : t('live.copyInvite')}
-                </MenuButton>
-              </>
-            ) : null}
           </div>
         </details>
       </div>
@@ -180,7 +193,7 @@ function TopBarButton({
   variant: 'outline' | 'solid'
   icon: React.ReactNode
   children?: React.ReactNode
-  onClick: () => void
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
   loading?: boolean
   ariaLabel?: string
 }) {
@@ -203,23 +216,3 @@ function TopBarButton({
   )
 }
 
-function MenuButton({
-  children,
-  onClick,
-  loading,
-}: {
-  children: React.ReactNode
-  onClick: () => void
-  loading?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      disabled={loading}
-      onClick={onClick}
-      className="flex w-full rounded-lg px-1 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-2 disabled:opacity-50"
-    >
-      {children}
-    </button>
-  )
-}

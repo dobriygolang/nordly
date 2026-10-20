@@ -57,7 +57,7 @@ export async function parseResponse<T>(path: string, res: Response): Promise<T> 
   if (text.trimStart().startsWith('<')) {
     throw new ApiError(
       res.status,
-      `API returned HTML instead of JSON for ${path} — check /v1 routing on reverse proxy`,
+      `Could not load data from the server for ${path}. Try again.`,
     )
   }
   let body: unknown
@@ -83,7 +83,7 @@ export function formatApiError(err: unknown): string {
   if (err instanceof ApiError) {
     const trimmed = err.body.trim()
     if (trimmed.startsWith('<')) {
-      return 'API returned HTML instead of JSON — check /v1 routing on the proxy.'
+      return 'Could not load data from the server. Try again.'
     }
     try {
       const parsed = JSON.parse(trimmed) as { message?: string }
@@ -103,7 +103,7 @@ export async function parseGuestAuthResponse(path: string, res: Response): Promi
   body: Record<string, unknown>
 }> {
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-    throw new Error(`${path} misrouted — check room URL`)
+    throw new Error(`This address looks wrong: ${path}`)
   }
   if (!res.ok) {
     let body = ''
@@ -118,7 +118,7 @@ export async function parseGuestAuthResponse(path: string, res: Response): Promi
   if (!text || text.trimStart().startsWith('<')) {
     throw new ApiError(
       res.status,
-      `API returned HTML instead of JSON for ${path} — check /v1 routing on reverse proxy`,
+      `Could not load data from the server for ${path}. Try again.`,
     )
   }
   let raw: unknown

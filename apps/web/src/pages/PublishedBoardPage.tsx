@@ -93,7 +93,7 @@ export default function PublishedBoardPage() {
     return (
       <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
         <h1 className="text-2xl font-bold mb-3">
-          {state.status === 404 ? 'Board not found' : 'Could not load board'}
+          {state.status === 404 ? 'Board not found' : 'Could not load the board'}
         </h1>
         <Link to="/" className="text-sm text-zinc-300 underline underline-offset-4">
           {t('seo.goHome')}
@@ -104,7 +104,7 @@ export default function PublishedBoardPage() {
   if (state.kind !== 'ok' || !scene) {
     return (
       <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
-        <h1 className="text-2xl font-bold mb-3">Could not load board</h1>
+        <h1 className="text-2xl font-bold mb-3">Could not load the board</h1>
         <Link to="/" className="text-sm text-zinc-300 underline underline-offset-4">
           {t('seo.goHome')}
         </Link>

@@ -44,7 +44,7 @@ export function SignOutSection() {
       <div className="nordly-settings-account">
         <p className="nordly-settings-account__id mono">
           {t('nordly.settings.local_profile', {
-            id: userId ? `${userId.slice(0, 8)}…${userId.slice(-4)}` : '—',
+            id: userId ? `${userId.slice(0, 8)}…${userId.slice(-4)}` : '-',
           })}
         </p>
         <p className="nordly-settings-account__reauth">
@@ -71,7 +71,7 @@ export function SignOutSection() {
     <div className="nordly-settings-account">
       <p className="nordly-settings-account__id mono">
         {t('nordly.settings.signed_in', {
-          id: userId ? `${userId.slice(0, 8)}…${userId.slice(-4)}` : '—',
+          id: userId ? `${userId.slice(0, 8)}…${userId.slice(-4)}` : '-',
         })}
       </p>
       {sessionReauthRequired ? (

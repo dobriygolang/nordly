@@ -5,6 +5,7 @@ commands.allow = [
   "auth_session",
   "auth_persist",
   "auth_logout",
+  "confirm_app_exit",
   "vault_pass_load",
   "vault_pass_save",
   "vault_pass_clear",

@@ -36,6 +36,7 @@ import { useSyncStore } from '@shared/model/sync';
 import { PageStack } from '@shared/ui/PageStack';
 import { ScreenFade } from '@shared/ui/ScreenFade';
 import { useGlobalHotkeys } from '@shared/hooks/useGlobalHotkeys';
+import { useHomeStatsSwipe } from '@shared/hooks/useHomeStatsSwipe';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { MOTION_MS } from '@shared/lib/motionMs';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -207,8 +208,8 @@ export default function App() {
         } catch (error) {
           captureOperationError(error);
         }
-        const { exit } = await import('@tauri-apps/plugin-process');
-        await exit(0);
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('confirm_app_exit');
       })();
     });
   }, [captureOperationError]);
@@ -349,6 +350,13 @@ export default function App() {
     window.addEventListener(NORDLY_EVENTS.openPaletteAddTask, onAddTask);
     return () => window.removeEventListener(NORDLY_EVENTS.openPaletteAddTask, onAddTask);
   }, [openPalette]);
+
+  useHomeStatsSwipe({
+    enabled: page === PageId.Home && !paletteOpen,
+    statsOpen,
+    openStats,
+    closeStats,
+  });
 
   useGlobalHotkeys({
     page,

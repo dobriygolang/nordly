@@ -158,11 +158,11 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 
 export async function unlockVault(passphrase: string): Promise<void> {
   if (passphrase.length < 8) {
-    throw new Error('Passphrase must be at least 8 characters');
+    throw new Error('Password must be at least 8 characters');
   }
   const saltB64 = await fetchVaultSalt();
   if (!saltB64) {
-    throw new Error('Vault not initialised');
+    throw new Error('Encryption is not set up on this account yet.');
   }
   const userId = requireUserId();
   const salt = base64ToBytes(saltB64);
@@ -221,7 +221,7 @@ async function decryptWithKey(key: CryptoKey, b64: string): Promise<string> {
 
 async function decryptBytesWithKey(key: CryptoKey, b64: string): Promise<Uint8Array> {
   const buf = base64ToBytes(b64);
-  if (buf.length <= IV_BYTES) throw new Error('Invalid ciphertext');
+  if (buf.length <= IV_BYTES) throw new Error('Could not read this note. The encrypted data is damaged.');
   const iv = buf.slice(0, IV_BYTES);
   const ct = buf.slice(IV_BYTES);
   let pt: ArrayBuffer;
@@ -232,7 +232,7 @@ async function decryptBytesWithKey(key: CryptoKey, b64: string): Promise<Uint8Ar
       ct as BufferSource,
     );
   } catch {
-    throw new Error('Decryption failed — wrong passphrase or corrupted data');
+    throw new Error('Wrong password, or the data is damaged');
   }
   return new Uint8Array(pt);
 }
@@ -240,7 +240,7 @@ async function decryptBytesWithKey(key: CryptoKey, b64: string): Promise<Uint8Ar
 function requireCurrentKey(): CryptoKey {
   if (!derivedKey || derivedKeyUserId !== requireUserId()) {
     lockVault();
-    throw new Error('Vault locked');
+    throw new Error('Notes are locked. Enter the password first.');
   }
   return derivedKey;
 }
@@ -249,10 +249,10 @@ async function verifyCandidateKey(key: CryptoKey, userId: string): Promise<void>
   const verifier = await dbGet<{ ciphertextB64?: string }>('meta', verifierKey(userId));
   if (verifier) {
     if (typeof verifier.ciphertextB64 !== 'string' || verifier.ciphertextB64.length === 0) {
-      throw new Error('Vault verifier is corrupted');
+      throw new Error('The encryption check on this device is damaged.');
     }
     const plaintext = await decryptWithKey(key, verifier.ciphertextB64);
-    if (plaintext !== VERIFIER_PLAINTEXT) throw new Error('Vault verifier mismatch');
+    if (plaintext !== VERIFIER_PLAINTEXT) throw new Error('The password does not match this encryption setup.');
     return;
   }
 
@@ -265,7 +265,7 @@ async function verifyCandidateKey(key: CryptoKey, userId: string): Promise<void>
   const sample = await findAuthenticatedCiphertext(userId);
   if (!sample) {
     throw new Error(
-      'Cannot verify this vault passphrase: no authenticated verifier or encrypted note is available',
+      'Cannot check this password. There is no saved check and no encrypted note to test it against.',
     );
   }
   await decryptWithKey(key, sample);
@@ -298,26 +298,26 @@ async function findAuthenticatedCiphertext(userId: string): Promise<string | nul
 
   if (!isCloudApiAvailable()) return null;
   const listResp = await apiFetch(`${API_BASE_URL}/v1/notes`, { headers: syncAuthHeaders() });
-  if (!listResp.ok) throw new Error(`vault verifier note list: ${listResp.status}`);
+  if (!listResp.ok) throw new Error(`Could not load notes to check the password (${listResp.status}).`);
   const listBody = (await listResp.json()) as { notes?: unknown[] };
-  if (!Array.isArray(listBody.notes)) throw new Error('Invalid vault verifier note list');
+  if (!Array.isArray(listBody.notes)) throw new Error('The note list from the server was not valid.');
 
   for (const item of listBody.notes) {
     if (typeof item !== 'object' || item === null || typeof (item as { id?: unknown }).id !== 'string') {
-      throw new Error('Invalid vault verifier note summary');
+      throw new Error('A note in that list was not valid.');
     }
     const id = (item as { id: string }).id;
     const noteResp = await apiFetch(`${API_BASE_URL}/v1/notes/${encodeURIComponent(id)}`, {
       headers: syncAuthHeaders(),
     });
-    if (!noteResp.ok) throw new Error(`vault verifier note: ${noteResp.status}`);
+    if (!noteResp.ok) throw new Error(`Could not load a note to check the password (${noteResp.status}).`);
     const noteBody = (await noteResp.json()) as { note?: Record<string, unknown> };
     const note = noteBody.note;
-    if (!note) throw new Error('Invalid vault verifier note response');
+    if (!note) throw new Error('The note from the server was not valid.');
     if (note.encrypted !== true) continue;
     if (typeof note.title === 'string' && note.title.length > 0) return note.title;
     if (typeof note.bodyMd === 'string' && note.bodyMd.length > 0) return note.bodyMd;
-    throw new Error('Encrypted vault note is missing ciphertext');
+    throw new Error('An encrypted note has no data to check the password against.');
   }
   return null;
 }

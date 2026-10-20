@@ -15,8 +15,16 @@ const TRAY_ID: &str = "nordly-tray";
 const POPOVER_LABEL: &str = "tray-popover";
 const MAIN_LABEL: &str = "main";
 
-/// First ExitRequested is held so the renderer can finish the keychain write.
-static ALLOW_PROCESS_EXIT: AtomicBool = AtomicBool::new(false);
+/// Renderer has been asked to flush the keychain. Further quits stay cancelled
+/// until `confirm_process_exit` — macOS can deliver a second ExitRequested
+/// before that flush finishes, and allowing it deletes the session.
+static EXIT_FLUSH_ARMED: AtomicBool = AtomicBool::new(false);
+static EXIT_CONFIRMED: AtomicBool = AtomicBool::new(false);
+
+pub fn confirm_process_exit(app: &tauri::AppHandle) {
+    EXIT_CONFIRMED.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
 
 fn log_err(ctx: &str, err: impl std::fmt::Display) {
     eprintln!("[nordly:tray] {ctx}: {err}");
@@ -81,13 +89,17 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
     if let RunEvent::ExitRequested { api, .. } = event {
-        if !ALLOW_PROCESS_EXIT.swap(true, Ordering::SeqCst) {
+        if !EXIT_CONFIRMED.load(Ordering::SeqCst) {
             api.prevent_exit();
-            if let Err(e) = app.emit("app:exit-requested", ()) {
-                log_err("emit app:exit-requested", e);
-                app.exit(0);
+            if EXIT_FLUSH_ARMED
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                if let Err(e) = app.emit("app:exit-requested", ()) {
+                    log_err("emit app:exit-requested", e);
+                    confirm_process_exit(app);
+                }
             }
-            return;
         }
     }
 

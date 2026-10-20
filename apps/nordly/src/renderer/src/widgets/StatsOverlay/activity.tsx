@@ -8,11 +8,11 @@ import {
   toDayKey,
 } from '@shared/lib/dates';
 import { useTodayKey } from '@shared/hooks/useTodayKey';
+import { readDailyGoalMin } from '@shared/model/settings';
 
 const HEATMAP_CELLS = 7 * 16;
-const FULL_DAY_SECONDS = 24 * 60 * 60;
 const BAR_MAX_HEIGHT = 90;
-const BAR_MIN_HEIGHT = 10;
+const SPARK_FLOOR_SECONDS = 60 * 60;
 
 export function ReferenceHeatmap({ days }: { days: FocusDay[] }): JSX.Element {
   const todayKey = useTodayKey();
@@ -50,9 +50,7 @@ export function ReferenceHeatmap({ days }: { days: FocusDay[] }): JSX.Element {
             borderRadius: 2,
             background:
               cell.seconds > 0
-                ? `rgb(var(--ink-rgb) / ${
-                    cell.isToday ? 0.95 : heatmapOpacity(cell.seconds)
-                  })`
+                ? `rgb(var(--ink-rgb) / ${heatmapOpacity(cell.seconds)})`
                 : 'rgb(var(--ink-rgb) / 0.04)',
             boxShadow: cell.isToday
               ? 'inset 0 0 0 1px rgb(var(--ink-rgb) / 0.35)'
@@ -66,10 +64,11 @@ export function ReferenceHeatmap({ days }: { days: FocusDay[] }): JSX.Element {
 
 function heatmapOpacity(seconds: number): number {
   if (seconds <= 0) return 0.04;
-  if (seconds < 600) return 0.12;
-  if (seconds < 1800) return 0.22;
-  if (seconds < 3600) return 0.36;
-  if (seconds < 7200) return 0.52;
+  if (seconds < 60) return 0.08;
+  if (seconds < 600) return 0.16;
+  if (seconds < 1800) return 0.28;
+  if (seconds < 3600) return 0.42;
+  if (seconds < 7200) return 0.58;
   return 0.78;
 }
 
@@ -87,8 +86,8 @@ export function StreakCurve({ points }: { points: number[] }): JSX.Element {
     return <svg width={width} height={height} style={{ display: 'block' }} />;
   }
 
-  const max = Math.max(...points);
-  const min = Math.min(...points);
+  const max = Math.max(SPARK_FLOOR_SECONDS, ...points);
+  const min = 0;
   const span = Math.max(1, max - min);
   const coordinates = points.map((point, index) => {
     const x = (index / (points.length - 1)) * width;
@@ -163,6 +162,7 @@ export function ReferenceBars({
   }, []);
 
   const todayKey = useTodayKey();
+  const goalSeconds = Math.max(60, readDailyGoalMin() * 60);
   return (
     <div
       style={{
@@ -174,12 +174,10 @@ export function ReferenceBars({
       }}
     >
       {days.map((day, index) => {
-        const ratio = day.seconds / FULL_DAY_SECONDS;
-        const targetHeight =
-          day.seconds > 0
-            ? BAR_MIN_HEIGHT + ratio * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-            : 0;
+        const ratio = Math.min(1, day.seconds / goalSeconds);
+        const targetHeight = day.seconds > 0 ? Math.max(2, ratio * BAR_MAX_HEIGHT) : 0;
         const isToday = day.date === todayKey;
+        const ink = 0.22 + ratio * 0.73;
         return (
           <div
             key={day.date}
@@ -204,9 +202,7 @@ export function ReferenceBars({
                   height: animated ? targetHeight : 0,
                   background:
                     day.seconds > 0
-                      ? isToday
-                        ? 'rgb(var(--ink-rgb) / 0.95)'
-                        : 'var(--ink-tint-16)'
+                      ? `rgb(var(--ink-rgb) / ${ink})`
                       : 'transparent',
                   borderTopLeftRadius: 6,
                   borderTopRightRadius: 6,

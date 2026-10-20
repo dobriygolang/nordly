@@ -90,7 +90,7 @@ export function TimePicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const display = value ? formatTimeShort(value, locale) : '—';
+  const display = value ? formatTimeShort(value, locale) : '-';
 
   const activeKey = useMemo(() => {
     if (!value) return null;

@@ -49,7 +49,8 @@ All three RPC requests carry optional `room_id`. An unrestricted user-session JW
 must omit it and can fetch only its own runs. An editor JWT must provide it; auth
 validates the token against exactly `editor:{room_id}`. Fetching then also requires
 the persisted run's `room_id` to match, even when the editor token subject created
-the run.
+the run. The HTTP gateway forwards `Authorization` once. A second copy is rejected
+as unauthenticated, which is what guest code runs hit when the header was duplicated.
 
 ## Runner (`RUNNER_MODE`)
 

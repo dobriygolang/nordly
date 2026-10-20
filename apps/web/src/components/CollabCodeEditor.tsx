@@ -1,6 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
-import * as Y from 'yjs'
-import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
@@ -8,16 +6,8 @@ import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { cmLanguageExt } from '@/lib/codemirror/langExtension'
 import { editorAssistExtensions } from '@/lib/codemirror/editorAssist'
 import { collabUserColors } from '@/lib/codemirror/collabColors'
-import { peersFromAwareness, type CollabPeer } from '@/lib/codemirror/collabPresence'
-import {
-  bytesToB64,
-  applyWsEnvelope,
-  applyWsEnvelopes,
-  handleCollabSideEffect,
-  useEditorWs,
-  type CodeRunBroadcast,
-  type EditorWsEnvelope,
-} from '@/lib/ws/collabEditor'
+import type { CodeRunBroadcast } from '@/lib/ws/collabEditor'
+import type { LiveCollabSession } from '@/lib/ws/useLiveCollabSession'
 import { editorExtensionsForTheme } from '@/lib/codemirror/liveEditorTheme'
 import { lineNumberSelectLine } from '@/lib/codemirror/lineNumberSelectLine'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
@@ -31,209 +21,66 @@ function applyLocalCollabChrome(view: EditorView, seed: string): void {
 export type CollabCodeEditorHandle = {
   getCode: () => string
   setCode: (code: string) => void
-  reconnect: () => void
   broadcastCodeRun: (payload: CodeRunBroadcast) => void
 }
 
 type Props = {
-  roomId: string
+  session: LiveCollabSession
   language: string
   theme?: LiveRoomTheme
   autocompleteEnabled?: boolean
-  /** Stable presence id (JWT subject or guest display name). */
+  /** Stable presence id (JWT subject). */
   userId: string
-  displayName?: string
-  /** Guest JWT for the collab websocket. */
-  accessToken: string
   fontSize?: number
   onRun?: () => void
   onFormat?: () => void
-  onPeersChange?: (peers: CollabPeer[]) => void
-  onWsStatusChange?: (status: import('@/lib/ws/collabEditor').EditorWsStatus) => void
-  onRoomClosed?: () => void
-  onRemoteCodeRun?: (payload: CodeRunBroadcast) => void
-}
-
-function isTabActive(): boolean {
-  return document.visibilityState === 'visible' && document.hasFocus()
 }
 
 export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(function CollabCodeEditor(
   {
-    roomId,
+    session,
     language,
     theme = 'light',
     autocompleteEnabled = true,
     userId,
-    displayName,
-    accessToken,
     fontSize = 14,
     onRun,
     onFormat,
-    onPeersChange,
-    onWsStatusChange,
-    onRoomClosed,
-    onRemoteCodeRun,
   },
   ref,
 ) {
   const mountRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  const ydocRef = useRef<Y.Doc | null>(null)
-  const awarenessRef = useRef<Awareness | null>(null)
   const themeCompartment = useRef(new Compartment())
   const assistCompartment = useRef(new Compartment())
   const fontSizeCompartment = useRef(new Compartment())
-  const wsSendRef = useRef<(env: EditorWsEnvelope) => boolean>(() => false)
-  const sendRef = useRef<(update: Uint8Array) => void>(() => {})
-  const sendSnapshotRef = useRef<(full: Uint8Array) => void>(() => {})
-  const sendAwarenessRef = useRef<(update: Uint8Array) => void>(() => {})
   const onRunRef = useRef(onRun)
   const onFormatRef = useRef(onFormat)
-  const onPeersChangeRef = useRef(onPeersChange)
-  const onRoomClosedRef = useRef(onRoomClosed)
-  const onRemoteCodeRunRef = useRef(onRemoteCodeRun)
-  const pendingEnvelopesRef = useRef<EditorWsEnvelope[]>([])
   onRunRef.current = onRun
   onFormatRef.current = onFormat
-  onPeersChangeRef.current = onPeersChange
-  onRoomClosedRef.current = onRoomClosed
-  onRemoteCodeRunRef.current = onRemoteCodeRun
 
-  const token = accessToken
-  if (!token) throw new Error('CollabCodeEditor: accessToken required')
-
-  const handleWsEnvelope = useCallback((env: EditorWsEnvelope) => {
-    handleCollabSideEffect(env, {
-      onRoomClosed: () => onRoomClosedRef.current?.(),
-      onCodeRun: (payload) => onRemoteCodeRunRef.current?.(payload),
-    })
-    const ydoc = ydocRef.current
-    const awareness = awarenessRef.current
-    if (!ydoc) {
-      pendingEnvelopesRef.current.push(env)
-      return
-    }
-    applyWsEnvelope(env, ydoc, awareness)
-  }, [])
-
-  const flushPendingEnvelopes = useCallback(() => {
-    const ydoc = ydocRef.current
-    const awareness = awarenessRef.current
-    if (!ydoc) return
-    const pending = pendingEnvelopesRef.current
-    if (pending.length === 0) return
-    pendingEnvelopesRef.current = []
-    for (const env of pending) {
-      handleCollabSideEffect(env, {
-        onRoomClosed: () => onRoomClosedRef.current?.(),
-        onCodeRun: (payload) => onRemoteCodeRunRef.current?.(payload),
-      })
-    }
-    applyWsEnvelopes(pending, ydoc, awareness)
-    viewRef.current?.dispatch({})
-  }, [])
-
-  const { send, status, reconnect } = useEditorWs(roomId, token || undefined, handleWsEnvelope)
-
-  wsSendRef.current = send
-
-  useEffect(() => {
-    onWsStatusChange?.(status)
-  }, [status, onWsStatusChange])
+  if (!userId) throw new Error('CollabCodeEditor: userId required')
 
   useImperativeHandle(ref, () => ({
-    getCode: () => ydocRef.current?.getText('code').toString() ?? '',
+    getCode: () => session.ydoc.getText('code').toString(),
     setCode: (code: string) => {
-      const ydoc = ydocRef.current
-      if (!ydoc) return
-      const ytext = ydoc.getText('code')
-      ydoc.transact(() => {
+      const ytext = session.ydoc.getText('code')
+      session.ydoc.transact(() => {
         ytext.delete(0, ytext.length)
         ytext.insert(0, code)
       })
     },
-    reconnect,
     broadcastCodeRun: (payload) => {
-      wsSendRef.current({ kind: 'code_run', data: payload })
+      const sent = session.send({ kind: 'code_run', data: payload })
+      if (!sent) console.warn('[CollabCodeEditor] code_run was not sent')
     },
-  }))
+  }), [session])
 
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
 
-    const ydoc = new Y.Doc()
-    ydocRef.current = ydoc
-    const ytext = ydoc.getText('code')
-    const awareness = new Awareness(ydoc)
-    awarenessRef.current = awareness
-
-    if (!userId) throw new Error('CollabCodeEditor: userId required')
-    const label = displayName?.trim() || userId.slice(0, 8)
-    const colors = collabUserColors(userId)
-    const syncLocalUser = (active = isTabActive()) => {
-      awareness.setLocalStateField('user', {
-        name: label,
-        color: colors.color,
-        colorLight: colors.colorLight,
-        userId,
-        active,
-      })
-    }
-    syncLocalUser()
-
-    const emitPeers = () => {
-      onPeersChangeRef.current?.(peersFromAwareness(awareness))
-    }
-    const onTabActivity = () => syncLocalUser(isTabActive())
-    document.addEventListener('visibilitychange', onTabActivity)
-    window.addEventListener('focus', onTabActivity)
-    window.addEventListener('blur', onTabActivity)
-    awareness.on('change', emitPeers)
-    emitPeers()
-
-    let snapshotTimer: number | null = null
-    const sendFullSnapshot = () => {
-      const full = Y.encodeStateAsUpdate(ydoc)
-      if (full.byteLength > 0) sendSnapshotRef.current(full)
-    }
-    const scheduleSnapshot = () => {
-      if (snapshotTimer !== null) window.clearTimeout(snapshotTimer)
-      snapshotTimer = window.setTimeout(() => {
-        snapshotTimer = null
-        sendFullSnapshot()
-      }, 1500)
-    }
-
-    const onYUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === 'remote') return
-      sendRef.current(update)
-      scheduleSnapshot()
-    }
-    ydoc.on('update', onYUpdate)
-
-    const onAwUpdate = (
-      diff: { added: number[]; updated: number[]; removed: number[] },
-      origin: unknown,
-    ) => {
-      if (origin === 'remote') return
-      const changed = diff.added.concat(diff.updated, diff.removed)
-      if (changed.length === 0) return
-      sendAwarenessRef.current?.(encodeAwarenessUpdate(awareness, changed))
-    }
-    awareness.on('update', onAwUpdate)
-
-    sendRef.current = (update) => {
-      wsSendRef.current({ kind: 'op', data: { payload: bytesToB64(update) } })
-    }
-    sendSnapshotRef.current = (full) => {
-      wsSendRef.current({ kind: 'snapshot', data: { payload: bytesToB64(full) } })
-    }
-    sendAwarenessRef.current = (update) => {
-      wsSendRef.current({ kind: 'presence', data: { update: bytesToB64(update) } })
-    }
-
+    const ytext = session.ydoc.getText('code')
     const state = EditorState.create({
       doc: ytext.toString(),
       extensions: [
@@ -250,39 +97,21 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
             '.cm-gutters': { fontSize: `${fontSize}px` },
           }),
         ),
-        yCollab(ytext, awareness),
+        yCollab(ytext, session.awareness),
         EditorView.editable.of(true),
       ],
     })
     const view = new EditorView({ state, parent: mount })
     viewRef.current = view
     applyLocalCollabChrome(view, userId)
-    flushPendingEnvelopes()
 
     return () => {
-      pendingEnvelopesRef.current = []
-      try {
-        sendFullSnapshot()
-      } catch (err) {
-        console.error('[CollabCodeEditor] final snapshot failed', err)
-      }
-      document.removeEventListener('visibilitychange', onTabActivity)
-      window.removeEventListener('focus', onTabActivity)
-      window.removeEventListener('blur', onTabActivity)
-      awareness.off('change', emitPeers)
-      awareness.setLocalState(null)
-      if (snapshotTimer !== null) window.clearTimeout(snapshotTimer)
-      ydoc.off('update', onYUpdate)
-      awareness.off('update', onAwUpdate)
       view.destroy()
       viewRef.current = null
-      awareness.destroy()
-      ydoc.destroy()
-      ydocRef.current = null
-      awarenessRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- token/room/language only
-  }, [roomId, language, token, flushPendingEnvelopes])
+    // Theme, font, and autocomplete reconfigure below. Recreating the view drops the cursor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, session.awareness, session.ydoc, userId])
 
   useEffect(() => {
     const view = viewRef.current
@@ -317,22 +146,9 @@ export const CollabCodeEditor = forwardRef<CollabCodeEditorHandle, Props>(functi
   }, [fontSize])
 
   useEffect(() => {
-    const awareness = awarenessRef.current
-    if (!awareness) return
-    if (!userId) throw new Error('CollabCodeEditor: userId required')
-    const label = displayName?.trim() || userId.slice(0, 8)
-    const colors = collabUserColors(userId)
-    const prev = awareness.getLocalState()?.user as Record<string, unknown> | undefined
-    awareness.setLocalStateField('user', {
-      ...prev,
-      name: label,
-      color: colors.color,
-      colorLight: colors.colorLight,
-      userId,
-    })
     const view = viewRef.current
     if (view) applyLocalCollabChrome(view, userId)
-  }, [displayName, userId])
+  }, [userId])
 
   useEffect(() => {
     if (!onRun && !onFormat) return

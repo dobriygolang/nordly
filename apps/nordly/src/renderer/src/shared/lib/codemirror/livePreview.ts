@@ -9,9 +9,11 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 
-import { notesCodeLangLabel } from './notesCodeLanguages';
+import { translate } from '@nordly-i18n';
 import { NORDLY_ASSET_SCHEME } from '@shared/lib/nordlyAsset';
 import { boardWikiTitleSpan } from '@shared/lib/wikiLinkText';
+
+import { notesCodeLangLabel } from './notesCodeLanguages';
 
 interface DecorationSink {
   add(from: number, to: number, decoration: Decoration): void;
@@ -171,7 +173,7 @@ class MarkdownImageWidget extends WidgetType {
             'code' in err &&
             (err as { code: unknown }).code === 'vault_locked'
           ) {
-            placeholder.textContent = 'Vault locked';
+            placeholder.textContent = translate('nordly.vault.eyebrow.locked');
             wrap.classList.add('nordly-md-image--vault-locked');
           }
           showPlaceholder();

@@ -10,8 +10,7 @@ import {
 } from 'react'
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import * as Y from 'yjs'
-import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
+import type * as Y from 'yjs'
 import {
   applyLocalBoardTheme,
   boardElementsNeedThemeRemap,
@@ -26,8 +25,6 @@ import {
   type BoardCanvasTheme,
 } from '@/lib/collab/excalidrawTheme'
 import type { LiveRoomTheme } from '@/lib/live/roomTheme'
-import { collabUserColors } from '@/lib/codemirror/collabColors'
-import { peersFromAwareness, type CollabPeer } from '@/lib/codemirror/collabPresence'
 import {
   observeSceneChanges,
   readSceneFromYjs,
@@ -37,31 +34,18 @@ import {
   type ScenePayload,
 } from '@/lib/collab/excalidrawYjsDoc'
 import { fetchInitialScene } from '@/lib/api/rooms'
-import {
-  applyWsEnvelope,
-  applyWsEnvelopes,
-  bytesToB64,
-  handleCollabSideEffect,
-  useEditorWs,
-  type EditorWsEnvelope,
-} from '@/lib/ws/collabEditor'
+import type { LiveCollabSession } from '@/lib/ws/useLiveCollabSession'
 
 export type CollabExcalidrawHandle = {
   getSceneJSON: () => string
-  reconnect: () => void
 }
 
 type Props = {
+  session: LiveCollabSession
   roomId: string
   boardTheme?: LiveRoomTheme
-  /** Stable presence id (JWT subject or guest display name). */
+  /** Stable presence id (JWT subject). */
   userId: string
-  displayName?: string
-  /** Guest JWT for the collab websocket. */
-  accessToken: string
-  onPeersChange?: (peers: CollabPeer[]) => void
-  onWsStatusChange?: (status: import('@/lib/ws/collabEditor').EditorWsStatus) => void
-  onRoomClosed?: () => void
 }
 
 type ExcalidrawApi = {
@@ -76,26 +60,18 @@ type ExcalidrawApi = {
 
 type ColoredElement = Parameters<typeof canonicalizeElementsForStorage>[0][number]
 
-function isTabActive(): boolean {
-  return document.visibilityState === 'visible' && document.hasFocus()
-}
-
 export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
   function CollabExcalidrawEditor(
     {
+      session,
       roomId,
       boardTheme = 'dark',
       userId,
-      displayName,
-      accessToken,
-      onPeersChange,
-      onWsStatusChange,
-      onRoomClosed,
     },
     ref,
   ) {
-    const ydocRef = useRef<Y.Doc | null>(null)
-    const awarenessRef = useRef<Awareness | null>(null)
+    const ydocRef = useRef<Y.Doc | null>(session.ydoc)
+    ydocRef.current = session.ydoc
     const apiRef = useRef<ExcalidrawApi | null>(null)
     const boardThemeRef = useRef<BoardCanvasTheme>(boardTheme)
     boardThemeRef.current = boardTheme
@@ -103,17 +79,10 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const applyingThemeRef = useRef(false)
     const remoteApplyTimerRef = useRef<number | null>(null)
     const skipChangeRef = useRef(true)
-    const wsSendRef = useRef<(env: EditorWsEnvelope) => boolean>(() => false)
-    const sendRef = useRef<(update: Uint8Array) => void>(() => {})
-    const sendSnapshotRef = useRef<(full: Uint8Array) => void>(() => {})
-    const sendAwarenessRef = useRef<(update: Uint8Array) => void>(() => {})
-    const pendingEnvelopesRef = useRef<EditorWsEnvelope[]>([])
     const gotRemoteRef = useRef(false)
     const pendingLocalRef = useRef<ScenePayload | null>(null)
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
-    const displayNameRef = useRef(displayName)
-    displayNameRef.current = displayName
 
     const [ready, setReady] = useState(false)
     const [seedError, setSeedError] = useState<string | null>(null)
@@ -121,59 +90,11 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     /** Last board theme we imperatively applied — distinguishes real toggles from initial mount. */
     const prevThemeRef = useRef<BoardCanvasTheme | null>(null)
 
-    const onRoomClosedRef = useRef(onRoomClosed)
-    onRoomClosedRef.current = onRoomClosed
-
-    const token = accessToken
-    if (!token) throw new Error('CollabExcalidrawEditor: accessToken required')
-
-    const handleWsEnvelope = useCallback((env: EditorWsEnvelope) => {
-      handleCollabSideEffect(env, {
-        onRoomClosed: () => onRoomClosedRef.current?.(),
-      })
-      const ydoc = ydocRef.current
-      const awareness = awarenessRef.current
-      if (!ydoc) {
-        pendingEnvelopesRef.current.push(env)
-        return
-      }
-      applyWsEnvelope(env, ydoc, awareness)
-      if (env.kind === 'snapshot') {
-        canPublishLocalRef.current = true
-        gotRemoteRef.current = true
-      }
-    }, [])
-
-    const flushPendingEnvelopes = useCallback(() => {
-      const ydoc = ydocRef.current
-      const awareness = awarenessRef.current
-      if (!ydoc) return
-      const pending = pendingEnvelopesRef.current
-      if (pending.length === 0) return
-      pendingEnvelopesRef.current = []
-      for (const env of pending) {
-        handleCollabSideEffect(env, {
-          onRoomClosed: () => onRoomClosedRef.current?.(),
-        })
-        if (env.kind === 'snapshot') {
-          canPublishLocalRef.current = true
-          gotRemoteRef.current = true
-        }
-      }
-      applyWsEnvelopes(pending, ydoc, awareness)
-    }, [])
-
-    const { send, status, reconnect } = useEditorWs(roomId, token || undefined, handleWsEnvelope)
-    wsSendRef.current = send
-
-    useEffect(() => {
-      onWsStatusChange?.(status)
-    }, [status, onWsStatusChange])
+    if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
 
     useImperativeHandle(ref, () => ({
-      getSceneJSON: () => (ydocRef.current ? sceneToJSON(ydocRef.current) : ''),
-      reconnect,
-    }))
+      getSceneJSON: () => sceneToJSON(session.ydoc),
+    }), [session])
 
     const flushLocalToYjs = useCallback(() => {
       const pending = pendingLocalRef.current
@@ -206,15 +127,13 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     }, [])
 
     useEffect(() => {
+      const ydoc = session.ydoc
+      ydocRef.current = ydoc
       canPublishLocalRef.current = false
       gotRemoteRef.current = false
       prevThemeRef.current = null
       seedFailedRef.current = false
       setSeedError(null)
-      const ydoc = new Y.Doc()
-      ydocRef.current = ydoc
-      const awareness = new Awareness(ydoc)
-      awarenessRef.current = awareness
 
       const failSeed = (err: unknown) => {
         const message = err instanceof Error ? err.message : String(err)
@@ -265,41 +184,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           }, 300)
         })
 
-      if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
-      const label = displayNameRef.current?.trim() || userId.slice(0, 8)
-      const colors = collabUserColors(userId)
-      const syncLocalUser = (active = isTabActive()) => {
-        awareness.setLocalStateField('user', {
-          name: label,
-          color: colors.color,
-          colorLight: colors.colorLight,
-          userId,
-          active,
-        })
-      }
-      syncLocalUser()
-
-      const emitPeers = () => onPeersChange?.(peersFromAwareness(awareness))
-      const onTabActivity = () => syncLocalUser(isTabActive())
-      document.addEventListener('visibilitychange', onTabActivity)
-      window.addEventListener('focus', onTabActivity)
-      window.addEventListener('blur', onTabActivity)
-      awareness.on('change', emitPeers)
-      emitPeers()
-
-      let snapshotTimer: number | null = null
-      const sendFullSnapshot = () => {
-        const full = Y.encodeStateAsUpdate(ydoc)
-        if (full.byteLength > 0) sendSnapshotRef.current(full)
-      }
-      const scheduleSnapshot = () => {
-        if (snapshotTimer !== null) window.clearTimeout(snapshotTimer)
-        snapshotTimer = window.setTimeout(() => {
-          snapshotTimer = null
-          sendFullSnapshot()
-        }, 1500)
-      }
-
       const stopObserving = observeSceneChanges(ydoc, (scene) => {
         pushSceneToExcalidraw(scene)
       })
@@ -313,86 +197,22 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       }
       ydoc.on('afterTransaction', onAfterTransaction)
 
-      const onYUpdate = (update: Uint8Array, origin: unknown) => {
-        if (origin === 'remote' || origin === 'seed') return
-        if (!canPublishLocalRef.current) return
-        sendRef.current(update)
-        scheduleSnapshot()
-      }
-      ydoc.on('update', onYUpdate)
-
-      const onAwUpdate = (
-        diff: { added: number[]; updated: number[]; removed: number[] },
-        origin: unknown,
-      ) => {
-        if (origin === 'remote') return
-        const changed = diff.added.concat(diff.updated, diff.removed)
-        if (changed.length === 0) return
-        sendAwarenessRef.current?.(encodeAwarenessUpdate(awareness, changed))
-      }
-      awareness.on('update', onAwUpdate)
-
-      sendRef.current = (update) => {
-        wsSendRef.current({ kind: 'op', data: { payload: bytesToB64(update) } })
-      }
-      sendSnapshotRef.current = (full) => {
-        wsSendRef.current({ kind: 'snapshot', data: { payload: bytesToB64(full) } })
-      }
-      sendAwarenessRef.current = (update) => {
-        wsSendRef.current({ kind: 'presence', data: { update: bytesToB64(update) } })
-      }
-
-      flushPendingEnvelopes()
-
       return () => {
-        pendingEnvelopesRef.current = []
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
         if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
-        try {
-          if (canPublishLocalRef.current) sendFullSnapshot()
-        } catch (err) {
-          console.error('[CollabExcalidraw] final snapshot failed', err)
+        const pending = pendingLocalRef.current
+        if (pending) {
+          pendingLocalRef.current = null
+          writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
         }
         stopObserving()
         ydoc.off('afterTransaction', onAfterTransaction)
-        document.removeEventListener('visibilitychange', onTabActivity)
-        window.removeEventListener('focus', onTabActivity)
-        window.removeEventListener('blur', onTabActivity)
-        awareness.off('change', emitPeers)
-        awareness.setLocalState(null)
-        if (snapshotTimer !== null) window.clearTimeout(snapshotTimer)
-        ydoc.off('update', onYUpdate)
-        awareness.off('update', onAwUpdate)
-        awareness.destroy()
-        ydoc.destroy()
-        ydocRef.current = null
-        awarenessRef.current = null
         apiRef.current = null
         pendingLocalRef.current = null
         canPublishLocalRef.current = false
         setReady(false)
       }
-    }, [roomId, token, userId, flushPendingEnvelopes, pushSceneToExcalidraw])
-
-    useEffect(() => {
-      const awareness = awarenessRef.current
-      if (!awareness) return
-      if (!userId) throw new Error('CollabExcalidrawEditor: userId required')
-      const label = displayName?.trim() || userId.slice(0, 8)
-      const colors = collabUserColors(userId)
-      const prev = awareness.getLocalState()?.user as Record<string, unknown> | undefined
-      awareness.setLocalStateField('user', {
-        ...prev,
-        name: label,
-        color: colors.color,
-        colorLight: colors.colorLight,
-        userId,
-      })
-    }, [displayName, userId])
-
-    useEffect(() => {
-      if (status === 'open') flushPendingEnvelopes()
-    }, [status, flushPendingEnvelopes])
+    }, [roomId, session.ydoc, pushSceneToExcalidraw])
 
     useEffect(() => {
       const ydoc = ydocRef.current
@@ -434,7 +254,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         window.clearTimeout(giveUp)
         document.removeEventListener('visibilitychange', onVisible)
       }
-    }, [roomId, token])
+    }, [roomId, session.ydoc])
 
     // Freeze initial scene at mount; theme toggles are applied imperatively below.
     const excalidrawInitialData = useMemo(() => {

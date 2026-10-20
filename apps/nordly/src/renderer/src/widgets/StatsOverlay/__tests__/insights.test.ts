@@ -31,4 +31,22 @@ describe('deriveStatsInsights', () => {
       averageSessionMinutes: 30,
     });
   });
+
+  it('does not treat a one-second week as a 100% jump from zero', () => {
+    const stats: NordlyStats = {
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+      totalFocusedSeconds: 1,
+      lastSevenDays: [{ date: '2026-08-27', seconds: 1, sessions: 1 }],
+      heatmap: [{ date: '2026-08-27', seconds: 1, sessions: 1 }],
+    };
+
+    expect(deriveStatsInsights(stats, '2026-08-27')).toMatchObject({
+      thisWeekSeconds: 1,
+      previousWeekSeconds: 0,
+      weekDeltaPercent: null,
+      todayMinutes: 0,
+      averageSessionMinutes: 0,
+    });
+  });
 });

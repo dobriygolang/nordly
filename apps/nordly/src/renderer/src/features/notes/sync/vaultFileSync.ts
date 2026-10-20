@@ -44,7 +44,7 @@ function shouldPushE2ee(): boolean {
 
 function requireE2eeUnlocked(): void {
   if (isVaultEnabledSync() && !isVaultUnlocked()) {
-    throw new SyncDeferredError('Vault locked — unlock in Settings to sync encrypted notes');
+    throw new SyncDeferredError('Notes are locked. Unlock them in Settings so sync can continue.');
   }
 }
 

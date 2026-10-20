@@ -31,9 +31,10 @@ Pomodoro timer and focus statistics for Nordly (Tauri desktop):
   Start, end, stats, and cleanup share one required injected clock (`time.Now` from
   `service.New`); inverted `ended_at < started_at` is `ErrInvalidArgument`.
 - Stats include completed positive-focus sessions whose `ended_at` is on or before the requested
-  UTC date. Activity is attributed to the UTC `ended_at` date; the current streak remains alive
-  through the day after the most recent activity, and the longest streak is derived from distinct
-  historical activity dates rather than mutable state.
+  UTC date. Activity is attributed to the UTC `ended_at` date. A streak day needs at least 60
+  focused seconds; shorter sessions stay in the heatmap and totals. The current streak remains
+  alive through the day after the most recent qualifying activity, and the longest streak is
+  derived from distinct historical activity dates rather than mutable state.
 - Transport: one RPC per file under `internal/app/api/focus/` (`start_focus_session.go`, …).
 
 ## Layout

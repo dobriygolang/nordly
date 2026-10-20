@@ -303,7 +303,6 @@ func (c *wsConn) finish() {
 	c.closing = true
 	c.queue = nil
 	c.queueHead = 0
-	close(c.done)
 	c.queueMu.Unlock()
 
 	if err := c.socket.Close(); err != nil {
@@ -314,6 +313,10 @@ func (c *wsConn) finish() {
 			"err", err,
 		)
 	}
+
+	c.queueMu.Lock()
+	close(c.done)
+	c.queueMu.Unlock()
 }
 
 func encodeEnvelope(kind Kind, data any) ([]byte, error) {

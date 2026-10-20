@@ -46,7 +46,9 @@ func RunAPI(ctx context.Context, a *App) error {
 
 	if err := sandboxapi.RegisterGateway(ctx, httpMux, dialAddr); err != nil {
 		grpcSrv.Stop()
-		<-grpcErrCh
+		if serveErr := <-grpcErrCh; serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+			return fmt.Errorf("register gateway: %w", errors.Join(err, serveErr))
+		}
 		return fmt.Errorf("register gateway: %w", err)
 	}
 

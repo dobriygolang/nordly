@@ -101,7 +101,7 @@ When fixing CI / Go deps / reviewing a failing govulncheck job:
 
 Common current floors (raise when CI reports newer Fixed-in):
 
-- `google.golang.org/grpc` ≥ `v1.83.1` (GO-2026-6348)
+- `google.golang.org/grpc` ≥ `v1.83.2` (GO-2026-6443)
 - `golang.org/x/net` ≥ `v0.60.0` (GO-2026-6617)
 - `golang.org/x/text` ≥ `v0.42.0` (GO-2026-6629; required by `x/net` v0.60.0)
 - Go toolchain `1.26.10` (stdlib fixes are not backported to 1.25)

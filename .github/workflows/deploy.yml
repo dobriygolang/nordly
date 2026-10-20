@@ -220,13 +220,15 @@ jobs:
             else
               # shellcheck source=scripts/services.conf.sh
               source scripts/services.conf.sh
-              migrations_changed "$PREV_SHA" "$CUR_SHA"
-              mc=$?
-              if [ "$mc" -eq 0 ]; then
+              # return 1 means "no migration changes" and must not trip set -e.
+              if migrations_changed "$PREV_SHA" "$CUR_SHA"; then
                 RUN_MIGRATE=1
-              elif [ "$mc" -ge 2 ]; then
-                echo "ERROR: could not detect migration changes"
-                exit 1
+              else
+                mc=$?
+                if [ "$mc" -ge 2 ]; then
+                  echo "ERROR: could not detect migration changes"
+                  exit 1
+                fi
               fi
             fi
             if [ "$RUN_MIGRATE" = 1 ]; then

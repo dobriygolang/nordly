@@ -16,10 +16,12 @@ function consumesHorizontalSwipe(target: EventTarget | null): boolean {
       node = node.parentElement;
       continue;
     }
-    const overflowX = getComputedStyle(node).overflowX;
-    if (overflowX === 'auto' || overflowX === 'scroll') {
-      const scrollbar = Math.max(0, node.offsetWidth - node.clientWidth);
-      if (node.scrollWidth > node.clientWidth + scrollbar + 2) return true;
+    if (node instanceof HTMLElement) {
+      const overflowX = getComputedStyle(node).overflowX;
+      if (overflowX === 'auto' || overflowX === 'scroll') {
+        const scrollbar = Math.max(0, node.offsetWidth - node.clientWidth);
+        if (node.scrollWidth > node.clientWidth + scrollbar + 2) return true;
+      }
     }
     node = node.parentElement;
   }

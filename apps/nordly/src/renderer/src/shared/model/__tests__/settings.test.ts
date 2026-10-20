@@ -64,6 +64,7 @@ describe('settings', () => {
     expect(settings.notificationVolume).toBe(80);
     expect(settings.textScale).toBe('normal');
     expect(settings.weekStartsOn).toBe('monday');
+    expect(settings.flashcards).toEqual({ enabled: false, dailyNewLimit: 20 });
     expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!)).toMatchObject({
       calendarNotifications: true,
       taskNotifications: true,

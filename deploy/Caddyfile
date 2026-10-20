@@ -4,6 +4,13 @@
 	auto_https off
 }
 
+# SPA document policy. API, Grafana, and /desktop stay outside this snippet.
+# style-src unsafe-inline: Excalidraw and React set element styles.
+# worker-src blob: Excalidraw's canvas worker. Fonts: landing Inter / JetBrains Mono.
+(spa_csp) {
+	header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com wss://trynordly.app wss://code.trynordly.app; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'"
+}
+
 # Shared API routing (used on api.* and on the SPA host for same-origin /v1).
 (api_v1) {
 	handle /v1/auth* {
@@ -79,6 +86,7 @@ http://trynordly.app, http://app.trynordly.app {
 		}
 		handle {
 			root * /srv
+			import spa_csp
 			try_files {path} /index.html
 			file_server
 		}
@@ -93,6 +101,7 @@ http://code.trynordly.app {
 		import api_ws
 		handle {
 			root * /srv
+			import spa_csp
 			try_files {path} /index.html
 			file_server
 		}

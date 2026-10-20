@@ -1,4 +1,5 @@
 import { AttachmentError } from '@features/notes/lib/noteAttachments';
+import { NotesSyncBlockedError } from '@features/notes/api/notesSync';
 
 type Translate = (key: string) => string;
 
@@ -11,10 +12,18 @@ const VAULT_ERROR_KEYS: ReadonlyArray<readonly [needle: string, key: string]> = 
   ['image exceeds 5 mib', 'nordly.notes.attachment.too_large'],
   ['unsupported image type', 'nordly.notes.attachment.bad_type'],
   ['permission denied', 'nordly.notes.vault_fs.permission_denied'],
-  ['operation not permitted', 'nordly.notes.vault_fs.permission_denied'],
+  ['notes_sync_plaintext_while_encrypted', 'nordly.notes.sync.plaintext_remote'],
+  ['notes_sync_publish_encrypted', 'nordly.notes.sync.publish_encrypted'],
 ];
 
 export function notesErrorMessage(err: unknown, translate?: Translate): string {
+  if (err instanceof NotesSyncBlockedError && translate) {
+    return translate(
+      err.reason === 'sync_off'
+        ? 'nordly.notes.sync.publish_blocked'
+        : 'nordly.settings.vault.locked_publish',
+    );
+  }
   if (err instanceof AttachmentError && translate) {
     return translate(`nordly.notes.attachment.${err.code}`);
   }

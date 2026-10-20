@@ -40,6 +40,8 @@ export const NORDLY_EVENTS = {
   dailyPlanChanged: 'nordly:daily-plan-changed',
   /** Home / hotkey → App: navigate to daily planning. */
   openPlanning: 'nordly:open-planning',
+  /** Notes → App: open card review, optionally for one note. */
+  openCards: 'nordly:open-cards',
   /** Timeline / Home → App: show calendar / meeting details in-app. */
   calendarInspect: 'nordly:calendar-inspect',
 } as const;

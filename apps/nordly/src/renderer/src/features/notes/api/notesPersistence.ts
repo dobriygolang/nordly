@@ -19,11 +19,11 @@ import {
 import { buildWikiLinksWire, resolveWikiLinks } from '@features/notes/lib/wikiLinks';
 import { deleteAttachmentsForNote, deleteNoteAttachment } from '@features/notes/api/attachmentsClient';
 import { extractNordlyAssetIds } from '@features/notes/lib/noteAttachments';
+import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { cancelOutboxForEntity, enqueueOutbox } from '@shared/sync/outbox';
 import { OutboxOp, SyncDomain } from '@shared/sync/types';
 import { scheduleSync } from '@shared/sync/SyncEngine';
 import { getServerId } from '@shared/sync/idMap';
-import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 import {
   isNotesVaultBound,
   vaultIoCreateFolder,
@@ -160,7 +160,7 @@ async function idbCreateNote(
   const id = crypto.randomUUID();
   const wikiLinks = await idbWikiLinksForSave(bodyMd);
   const note = await notesStoreUpsert(id, title, bodyMd, undefined, wikiLinks, folderId ?? null);
-  if (isSyncQueueEnabled()) {
+  if (isNotesSyncEnabled()) {
     await enqueueOutbox(SyncDomain.Notes, OutboxOp.Create, id, { title, bodyMd, wikiLinks });
     scheduleSync();
   }
@@ -186,7 +186,7 @@ async function idbUpdateNote(id: string, title: string, bodyMd: string): Promise
   const wikiLinks = await idbWikiLinksForSave(bodyMd);
   const note = await notesStoreUpsert(canonicalId, title, bodyMd, undefined, wikiLinks);
   await idbSweepOrphanAttachments(canonicalId, bodyMd);
-  if (isSyncQueueEnabled()) {
+  if (isNotesSyncEnabled()) {
     if (id !== canonicalId) await cancelOutboxForEntity(SyncDomain.Notes, id);
     await enqueueOutbox(SyncDomain.Notes, OutboxOp.Update, canonicalId, { title, bodyMd, wikiLinks });
     scheduleSync();
@@ -201,7 +201,7 @@ async function idbDeleteNote(id: string): Promise<void> {
   const canonicalId = prev.id;
   await deleteAttachmentsForNote(canonicalId, { syncRemote: false });
   await notesStoreSoftDelete(canonicalId);
-  if (isSyncQueueEnabled()) {
+  if (isNotesSyncEnabled()) {
     if (id !== canonicalId) await cancelOutboxForEntity(SyncDomain.Notes, id);
     await cancelOutboxForEntity(SyncDomain.Notes, canonicalId);
     await enqueueOutbox(SyncDomain.Notes, OutboxOp.Delete, canonicalId, {});

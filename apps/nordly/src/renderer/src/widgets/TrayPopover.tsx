@@ -9,6 +9,13 @@ import {
 } from '@features/focus/lib/pomodoroCrossWindow';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { listenEffect } from '@shared/lib/tauriListen';
+import {
+  disconnectedNowPlaying,
+  sendSpotifyLike,
+  SPOTIFY_NOW_EVENT,
+  trayMusicLine,
+  type SpotifyNowPlaying,
+} from '@features/spotify/api/tray';
 import { readStoredTheme } from '@shared/model/theme';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { TimerMode } from '@shared/model/settings';
@@ -179,10 +186,26 @@ export function TrayPopoverApp(): JSX.Element {
   const running = usePomodoroStore((s) => s.running);
   const pinnedTitle = usePomodoroStore((s) => s.pinnedTitle);
   const displaySec = mode === TimerMode.Pomodoro ? remain : elapsed;
-  const taskTitle = pinnedTitle?.trim();
-  const focusLabel = taskTitle || t(running ? 'nordly.tray.focus_session' : 'nordly.tray.ready');
+  const taskTitle = pinnedTitle?.trim() ?? '';
+  const [nowPlaying, setNowPlaying] = useState<SpotifyNowPlaying>(disconnectedNowPlaying);
+  const musicLine = trayMusicLine(nowPlaying, taskTitle, running, {
+    timerKicker: t('nordly.tray.timer_label'),
+    taskKicker: t('nordly.tray.current_task'),
+    ready: t('nordly.tray.ready'),
+    focus: t('nordly.tray.focus_session'),
+    musicKicker: t('nordly.tray.music_label'),
+    nothingPlaying: t('nordly.tray.nothing_playing'),
+    like: t('nordly.tray.like'),
+    unlike: t('nordly.tray.unlike'),
+  });
 
   useEffect(() => initPomodoroFollower(), []);
+
+  useEffect(() => {
+    return listenEffect<SpotifyNowPlaying>(SPOTIFY_NOW_EVENT, ({ payload }) => {
+      setNowPlaying(payload);
+    });
+  }, []);
 
   useEffect(() => {
     return listenEffect('tray-popover:show', () => {
@@ -248,11 +271,21 @@ export function TrayPopoverApp(): JSX.Element {
                 <Icon name={running ? 'pause' : 'play'} size={10} />
               </span>
             </button>
-            <span className="nordly-tray-popover__focus-copy" title={focusLabel}>
-              <span className="nordly-tray-popover__focus-kicker mono">
-                {taskTitle ? t('nordly.tray.current_task') : t('nordly.tray.timer_label')}
-              </span>
-              <span className="nordly-tray-popover__focus-title">{focusLabel}</span>
+            {musicLine.showLike ? (
+              <button
+                type="button"
+                className="nordly-tray-popover__like focus-ring"
+                onClick={sendSpotifyLike}
+                aria-label={musicLine.likeLabel}
+                aria-pressed={musicLine.liked}
+                title={musicLine.likeError || musicLine.likeLabel}
+              >
+                <Icon name={musicLine.liked ? 'heart-fill' : 'heart'} size={12} />
+              </button>
+            ) : null}
+            <span className="nordly-tray-popover__focus-copy" title={musicLine.title}>
+              <span className="nordly-tray-popover__focus-kicker mono">{musicLine.kicker}</span>
+              <span className="nordly-tray-popover__focus-title">{musicLine.title}</span>
             </span>
           </div>
         </div>

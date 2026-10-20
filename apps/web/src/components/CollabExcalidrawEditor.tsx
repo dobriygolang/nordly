@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
+import { collaboratorsFromAwareness, setLocalCursor } from '@nordly-collab/liveCursors'
 import type * as Y from 'yjs'
 import {
   applyLocalBoardTheme,
@@ -53,6 +54,7 @@ type ExcalidrawApi = {
     elements?: readonly unknown[]
     files?: Record<string, unknown>
     appState?: Record<string, unknown>
+    collaborators?: Map<string, unknown>
     captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction]
   }) => void
   getSceneElements: () => readonly unknown[]
@@ -83,6 +85,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const pendingLocalRef = useRef<ScenePayload | null>(null)
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
+    const paintCollaboratorsRef = useRef(() => {})
 
     const [ready, setReady] = useState(false)
     const [seedError, setSeedError] = useState<string | null>(null)
@@ -394,6 +397,34 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       [flushLocalToYjs],
     )
 
+    useEffect(() => {
+      const awareness = session.awareness
+      const paint = () => {
+        const api = apiRef.current
+        if (!api) return
+        const map = new Map<string, unknown>()
+        for (const peer of collaboratorsFromAwareness(awareness)) {
+          map.set(String(peer.clientId), {
+            username: peer.username,
+            color: { background: peer.color, stroke: peer.color },
+            pointer: peer.pointer,
+            button: peer.pointer?.button ?? 'up',
+          })
+        }
+        api.updateScene({
+          collaborators: map,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        })
+      }
+      awareness.on('change', paint)
+      paintCollaboratorsRef.current = paint
+      paint()
+      return () => {
+        awareness.off('change', paint)
+        setLocalCursor(awareness, null)
+      }
+    }, [session.awareness])
+
     return (
       <div
         className={`${EXCALIDRAW_MOUNT_CLASS} h-full w-full relative`}
@@ -401,6 +432,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         onWheelCapture={(e) => {
           if (e.ctrlKey || e.metaKey) e.preventDefault()
         }}
+        onPointerLeave={() => setLocalCursor(session.awareness, null)}
       >
         {seedError ? (
           <div
@@ -419,9 +451,19 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
               appState: excalidrawInitialData.appState as never,
             }}
             onChange={handleChange}
+            isCollaborating
+            onPointerUpdate={(payload) => {
+              setLocalCursor(session.awareness, {
+                x: payload.pointer.x,
+                y: payload.pointer.y,
+                tool: payload.pointer.tool,
+                button: payload.button,
+              })
+            }}
             viewModeEnabled={false}
             excalidrawAPI={(api) => {
               apiRef.current = api as ExcalidrawApi
+              paintCollaboratorsRef.current()
             }}
             UIOptions={EXCALIDRAW_UI_OPTIONS}
           />

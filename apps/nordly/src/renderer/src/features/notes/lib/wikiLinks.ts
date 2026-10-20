@@ -1,6 +1,8 @@
 /** Wiki-link extraction and resolution for Obsidian-style [[Title]] / [[Title|alias]] syntax. */
 
-import { boardTitleFromWikiLink, normalizeWikiTitle } from '@shared/lib/wikiLinkText';
+import { findWikiMatches } from '@nordly-markdown/wikiTarget';
+import { proseSegments } from '@nordly-markdown/proseLines';
+import { normalizeWikiTitle } from '@shared/lib/wikiLinkText';
 
 export interface WikiLinkRef {
   linkText: string;
@@ -21,42 +23,19 @@ export interface NoteTitleRef {
   title: string;
 }
 
-function segmentsWithoutInlineCode(line: string): string[] {
-  const parts = line.split('`');
-  const out: string[] = [];
-  for (let i = 0; i < parts.length; i += 2) {
-    out.push(parts[i] ?? '');
-  }
-  return out;
-}
-
-function extractFromText(text: string, seen: Set<string>, out: WikiLinkRef[]): void {
-  for (const match of text.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)) {
-    const linkText = match[1].trim();
-    if (!linkText || boardTitleFromWikiLink(linkText)) continue;
-    const key = normalizeWikiTitle(linkText);
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push({ linkText });
-    }
-  }
-}
-
 export function extractWikiLinks(bodyMd: string): WikiLinkRef[] {
   const seen = new Set<string>();
   const out: WikiLinkRef[] = [];
-  let inFence = false;
 
-  for (const line of bodyMd.split('\n')) {
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith('```')) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-
-    for (const segment of segmentsWithoutInlineCode(line)) {
-      extractFromText(segment, seen, out);
+  for (const segment of proseSegments(bodyMd)) {
+    for (const match of findWikiMatches(segment.text)) {
+      if (match.embed || match.target.kind !== 'note') continue;
+      const linkText = match.target.title;
+      if (!linkText) continue;
+      const key = normalizeWikiTitle(linkText);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ linkText });
     }
   }
 

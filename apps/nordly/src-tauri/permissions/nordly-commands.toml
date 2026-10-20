@@ -5,6 +5,9 @@ commands.allow = [
   "auth_session",
   "auth_persist",
   "auth_logout",
+  "spotify_secret_load",
+  "spotify_secret_save",
+  "spotify_secret_clear",
   "confirm_app_exit",
   "vault_pass_load",
   "vault_pass_save",
@@ -27,6 +30,7 @@ commands.allow = [
   "notes_vault_trash_folder",
   "notes_vault_write_bytes",
   "notes_vault_read_bytes",
+  "notes_vault_find_image",
   "notes_vault_write_pasted_image",
   "notes_vault_start_watch",
   "notes_vault_stop_watch",
@@ -63,4 +67,5 @@ description = "Nordly commands available only to the notification window."
 commands.allow = [
   "hide_notification",
   "focus_main_window",
+  "review_cards_from_break",
 ]

@@ -15,9 +15,10 @@ const HIDE_ANIM_MS: u64 = 340;
 pub struct NotificationPayload {
     pub title: String,
     pub body: String,
+    pub review_cards: bool,
 }
 
-pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> {
+pub fn show(app: &AppHandle, title: String, body: String, review_cards: bool) -> Result<(), String> {
     let window = aux_windows::ensure_notification(app)?;
 
     position_top_right(app, &window)?;
@@ -25,7 +26,14 @@ pub fn show(app: &AppHandle, title: String, body: String) -> Result<(), String> 
         eprintln!("[nordly:notification] corner radius: {e}");
     }
     window
-        .emit("notification:show", NotificationPayload { title, body })
+        .emit(
+            "notification:show",
+            NotificationPayload {
+                title,
+                body,
+                review_cards,
+            },
+        )
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())
 }
@@ -53,8 +61,13 @@ pub fn hide(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), String> {
-    show(&app, title, body)
+pub fn show_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    review_cards: Option<bool>,
+) -> Result<(), String> {
+    show(&app, title, body, review_cards.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -68,6 +81,16 @@ pub fn focus_main_window(app: AppHandle) -> Result<(), String> {
         eprintln!("[nordly:notification] hide before focus main: {e}");
     }
     tray::show_main(&app)
+}
+
+#[tauri::command]
+pub fn review_cards_from_break(app: AppHandle) -> Result<(), String> {
+    focus_main_window(app.clone())?;
+    if let Some(main) = app.get_webview_window("main") {
+        main.emit("app:review-cards", ())
+            .map_err(|err| err.to_string())?;
+    }
+    Ok(())
 }
 
 fn position_top_right(app: &AppHandle, window: &WebviewWindow) -> Result<(), String> {

@@ -1,7 +1,7 @@
 /** IndexedDB — local-first store scoped by userId. */
 
 const DB_NAME = 'nordly-db';
-const DB_VERSION = 5;
+const DB_VERSION = 7;
 
 const STORES = [
   'notes',
@@ -13,6 +13,8 @@ const STORES = [
   'id_map',
   'calendar_events',
   'note_attachments',
+  'vault_sync_index',
+  'card_reviews',
 ] as const;
 export type NordlyStore = (typeof STORES)[number];
 
@@ -42,14 +44,28 @@ function scopedKey(userId: string, id: string): string {
   return `${userId}::${id}`;
 }
 
+function deleteVaultLegacyRows(tx: IDBTransaction, storeName: 'id_map' | 'outbox'): void {
+  if (!tx.db.objectStoreNames.contains(storeName)) return;
+  const store = tx.objectStore(storeName);
+  const request = store.openCursor();
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    const row = cursor.value as { domain?: unknown };
+    if (row.domain === 'vault') cursor.delete();
+    cursor.continue();
+  };
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error ?? new Error('IDB open failed'));
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
       const tx = req.transaction;
+      const oldVersion = event.oldVersion;
       for (const name of STORES) {
         if (!db.objectStoreNames.contains(name)) {
           const store = db.createObjectStore(name, { keyPath: 'key' });
@@ -65,6 +81,10 @@ function openDb(): Promise<IDBDatabase> {
             store.createIndex('userId_noteId', ['userId', 'noteId'], { unique: false });
           }
         }
+      }
+      if (oldVersion > 0 && oldVersion < 6 && tx) {
+        deleteVaultLegacyRows(tx, 'id_map');
+        deleteVaultLegacyRows(tx, 'outbox');
       }
     };
     req.onsuccess = () => resolve(req.result);

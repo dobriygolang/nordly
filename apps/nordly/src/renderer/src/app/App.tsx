@@ -64,6 +64,9 @@ const DailyPlanningPage = lazy(() =>
     default: m.DailyPlanningModal,
   })),
 );
+const CardsReviewPage = lazy(() =>
+  import('@pages/Cards/CardsReviewPage').then((m) => ({ default: m.CardsReviewPage })),
+);
 const Palette = lazy(() =>
   import('@widgets/Palette').then((m) => ({ default: m.Palette })),
 );
@@ -109,6 +112,8 @@ export default function App() {
   const [paletteMounted, setPaletteMounted] = useState(false);
   const [paletteClosing, setPaletteClosing] = useState(false);
   const [paletteTaskDate, setPaletteTaskDate] = useState<Date | null>(null);
+  const [cardsNoteId, setCardsNoteId] = useState<string | null>(null);
+  const [cardsLimit, setCardsLimit] = useState<number | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => readStoredTheme());
   const [boardCanvas, setBoardCanvas] = useState<BoardCanvasTheme>(
     () => boardCanvasForTheme(readStoredTheme()),
@@ -280,6 +285,12 @@ export default function App() {
         void openPlanning().catch(captureOperationError);
         return;
       }
+      if (id === PageId.Cards) {
+        setCardsNoteId(null);
+        setCardsLimit(null);
+        void navigateTo(id).catch(captureOperationError);
+        return;
+      }
       if (!isPageId(id)) return;
       void navigateTo(id).catch(captureOperationError);
     },
@@ -297,6 +308,24 @@ export default function App() {
     preloadPalettePages();
     setPaletteTaskDate(taskDate ?? null);
     setPaletteOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const onOpenCards = (event: Event): void => {
+      const detail = (event as CustomEvent<{ noteId?: string; limit?: number }>).detail;
+      setCardsNoteId(detail?.noteId ?? null);
+      setCardsLimit(typeof detail?.limit === 'number' ? detail.limit : null);
+      void navigateTo(PageId.Cards).catch(captureOperationError);
+    };
+    window.addEventListener(NORDLY_EVENTS.openCards, onOpenCards);
+    return () => window.removeEventListener(NORDLY_EVENTS.openCards, onOpenCards);
+  }, [captureOperationError, navigateTo]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    return listenEffect('app:review-cards', () => {
+      window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openCards, { detail: { limit: 5 } }));
+    });
   }, []);
 
   useEffect(() => {
@@ -418,6 +447,15 @@ export default function App() {
                 onRegisterFlush={registerPageFlush}
               />
             );
+          case PageId.Cards:
+            return (
+              <CardsReviewPage
+                noteId={cardsNoteId}
+                limit={cardsLimit}
+                onClose={() => navigateTo(PageId.Home)}
+                onShowAll={() => setCardsNoteId(null)}
+              />
+            );
           case PageId.Settings:
             return (
               <SettingsPage
@@ -445,6 +483,8 @@ export default function App() {
       consumeNoteOpenRequest,
       consumeBoardOpenRequest,
       registerPageFlush,
+      cardsNoteId,
+      cardsLimit,
     ],
   );
 

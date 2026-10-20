@@ -191,7 +191,7 @@ html[data-nordly-view='tray'] #root {
 
 .nordly-tray-popover__focus-title {
   display: block;
-  max-width: 104px;
+  max-width: 78px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -282,6 +282,30 @@ html[data-nordly-view='tray'] #root {
   box-shadow:
     0 0 0 1.5px rgb(var(--ink-rgb) / 0.45),
     0 2px 8px rgb(0 0 0 / 0.2);
+}
+
+.nordly-tray-popover__like {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-60);
+  cursor: pointer;
+}
+
+.nordly-tray-popover__like:hover,
+.nordly-tray-popover__like[aria-pressed='true'] {
+  color: var(--ink);
+}
+
+.nordly-tray-popover__like:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px rgb(var(--ink-rgb) / 0.35);
 }
 
 .nordly-tray-popover__play-icon {

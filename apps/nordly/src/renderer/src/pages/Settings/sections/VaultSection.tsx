@@ -43,7 +43,7 @@ export function canDismissVaultModal(kind: Modal['kind'], busy: boolean): boolea
   return !busy && kind !== 'show-recovery';
 }
 
-export function VaultSection() {
+export function VaultSection({ syncEnabled = true }: { syncEnabled?: boolean }) {
   const t = useT();
   const userId = useSessionStore((s) => s.userId);
   const [enabled, setEnabled] = useState(false);
@@ -229,10 +229,14 @@ export function VaultSection() {
   return (
     <>
       <SettingsGroup title={t('nordly.settings.section.vault')}>
-        <SettingRow label={t('nordly.settings.vault.label')} hint={t('nordly.settings.vault.hint')}>
+        <SettingRow
+          label={t('nordly.settings.vault.label')}
+          hint={syncEnabled ? t('nordly.settings.vault.hint') : t('nordly.notes.sync.encryption_needs_sync')}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <Toggle
               value={enabled}
+              disabled={!syncEnabled && !enabled}
               onChange={(v) => void handleToggle(v)}
               label={enabled ? t('nordly.settings.vault.on') : t('nordly.settings.vault.off')}
             />

@@ -4,16 +4,17 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useT } from '@nordly-i18n';
 
-import { Icon } from '@shared/ui/primitives/Icon';
 import { NOTIFY_AUTO_DISMISS_MS } from '@shared/api/notifications';
 import { applyTheme } from '@shared/lib/applyTheme';
 import { listenEffects } from '@shared/lib/tauriListen';
 import { readStoredTheme } from '@shared/model/theme';
 import type { ThemeId } from '@shared/model/theme';
+import { Icon } from '@shared/ui/primitives/Icon';
 
 interface NotificationPayload {
   title: string;
   body: string;
+  review_cards?: boolean;
 }
 
 const SWIPE_DISMISS_PX = 72;
@@ -118,6 +119,13 @@ export function NotificationOverlayApp(): JSX.Element {
     });
   };
 
+  const reviewCards = () => {
+    if (dragRef.current.moved) return;
+    void invoke('review_cards_from_break').catch((err) => {
+      console.warn('[notification] review cards failed', err);
+    });
+  };
+
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (closing) return;
     dragRef.current = { startX: event.clientX, offsetX: 0, moved: false };
@@ -191,7 +199,7 @@ export function NotificationOverlayApp(): JSX.Element {
         <button
           type="button"
           className="nordly-notification__main focus-ring"
-          onClick={openApp}
+          onClick={payload.review_cards ? reviewCards : openApp}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={finishDrag}
@@ -205,6 +213,9 @@ export function NotificationOverlayApp(): JSX.Element {
             <span className="nordly-notification__title">{payload.title}</span>
             {payload.body ? (
               <span className="nordly-notification__body">{payload.body}</span>
+            ) : null}
+            {payload.review_cards ? (
+              <span className="nordly-notification__review">{t('nordly.cards.break_review')}</span>
             ) : null}
           </span>
         </button>

@@ -161,6 +161,12 @@ html.light .nordly-notification {
   color: var(--ink-60);
 }
 
+.nordly-notification__review {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nordly-notification {
     transition-duration: 0.01ms;

@@ -654,6 +654,54 @@ func (_c *Store_GetVaultSalt_Call) RunAndReturn(run func(context.Context, string
 	return _c
 }
 
+func (_m *Store) PutVaultRecovery(ctx context.Context, userID string, wrapB64 string, saltB64 string) error {
+	ret := _m.Called(ctx, userID, wrapB64, saltB64)
+	if len(ret) == 0 {
+		panic("no return value specified for PutVaultRecovery")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		return rf(ctx, userID, wrapB64, saltB64)
+	}
+	return ret.Error(0)
+}
+
+type Store_PutVaultRecovery_Call struct {
+	*mock.Call
+}
+
+func (_e *Store_Expecter) PutVaultRecovery(ctx interface{}, userID interface{}, wrapB64 interface{}, saltB64 interface{}) *Store_PutVaultRecovery_Call {
+	return &Store_PutVaultRecovery_Call{Call: _e.mock.On("PutVaultRecovery", ctx, userID, wrapB64, saltB64)}
+}
+
+func (_c *Store_PutVaultRecovery_Call) Return(err error) *Store_PutVaultRecovery_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_m *Store) GetVaultRecovery(ctx context.Context, userID string) (string, string, bool, error) {
+	ret := _m.Called(ctx, userID)
+	if len(ret) == 0 {
+		panic("no return value specified for GetVaultRecovery")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, string, bool, error)); ok {
+		return rf(ctx, userID)
+	}
+	return ret.String(0), ret.String(1), ret.Bool(2), ret.Error(3)
+}
+
+type Store_GetVaultRecovery_Call struct {
+	*mock.Call
+}
+
+func (_e *Store_Expecter) GetVaultRecovery(ctx interface{}, userID interface{}) *Store_GetVaultRecovery_Call {
+	return &Store_GetVaultRecovery_Call{Call: _e.mock.On("GetVaultRecovery", ctx, userID)}
+}
+
+func (_c *Store_GetVaultRecovery_Call) Return(wrapB64 string, saltB64 string, ok bool, err error) *Store_GetVaultRecovery_Call {
+	_c.Call.Return(wrapB64, saltB64, ok, err)
+	return _c
+}
+
 // InitVault provides a mock function with given fields: ctx, userID
 func (_m *Store) InitVault(ctx context.Context, userID string) (string, bool, error) {
 	ret := _m.Called(ctx, userID)

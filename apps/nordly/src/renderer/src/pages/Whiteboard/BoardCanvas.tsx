@@ -33,6 +33,7 @@ import {
   remapDisplayElementsForBoardTheme,
 } from '@shared/lib/excalidraw/excalidrawBoardColors';
 import { createLatestOnlyWriter } from '@shared/lib/latestOnlyWriter';
+import type { LiveCollaborator, LivePointer } from '@nordly-collab/liveCursors';
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -40,6 +41,7 @@ type ExcalidrawApi = {
   updateScene: (scene: {
     elements?: readonly unknown[];
     appState?: Record<string, unknown>;
+    collaborators?: Map<string, unknown>;
     captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction];
   }) => void;
   getAppState: () => { viewBackgroundColor?: string; isLoading?: boolean };
@@ -51,6 +53,8 @@ export type BoardCanvasHandle = {
   /** Cancel pending autosave — call before deleting the open board. */
   prepareDelete: () => void;
   getSceneJson: () => string;
+  applyRemoteScene: (elements: readonly unknown[], files: Record<string, unknown>) => void;
+  applyCollaborators: (peers: readonly LiveCollaborator[]) => void;
 };
 
 interface BoardCanvasProps {
@@ -59,6 +63,9 @@ interface BoardCanvasProps {
   boardTheme: BoardCanvasTheme;
   onSaved: () => void;
   onSaveError: (msg: string) => void;
+  onLiveChange?: (elements: readonly unknown[], files: Record<string, unknown>) => void;
+  collaborating?: boolean;
+  onPointerUpdate?: (pointer: LivePointer | null) => void;
 }
 
 function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
@@ -79,13 +86,18 @@ function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
 }
 
 export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(function BoardCanvas(
-  { boardId, sceneJson, boardTheme, onSaved, onSaveError },
+  { boardId, sceneJson, boardTheme, onSaved, onSaveError, onLiveChange, collaborating = false, onPointerUpdate },
   ref,
 ) {
   const sceneRef = useRef<WhiteboardScene | null>(null);
   const appStateRef = useRef<Record<string, unknown>>({});
   const skipSaveRef = useRef(true);
   const applyingThemeRef = useRef(false);
+  const applyingRemoteRef = useRef(false);
+  const onLiveChangeRef = useRef(onLiveChange);
+  const onPointerUpdateRef = useRef(onPointerUpdate);
+  onLiveChangeRef.current = onLiveChange;
+  onPointerUpdateRef.current = onPointerUpdate;
   const themeApplyTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawApi | null>(null);
@@ -143,8 +155,43 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         if (!scene) return sceneJson;
         return serializeScene(scene);
       },
+      applyRemoteScene: (elements, files) => {
+        const api = excalidrawApi;
+        applyingRemoteRef.current = true;
+        const canonical = canonicalizeElementsForStorage(
+          elements as Parameters<typeof canonicalizeElementsForStorage>[0],
+        );
+        sceneRef.current = {
+          elements: canonical,
+          files,
+          appState: appStateRef.current,
+        };
+        sceneWriter.update(sceneRef.current);
+        api?.updateScene({
+          elements: remapDisplayElementsForBoardTheme(canonical, boardThemeRef.current),
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+        window.setTimeout(() => {
+          applyingRemoteRef.current = false;
+        }, 50);
+      },
+      applyCollaborators: (peers) => {
+        const map = new Map<string, unknown>();
+        for (const peer of peers) {
+          map.set(String(peer.clientId), {
+            username: peer.username,
+            color: { background: peer.color, stroke: peer.color },
+            pointer: peer.pointer,
+            button: peer.pointer?.button ?? 'up',
+          });
+        }
+        excalidrawApi?.updateScene({
+          collaborators: map,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      },
     }),
-    [flushSave, prepareDelete, sceneJson],
+    [flushSave, prepareDelete, sceneJson, excalidrawApi, sceneWriter],
   );
 
   const applyCanvasBackground = useCallback(
@@ -263,7 +310,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
 
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
-      if (skipSaveRef.current || applyingThemeRef.current) return;
+      if (skipSaveRef.current || applyingThemeRef.current || applyingRemoteRef.current) return;
       if (!appState || typeof appState !== 'object' || Array.isArray(appState)) {
         throw new Error('BoardCanvas: invalid appState');
       }
@@ -282,6 +329,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         appState: appStateRef.current,
       };
       sceneWriter.update(sceneRef.current);
+      onLiveChangeRef.current?.(sceneRef.current.elements, sceneRef.current.files);
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
         saveTimerRef.current = null;
@@ -298,6 +346,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
       onWheelCapture={(e) => {
         if (e.ctrlKey || e.metaKey) e.preventDefault();
       }}
+      onPointerLeave={() => onPointerUpdateRef.current?.(null)}
     >
       <Excalidraw
         key={boardId}
@@ -308,6 +357,33 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
           appState: initialData.appState as never,
         }}
         onChange={handleChange}
+        isCollaborating={collaborating}
+        onPointerUpdate={
+          collaborating
+            ? (payload) => {
+                onPointerUpdateRef.current?.({
+                  x: payload.pointer.x,
+                  y: payload.pointer.y,
+                  tool: payload.pointer.tool,
+                  button: payload.button,
+                });
+              }
+            : undefined
+        }
+        onLinkOpen={(element, event) => {
+          event.preventDefault();
+          const link = typeof element.link === 'string' ? element.link : '';
+          let url: URL;
+          try {
+            url = new URL(link);
+          } catch {
+            return;
+          }
+          if (url.protocol !== 'https:' || url.username || url.password || !url.hostname) return;
+          const open = window.nordly?.shell?.openExternal;
+          if (!open) return;
+          void open(url.toString());
+        }}
         excalidrawAPI={(api) => {
           setExcalidrawApi(api as ExcalidrawApi);
           api.updateScene({

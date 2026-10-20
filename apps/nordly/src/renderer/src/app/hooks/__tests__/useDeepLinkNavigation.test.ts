@@ -58,6 +58,9 @@ describe('parseDeepLink', () => {
       googleStatus: 'connected',
       zoomStatus: null,
       detail: 'save_failed',
+      spotifyCode: null,
+      spotifyState: null,
+      spotifyError: null,
     });
     expect(
       parseDeepLink(
@@ -68,6 +71,9 @@ describe('parseDeepLink', () => {
       googleStatus: null,
       zoomStatus: 'error',
       detail: null,
+      spotifyCode: null,
+      spotifyState: null,
+      spotifyError: null,
     });
     expect(
       parseDeepLink('nordly://settings?google_calendar=javascript:alert(1)'),
@@ -76,6 +82,25 @@ describe('parseDeepLink', () => {
       googleStatus: null,
       zoomStatus: null,
       detail: null,
+      spotifyCode: null,
+      spotifyState: null,
+      spotifyError: null,
+    });
+  });
+
+  it('keeps a Spotify authorization code with its state', () => {
+    expect(parseDeepLink('nordly://settings?code=auth-code&state=state-1')).toEqual({
+      kind: 'settings',
+      googleStatus: null,
+      zoomStatus: null,
+      detail: null,
+      spotifyCode: 'auth-code',
+      spotifyState: 'state-1',
+      spotifyError: null,
+    });
+    expect(parseDeepLink('nordly://settings?error=access_denied&state=state-1')).toMatchObject({
+      spotifyCode: null,
+      spotifyError: 'access_denied',
     });
   });
 });
@@ -144,6 +169,9 @@ describe('executeDeepLink', () => {
         googleStatus: 'connected',
         zoomStatus: null,
         detail: null,
+        spotifyCode: null,
+        spotifyState: null,
+        spotifyError: null,
       },
       actions,
     );

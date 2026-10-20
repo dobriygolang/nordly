@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
 
+import { isTauriRuntime } from '@platform/runtime';
+
 import type {
   NoteSummary,
   PublishStatus,
@@ -17,8 +19,9 @@ import {
   publishOptionsFromStatus,
   serializePublishOptions,
 } from '@features/notes/model/publishOptions';
+import { useNotesSyncStatus } from '@features/notes/hooks/useNotesSyncStatus';
+import { isCloudEnabled } from '@shared/model/features';
 import { Icon } from '@shared/ui/primitives/Icon';
-import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { noteMenuPos } from '@shared/lib/noteMenuPos';
 import { useVaultRowMenuDismiss } from '@shared/lib/useVaultRowMenuDismiss';
@@ -67,7 +70,17 @@ export const NoteRow = memo(function NoteRow({
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
   const [publishOptions, setPublishOptions] = useState<PublishToWebOptions>(DEFAULT_PUBLISH_OPTIONS);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
-  const publishingAvailable = isCloudApiAvailable();
+  const syncStatus = useNotesSyncStatus();
+  const publishingAvailable = isCloudEnabled();
+  const publishBlocked = !publishingAvailable
+    ? null
+    : syncStatus.kind === 'paused' && syncStatus.reason === 'encryption_locked'
+      ? 'encryption_locked'
+      : syncStatus.kind === 'off' ||
+          syncStatus.kind === 'unavailable' ||
+          (syncStatus.kind === 'paused' && syncStatus.reason === 'vault_root_missing')
+        ? 'sync_off'
+        : null;
   const rowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
@@ -113,7 +126,7 @@ export const NoteRow = memo(function NoteRow({
   }, [menuW]);
 
   useEffect(() => {
-    if (!menuOpen || !publishingAvailable) return;
+    if (!menuOpen || !publishingAvailable || publishBlocked) return;
     publishOptionsDirtyRef.current = false;
     let live = true;
     void (async () => {
@@ -142,7 +155,7 @@ export const NoteRow = memo(function NoteRow({
     return () => {
       live = false;
     };
-  }, [menuOpen, note.id, publishingAvailable, onError]);
+  }, [menuOpen, note.id, publishingAvailable, publishBlocked, onError]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -201,10 +214,17 @@ export const NoteRow = memo(function NoteRow({
     const url = publishedNoteUrl(pubStatus);
     if (!url) return;
     closeMenu();
-    const open = window.nordly?.shell.openExternal;
-    if (open) void open(url);
-    else window.open(url, '_blank', 'noopener,noreferrer');
-  }, [pubStatus, closeMenu]);
+    const open = window.nordly?.shell?.openExternal;
+    if (open) {
+      void open(url);
+      return;
+    }
+    if (isTauriRuntime()) {
+      onError?.('external open is unavailable');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [pubStatus, closeMenu, onError]);
 
   const handlePublish = useCallback(async () => {
     const optionsToPublish = publishOptionsRef.current;
@@ -304,6 +324,7 @@ export const NoteRow = memo(function NoteRow({
             ref={menuRef}
             published={!!pubStatus?.published}
             publishingAvailable={publishingAvailable}
+            publishBlocked={publishBlocked}
             vaultReady={isVaultReadyForPublish()}
             publishOptions={publishOptions}
             serverPasswordProtected={serverPasswordProtectedRef.current}

@@ -801,6 +801,10 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   max-width: 100%;
 }
 
+.nordly-md-image--loading {
+  min-height: 6rem;
+}
+
 .nordly-md-image__img {
   display: block;
   max-width: min(100%, 36rem);
@@ -840,6 +844,19 @@ body.nordly-note-dragging .nordly-note-row-wrap {
 .nordly-md-wiki-link--unresolved {
   text-decoration-style: dashed;
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
+}
+
+.nordly-md-wiki-link--external::after {
+  content: '↗';
+  margin-left: 0.2em;
+  font-style: normal;
+  font-size: 0.85em;
+}
+
+.nordly-md-wiki-link--invalid {
+  color: var(--ink-50);
+  text-decoration-style: wavy;
+  cursor: text;
 }
 
 .cm-line.nordly-md-code-block {

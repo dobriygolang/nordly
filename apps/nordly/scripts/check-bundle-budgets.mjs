@@ -7,13 +7,12 @@ const manifestPath = resolve(dist, '.vite/manifest.json');
 
 const budgets = {
   // Shared shell + device OAuth helpers (PKCE/keychain) ride the main graph.
-  main: { source: 'index.html', bytes: 420 * 1024 },
-  // Notes cold graph: Esc/vault shell + attachments + multi-select + filesystem vault (ADR 005).
-  // Board wiki-link preview hides the `board:` prefix inside the shared editor chunk.
-  Notes: { source: 'src/pages/Notes/index.ts', bytes: 1370 * 1024 },
-  // Excalidraw route; shared-chunk drift from vault/OAuth shared deps.
-  // Folder drag uses the same @dnd-kit graph as the notes sidebar.
-  Whiteboard: { entry: 'whiteboard', bytes: 1920 * 1024 },
+  main: { source: 'index.html', bytes: 450 * 1024 },
+  // Notes cold graph: vault shell, image widgets, wiki targets, and `::` card syntax.
+  // yjs stays off this graph (`features/whiteboard/api/liveBoard.ts`).
+  Notes: { source: 'src/pages/Notes/index.ts', bytes: 1460 * 1024 },
+  // Excalidraw route plus the live Yjs session, loaded with the board page.
+  Whiteboard: { entry: 'whiteboard', bytes: 2100 * 1024 },
 };
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

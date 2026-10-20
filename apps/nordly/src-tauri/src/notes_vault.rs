@@ -708,6 +708,73 @@ pub fn read_bytes(app: &AppHandle, rel: String) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+fn is_image_name(name: &str) -> bool {
+    let ext = Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp")
+}
+
+fn walk_images_named(
+    root: &Path,
+    dir: &Path,
+    name: &str,
+    found: &mut Vec<String>,
+) -> Result<(), String> {
+    let entries = fs::read_dir(dir).map_err(|err| err.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let path = entry.path();
+        let file_name = entry.file_name().to_string_lossy().into_owned();
+        if file_name.starts_with('.') {
+            continue;
+        }
+        let kind = entry.file_type().map_err(|err| err.to_string())?;
+        if kind.is_dir() {
+            walk_images_named(root, &path, name, found)?;
+            continue;
+        }
+        if !kind.is_file() || file_name != name || !is_image_name(&file_name) {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(root)
+            .map_err(|_| "path escape".to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        found.push(rel);
+    }
+    Ok(())
+}
+
+/// Shortest relative path of `name` under the vault. The name is one file, not a path.
+pub fn find_image_under(root: &Path, name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0')
+        || Path::new(name).file_name().and_then(|n| n.to_str()) != Some(name)
+    {
+        return Err("invalid image name".into());
+    }
+    let mut found = Vec::new();
+    walk_images_named(root, root, name, &mut found)?;
+    if found.is_empty() {
+        return Err("not_found".into());
+    }
+    found.sort_by(|a, b| a.len().cmp(&b.len()).then(a.cmp(b)));
+    Ok(found.remove(0))
+}
+
+pub fn find_image(app: &AppHandle, name: String) -> Result<String, String> {
+    let cfg = require_cfg(app)?;
+    let root = PathBuf::from(&cfg.root);
+    find_image_under(&root, &name)
+}
+
 pub fn write_pasted_image(
     app: &AppHandle,
     note_rel: String,
@@ -817,4 +884,34 @@ pub fn start_watch(app: AppHandle) -> Result<(), String> {
 pub fn stop_watch_cmd() -> Result<(), String> {
     stop_watch();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_image_under;
+
+    #[test]
+    fn find_image_picks_the_shortest_path() {
+        let tmp = std::env::temp_dir().join(format!("nordly-find-image-{}", std::process::id()));
+        let nested = tmp.join("notes").join("img");
+        std::fs::create_dir_all(&nested).expect("dir");
+        std::fs::write(tmp.join("shot.png"), b"a").expect("short");
+        std::fs::write(nested.join("shot.png"), b"b").expect("long");
+        std::fs::write(tmp.join("notes.md"), b"no").expect("md");
+
+        assert_eq!(
+            find_image_under(&tmp, "shot.png").expect("found"),
+            "shot.png"
+        );
+        assert_eq!(
+            find_image_under(&tmp, "../shot.png").unwrap_err(),
+            "invalid image name"
+        );
+        assert_eq!(
+            find_image_under(&tmp, "missing.png").unwrap_err(),
+            "not_found"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

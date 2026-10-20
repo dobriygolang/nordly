@@ -1,9 +1,9 @@
 /** Path-keyed vault file sync outbox (markdown → notes CRUD). */
 
+import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { enqueueOutbox } from '@shared/sync/outbox';
 import { OutboxOp, SyncDomain } from '@shared/sync/types';
 import { scheduleSync } from '@shared/sync/SyncEngine';
-import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 
 export type VaultFileKind = 'md' | 'bin';
 
@@ -18,7 +18,6 @@ export interface VaultFilePutPayload {
  * Markdown vault files sync through notes CRUD (`vaultFileSync.ts`).
  * Binary attachments stay local until dedicated vault-file RPCs exist.
  */
-export const VAULT_FILE_SYNC_READY = true;
 
 let suppressWatchUntil = 0;
 let pendingReload: (() => void) | null = null;
@@ -78,7 +77,7 @@ export async function enqueueVaultFilePut(
   kind: VaultFileKind,
   mtimeMs: number,
 ): Promise<void> {
-  if (!VAULT_FILE_SYNC_READY || !isSyncQueueEnabled()) return;
+  if (!isNotesSyncEnabled()) return;
   if (kind !== 'md' || !isMarkdownVaultPath(path)) return;
   const bytes =
     typeof bodyUtf8OrBytes === 'string'
@@ -91,7 +90,7 @@ export async function enqueueVaultFilePut(
 }
 
 export async function enqueueVaultFileDelete(path: string): Promise<void> {
-  if (!VAULT_FILE_SYNC_READY || !isSyncQueueEnabled()) return;
+  if (!isNotesSyncEnabled()) return;
   if (!isMarkdownVaultPath(path)) return;
   await enqueueOutbox(SyncDomain.Vault, OutboxOp.FileDelete, path, { path });
   scheduleSync();

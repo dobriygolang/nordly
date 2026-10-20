@@ -17,6 +17,14 @@ func TestMapServiceErrorUsesPermissionDeniedForWrongPassword(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Code(mapServiceError(notesmodel.ErrAccessDenied)))
 }
 
+func TestMapServiceErrorRejectsTruncatedNoteList(t *testing.T) {
+	t.Parallel()
+
+	mapped := mapServiceError(notesmodel.ErrTooManyNotes)
+	require.Equal(t, codes.ResourceExhausted, status.Code(mapped))
+	require.Equal(t, "too many notes", status.Convert(mapped).Message())
+}
+
 func TestMapServiceErrorHidesMalformedStoredPasswordHash(t *testing.T) {
 	t.Parallel()
 

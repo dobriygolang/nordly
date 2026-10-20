@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
+import type { WikiTarget } from '@nordly-markdown/wikiTarget';
 
 import type { Note } from '@features/notes/api/notesClient';
 import { isNoteVaultLocked } from '@features/notes/api/notesClient';
@@ -8,12 +9,15 @@ import {
   createNoteAttachmentFromFile,
   resolveAttachmentObjectUrl,
 } from '@features/notes/api/attachmentsClient';
+import { parseCards } from '@features/cards/lib/parseCards';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
+import { readSettings } from '@shared/model/settings';
 import { Kbd } from '@shared/ui/primitives/Kbd';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { LiveMarkdownEditor } from '@shared/ui/LiveMarkdownEditor';
 import type { ImageHrefResolver } from '@shared/lib/codemirror/livePreview';
-import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { openSettings, SettingsSectionId } from '@shared/model/settingsNav';
 import { formatTime, NoteListStatus, type ListState } from './utils';
 import { NoteSaveStatus, type NoteSaveStatus as SaveStatus } from './saveStatus';
 
@@ -27,10 +31,12 @@ export interface EditorProps {
   draftBody: string;
   saveStatus: SaveStatus;
   noteTitles: string[];
+  boardTitles: string[];
   editorZoom: number;
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
-  onWikiLinkClick: (linkText: string) => void;
+  onWikiTargetClick: (target: WikiTarget) => void;
+  onReviewNote?: () => void;
   onCreate: () => void;
   onRetryList: () => void;
   onError?: (message: string) => void;
@@ -45,10 +51,12 @@ export function Editor({
   draftBody,
   saveStatus,
   noteTitles,
+  boardTitles,
   editorZoom,
   onTitleChange,
   onBodyChange,
-  onWikiLinkClick,
+  onWikiTargetClick,
+  onReviewNote,
   onCreate,
   onRetryList,
   onError,
@@ -76,9 +84,11 @@ export function Editor({
             title={draftTitle}
             body={draftBody}
             noteTitles={noteTitles}
+            boardTitles={boardTitles}
             onTitleChange={onTitleChange}
             onBodyChange={onBodyChange}
-            onWikiLinkClick={onWikiLinkClick}
+            onWikiTargetClick={onWikiTargetClick}
+            onReviewNote={onReviewNote}
             onError={onError}
           />
         )}
@@ -108,7 +118,7 @@ function VaultLockedPane() {
       <button
         type="button"
         className="nordly-vault-empty__cta focus-ring"
-        onClick={() => window.dispatchEvent(new Event(NORDLY_EVENTS.openSettings))}
+        onClick={() => openSettings({ section: SettingsSectionId.Sync })}
       >
         {t('nordly.notes.vault_locked_cta')}
       </button>
@@ -121,21 +131,32 @@ function ActiveEditor({
   title,
   body,
   noteTitles,
+  boardTitles,
   onTitleChange,
   onBodyChange,
-  onWikiLinkClick,
+  onWikiTargetClick,
+  onReviewNote,
   onError,
 }: {
   noteId: string;
   title: string;
   body: string;
   noteTitles: string[];
+  boardTitles: string[];
   onTitleChange: (v: string) => void;
   onBodyChange: (v: string) => void;
-  onWikiLinkClick: (linkText: string) => void;
+  onWikiTargetClick: (target: WikiTarget) => void;
+  onReviewNote?: () => void;
   onError?: (message: string) => void;
 }) {
   const t = useT();
+  const [cardsOn, setCardsOn] = useState(() => readSettings().flashcards.enabled);
+  useEffect(() => {
+    const sync = () => setCardsOn(readSettings().flashcards.enabled);
+    window.addEventListener(NORDLY_EVENTS.settingsChanged, sync);
+    return () => window.removeEventListener(NORDLY_EVENTS.settingsChanged, sync);
+  }, []);
+  const cardCount = useMemo(() => parseCards(noteId, title, body).cards.length, [body, noteId, title]);
 
   const resolveImageHref = useMemo((): ImageHrefResolver => {
     return async (href: string) => {
@@ -179,6 +200,11 @@ function ActiveEditor({
 
   return (
     <div className="nordly-notes-editor-shell">
+      {cardsOn && cardCount > 0 && onReviewNote ? (
+        <button type="button" className="nordly-notes-review-note focus-ring" onClick={onReviewNote}>
+          {t('nordly.cards.review_note', { count: String(cardCount) })}
+        </button>
+      ) : null}
       <input
         className="nordly-notes-title"
         value={title}
@@ -191,7 +217,9 @@ function ActiveEditor({
         onChange={onBodyChange}
         placeholder={t('nordly.notes.editor.body_placeholder')}
         noteTitles={noteTitles}
-        onWikiLinkClick={onWikiLinkClick}
+        boardTitles={boardTitles}
+        flashcardsEnabled={cardsOn}
+        onWikiTargetClick={onWikiTargetClick}
         resolveImageHref={resolveImageHref}
         onInsertImageFile={onInsertImageFile}
         onAttachmentError={onAttachmentError}

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
+import { isTauriRuntime } from '@platform/runtime';
+
 import {
   listBoards,
   listBoardFolders,
@@ -16,9 +18,11 @@ import {
   updateBoardTitle,
   shareWhiteboard,
   publishWhiteboard,
+  updateBoardScene,
   type Board,
   type BoardFolder,
 } from '@features/whiteboard/api/whiteboardClient';
+import { startLiveBoard, type LiveBoardStatus } from '@features/whiteboard/api/liveBoard';
 import { requireCloudCta } from '@shared/api/cloudCta';
 import { isCloudEnabled } from '@shared/model/features';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
@@ -57,13 +61,14 @@ async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {
   } catch (err) {
     console.warn('[nordly:whiteboard] clipboard write failed', err);
   }
-  const open = window.nordly?.shell.openExternal;
+  const open = window.nordly?.shell?.openExternal;
   if (open) {
     await open(url);
-  } else {
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) throw new Error('The browser blocked the whiteboard link');
+    return 'opened';
   }
+  if (isTauriRuntime()) throw new Error('external open is unavailable');
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) throw new Error('The browser blocked the whiteboard link');
   return 'opened';
 }
 
@@ -103,6 +108,9 @@ export function WhiteboardPage({
   const [activeLoadAttempt, setActiveLoadAttempt] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveBoardStatus | null>(null);
+  const liveRef = useRef<ReturnType<typeof startLiveBoard> | null>(null);
+  const liveBoardIdRef = useRef<string | null>(null);
 
   const canvasRef = useRef<BoardCanvasHandle>(null);
 
@@ -369,6 +377,39 @@ export function WhiteboardPage({
       const title = activeRef.current?.title?.trim();
       if (!title) throw new Error('Board title is required');
       const res = await shareWhiteboard(sceneJson, title);
+      liveRef.current?.stop();
+      liveRef.current = startLiveBoard({
+        roomId: res.roomId,
+        accessToken: res.accessToken,
+        expiresIn: res.expiresIn,
+        initialSceneJson: sceneJson,
+        onRemoteScene: (elements, files) => {
+          canvasRef.current?.applyRemoteScene(elements, files);
+        },
+        onCollaborators: (peers) => {
+          canvasRef.current?.applyCollaborators(peers);
+        },
+        onStatus: (status) => {
+          setLiveStatus(status);
+          if (status.kind !== 'ended') return;
+          canvasRef.current?.applyCollaborators([]);
+          if (status.reason === 'stopped') return;
+          const session = liveRef.current;
+          const boardId = liveBoardIdRef.current;
+          if (session && boardId) {
+            try {
+              const sceneJson = session.readSceneJson();
+              void updateBoardScene(boardId, sceneJson).catch((err: unknown) => {
+                setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
+              });
+            } catch (err: unknown) {
+              setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
+            }
+          }
+          setShareMsg(status.message ?? t(`nordly.whiteboard.live.${status.reason}`));
+        },
+      });
+      liveBoardIdRef.current = selectedIdRef.current;
       const url = res.inviteUrl;
       const outcome = await copyLinkAndOpen(url);
       if (outcome === 'copied') {
@@ -384,6 +425,38 @@ export function WhiteboardPage({
       setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
     }
   }, [getScenePayload, t]);
+
+  const handleStopLive = useCallback(async () => {
+    const session = liveRef.current;
+    liveRef.current = null;
+    if (!session) return;
+    const sceneJson = session.stop();
+    const id = selectedIdRef.current;
+    setLiveStatus(null);
+    canvasRef.current?.applyCollaborators([]);
+    if (!id) return;
+    try {
+      await updateBoardScene(id, sceneJson);
+      setShareMsg(t('nordly.whiteboard.live.stopped'));
+    } catch (err: unknown) {
+      setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (!liveRef.current || liveBoardIdRef.current === selectedId) return;
+    const sceneJson = liveRef.current.stop();
+    const boardId = liveBoardIdRef.current;
+    liveRef.current = null;
+    liveBoardIdRef.current = null;
+    setLiveStatus(null);
+    canvasRef.current?.applyCollaborators([]);
+    if (boardId) {
+      void updateBoardScene(boardId, sceneJson).catch((err: unknown) => {
+        setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
+      });
+    }
+  }, [selectedId]);
 
   const handlePublish = useCallback(async () => {
     const cta = await requireCloudCta();
@@ -527,9 +600,25 @@ export function WhiteboardPage({
             boardTheme={boardCanvas}
             onSaved={handleSaved}
             onSaveError={setSaveError}
+            onLiveChange={(elements, files) => liveRef.current?.writeLocal(elements, files)}
+            collaborating={liveStatus?.kind === 'live' || liveStatus?.kind === 'connecting'}
+            onPointerUpdate={(pointer) => liveRef.current?.reportPointer(pointer)}
           />
         ) : (
           <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} dim />
+        )}
+
+        {liveStatus && liveStatus.kind !== 'ended' && (
+          <div className="mono nordly-whiteboard-live">
+            <span>
+              {liveStatus.kind === 'live'
+                ? t('nordly.whiteboard.live.badge', { count: String(liveStatus.participants) })
+                : t('nordly.whiteboard.live.connecting')}
+            </span>
+            <button type="button" className="nordly-whiteboard-live__stop focus-ring" onClick={() => void handleStopLive()}>
+              {t('nordly.whiteboard.live.stop')}
+            </button>
+          </div>
         )}
 
         {shareMsg && (

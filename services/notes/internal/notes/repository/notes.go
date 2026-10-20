@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,20 +17,22 @@ const noteSelectCols = `
 	published_at, publish_password_hash, publish_expires_at, size_bytes, created_at, updated_at`
 
 func (r *Repository) ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error) {
-	const maxNotes = 200
+	// One past the cap so a full vault is returned and an over-cap vault errors.
+	// A short page would look like remote deletes to vault reconcile.
+	const maxListedNotes = 100_000
 	rows, err := r.pg.Query(ctx, `
 		SELECT id, title, updated_at, size_bytes
 		FROM notes
 		WHERE user_id = $1 AND archived_at IS NULL
 		ORDER BY updated_at DESC, id DESC
 		LIMIT $2
-	`, userID, maxNotes)
+	`, userID, maxListedNotes+1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	out := make([]notesmodel.NoteSummary, 0, maxNotes)
+	out := make([]notesmodel.NoteSummary, 0)
 	for rows.Next() {
 		var n notesmodel.NoteSummary
 		if err := rows.Scan(&n.ID, &n.Title, &n.UpdatedAt, &n.SizeBytes); err != nil {
@@ -37,7 +40,13 @@ func (r *Repository) ListNotes(ctx context.Context, userID string) ([]notesmodel
 		}
 		out = append(out, n)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) > maxListedNotes {
+		return nil, notesmodel.ErrTooManyNotes
+	}
+	return out, nil
 }
 
 func (r *Repository) GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error) {
@@ -96,6 +105,18 @@ func (r *Repository) UpdateNote(
 	if err := lockNoteAndWikiLinkTargetsTx(ctx, tx, userID, id, links); err != nil {
 		return nil, err
 	}
+	var encrypted bool
+	err = tx.QueryRow(ctx, `
+		SELECT encrypted FROM notes
+		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+	`, id, userID).Scan(&encrypted)
+	if err != nil {
+		return nil, err
+	}
+	if encrypted && len(links) > 0 {
+		return nil, fmt.Errorf("%w: encrypted notes cannot store wiki links", notesmodel.ErrInvalidArgument)
+	}
+
 	size := len(body)
 	row := tx.QueryRow(ctx, `
 		UPDATE notes
@@ -125,23 +146,25 @@ func (r *Repository) DeleteNote(ctx context.Context, userID, id string) error {
 
 	var publishSlug *string
 	if err := tx.QueryRow(ctx, `
-		SELECT publish_slug
-		FROM notes
-		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-		FOR UPDATE
-	`, id, userID).Scan(&publishSlug); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return notesmodel.ErrNotFound
-		}
+		SELECT slug FROM published_notes
+		WHERE note_id = $1 AND user_id = $2
+	`, id, userID).Scan(&publishSlug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE notes
 		SET archived_at = now(), updated_at = now(),
 		    published = false, publish_slug = NULL, published_at = NULL,
 		    publish_password_hash = NULL, publish_expires_at = NULL
 		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, id, userID); err != nil {
+	`, id, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return notesmodel.ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM published_notes WHERE note_id = $1 AND user_id = $2`, id, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -199,6 +222,11 @@ func (r *Repository) storeCiphertextAndClearPublish(
 	`, noteID, userID, ciphertext, len(ciphertext)); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM note_links WHERE user_id = $1 AND source_note_id = $2
+	`, userID, noteID); err != nil {
+		return err
+	}
 	if publishSlug != nil {
 		if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, *publishSlug); err != nil {
 			return err
@@ -253,13 +281,12 @@ func (r *Repository) GetPublishedNoteRecordBySlug(ctx context.Context, slug stri
 		return nil, notesmodel.ErrInvalidArgument
 	}
 	row := r.pg.QueryRow(ctx, `
-		SELECT title, body_md, published_at, publish_password_hash
-		FROM notes
-		WHERE publish_slug = $1
-		  AND published = true
-		  AND encrypted = false
-		  AND archived_at IS NULL
-		  AND (publish_expires_at IS NULL OR publish_expires_at > now())
+		SELECT published_notes.title, published_notes.body_md, published_notes.published_at, published_notes.password_hash
+		FROM published_notes
+		JOIN notes ON notes.id = published_notes.note_id
+		WHERE published_notes.slug = $1
+		  AND notes.archived_at IS NULL
+		  AND (published_notes.expires_at IS NULL OR published_notes.expires_at > now())
 	`, slug)
 	var out notesmodel.PublishedNoteRecord
 	var passwordHash *string

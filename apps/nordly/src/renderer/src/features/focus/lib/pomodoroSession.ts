@@ -6,7 +6,7 @@ import {
   startFocusSession,
 } from '@features/focus/api/focusClient';
 import { notify } from '@shared/api/notifications';
-import { readEndBell, TimerMode } from '@shared/model/settings';
+import { readEndBell, readSettings, TimerMode } from '@shared/model/settings';
 import { usePomodoroStore, type FocusTimerMode, parseFocusTimerMode } from '@shared/model/pomodoro';
 
 export interface PomodoroPersistSnap {
@@ -134,7 +134,7 @@ export function completePomodoroTimer(
     void notify(
       translate('nordly.notify.session_title'),
       translate('nordly.notify.session_body'),
-      { sound: readEndBell() ? 'session' : false },
+      { sound: readEndBell() ? 'session' : false, reviewCards: readSettings().flashcards.enabled },
     ).catch((error: unknown) => {
       console.error('[nordly:pomodoro] completion notification failed', error);
     });

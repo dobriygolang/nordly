@@ -4,6 +4,8 @@
  * No raw HTML from markdown (escaped).
  */
 
+import { findWikiMatches, httpsUrlHost, linkLabel, type WikiMatch } from '@nordly-markdown/wikiTarget'
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -29,21 +31,45 @@ function safeImageSrc(url: string): string | null {
   return null
 }
 
+function wikiLabel(match: WikiMatch): string {
+  if (match.alias) return match.alias
+  if (match.target.kind === 'note' || match.target.kind === 'board') return match.target.title
+  if (match.target.kind === 'link') return linkLabel(match.target.url)
+  return match.raw
+}
+
+function renderWikiHtml(match: WikiMatch): string {
+  const label = escapeHtml(wikiLabel(match))
+  if (match.embed) {
+    if (match.target.kind === 'link') {
+      const src = safeImageSrc(match.target.url)
+      if (src) {
+        const width = match.width ? ` style="width:${match.width}px;max-width:100%"` : ''
+        return `<img class="nordly-md-image" src="${escapeHtml(src)}" alt="${label}"${width} loading="lazy" />`
+      }
+    }
+    return `<span class="nordly-md-image nordly-md-image--unresolved">${label}</span>`
+  }
+  if (match.target.kind === 'link') {
+    return `<a class="nordly-md-wiki-link nordly-md-wiki-link--external" href="${escapeHtml(match.target.url)}" title="${escapeHtml(httpsUrlHost(match.target.url))}" target="_blank" rel="noopener noreferrer nofollow ugc">${label}</a>`
+  }
+  if (match.target.kind === 'invalid') {
+    return `<span class="nordly-md-wiki-link nordly-md-wiki-link--invalid">${label}</span>`
+  }
+  if (match.target.kind === 'board') return label
+  return `<span class="nordly-md-wiki-link nordly-md-wiki-link--unresolved">${label}</span>`
+}
+
 /** Inline markdown → HTML (bold, italic, code, links, images, highlight, wiki). */
 export function renderInlineMarkdown(src: string): string {
   let out = ''
   let i = 0
   while (i < src.length) {
-    // Wiki [[title]] or [[title|alias]]
-    if (src[i] === '[' && src[i + 1] === '[') {
-      const end = src.indexOf(']]', i + 2)
-      if (end !== -1) {
-        const inner = src.slice(i + 2, end)
-        const pipe = inner.indexOf('|')
-        const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim()
-        const label = (pipe === -1 ? inner : inner.slice(pipe + 1)).trim() || target
-        out += `<span class="nordly-md-wiki-link nordly-md-wiki-link--unresolved">${escapeHtml(label)}</span>`
-        i = end + 2
+    if ((src[i] === '!' && src.startsWith('![[', i)) || src.startsWith('[[', i)) {
+      const match = findWikiMatches(src.slice(i)).find((item) => item.from === 0)
+      if (match) {
+        out += renderWikiHtml(match)
+        i += match.to
         continue
       }
     }
@@ -75,9 +101,16 @@ export function renderInlineMarkdown(src: string): string {
         const urlEnd = src.indexOf(')', labelEnd + 2)
         if (urlEnd !== -1) {
           const alt = src.slice(i + 2, labelEnd)
+          const sized = /^(.*)\|(\d{1,4})$/.exec(alt)
+          const width = sized ? Number(sized[2]) : null
+          const altText = sized && width && width >= 1 && width <= 2000 ? sized[1]!.trim() : alt
+          const widthAttr =
+            sized && width && width >= 1 && width <= 2000
+              ? ` style="width:${width}px;max-width:100%"`
+              : ''
           const srcHref = safeImageSrc(src.slice(labelEnd + 2, urlEnd))
           if (srcHref) {
-            out += `<img class="nordly-md-image" src="${escapeHtml(srcHref)}" alt="${escapeHtml(alt)}" loading="lazy" />`
+            out += `<img class="nordly-md-image" src="${escapeHtml(srcHref)}" alt="${escapeHtml(altText)}"${widthAttr} loading="lazy" />`
             i = urlEnd + 1
             continue
           }

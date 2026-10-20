@@ -196,6 +196,16 @@ export const en = {
       fallbackHint:
         'If Nordly does not open, switch to it and press Refresh in Settings, then Integrations.',
     },
+    spotify: {
+      missing: 'Sign-in did not finish.',
+      successTitle: 'Spotify connected',
+      successBody: 'Go back to Nordly. Settings will update on their own.',
+      errorTitle: 'Could not connect Spotify',
+      errorBody: 'Sign-in was cancelled or blocked.',
+      openApp: 'Open Nordly',
+      fallbackHint:
+        'If Nordly does not open, switch to it and press Connect again in Settings, then Integrations.',
+    },
   },
   legal: legalEn,
 }

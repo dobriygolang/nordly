@@ -41,7 +41,7 @@ Ports: [AGENTS.md — port allocation](../../AGENTS.md#port-allocation-defaults)
 
 ### Nordly sync (when `LOCAL_ONLY=false`)
 
-IndexedDB outbox → notes/tasks/focus HTTP APIs. Filesystem vault markdown also syncs through `/v1/notes` (path as title). LWW merge by `updatedAt`. See [nordly AGENTS — Sync engine](../../apps/nordly/AGENTS.md#sync-engine).
+IndexedDB outbox → notes/tasks/focus HTTP APIs. Filesystem vault markdown syncs through `/v1/notes` (path as title) only after the device turns on notes sync. See [nordly AGENTS — Sync engine](../../apps/nordly/AGENTS.md#sync-engine).
 
 ### Note publish
 
@@ -49,7 +49,7 @@ Nordly `share-to-web` → notes service stores slug → web `/notes/{slug}` (pub
 
 ### Whiteboard share
 
-- **Live:** nordly `share-whiteboard` → rooms service → `code.trynordly.app/{roomId}`
+- **Live:** nordly `share-whiteboard` joins the rooms WebSocket with the owner token, so the desktop canvas and `code.trynordly.app/{roomId}` edit one Yjs scene. Stopping the share writes that scene back into the local board.
 - **Publish:** nordly `publish-whiteboard` → rooms DB → web `/board/{slug}` read-only
 
 ### Live collab (web)

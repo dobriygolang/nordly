@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -8,10 +8,12 @@ import {
   vaultSetConfig,
   vaultStartWatch,
 } from '@features/notes/api/vault';
+import { countRemoteNotes } from '@features/notes/api/notesSync';
 import {
   refreshNotesVaultBoundCache,
   setNotesVaultBoundCache,
 } from '@features/notes/api/notesClient';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 import { isTauriRuntime } from '@platform/runtime';
 import { errorMessage } from './utils';
 
@@ -28,6 +30,22 @@ export function VaultOnboarding({ onBound }: VaultOnboardingProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportExisting, setExportExisting] = useState(true);
+  const [remoteCount, setRemoteCount] = useState(0);
+
+  useEffect(() => {
+    if (!isCloudApiAvailable()) return;
+    let live = true;
+    void countRemoteNotes()
+      .then((count) => {
+        if (live) setRemoteCount(count);
+      })
+      .catch((err: unknown) => {
+        if (live) setError(errorMessage(err, t));
+      });
+    return () => {
+      live = false;
+    };
+  }, [t]);
 
   const choose = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -73,6 +91,11 @@ export function VaultOnboarding({ onBound }: VaultOnboardingProps) {
       <p className="nordly-notes-vault-onboarding__body">
         {t('nordly.notes.vault_onboarding.body')}
       </p>
+      {remoteCount > 0 ? (
+        <p className="nordly-notes-vault-onboarding__body">
+          {t('nordly.notes.vault_onboarding.cloud_count', { count: remoteCount })}
+        </p>
+      ) : null}
       <label className="nordly-notes-vault-onboarding__export">
         <input
           type="checkbox"

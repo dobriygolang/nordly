@@ -20,25 +20,31 @@ func (r *Repository) UnpublishNote(ctx context.Context, userID, noteID string) e
 
 	var slug *string
 	err = tx.QueryRow(ctx, `
-		SELECT publish_slug FROM notes
-		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		SELECT slug FROM published_notes
+		WHERE note_id = $1 AND user_id = $2
 		FOR UPDATE
 	`, noteID, userID).Scan(&slug)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		var exists int
+		err = tx.QueryRow(ctx, `
+			SELECT 1 FROM notes
+			WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
+		`, noteID, userID).Scan(&exists)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return notesmodel.ErrNotFound
 		}
+		if err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE notes
-		SET published = false, publish_slug = NULL, published_at = NULL,
-		    publish_password_hash = NULL, publish_expires_at = NULL, updated_at = now()
-		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM published_notes WHERE note_id = $1 AND user_id = $2`, noteID, userID); err != nil {
 		return err
 	}
-	if slug != nil {
+	if slug != nil && *slug != "" {
 		if _, err := tx.Exec(ctx, `DELETE FROM published_note_assets WHERE publish_slug = $1`, *slug); err != nil {
 			return err
 		}
@@ -50,25 +56,35 @@ func (r *Repository) GetPublishStatus(
 	ctx context.Context,
 	userID, noteID, publicBaseURL string,
 ) (*notesmodel.PublishStatus, error) {
-	note, err := r.GetNote(ctx, userID, noteID)
+	if _, err := r.GetNote(ctx, userID, noteID); err != nil {
+		return nil, err
+	}
+	var slug string
+	var publishedAt time.Time
+	var passwordHash *string
+	var expiresAt *time.Time
+	err := r.pg.QueryRow(ctx, `
+		SELECT slug, published_at, password_hash, expires_at
+		FROM published_notes
+		WHERE note_id = $1 AND user_id = $2
+	`, noteID, userID).Scan(&slug, &publishedAt, &passwordHash, &expiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &notesmodel.PublishStatus{Published: false}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 	out := &notesmodel.PublishStatus{
-		Published: note.Published,
+		Published:   true,
+		Slug:        slug,
+		URL:         publishURL(publicBaseURL, slug),
+		PublishedAt: &publishedAt,
+		ExpiresAt:   expiresAt,
+		AccessMode:  notesmodel.PublishAccessModePublic,
 	}
-	if note.Published {
-		out.AccessMode = notesmodel.PublishAccessModePublic
-		if note.PublishPasswordHash != nil {
-			out.AccessMode = notesmodel.PublishAccessModePassword
-		}
+	if passwordHash != nil {
+		out.AccessMode = notesmodel.PublishAccessModePassword
 	}
-	if note.PublishSlug != nil {
-		out.Slug = *note.PublishSlug
-		out.URL = publishURL(publicBaseURL, *note.PublishSlug)
-	}
-	out.PublishedAt = note.PublishedAt
-	out.ExpiresAt = note.PublishExpiresAt
 	return out, nil
 }
 
@@ -97,23 +113,33 @@ func (r *Repository) ShareNoteToWeb(
 	if err != nil {
 		return nil, err
 	}
-	if note.Encrypted {
-		return nil, fmt.Errorf("%w: encrypted notes cannot be published as client plaintext", notesmodel.ErrInvalidArgument)
+
+	var existingSlug string
+	var existingPublishedAt time.Time
+	var existingHash *string
+	err = tx.QueryRow(ctx, `
+		SELECT slug, published_at, password_hash
+		FROM published_notes
+		WHERE note_id = $1 AND user_id = $2
+		FOR UPDATE
+	`, noteID, userID).Scan(&existingSlug, &existingPublishedAt, &existingHash)
+	alreadyPublished := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
-	alreadyPublished := note.Published
 	var oldSlug string
 	var publishedAt time.Time
 	oldAccessMode := notesmodel.PublishAccessModePublic
 	if alreadyPublished {
-		if note.PublishSlug == nil || note.PublishedAt == nil {
-			return nil, errors.New("published note is missing slug or published_at")
+		if existingSlug == "" {
+			return nil, errors.New("published note is missing slug")
 		}
-		oldSlug = *note.PublishSlug
-		publishedAt = *note.PublishedAt
-		if note.PublishPasswordHash != nil {
-			if strings.TrimSpace(*note.PublishPasswordHash) == "" {
+		oldSlug = existingSlug
+		publishedAt = existingPublishedAt
+		if existingHash != nil {
+			if strings.TrimSpace(*existingHash) == "" {
 				return nil, errors.New("published note has an empty password hash")
 			}
 			oldAccessMode = notesmodel.PublishAccessModePassword
@@ -122,13 +148,21 @@ func (r *Repository) ShareNoteToWeb(
 		publishedAt = now
 	}
 
+	displayTitle := strings.TrimSpace(meta.Title)
+	if displayTitle == "" {
+		if note.Encrypted {
+			return nil, fmt.Errorf("%w: encrypted notes require a publish title", notesmodel.ErrInvalidArgument)
+		}
+		displayTitle = note.Title
+	}
+
 	var passwordHash *string
 	if meta.AccessMode == notesmodel.PublishAccessModePassword {
 		switch {
 		case meta.NewPasswordHash != nil:
 			passwordHash = meta.NewPasswordHash
 		case alreadyPublished && oldAccessMode == notesmodel.PublishAccessModePassword:
-			passwordHash = note.PublishPasswordHash
+			passwordHash = existingHash
 		default:
 			return nil, fmt.Errorf("%w: password is required for password access", notesmodel.ErrInvalidArgument)
 		}
@@ -143,7 +177,7 @@ func (r *Repository) ShareNoteToWeb(
 	slug := oldSlug
 	if !alreadyPublished ||
 		(oldAccessMode == notesmodel.PublishAccessModePublic && meta.AccessMode == notesmodel.PublishAccessModePassword) {
-		slug = newPublishSlug(note.Title, meta.AccessMode == notesmodel.PublishAccessModePassword)
+		slug = newPublishSlug(displayTitle, meta.AccessMode == notesmodel.PublishAccessModePassword)
 	}
 	if meta.AccessMode == notesmodel.PublishAccessModePublic {
 		plaintext = rewritePublishedAssetRefs(plaintext, slug, assets)
@@ -157,12 +191,17 @@ func (r *Repository) ShareNoteToWeb(
 	}
 
 	tag, err := tx.Exec(ctx, `
-		UPDATE notes
-		SET body_md = $3, encrypted = false, published = true, publish_slug = $4,
-		    published_at = $5, publish_password_hash = $6,
-		    publish_expires_at = $7, size_bytes = $8, updated_at = now()
-		WHERE id = $1 AND user_id = $2 AND archived_at IS NULL
-	`, noteID, userID, plaintext, slug, publishedAt, passwordHash, expiresAt, len(plaintext))
+		INSERT INTO published_notes (
+			note_id, user_id, title, body_md, slug, published_at, password_hash, expires_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (note_id) DO UPDATE
+		SET title = EXCLUDED.title,
+		    body_md = EXCLUDED.body_md,
+		    slug = EXCLUDED.slug,
+		    published_at = EXCLUDED.published_at,
+		    password_hash = EXCLUDED.password_hash,
+		    expires_at = EXCLUDED.expires_at
+	`, noteID, userID, displayTitle, plaintext, slug, publishedAt, passwordHash, expiresAt)
 	if err != nil {
 		return nil, err
 	}

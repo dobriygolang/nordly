@@ -31,7 +31,8 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 | `/download` | `NordlyDownloadPage` | starts latest OS installer, or shows an OS picker if none matches |
 | `/oauth/google-calendar` | `OAuthBridgePage` (`google_calendar`) | OAuth bridge → `nordly://settings?google_calendar=…` |
 | `/oauth/zoom` | `OAuthBridgePage` (`zoom`) | OAuth bridge → `nordly://settings?zoom=…` |
-| `/notes/:slug` | `PublishedNotePage` — Nordly-flavored markdown via `lib/markdown/renderNordlyMarkdown.ts` + `styles/published-note.css` | — |
+| `/oauth/spotify` | `SpotifyOAuthBridgePage` | Forwards Spotify `code` and `state` to `nordly://settings?code=…&state=…` |
+| `/notes/:slug` | `PublishedNotePage` — Nordly markdown via `lib/markdown/renderNordlyMarkdown.ts` and `@nordly-markdown` (`[[link:]]` https only, `[[board:]]` as text). The SPA response carries the Caddy `spa_csp` policy (`deploy/Caddyfile`) | — |
 | `/n/:slug` | → `/notes/:slug` | — |
 | `/board/:slug` | `PublishedBoardPage` | — |
 | `/live/new` | `pages/LiveNewPage` | legacy path (still works) |
@@ -112,7 +113,7 @@ Sandbox run/format send the guest JWT **and** `roomId` (editor-scoped tokens req
 | Code | `practice` | `CollabCodeEditor` and `CollabExcalidrawEditor` on one Y.Doc. Top bar switches surfaces with the same circular view transition as the theme toggle. |
 | Diagram | `system_design` | `CollabExcalidrawEditor` |
 
-`useLiveCollabSession` owns the Y.Doc and the editor websocket. Practice rooms keep `Y.Text code` and the Excalidraw maps in that document from the moment the room opens, so the board is not a second room. Yjs Excalidraw schema: `lib/collab/excalidrawYjsDoc.ts` — maps `elements`, `elementIds`, `files`.
+`useLiveCollabSession` owns the Y.Doc and the editor websocket. Practice rooms keep `Y.Text code` and the Excalidraw maps in that document from the moment the room opens, so the board is not a second room. The Yjs scene and the websocket envelope live in `apps/shared/collab` (`@nordly-collab`); `lib/collab/excalidrawYjsDoc.ts` re-exports them. The board draws other participants' cursors from the awareness channel.
 
 Room types in prod UI: `practice`, `system_design` only.
 

@@ -10,7 +10,14 @@ const notes = process.env.VITE_NOTES_URL ?? 'http://localhost:8090'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@nordly-markdown': path.resolve(__dirname, '../shared/markdown'),
+      '@nordly-collab': path.resolve(__dirname, '../shared/collab'),
+      yjs: path.resolve(__dirname, 'node_modules/yjs'),
+      'y-protocols/awareness': path.resolve(__dirname, 'node_modules/y-protocols/awareness.js'),
+    },
+    dedupe: ['yjs'],
   },
   server: {
     host: true,

@@ -57,7 +57,6 @@ export {
   deferVaultWatchReload,
   cancelDeferredVaultWatchReload,
   remapVaultPath,
-  VAULT_FILE_SYNC_READY,
 } from './vaultOutbox';
 
 import { vaultGetConfig } from './ipc';

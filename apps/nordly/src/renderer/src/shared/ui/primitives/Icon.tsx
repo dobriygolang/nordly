@@ -39,7 +39,10 @@ export type IconName =
   | 'info'
   | 'clock'
   | 'image'
-  | 'bell';
+  | 'bell'
+  | 'volume'
+  | 'heart'
+  | 'heart-fill';
 
 interface IconProps {
   name: IconName;
@@ -287,6 +290,26 @@ export function Icon({ name, size = 14, stroke = 'currentColor', strokeWidth = 1
         <svg {...p}>
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+      );
+    case 'volume':
+      return (
+        <svg {...p}>
+          <path d="M11 5 6 9H3v6h3l5 4V5z" />
+          <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+          <path d="M18.5 6a8.5 8.5 0 0 1 0 12" />
+        </svg>
+      );
+    case 'heart':
+      return (
+        <svg {...p}>
+          <path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z" />
+        </svg>
+      );
+    case 'heart-fill':
+      return (
+        <svg {...p} fill="currentColor" stroke="none">
+          <path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z" />
         </svg>
       );
   }

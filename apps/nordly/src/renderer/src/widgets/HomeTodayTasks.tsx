@@ -11,6 +11,8 @@ import { formatLocaleTime } from '@shared/lib/localeFormat';
 import { useFlipList } from '@shared/lib/useFlipList';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { TimerMode } from '@shared/model/settings';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { useDueCardCount } from '@features/cards/hooks/useDueCardCount';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
@@ -19,6 +21,29 @@ function formatMeetingWhen(entry: CalendarEntry, todayKey: string, locale: Local
   if (toDayKey(entry.start) === todayKey) return time;
   const day = entry.start.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
   return `${day} · ${time}`;
+}
+
+function CardsDueChip(): JSX.Element | null {
+  const t = useT();
+  const due = useDueCardCount();
+  if (!due.enabled) return null;
+  if (due.error) {
+    return (
+      <p className="nordly-home-today__empty mono" role="alert">
+        {due.error}
+      </p>
+    );
+  }
+  if (!due.count) return null;
+  return (
+    <button
+      type="button"
+      className="nordly-home-today__cards focus-ring"
+      onClick={() => window.dispatchEvent(new CustomEvent(NORDLY_EVENTS.openCards))}
+    >
+      {t('nordly.cards.home_due', { count: String(due.count) })}
+    </button>
+  );
 }
 
 export function HomeTodayTasks(): JSX.Element | null {
@@ -52,6 +77,7 @@ export function HomeTodayTasks(): JSX.Element | null {
   if (home.todayTasks.length === 0 && home.upcomingMeetings.length === 0 && !home.planFinalized) {
     return (
       <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
+        <CardsDueChip />
         <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>
       </section>
     );
@@ -59,6 +85,7 @@ export function HomeTodayTasks(): JSX.Element | null {
 
   return (
     <section className="nordly-home-today" aria-label={t('nordly.home.today_aria')}>
+      <CardsDueChip />
       {home.todayTasks.length === 0 ? (
         home.upcomingMeetings.length === 0 ? (
           <p className="nordly-home-today__empty mono">{t('nordly.home.today_empty')}</p>

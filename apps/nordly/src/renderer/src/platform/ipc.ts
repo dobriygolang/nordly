@@ -31,10 +31,24 @@ export interface NordlyAPI {
     passSave: (userId: string, passphrase: string) => Promise<void>;
     passClear: (userId: string) => Promise<void>;
   };
+  /** Device Spotify session. Not cleared on Nordly sign-out. */
+  spotify?: {
+    load: () => Promise<SpotifySecret | null>;
+    save: (secret: SpotifySecret) => Promise<void>;
+    clear: () => Promise<void>;
+  };
   on: <K extends keyof typeof eventChannels>(
     channel: K,
     listener: (payload: EventPayload[K]) => void,
   ) => () => void;
+}
+
+export interface SpotifySecret {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  codeVerifier: string;
+  oauthState: string;
 }
 
 export interface AuthSession {

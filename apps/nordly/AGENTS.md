@@ -14,7 +14,7 @@ Tauri 2 + React desktop focus workspace: pomodoro timer, notes (filesystem vault
 |-------|------|
 | Native shell | `src-tauri/` — auth keychain, vault passphrase, pomodoro snapshot, deep links |
 | Renderer | `src/renderer/src/` — React + Vite |
-| Local DB | IndexedDB `nordly-db` v5 — `shared/db/nordlyDb.ts` |
+| Local DB | IndexedDB `nordly-db` v7 — `shared/db/nordlyDb.ts` |
 | Sync | `shared/sync/` — outbox push + pull (notes, tasks, focus, vault file stubs) |
 | Platform bridge | `platform/ipc.ts`, `platform/native-bridge.ts` → `window.nordly` |
 | HTTP (renderer) | `shared/api/http.ts` → `apiFetch()` — dev: browser `fetch` + Vite proxy; release: `tauri-plugin-http` |
@@ -31,7 +31,7 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Multi-board Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Files & Links / Vault / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, week starts on, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) includes `weekStartsOn` (`monday` \| `sunday`, default Monday), `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Files & Links / Sync / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. Sync holds the notes-sync switch and encryption. General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, week starts on, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) includes `weekStartsOn` (`monday` \| `sunday`, default Monday), `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -49,10 +49,14 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on 
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | optional | Unused by renderer today (share/publish URLs come from rooms/notes API) |
+| `VITE_SPOTIFY_CLIENT_ID` | unset | Spotify PKCE app id. Empty hides Settings → Spotify |
+| `VITE_SPOTIFY_REDIRECT_URI` | `https://trynordly.app/oauth/spotify` | Must match a Redirect URI on the Spotify app. The page forwards `code` and `state` to `nordly://settings` |
 
 Prod desktop CI sets `VITE_NORDLY_LOCAL_ONLY=false` so cloud APIs (identity + tracker) are on — Google Calendar and Zoom appear under Settings → Integrations.
 
 Google/Zoom OAuth runs through **tracker** (server-stored tokens). Connect opens the browser via `GET /v1/tracker/integrations/{google,zoom}/url`; callbacks land on the web companion and deep-link back as `nordly://settings?google_calendar=…` / `?zoom=…`. Meet/Zoom on tasks use `POST /v1/tracker/work/tasks/{id}/conference`. These features require `LOCAL_ONLY=false`, a signed-in session, and a reachable API.
+
+**Spotify** (`features/spotify/`) is device-local and does not use Nordly cloud or `LOCAL_ONLY`. Tokens live in the OS keychain (`spotify_secret_*`), not in `NordlySettings` and not on a Nordly user id. Sign-out does not clear them. Disconnect does. One Spotify account per machine. OAuth is PKCE in the desktop app: authorize URL opens in the browser, Spotify redirects to `https://trynordly.app/oauth/spotify`, and that page opens `nordly://settings?code=…&state=…` (denial: `error` + `state`). Spotify does not accept `nordly://` as a registered redirect URI. The main window polls currently-playing only while the tray popover is open and broadcasts `spotify:now-playing`. The tray heart saves the current track to Liked Songs. The dock volume slider appears only when Spotify is connected and calls `PUT /v1/me/player/volume`; it does not change `notificationVolume`. Starting or pausing the timer does not send playback commands. Spotify JSON is snake_case and is not read through `apiFetch` (a 401 must not log out of Nordly). Development Mode caps authorized Spotify accounts; Extended Quota Mode is a Spotify dashboard setting.
 
 ## Backend dependencies
 
@@ -132,7 +136,7 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 
 ## IndexedDB schema
 
-Database: `nordly-db` v5. All entity stores use composite key `userId::id`.
+Database: `nordly-db` v7. All entity stores use composite key `userId::id`.
 
 | Store | Purpose |
 |-------|---------|
@@ -142,8 +146,10 @@ Database: `nordly-db` v5. All entity stores use composite key `userId::id`.
 | `focus_sessions` | Local pomodoro sessions |
 | `whiteboards` | Excalidraw scene JSON |
 | `outbox` | Pending sync operations |
-| `id_map` | Local UUID → server ID |
-| `meta` | Sync cursors, prefs, `note_folders::{userId}`, vault prefs/salt |
+| `id_map` | Local UUID → server ID (not used for vault paths) |
+| `vault_sync_index` | Vault path → server id, content hash, remote `updatedAt` |
+| `card_reviews` | Flashcard progress only (`due`, SM-2 fields). The cards themselves stay in note markdown |
+| `meta` | Sync cursors, prefs, `note_folders::{userId}`, vault prefs/salt, `${userId}::notes_sync` |
 | `calendar_events` | Last Google Calendar snapshot (offline display) |
 
 Scoped by `setDbUserId()` on sign-in.
@@ -160,12 +166,12 @@ Scoped by `setDbUserId()` on sign-in.
 
 **Session refresh** (`shared/api/authSession.ts`): proactive refresh 60s before JWT expiry + on focus/online; `POST /v1/auth/refresh` rotates tokens into keychain. On **401** when online: refresh once and retry authenticated requests. Interactive reauth banner only after a **definitive** online refresh rejection (400/401) or missing refresh token — never for offline/expired access alone, local profiles, or transient network errors. Soft dismissible “sign in to sync” banner for local profiles when cloud is enabled. `ensureCloudAuth()` opens the login overlay for intentional Nordly cloud CTAs (note publish, whiteboard share/publish, Google/Zoom connect). Offline + expired cloud session → silent local-only grace (no sync, no logout). Network errors surface inline on intentional online actions.
 
-Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Starts only after `loadVaultPrefs` (`areVaultPrefsReady()`). Notes push/pull throw `SyncDeferredError` until prefs are loaded so `isVaultEnabledSync()` is never treated as off. Calls `ensureAccessTokenForSync()` before each run.
+Engine: `shared/sync/SyncEngine.ts` — debounced 3s + 60s interval + online/focus triggers. Starts only after `loadVaultPrefs` and `loadNotesSyncConsent`. Vault note push throws `SyncDeferredError` when notes sync is off or vault prefs are not loaded. IndexedDB note push is dropped while a folder is bound. Calls `ensureAccessTokenForSync()` before each run.
 
 | Domain | Push ops | Pull | Backend |
 |--------|----------|------|---------|
-| notes | create, update, delete, attachment_put, attachment_delete (legacy IDB path only) | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
-| vault | file_put, file_delete (markdown only) | list + get notes whose title is a vault path | notes CRUD (`title` = relative path) |
+| notes | create, update, delete, attachment_put, attachment_delete (IndexedDB path only, and only when notes sync is on and no folder is bound) | full list + get each + attachment meta list + get-on-miss | notes CRUD + vault encrypt + attachment bytes |
+| vault | file_put, file_delete (markdown only, notes sync on) | list + get notes whose title is a vault path | notes CRUD (`title` = relative path) |
 | tasks | create, status, schedule, delete, patch | full list | tracker work tasks |
 | focus | session_start, session_end | none (stats on-demand) | focus sessions |
 
@@ -199,7 +205,8 @@ Calendar domain types live in `features/calendar/model/`. Notes/task cards live 
 objects (`PageId`, `TimerMode`, `AuthStatus`, `SyncDomain`, `OutboxOp`, `CalendarEntrySource`).
 Pages and other features consume public `api/`, `lib/`, `hooks/`, and `components/` — not
 remote/repository/sync/vault internals. Whiteboard pages use
-`features/whiteboard/api/whiteboardClient.ts` for local boards.
+`features/whiteboard/api/whiteboardClient.ts` for local boards and
+`features/whiteboard/api/liveBoard.ts` for the live session, so notes do not download yjs.
 
 Architecture decisions: [local-first consistency](docs/architecture/001-local-first-consistency.md),
 [vault threat model](docs/architecture/002-vault-threat-model.md),
@@ -215,11 +222,11 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 
 Obsidian-style folder SoT after first bind (`features/notes/vault/`, Tauri `notes_vault_*`). Local files are **plaintext**. Soft-delete → `.trash/`. Settings → Files & Links. One-shot IDB export on first pick.
 
-Markdown files sync to the notes service (`POST/PUT/DELETE /v1/notes`) via outbox domain `vault`, keyed by relative path (stored as the remote title). Binary vault files stay local. IndexedDB note CRUD and publish/unpublish stay blocked with `NotesCloudCapabilityError` (`filesystem_vault_cloud_unavailable`) while a folder is bound — they would push the shadow IDB store, not the vault. Tasks and focus sync continue. Pages import `@features/notes/api/vault`, not `@features/notes/vault`.
+Markdown files sync to the notes service (`POST/PUT/DELETE /v1/notes`) via outbox domain `vault`, keyed by relative path, only when `isNotesSyncEnabled()` (`meta` `${userId}::notes_sync`, default off). The path-to-server map is `vault_sync_index`. Each pull plans push, download, trash, or a conflict copy from the full server list. A list past the service cap fails the pull; it is not treated as remote deletes. Paths that differ only by case are an error, so NTFS cannot silently merge `Note.md` and `note.md`. Rust vault paths use `/`. An empty folder with a non-empty index pauses sync and deletes nothing. Binary vault files stay local. While a folder is bound, IndexedDB note push drops the shadow outbox entry and pull does not read that store. Publish uses the vault index server id and is blocked in the menu until notes sync is on. Tasks and focus sync continue. Pages import `@features/notes/api/vault` and `@features/notes/api/notesSync`, not `@features/notes/vault`.
 
 ## Encrypted vault (cloud E2EE)
 
-Client: PBKDF2 200k + AES-256-GCM. Server stores salt + ciphertext only.
+Client: PBKDF2 600k + AES-256-GCM. A remote note is one ciphertext of path and body; the server title is an opaque id. Server stores salt + ciphertext only. An unencrypted remote note is not written while encryption is on. Publishing writes a separate public snapshot and leaves the encrypted sync row unchanged. The recovery wrap is stored with the vault salt so the phrase works on another device.
 
 | File | Role |
 |------|------|
@@ -227,7 +234,7 @@ Client: PBKDF2 200k + AES-256-GCM. Server stores salt + ciphertext only.
 | `shared/crypto/vaultPrefs.ts` | Local vault enabled flag; `areVaultPrefsReady()` after load |
 | `shared/crypto/recoveryKey.ts` | Recovery phrase |
 | `widgets/VaultUnlockGate.tsx` | Unlock UI when vault enabled (local-only or cloud) |
-| `pages/Settings/sections/VaultSection.tsx` | Settings |
+| `pages/Settings/sections/SyncSection.tsx` | Notes sync switch, status, encryption block |
 
 Tauri IPC (OS keychain for passphrase):
 
@@ -241,20 +248,25 @@ Tauri IPC (OS keychain for passphrase):
 
 Local Excalidraw (`@excalidraw/excalidraw`). Multiple boards per user in IndexedDB (`whiteboards`); folders live in IndexedDB meta (`whiteboard_folders::{userId}`). The sidebar creates, nests, renames, and deletes folders. Boards and folders move by dragging onto a folder or the list root, the same way notes do. Deleting a folder keeps the boards and lifts them to the parent folder. Scene writes go through a latest-only serializer so a failed load cannot keep a stale canvas.
 
-A note can open a board with `[[board:Title]]` (alias form `[[board:Title|label]]` works too). Clicking the link flushes the note, opens the existing board with that title, or creates an empty one, then navigates to the whiteboard page.
+A note opens another note with `[[Title]]`, a board with `[[board:Title]]`, or an https page with `[[link:https://…]]`. The parser is `apps/shared/markdown/wikiTarget.ts`. A click flushes the note first. A board opens the existing board with that title or creates an empty one, then navigates to the whiteboard page. `![[file.png]]` embeds an image from the vault: next to the note, then by file name. `notes_vault_find_image` returns the shortest match.
 
 | File | Role |
 |------|------|
 | `features/whiteboard/repository/whiteboardStore.ts` | IndexedDB read/write |
 | `features/whiteboard/repository/whiteboardFolders.ts` | Folder tree in IndexedDB meta |
 | `features/whiteboard/api/whiteboardClient.ts` | Public local-board façade used by pages |
+| `features/whiteboard/api/liveBoard.ts` | Live Yjs session. Imported by the whiteboard page only |
 | `pages/Whiteboard/WhiteboardPage.tsx` | Multi-board UI + latest-only save |
 | `shared/lib/excalidraw/nordlyTheme.ts` | Theme sync |
 
 Sharing (requires sign-in + network):
 
-- **Live share** → `POST /v1/rooms/share-whiteboard` → API `invite.url` (`code.trynordly.app/{roomId}`)
+- **Live share** → `POST /v1/rooms/share-whiteboard` keeps `roomId` and `accessToken` in memory and joins `WS /ws/editor/{roomId}`. The desktop canvas and the web room share one Yjs document, including participant cursors. Stop sharing writes the room scene back into the local board. Invite URL is `code.trynordly.app/{roomId}`.
 - **Publish** → `POST /v1/rooms/publish-whiteboard` → web `/board/{slug}` (read-only)
+
+## Flashcards
+
+`front :: back` in a note is one card. `front ::: back` is that card and the reverse. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
 ## Tauri IPC commands
 
@@ -267,22 +279,23 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_logout` | Clear session |
 | `confirm_app_exit` | Finish quit after the renderer rewrites the keychain session |
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
-| `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch |
+| `spotify_secret_load/save/clear` | Spotify tokens and PKCE verifier in the OS keychain. Not cleared by `auth_logout` |
+| `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch, `notes_vault_find_image` (shortest image path by file name) |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 60s |
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |
 | `focus_main_window` | Raise main window (notification click) |
 | `shell_open_external` | Open URL in browser |
-| `read_text_file` | Read markdown under an import root (`root` + `relative_path`); rejects `..` escapes; `.md` / `.markdown` ≤2 MiB |
-| `read_binary_file` | Read image under import root (`root` + `relative_path`); rejects `..` escapes; png/jpeg/gif/webp ≤5 MiB |
-| `list_markdown_import_entries` | Recursively list markdown files under a dropped directory (Notes folder import) |
+| `read_text_file` | Read markdown under a path the OS just dropped on the main window (10 min). `root` + `relative_path`; rejects `..` and any other root; `.md` / `.markdown` ≤2 MiB |
+| `read_binary_file` | Read an image under that same drop (a dropped folder, or the folder of a dropped note). Rejects `..`; png/jpeg/gif/webp ≤5 MiB |
+| `list_markdown_import_entries` | List markdown under a directory the OS dropped (not a path the window invented) |
 | `window_traffic_lights_show` | macOS traffic lights |
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-**Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). Hamburger in popover calls `tray_show_main`.
+**Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. Hamburger in popover calls `tray_show_main`.
 
-Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth).
+Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `spotify:now-playing`, `spotify:cmd`, `tray-popover:show`, `tray-popover:hide`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth), `settings?code=…&state=…` (Spotify PKCE).
 
 ## Commands
 
@@ -323,9 +336,10 @@ GitHub secret `TAURI_SIGNING_PRIVATE_KEY` must match `plugins.updater.pubkey`. P
 | Gap | Status |
 |-----|--------|
 | Note folders sync | FS vault: folders = dirs; rename/move enqueues path remaps to notes CRUD |
-| Vault markdown cloud | Markdown `.md` files push/pull via existing notes CRUD (`vaultFileSync.ts`). Images stay local. Dedicated List/Put/Get/DeleteVaultFile RPCs still not shipped |
+| Vault markdown cloud | Markdown `.md` files push/pull via existing notes CRUD (`vaultFileSync.ts`) after notes sync is turned on. Images stay local. Dedicated List/Put/Get/DeleteVaultFile RPCs still not shipped |
 | Google OAuth callback | Handled: tracker redirects to web `/oauth/google-calendar` → `nordly://settings?google_calendar=…` |
 | Zoom OAuth callback | Handled: tracker redirects to web `/oauth/zoom` → `nordly://settings?zoom=…` |
+| Spotify OAuth callback | Web `/oauth/spotify` forwards `code` and `state` to `nordly://settings`. PKCE exchange stays in the desktop app |
 
 ## Layout
 
@@ -353,7 +367,6 @@ apps/nordly/
 
 **Import rule:** dependencies point inward — `shared` never imports `pages/` or `widgets/`;
 `features` never imports `pages/`. Pages/widgets cannot import feature `repository/`, `remote/`,
-or `sync/`; the existing `Settings/sections/VaultSection.tsx` notes-sync call is the sole linted
-exception. Pages/widgets refresh Google Calendar via `features/calendar/api/googleCalendarState`, not cache/connection/worker stores. Task/planning imports from calendar are restricted to `features/calendar/api/`.
+or `sync/`. Notes settings use `features/notes/api/notesSync`. Pages/widgets refresh Google Calendar via `features/calendar/api/googleCalendarState`, not cache/connection/worker stores. Task/planning imports from calendar are restricted to `features/calendar/api/`.
 Types like `PageId` and `ThemeId` live in `shared/model/`. Per feature: `repository/` (IndexedDB)
 and `remote/` (HTTP) are implementation details; `api/` is the public façade.

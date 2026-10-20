@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import type { TFunc } from '@nordly-i18n';
+import type { WikiTarget } from '@nordly-markdown/wikiTarget';
 
 import {
   collectSubtreeIds,
@@ -9,7 +10,6 @@ import {
   deleteFolder,
   deleteNote,
   getNote,
-  getNotesCloudCapability,
   moveFolderWithRemap,
   moveNoteToFolder,
   nextUniqueFolderName,
@@ -23,11 +23,11 @@ import {
   type PublishStatus,
   type PublishToWebOptions,
 } from '@features/notes/api/notesClient';
+import { requirePublishAllowed } from '@features/notes/api/notesSync';
 import { remapVaultPath } from '@features/notes/api/vault';
 import { openOrCreateBoardByTitle } from '@features/whiteboard/api/whiteboardClient';
 import { requireCloudCta } from '@shared/api/cloudCta';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { boardTitleFromWikiLink } from '@shared/lib/wikiLinkText';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { errorMessage, type ListState } from './utils';
@@ -460,9 +460,15 @@ export function useNotesPageActions({
   );
 
   const requirePublishCloud = useCallback(async (): Promise<boolean> => {
-    const capability = await getNotesCloudCapability();
-    if (!capability.available) {
-      setActiveError(capability.message);
+    const gate = requirePublishAllowed();
+    if (!gate.ok) {
+      setActiveError(
+        t(
+          gate.reason === 'sync_off'
+            ? 'nordly.notes.sync.publish_blocked'
+            : 'nordly.settings.vault.locked_publish',
+        ),
+      );
       return false;
     }
     const cta = await requireCloudCta();
@@ -631,13 +637,26 @@ export function useNotesPageActions({
     [handleDeleteNotes],
   );
 
-  const handleWikiLinkClick = useCallback(
-    async (linkText: string) => {
-      const boardTitle = boardTitleFromWikiLink(linkText);
-      if (boardTitle) {
+  const handleWikiTargetClick = useCallback(
+    async (target: WikiTarget) => {
+      if (target.kind === 'invalid') return;
+      if (target.kind === 'link') {
+        const open = window.nordly?.shell?.openExternal;
+        if (!open) {
+          setActiveError(t('nordly.notes.wiki.external_unavailable'));
+          return;
+        }
+        try {
+          await open(target.url);
+        } catch (err: unknown) {
+          setActiveError(errorMessage(err, t));
+        }
+        return;
+      }
+      if (target.kind === 'board') {
         if (!(await flushNow())) return;
         try {
-          const board = await openOrCreateBoardByTitle(boardTitle);
+          const board = await openOrCreateBoardByTitle(target.title);
           window.dispatchEvent(
             new CustomEvent(NORDLY_EVENTS.openBoard, { detail: { id: board.id } }),
           );
@@ -650,7 +669,7 @@ export function useNotesPageActions({
       const selectedAtStart = selectedIdRef.current;
       const draftRevisionAtStart = draftRef.current.revision;
       try {
-        const { noteId, created } = await openWikiLink(linkText);
+        const { noteId, created } = await openWikiLink(target.title);
         if (selectedIdRef.current === noteId) {
           setActiveError(null);
           return;
@@ -728,6 +747,6 @@ export function useNotesPageActions({
     handleUnpublish,
     handleDeleteNote,
     handleDeleteNotes,
-    handleWikiLinkClick,
+    handleWikiTargetClick,
   };
 }

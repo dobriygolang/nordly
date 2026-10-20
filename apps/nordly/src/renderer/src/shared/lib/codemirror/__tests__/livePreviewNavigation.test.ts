@@ -6,7 +6,9 @@ import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { imageEmbedField } from '../imageEmbedField';
 import { imageHrefResolverFacet, livePreviewPlugin } from '../livePreview';
+import { notesMarkdownSupport } from '../notesCodeLanguages';
 import { notesKeymap } from '../notesKeymap';
 
 let view: EditorView | null = null;
@@ -128,5 +130,51 @@ describe('notes live preview navigation', () => {
     expect(sources).toContain('blob:img/photo.png');
     expect(sources).toContain('blob:nordly-asset:asset-1');
     expect(sources).toContain('https://example.com/photo.png');
+  });
+
+  it('keeps the image under the line while the caret is on that line', () => {
+    const doc = 'before\n![alt](img/a.png)\nafter';
+    const editor = createView(doc, 0);
+    const imageLine = editor.state.doc.line(2);
+    editor.dispatch({ selection: { anchor: imageLine.from } });
+
+    let widgets = 0;
+    editor.state.field(imageEmbedField).between(0, editor.state.doc.length, () => {
+      widgets += 1;
+    });
+    expect(widgets).toBe(1);
+    expect(editor.dom.querySelector('.nordly-md-image')).not.toBeNull();
+    expect(editor.dom.querySelector('.nordly-md-image-syntax')).not.toBeNull();
+    expect(editor.dom.querySelector('.nordly-md-syntax-hidden')).toBeNull();
+  });
+
+  it('hides the image source only when the caret is on another line', () => {
+    const editor = createView('before\n![alt](img/a.png)\nafter', 0);
+    expect(editor.dom.querySelector('.nordly-md-syntax-hidden')).not.toBeNull();
+    expect(editor.dom.querySelector('.nordly-md-image')).not.toBeNull();
+  });
+
+  it('shows a typed load error on the placeholder', async () => {
+    const doc = '![shot](img/missing.png)';
+    const editor = createView(doc, 0, [
+      imageHrefResolverFacet.of(async () => {
+        throw Object.assign(new Error('too big'), { code: 'too_large' });
+      }),
+    ]);
+    await Promise.resolve();
+    await Promise.resolve();
+    const placeholder = editor.dom.querySelector('.nordly-md-image__placeholder');
+    expect(placeholder?.textContent).toContain('img/missing.png');
+    expect(placeholder?.textContent).toMatch(/5 MB|5 МБ/);
+  });
+
+  it('does not embed an image that sits inside a code fence', () => {
+    const doc = '```\n![alt](img/a.png)\n```\n';
+    const editor = createView(doc, 0, [notesMarkdownSupport]);
+    let widgets = 0;
+    editor.state.field(imageEmbedField).between(0, editor.state.doc.length, () => {
+      widgets += 1;
+    });
+    expect(widgets).toBe(0);
   });
 });

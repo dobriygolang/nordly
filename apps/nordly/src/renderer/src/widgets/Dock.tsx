@@ -8,6 +8,8 @@ import { TimerMode } from '@shared/model/settings';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
+import { DockVolume } from './DockVolume';
+
 interface DockProps {
   onMenu: () => void;
 }
@@ -113,6 +115,7 @@ function TimerControls() {
       >
         <Icon name={running ? 'pause' : 'play'} size={13} />
       </DockBtn>
+      <DockVolume />
     </>
   );
 }

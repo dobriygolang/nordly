@@ -5,6 +5,7 @@ export const PageId = {
   Whiteboard: 'whiteboard',
   Calendar: 'calendar',
   Planning: 'planning',
+  Cards: 'cards',
   Settings: 'settings',
 } as const;
 export type PageId = (typeof PageId)[keyof typeof PageId];

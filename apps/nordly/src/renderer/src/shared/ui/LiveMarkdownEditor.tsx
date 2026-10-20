@@ -7,8 +7,10 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 
+import { httpsLinkAt, wikiMatchAt, type WikiTarget } from '@nordly-markdown/wikiTarget';
 import {
   codeBlockField,
+  cardSyntaxFacet,
   imageHrefResolverFacet,
   livePreviewPlugin,
   notesEditorTheme,
@@ -19,9 +21,9 @@ import {
   notesCodeSyntaxHighlighting,
   notesMarkdownSupport,
 } from '@shared/lib/codemirror/notesCodeLanguages';
-import { notesKeymap, fenceAutoCloseInput } from '@shared/lib/codemirror/notesKeymap';
+import { notesKeymap } from '@shared/lib/codemirror/notesKeymap';
 import { wikiLinkAutocomplete } from '@shared/lib/codemirror/wikiLinkAutocomplete';
-import { normalizedWikiTitles, wikiLinkAtPosition } from '@shared/lib/wikiLinkText';
+import { normalizedWikiTitles } from '@shared/lib/wikiLinkText';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
@@ -29,7 +31,9 @@ interface LiveMarkdownEditorProps {
   onChange: (next: string) => void;
   placeholder?: string;
   noteTitles?: string[];
-  onWikiLinkClick?: (linkText: string) => void;
+  boardTitles?: string[];
+  flashcardsEnabled?: boolean;
+  onWikiTargetClick?: (target: WikiTarget) => void;
   /** Resolve nordly-asset: / https hrefs for live preview images. */
   resolveImageHref?: ImageHrefResolver | null;
   /** Paste/drop image → insert markdown snippet at cursor (return null to ignore). */
@@ -69,7 +73,9 @@ export function LiveMarkdownEditor({
   onChange,
   placeholder,
   noteTitles = [],
-  onWikiLinkClick,
+  boardTitles = [],
+  flashcardsEnabled = false,
+  onWikiTargetClick,
   resolveImageHref = null,
   onInsertImageFile,
   onAttachmentError,
@@ -78,7 +84,7 @@ export function LiveMarkdownEditor({
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
-  const onWikiLinkClickRef = useRef(onWikiLinkClick);
+  const onWikiTargetClickRef = useRef(onWikiTargetClick);
   const onInsertImageFileRef = useRef(onInsertImageFile);
   const onAttachmentErrorRef = useRef(onAttachmentError);
   /** Last doc string we pushed via onChange — ignore stale React props lagging behind. */
@@ -87,8 +93,9 @@ export function LiveMarkdownEditor({
   const titlesCompartmentRef = useRef(new Compartment());
   const autocompleteCompartmentRef = useRef(new Compartment());
   const imageResolverCompartmentRef = useRef(new Compartment());
+  const cardSyntaxCompartmentRef = useRef(new Compartment());
   onChangeRef.current = onChange;
-  onWikiLinkClickRef.current = onWikiLinkClick;
+  onWikiTargetClickRef.current = onWikiTargetClick;
   onInsertImageFileRef.current = onInsertImageFile;
   onAttachmentErrorRef.current = onAttachmentError;
 
@@ -138,10 +145,15 @@ export function LiveMarkdownEditor({
           codeBlockField,
           livePreviewPlugin,
           notesEditorTheme,
-          fenceAutoCloseInput,
+          EditorView.contentAttributes.of({
+            autocorrect: 'off',
+            autocapitalize: 'off',
+            spellcheck: 'false',
+          }),
           titlesCompartmentRef.current.of(wikiLinkTitlesFacet.of(resolvedTitles)),
           imageResolverCompartmentRef.current.of(imageHrefResolverFacet.of(resolveImageHref)),
-          autocompleteCompartmentRef.current.of(wikiLinkAutocomplete(noteTitles)),
+          autocompleteCompartmentRef.current.of(wikiLinkAutocomplete(noteTitles, boardTitles)),
+          cardSyntaxCompartmentRef.current.of(cardSyntaxFacet.of(flashcardsEnabled)),
           EditorView.lineWrapping,
           EditorView.domEventHandlers({
             paste(event, view) {
@@ -230,15 +242,23 @@ export function LiveMarkdownEditor({
                 view.focus();
                 return true;
               }
-              if (!target?.closest('.nordly-md-wiki-link')) return false;
+              const wikiEl = target?.closest('.nordly-md-wiki-link');
+              const linkEl = target?.closest('.nordly-md-link');
+              if (!wikiEl && !linkEl) return false;
               const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-              if (pos == null) return false;
+              if (pos == null || !onWikiTargetClickRef.current) return false;
               const line = view.state.doc.lineAt(pos);
               const column = pos - line.from;
-              const hit = wikiLinkAtPosition(line.text, column);
-              if (!hit || !onWikiLinkClickRef.current) return false;
+              const wiki = wikiMatchAt(line.text, column);
+              if (wiki && !wiki.embed && wiki.target.kind !== 'invalid') {
+                event.preventDefault();
+                void onWikiTargetClickRef.current(wiki.target);
+                return true;
+              }
+              const url = httpsLinkAt(line.text, column);
+              if (!url) return false;
               event.preventDefault();
-              void onWikiLinkClickRef.current(hit.linkText);
+              void onWikiTargetClickRef.current({ kind: 'link', url });
               return true;
             },
           }),
@@ -287,13 +307,14 @@ export function LiveMarkdownEditor({
     view.dispatch({
       effects: [
         titlesCompartmentRef.current.reconfigure(wikiLinkTitlesFacet.of(resolvedTitles)),
-        autocompleteCompartmentRef.current.reconfigure(wikiLinkAutocomplete(noteTitles)),
+        autocompleteCompartmentRef.current.reconfigure(wikiLinkAutocomplete(noteTitles, boardTitles)),
         imageResolverCompartmentRef.current.reconfigure(
           imageHrefResolverFacet.of(resolveImageHref),
         ),
+        cardSyntaxCompartmentRef.current.reconfigure(cardSyntaxFacet.of(flashcardsEnabled)),
       ],
     });
-  }, [noteTitles, resolvedTitles, resolveImageHref]);
+  }, [noteTitles, boardTitles, resolvedTitles, resolveImageHref, flashcardsEnabled]);
 
   useEffect(() => {
     const view = viewRef.current;

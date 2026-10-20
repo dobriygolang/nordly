@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -6,24 +6,21 @@ import { Icon, type IconName } from '@shared/ui/primitives/Icon';
 import type { ThemeId } from '@shared/model/theme';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import type { TimerMode } from '@shared/model/settings';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import {
+  SettingsSectionId,
+  takeSettingsDetail,
+  type SettingsHighlightId,
+  type SettingsSectionId as SectionId,
+} from '@shared/model/settingsNav';
 
 import { GeneralSection } from './sections/GeneralSection';
 import { IntegrationsSection } from './sections/IntegrationsSection';
 import { ShortcutsSection } from './sections/ShortcutsSection';
 import { SignOutSection } from './sections/SignOutSection';
 import { SoftwareSection } from './sections/SoftwareSection';
-import { VaultSection } from './sections/VaultSection';
 import { FilesAndLinksSection } from './sections/FilesAndLinksSection';
-
-const SectionId = {
-  General: 'general',
-  Integrations: 'integrations',
-  FilesLinks: 'files_links',
-  Vault: 'vault',
-  Shortcuts: 'shortcuts',
-  About: 'about',
-} as const;
-type SectionId = (typeof SectionId)[keyof typeof SectionId];
+import { SyncSection } from './sections/SyncSection';
 
 interface NavItem {
   id: SectionId;
@@ -32,12 +29,12 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { id: SectionId.General, icon: 'settings', labelKey: 'nordly.settings.nav.general' },
-  { id: SectionId.Integrations, icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
-  { id: SectionId.FilesLinks, icon: 'folder', labelKey: 'nordly.settings.nav.files_links' },
-  { id: SectionId.Vault, icon: 'lock', labelKey: 'nordly.settings.nav.vault' },
-  { id: SectionId.Shortcuts, icon: 'command', labelKey: 'nordly.settings.nav.shortcuts' },
-  { id: SectionId.About, icon: 'info', labelKey: 'nordly.settings.nav.about' },
+  { id: SettingsSectionId.General, icon: 'settings', labelKey: 'nordly.settings.nav.general' },
+  { id: SettingsSectionId.Integrations, icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
+  { id: SettingsSectionId.FilesLinks, icon: 'folder', labelKey: 'nordly.settings.nav.files_links' },
+  { id: SettingsSectionId.Sync, icon: 'lock', labelKey: 'nordly.settings.nav.sync' },
+  { id: SettingsSectionId.Shortcuts, icon: 'command', labelKey: 'nordly.settings.nav.shortcuts' },
+  { id: SettingsSectionId.About, icon: 'info', labelKey: 'nordly.settings.nav.about' },
 ];
 
 interface SettingsPageProps {
@@ -52,7 +49,20 @@ interface SettingsPageProps {
 
 export function SettingsPage(props: SettingsPageProps) {
   const t = useT();
-  const [section, setSection] = useState<SectionId>(SectionId.General);
+  const opened = useState(() => takeSettingsDetail())[0];
+  const [section, setSection] = useState<SectionId>(opened?.section ?? SettingsSectionId.General);
+  const [highlight, setHighlight] = useState<SettingsHighlightId | null>(opened?.highlight ?? null);
+
+  useEffect(() => {
+    const onOpen = (): void => {
+      const detail = takeSettingsDetail();
+      if (!detail) return;
+      if (detail.section) setSection(detail.section);
+      setHighlight(detail.highlight ?? null);
+    };
+    window.addEventListener(NORDLY_EVENTS.openSettings, onOpen);
+    return () => window.removeEventListener(NORDLY_EVENTS.openSettings, onOpen);
+  }, []);
 
   return (
     <div className="nordly-settings-shell">
@@ -74,7 +84,10 @@ export function SettingsPage(props: SettingsPageProps) {
                 type="button"
                 className={`nordly-settings-nav__item${section === item.id ? ' is-active' : ''} focus-ring`}
                 aria-current={section === item.id}
-                onClick={() => setSection(item.id)}
+                onClick={() => {
+                  setHighlight(null);
+                  setSection(item.id);
+                }}
               >
                 <Icon name={item.icon} size={15} />
                 <span>{t(item.labelKey)}</span>
@@ -86,16 +99,16 @@ export function SettingsPage(props: SettingsPageProps) {
 
       <div className="nordly-settings-content">
         <div className="nordly-settings-content__inner">
-          {section === SectionId.General && <GeneralSection {...props} />}
+          {section === SettingsSectionId.General && <GeneralSection {...props} />}
 
-          {section === SectionId.Integrations && (
+          {section === SettingsSectionId.Integrations && (
             <>
               <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.integrations')}</h1>
               <IntegrationsSection />
             </>
           )}
 
-          {section === SectionId.FilesLinks && (
+          {section === SettingsSectionId.FilesLinks && (
             <>
               <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.files_links')}</h1>
               <FilesAndLinksSection />
@@ -103,21 +116,21 @@ export function SettingsPage(props: SettingsPageProps) {
           )}
 
 
-          {section === SectionId.Vault && (
+          {section === SettingsSectionId.Sync && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.vault')}</h1>
-              <VaultSection />
+              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.sync')}</h1>
+              <SyncSection highlight={highlight} />
             </>
           )}
 
-          {section === SectionId.Shortcuts && (
+          {section === SettingsSectionId.Shortcuts && (
             <>
               <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.shortcuts')}</h1>
               <ShortcutsSection />
             </>
           )}
 
-          {section === SectionId.About && (
+          {section === SettingsSectionId.About && (
             <>
               <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.about')}</h1>
               <SoftwareSection />

@@ -1,29 +1,27 @@
 import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 
-export function wikiLinkAutocomplete(noteTitles: string[]) {
+import { wikiCompletions } from '@nordly-markdown/wikiTarget';
+
+export function wikiLinkAutocomplete(noteTitles: string[], boardTitles: string[] = []) {
   return autocompletion({
     override: [(context: CompletionContext): CompletionResult | null => {
-      const before = context.matchBefore(/\[\[[^\]|]*/);
+      const before = context.matchBefore(/\[\[[^\]|\n]*/);
       if (!before || !before.text.startsWith('[[')) return null;
       if (before.from === before.to && !context.explicit) return null;
 
-      const query = before.text.slice(2).trim().toLowerCase();
-      const options = noteTitles
-        .filter((title) => title.trim().length > 0)
-        .filter((title) => title.toLowerCase().includes(query))
-        .slice(0, 12)
-        .map((title) => ({
-          label: title,
-          type: 'text' as const,
-          apply: `${title}]]`,
-        }));
-
-      if (options.length === 0) return null;
+      const typed = before.text.slice(2);
+      const options = wikiCompletions(typed, noteTitles, boardTitles);
+      if (!options) return null;
+      const keep = options[0]?.keep ?? 0;
 
       return {
-        from: before.from + 2,
-        options,
-        validFor: /^[^\]|]*$/,
+        from: before.from + 2 + keep,
+        options: options.map((option) => ({
+          label: option.label,
+          type: 'text' as const,
+          apply: option.apply,
+        })),
+        validFor: /^[^\]|\n]*$/,
       };
     }],
   });

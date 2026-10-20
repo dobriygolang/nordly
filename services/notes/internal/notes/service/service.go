@@ -23,6 +23,8 @@ type PublishOptions = notesmodel.PublishOptions
 type Service interface {
 	InitVault(ctx context.Context, userID string) (saltB64 string, initialized bool, err error)
 	GetVaultSalt(ctx context.Context, userID string) (saltB64 string, err error)
+	PutVaultRecovery(ctx context.Context, userID, wrapB64, saltB64 string) error
+	GetVaultRecovery(ctx context.Context, userID string) (wrapB64, saltB64 string, err error)
 
 	ListNotes(ctx context.Context, userID string) ([]notesmodel.NoteSummary, error)
 	GetNote(ctx context.Context, userID, id string) (*notesmodel.Note, error)

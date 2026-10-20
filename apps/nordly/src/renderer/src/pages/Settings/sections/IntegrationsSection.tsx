@@ -8,7 +8,10 @@ import { patchSettings, readSettings, type GoogleCalendarPollMinutes } from '@sh
 
 import { SettingsBlock } from '../primitives/SettingRow';
 import { AppleCalendarSection } from './AppleCalendarSection';
+import { isSpotifyConfigured } from '@features/spotify/api/spotifyClient';
+
 import { GoogleCalendarSection } from './GoogleCalendarSection';
+import { SpotifySection } from './SpotifySection';
 import { ZoomSection } from './ZoomSection';
 
 export function IntegrationsSection() {
@@ -18,8 +21,9 @@ export function IntegrationsSection() {
   );
   const showApple = isMacOsDesktop();
   const showCloud = isCloudEnabled();
+  const showSpotify = isSpotifyConfigured();
 
-  if (!showApple && !showCloud) {
+  if (!showApple && !showCloud && !showSpotify) {
     return <p className="nordly-settings-empty">{t('nordly.settings.integrations_local_only')}</p>;
   }
 
@@ -44,6 +48,11 @@ export function IntegrationsSection() {
       ) : (
         <p className="nordly-settings-empty">{t('nordly.settings.integrations_cloud_only')}</p>
       )}
+      {showSpotify ? (
+        <SettingsBlock title={t('nordly.settings.section.spotify')}>
+          <SpotifySection />
+        </SettingsBlock>
+      ) : null}
     </>
   );
 }

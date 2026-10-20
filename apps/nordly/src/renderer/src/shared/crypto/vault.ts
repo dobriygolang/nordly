@@ -1,5 +1,5 @@
 /**
- * E2EE vault — PBKDF2-SHA256 (200k) + AES-256-GCM.
+ * E2EE vault — PBKDF2-SHA256 (600k) + AES-256-GCM.
  * Derived key lives in module memory only; cleared on lock / logout.
  */
 import { isCloudEnabled } from '@shared/model/features';
@@ -115,7 +115,7 @@ export async function fetchVaultSalt(): Promise<string | null> {
   }
 }
 
-const PBKDF2_ITERATIONS = 200_000;
+const PBKDF2_ITERATIONS = 600_000;
 const KEY_BITS = 256;
 const IV_BYTES = 12;
 const VERIFIER_PLAINTEXT = 'nordly-vault-verifier-v1';

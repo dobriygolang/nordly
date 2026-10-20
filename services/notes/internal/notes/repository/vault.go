@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 
+	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -50,4 +51,46 @@ func (r *Repository) GetVaultSalt(ctx context.Context, userID string) (string, b
 		return "", false, err
 	}
 	return base64.StdEncoding.EncodeToString(salt), true, nil
+}
+
+func (r *Repository) PutVaultRecovery(ctx context.Context, userID, wrapB64, saltB64 string) error {
+	wrap, err := base64.StdEncoding.DecodeString(wrapB64)
+	if err != nil || len(wrap) == 0 || len(wrap) > 4096 {
+		return notesmodel.ErrInvalidArgument
+	}
+	salt, err := base64.StdEncoding.DecodeString(saltB64)
+	if err != nil || len(salt) != 32 {
+		return notesmodel.ErrInvalidArgument
+	}
+	tag, err := r.pg.Exec(ctx, `
+		UPDATE vault_salts
+		SET recovery_wrap = $2, recovery_salt = $3
+		WHERE user_id = $1
+	`, userID, wrap, salt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return notesmodel.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) GetVaultRecovery(ctx context.Context, userID string) (string, string, bool, error) {
+	var wrap, salt []byte
+	err := r.pg.QueryRow(ctx, `
+		SELECT recovery_wrap, recovery_salt
+		FROM vault_salts
+		WHERE user_id = $1
+	`, userID).Scan(&wrap, &salt)
+	if errors.Is(err, pgx.ErrNoRows) || wrap == nil || salt == nil {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return "", "", false, err
+		}
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, err
+	}
+	return base64.StdEncoding.EncodeToString(wrap), base64.StdEncoding.EncodeToString(salt), true, nil
 }

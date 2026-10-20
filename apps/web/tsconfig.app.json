@@ -16,7 +16,15 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@nordly-markdown": ["../shared/markdown"],
+      "@nordly-markdown/*": ["../shared/markdown/*"],
+      "@nordly-collab": ["../shared/collab"],
+      "@nordly-collab/*": ["../shared/collab/*"],
+      "yjs": ["./node_modules/yjs"],
+      "y-protocols/awareness": ["./node_modules/y-protocols/awareness"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../shared/markdown/**/*", "../shared/collab/**/*"]
 }

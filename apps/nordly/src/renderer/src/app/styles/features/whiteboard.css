@@ -1,3 +1,7 @@
+.nordly-whiteboard-main {
+  position: relative;
+}
+
 .nordly-whiteboard-toast {
   position: absolute;
   bottom: 24px;
@@ -11,4 +15,29 @@
 
 .nordly-whiteboard-toast--raised {
   bottom: 48px;
+}
+
+.nordly-whiteboard-live {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.nordly-whiteboard-live__stop {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: 0.08em;
 }

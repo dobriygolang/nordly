@@ -2,6 +2,7 @@ import { BackgroundOperationError } from '../backgroundErrorPolicy';
 
 export interface CloudWorkerDependencies {
   loadVaultPrefs: (userId: string) => Promise<unknown>;
+  loadNotesSyncConsent: (userId: string) => Promise<unknown>;
   isCloudEnabled: () => boolean;
   isVaultEnabled: () => boolean;
   hydrateCalendarCache: () => Promise<void>;
@@ -36,6 +37,20 @@ export async function initializeCloudWorkers({
     throw new BackgroundOperationError(
       'vault',
       `vault prefs load failed: ${message}`,
+      err,
+    );
+  }
+  try {
+    await dependencies.loadNotesSyncConsent(userId);
+  } catch (err) {
+    if (!isCancelled()) {
+      setVaultGateActive(false);
+      onVaultPrefsReady?.();
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    throw new BackgroundOperationError(
+      'vault',
+      `notes sync consent load failed: ${message}`,
       err,
     );
   }

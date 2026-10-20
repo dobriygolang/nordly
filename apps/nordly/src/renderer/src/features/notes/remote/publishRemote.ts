@@ -66,11 +66,13 @@ export async function remoteGetPublishStatus(noteId: string): Promise<PublishSta
 export async function remoteShareNoteToWeb(
   noteId: string,
   plaintextMd: string,
+  title: string,
   options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
   attachments: PublishedAttachmentInput[] = [],
 ): Promise<ShareToWebResult> {
   const body: Record<string, unknown> = {
     plaintextMd,
+    title,
     accessMode: publishAccessModeToWire(shareAccessMode(options)),
     expiryPolicy: publishExpiryPolicyToWire(shareExpiryPolicy(options)),
     attachments: attachments.map((a) => ({

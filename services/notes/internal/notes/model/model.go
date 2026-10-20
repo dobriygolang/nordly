@@ -25,7 +25,8 @@ type NoteSummary struct {
 	SizeBytes int
 }
 
-// WikiLinkRef is client-provided link metadata (plaintext even when body is E2EE).
+// WikiLinkRef is client-provided link metadata for a plaintext note.
+// UpdateNote rejects a non-empty list when the note is encrypted.
 type WikiLinkRef struct {
 	TargetNoteID string
 	LinkText     string
@@ -82,6 +83,7 @@ type PublishOptions struct {
 	AccessMode   PublishAccessMode
 	Password     string
 	ExpiryPolicy PublishExpiryPolicy
+	Title        string
 }
 
 type PublishStatus struct {
@@ -113,6 +115,7 @@ type PublishMeta struct {
 	AccessMode      PublishAccessMode
 	ExpiryPolicy    PublishExpiryPolicy
 	NewPasswordHash *string
+	Title           string
 }
 
 // PublishedNoteRecord includes fields needed for password verification (service layer only).

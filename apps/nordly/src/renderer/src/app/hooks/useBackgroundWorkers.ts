@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
+import { initSpotifyLeader } from '@features/spotify/api/spotifyClient';
 import {
   startGoogleCalendarSyncWorker,
   stopGoogleCalendarSyncWorker,
@@ -16,6 +17,7 @@ import {
 } from '@features/tasks/lib/taskReminderWorker';
 import { startSessionRefreshLoop } from '@shared/api/authSession';
 import { loadVaultPrefs, isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
+import { loadNotesSyncConsent } from '@features/notes/lib/notesSyncConsent';
 import { isCloudEnabled } from '@shared/model/features';
 import { AuthStatus } from '@shared/model/session';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
@@ -32,6 +34,7 @@ import {
 
 const cloudWorkerDependencies: CloudWorkerDependencies = {
   loadVaultPrefs,
+  loadNotesSyncConsent,
   isCloudEnabled,
   isVaultEnabled: isVaultEnabledSync,
   hydrateCalendarCache: hydrateGoogleCalendarCache,
@@ -67,6 +70,7 @@ export function useBackgroundWorkers({
   onError,
 }: UseBackgroundWorkersOptions): void {
   useEffect(() => initPomodoroLeader(), []);
+  useEffect(() => initSpotifyLeader(), []);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;

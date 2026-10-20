@@ -85,6 +85,17 @@
   color: var(--ink-40);
 }
 
+.nordly-home-today__cards {
+  margin: 0 0 0.6rem;
+  padding: 0.35rem 0.65rem;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .nordly-home-today__list {
   display: flex;
   flex-direction: column;

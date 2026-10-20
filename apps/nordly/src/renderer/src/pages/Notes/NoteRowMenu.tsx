@@ -9,10 +9,12 @@ import {
   type PublishToWebOptions,
 } from '@features/notes/model/publishOptions';
 import { Icon } from '@shared/ui/primitives/Icon';
+import { openSettings, SettingsHighlightId, SettingsSectionId } from '@shared/model/settingsNav';
 
 export interface NoteRowMenuProps {
   published: boolean;
   publishingAvailable: boolean;
+  publishBlocked: 'sync_off' | 'encryption_locked' | null;
   vaultReady: boolean;
   publishOptions: PublishToWebOptions;
   serverPasswordProtected: boolean;
@@ -166,6 +168,7 @@ export const NoteRowMenu = memo(
     {
       published,
       publishingAvailable,
+      publishBlocked,
       vaultReady,
       publishOptions,
       serverPasswordProtected,
@@ -194,6 +197,29 @@ export const NoteRowMenu = memo(
         role="menu"
       >
         {publishingAvailable ? (
+          publishBlocked ? (
+            <>
+              <div className="nordly-note-menu__label mono">{t('nordly.notes.menu.publishing')}</div>
+              <p className="nordly-note-menu__label">
+                {t(
+                  publishBlocked === 'encryption_locked'
+                    ? 'nordly.settings.vault.locked_publish'
+                    : 'nordly.notes.sync.publish_blocked',
+                )}
+              </p>
+              <MenuItem
+                icon={<Icon name="settings" size={14} strokeWidth={1.5} />}
+                label={t('nordly.notes.sync.open_settings')}
+                onClick={() =>
+                  openSettings({
+                    section: SettingsSectionId.Sync,
+                    highlight: SettingsHighlightId.NotesSync,
+                  })
+                }
+              />
+              <MenuDivider />
+            </>
+          ) : (
           <>
             <div className="nordly-note-menu__label mono">{t('nordly.notes.menu.publishing')}</div>
             {published ? (
@@ -235,6 +261,7 @@ export const NoteRowMenu = memo(
             )}
             <MenuDivider />
           </>
+          )
         ) : null}
 
         <MenuItem

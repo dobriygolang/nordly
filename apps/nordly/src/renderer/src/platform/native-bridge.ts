@@ -10,6 +10,7 @@ import {
   type EventPayload,
   type NordlyAPI,
   type PomodoroSnapshot,
+  type SpotifySecret,
 } from '@platform/ipc';
 
 import { isTauriRuntime } from '@platform/runtime';
@@ -43,6 +44,11 @@ export function installNativeBridge(): void {
       passLoad: (userId) => invoke<string | null>('vault_pass_load', { userId }),
       passSave: (userId, passphrase) => invoke('vault_pass_save', { userId, passphrase }),
       passClear: (userId) => invoke('vault_pass_clear', { userId }),
+    },
+    spotify: {
+      load: () => invoke<SpotifySecret | null>('spotify_secret_load'),
+      save: (secret) => invoke('spotify_secret_save', { secret }),
+      clear: () => invoke('spotify_secret_clear'),
     },
     on: (channel, listener) => {
       const wire = eventWire(channel);

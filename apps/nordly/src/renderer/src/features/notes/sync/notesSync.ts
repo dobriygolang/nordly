@@ -43,11 +43,8 @@ import {
   attachmentsStoreRemapNoteId,
   attachmentsStoreSoftDelete,
 } from '@features/notes/repository/attachmentsStore';
+import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { revokeAttachmentBlobUrl } from '@features/notes/api/attachmentsClient';
-import {
-  NotesCloudOperation,
-  requireNotesCloudCapability,
-} from '@features/notes/lib/notesCloudPolicy';
 import { vaultGetConfig } from '@features/notes/vault/ipc';
 
 const NOTE_PULL_CONCURRENCY = 6;
@@ -127,7 +124,7 @@ async function resolveNoteServerId(
 
   if (e2ee) {
     const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-    const created = await remoteCreateNote(encTitle, encBody, wikiLinks);
+    const created = await remoteCreateNote(encTitle, encBody, []);
     // Persist the mapping before follow-up calls so a retry updates this note
     // instead of issuing another create after a partial success.
     await setServerId(SyncDomain.Notes, entry.entityId, created.id, userId);
@@ -151,18 +148,17 @@ function requireVaultPrefsReady(): void {
   }
 }
 
-async function requireNotesSyncCapability(
-  operation:
-    | typeof NotesCloudOperation.SyncPush
-    | typeof NotesCloudOperation.SyncPull,
-): Promise<void> {
+async function filesystemVaultBound(): Promise<boolean> {
   const config = await vaultGetConfig();
-  requireNotesCloudCapability(operation, Boolean(config?.root.trim()));
+  return Boolean(config?.root.trim());
 }
 
 /** Create remote note + id_map when a local note has never been synced (e.g. publish). */
 export async function ensureNoteServerId(localId: string): Promise<string | null> {
-  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
+  if (await filesystemVaultBound()) return null;
+  if (!isNotesSyncEnabled()) {
+    throw new SyncDeferredError('Notes sync is off');
+  }
   return withNotesRemoteMutation(async () => {
     requireVaultPrefsReady();
     const userId = requireUserId();
@@ -210,10 +206,9 @@ async function pushEncryptedNote(
   serverId: string,
   title: string,
   bodyMd: string,
-  wikiLinks: WikiLinkWire[],
 ): Promise<void> {
   const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
-  await remoteUpdateNote(serverId, encTitle, encBody, wikiLinks);
+  await remoteUpdateNote(serverId, encTitle, encBody, []);
   await remoteEncryptNoteBody(serverId, encBody);
 }
 
@@ -286,7 +281,7 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
     const latestLocal = await notesStoreGetRow(entry.entityId, userId);
     if (!latestLocal?.deleted) {
       if (e2ee) {
-        await pushEncryptedNote(serverId, title, bodyMd, wikiLinks);
+        await pushEncryptedNote(serverId, title, bodyMd);
         const wire = await remoteGetNote(serverId);
         const plain = await decryptNoteFromRemote(wire);
         await notesStoreMergeRemote(noteToStored(plain, userId, true));
@@ -311,7 +306,7 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
   if (entry.op === OutboxOp.Update) {
     try {
       if (e2ee) {
-        await pushEncryptedNote(serverId, title, bodyMd, wikiLinks);
+        await pushEncryptedNote(serverId, title, bodyMd);
         const wire = await remoteGetNote(serverId);
         const plain = await decryptNoteFromRemote(wire);
         await notesStoreMergeRemote(noteToStored(plain, userId, true));
@@ -472,12 +467,19 @@ async function pullAttachmentsForNote(localNoteId: string, serverNoteId: string,
 }
 
 export async function pushNotesOutbox(entry: OutboxEntry): Promise<void> {
-  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
+  if (await filesystemVaultBound()) {
+    await removeOutbox(entry.id);
+    return;
+  }
+  if (!isNotesSyncEnabled()) {
+    throw new SyncDeferredError('Notes sync is off');
+  }
   return withNotesRemoteMutation(() => pushNotesOutboxLocked(entry));
 }
 
 export async function pullNotes(): Promise<void> {
-  await requireNotesSyncCapability(NotesCloudOperation.SyncPull);
+  if (await filesystemVaultBound()) return;
+  if (!isNotesSyncEnabled()) return;
   requireVaultPrefsReady();
   const userId = requireUserId();
   const vaultEnabled = isVaultEnabledSync();
@@ -522,7 +524,8 @@ export async function pullNotes(): Promise<void> {
 
 /** Re-push all local notes as encrypted after enabling vault. */
 export async function pushAllNotesEncrypted(): Promise<void> {
-  await requireNotesSyncCapability(NotesCloudOperation.SyncPush);
+  if (await filesystemVaultBound()) return;
+  if (!isNotesSyncEnabled()) return;
   if (!isVaultEnabledSync() || !isVaultUnlocked()) return;
   const { notesStoreAll, decryptAtRest } = await import('@features/notes/repository/notesStore');
   const userId = requireUserId();
@@ -535,11 +538,6 @@ export async function pushAllNotesEncrypted(): Promise<void> {
       row.id,
       userId,
     );
-    await pushEncryptedNote(
-      serverId,
-      plain.title,
-      plain.bodyMd,
-      Array.isArray(row.wikiLinks) ? row.wikiLinks : [],
-    );
+    await pushEncryptedNote(serverId, plain.title, plain.bodyMd);
   }
 }

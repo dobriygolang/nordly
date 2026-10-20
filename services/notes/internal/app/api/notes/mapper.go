@@ -2,6 +2,7 @@ package notesapi
 
 import (
 	"encoding/base64"
+	"errors"
 
 	notesmodel "github.com/dobriygolang/project-nordly/services/notes/internal/notes/model"
 	notesservice "github.com/dobriygolang/project-nordly/services/notes/internal/notes/service"
@@ -148,6 +149,8 @@ func mapServiceError(err error) error {
 		return invalidArgument(err.Error())
 	case notesservice.IsAccessDenied(err):
 		return permissionDenied()
+	case errors.Is(err, notesmodel.ErrTooManyNotes):
+		return status.Error(codes.ResourceExhausted, "too many notes")
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

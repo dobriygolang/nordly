@@ -66,6 +66,7 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*notesmodel.ShareToW
 	meta := notesmodel.PublishMeta{
 		AccessMode:   cmd.Options.AccessMode,
 		ExpiryPolicy: cmd.Options.ExpiryPolicy,
+		Title:        cmd.Options.Title,
 	}
 	if cmd.Options.AccessMode == notesmodel.PublishAccessModePassword {
 		plaintext, err = support.RewritePrivateAssetRefs(plaintext, publishedAttachments)

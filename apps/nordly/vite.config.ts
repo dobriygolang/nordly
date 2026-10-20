@@ -12,6 +12,10 @@ const LAYERS = {
 };
 const SHARED_ALIASES = {
   '@nordly-i18n': resolve(__dirname, '../shared/i18n'),
+  '@nordly-markdown': resolve(__dirname, '../shared/markdown'),
+  '@nordly-collab': resolve(__dirname, '../shared/collab'),
+  yjs: resolve(__dirname, 'node_modules/yjs'),
+  'y-protocols/awareness': resolve(__dirname, 'node_modules/y-protocols/awareness.js'),
 };
 
 function manualChunk(id: string): string | undefined {
@@ -50,6 +54,7 @@ export default defineConfig(({ mode }) => {
         '/v1/notes': { target: 'http://localhost:8090', changeOrigin: true },
         '/v1/focus': { target: 'http://localhost:8091', changeOrigin: true },
         '/v1/rooms': { target: 'http://localhost:8087', changeOrigin: true },
+        '/ws': { target: 'http://localhost:8087', changeOrigin: true, ws: true },
         '/v1/devices': { target: 'http://localhost:8080', changeOrigin: true },
       }
     : {
@@ -60,6 +65,7 @@ export default defineConfig(({ mode }) => {
         '/v1/notes': { target: prodApi, changeOrigin: true },
         '/v1/focus': { target: prodApi, changeOrigin: true },
         '/v1/rooms': { target: prodApi, changeOrigin: true },
+        '/ws': { target: prodApi, changeOrigin: true, ws: true },
         '/v1/devices': { target: prodApi, changeOrigin: true },
       };
 
@@ -96,6 +102,7 @@ export default defineConfig(({ mode }) => {
         ...LAYERS,
         ...SHARED_ALIASES,
       },
+      dedupe: ['yjs'],
     },
   };
 });

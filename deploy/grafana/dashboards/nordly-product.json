@@ -4,7 +4,7 @@
   "tags": ["nordly", "product", "business"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "panels": [
     {
@@ -146,6 +146,77 @@
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (result) (rate(focus_sessions_total[5m]))",
           "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Notes sync",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Note pushes (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(notes_sync_ops_total{op=\"push\",result=\"ok\"}[24h]))",
+          "legendFormat": "pushes"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Note pulls (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(notes_sync_ops_total{op=\"pull\",result=\"ok\"}[24h]))",
+          "legendFormat": "pulls"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Note deletes (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(notes_sync_ops_total{op=\"delete\",result=\"ok\"}[24h]))",
+          "legendFormat": "deletes"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Note sync errors (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(notes_sync_ops_total{result!=\"ok\"}[24h]))",
+          "legendFormat": "errors"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Notes sync",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (op, result) (rate(notes_sync_ops_total[5m]))",
+          "legendFormat": "{{op}} {{result}}"
         }
       ]
     }

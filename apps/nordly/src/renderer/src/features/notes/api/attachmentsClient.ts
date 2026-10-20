@@ -13,10 +13,10 @@ import {
   mimeFromFilename,
   nordlyAssetHref,
 } from '@features/notes/lib/noteAttachments';
+import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { enqueueOutbox, enqueueOutboxOnce, removeOutboxForEntity } from '@shared/sync/outbox';
 import { OutboxOp, SyncDomain } from '@shared/sync/types';
 import { scheduleSync } from '@shared/sync/SyncEngine';
-import { isSyncQueueEnabled } from '@shared/sync/syncConfig';
 import {
   createVaultPastedImageMarkdown,
   isNotesVaultBound,
@@ -82,7 +82,7 @@ export async function createNoteAttachment(
   });
   revokeAttachmentBlobUrl(attachmentId);
 
-  if (isSyncQueueEnabled()) {
+  if (isNotesSyncEnabled()) {
     await removeOutboxForEntity(SyncDomain.Notes, attachmentId, OutboxOp.AttachmentDelete);
     await enqueueOutbox(SyncDomain.Notes, OutboxOp.AttachmentPut, attachmentId, { noteId });
     scheduleSync();
@@ -127,7 +127,7 @@ export async function deleteNoteAttachment(id: string): Promise<void> {
   const row = await attachmentsStoreGetRow(id);
   const noteId = row?.noteId;
   await attachmentsStoreSoftDelete(id);
-  if (isSyncQueueEnabled() && noteId) {
+  if (isNotesSyncEnabled() && noteId) {
     await removeOutboxForEntity(SyncDomain.Notes, id, OutboxOp.AttachmentPut);
     await enqueueOutboxOnce(SyncDomain.Notes, OutboxOp.AttachmentDelete, id, { noteId });
     scheduleSync();
@@ -148,12 +148,12 @@ export async function deleteAttachmentsForNote(
   const ids = await attachmentsStoreDeleteForNote(noteId);
   for (const id of ids) {
     revokeAttachmentBlobUrl(id);
-    if (isSyncQueueEnabled()) {
+    if (isNotesSyncEnabled()) {
       await removeOutboxForEntity(SyncDomain.Notes, id);
       if (syncRemote) {
         await enqueueOutboxOnce(SyncDomain.Notes, OutboxOp.AttachmentDelete, id, { noteId });
       }
     }
   }
-  if (ids.length > 0 && syncRemote && isSyncQueueEnabled()) scheduleSync();
+  if (ids.length > 0 && syncRemote && isNotesSyncEnabled()) scheduleSync();
 }

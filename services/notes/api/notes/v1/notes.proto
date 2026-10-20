@@ -36,6 +36,19 @@ service NotesService {
     };
   }
 
+  rpc PutVaultRecovery(PutVaultRecoveryRequest) returns (PutVaultRecoveryResponse) {
+    option (google.api.http) = {
+      put: "/v1/notes/vault/recovery"
+      body: "*"
+    };
+  }
+
+  rpc GetVaultRecovery(GetVaultRecoveryRequest) returns (GetVaultRecoveryResponse) {
+    option (google.api.http) = {
+      get: "/v1/notes/vault/recovery"
+    };
+  }
+
   rpc EncryptNote(EncryptNoteRequest) returns (EncryptNoteResponse) {
     option (google.api.http) = {
       post: "/v1/notes/vault/notes/{note_id}/encrypt"
@@ -189,6 +202,20 @@ message GetVaultSaltResponse {
   string salt_b64 = 1;
 }
 
+message PutVaultRecoveryRequest {
+  string wrap_b64 = 1;
+  string salt_b64 = 2;
+}
+
+message PutVaultRecoveryResponse {}
+
+message GetVaultRecoveryRequest {}
+
+message GetVaultRecoveryResponse {
+  string wrap_b64 = 1;
+  string salt_b64 = 2;
+}
+
 message EncryptNoteRequest {
   string note_id = 1;
   string ciphertext_b64 = 2;
@@ -328,6 +355,7 @@ message ShareNoteToWebRequest {
   repeated PublishedAttachmentInput attachments = 6;
   PublishAccessMode access_mode = 7;
   PublishExpiryPolicy expiry_policy = 8;
+  string title = 9;
 }
 
 message PublishedAttachmentInput {

@@ -3,7 +3,12 @@
  * Wraps vault passphrase for Settings recovery flow.
  */
 import { dbGet, dbPut, requireUserId } from '@shared/db/nordlyDb';
+import { API_BASE_URL } from '@shared/api/config';
+import { syncAuthHeaders } from '@shared/api/authToken';
+import { apiFetch } from '@shared/api/http';
+import { requireJsonString } from '@shared/api/json';
 import { base64ToBytes, bytesToBase64 } from '@shared/lib/base64';
+import { isCloudApiAvailable } from '@shared/sync/syncConfig';
 
 const PBKDF2_ITERATIONS = 100_000;
 const IV_BYTES = 12;
@@ -73,9 +78,8 @@ export function validateRecoveryPhrase(phrase: string): boolean {
   return words.every((word) => RECOVERY_WORD_SET.has(word));
 }
 
-async function deriveRecoveryKey(phrase: string): Promise<CryptoKey> {
+async function deriveRecoveryKey(phrase: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
-  const salt = enc.encode('nordly-recovery-v1');
   const baseKey = await crypto.subtle.importKey(
     'raw',
     enc.encode(normalizeRecoveryPhrase(phrase)),
@@ -84,7 +88,7 @@ async function deriveRecoveryKey(phrase: string): Promise<CryptoKey> {
     ['deriveKey'],
   );
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -94,7 +98,8 @@ async function deriveRecoveryKey(phrase: string): Promise<CryptoKey> {
 
 export async function saveRecoveryWrap(passphrase: string, recoveryPhrase: string): Promise<void> {
   const userId = requireUserId();
-  const key = await deriveRecoveryKey(recoveryPhrase);
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const key = await deriveRecoveryKey(recoveryPhrase, salt);
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const enc = new TextEncoder();
   const ct = await crypto.subtle.encrypt(
@@ -106,17 +111,61 @@ export async function saveRecoveryWrap(passphrase: string, recoveryPhrase: strin
   const out = new Uint8Array(IV_BYTES + ctBytes.length);
   out.set(iv, 0);
   out.set(ctBytes, IV_BYTES);
-  await dbPut('meta', {
-    key: wrapKey(userId),
-    userId,
+  const wrap: RecoveryWrap = {
     wrappedB64: bytesToBase64(out),
+    saltB64: bytesToBase64(salt),
+  };
+  if (isCloudApiAvailable()) await uploadRecoveryWrap(wrap);
+  await cacheRecoveryWrap(userId, wrap);
+}
+
+interface RecoveryWrap {
+  wrappedB64: string;
+  saltB64: string;
+}
+
+function isRecoveryWrap(row: { wrappedB64?: string; saltB64?: string } | null): row is RecoveryWrap {
+  return typeof row?.wrappedB64 === 'string'
+    && row.wrappedB64.length > 0
+    && typeof row.saltB64 === 'string'
+    && row.saltB64.length > 0;
+}
+
+async function cacheRecoveryWrap(userId: string, wrap: RecoveryWrap): Promise<void> {
+  await dbPut('meta', { key: wrapKey(userId), userId, ...wrap });
+}
+
+async function uploadRecoveryWrap(wrap: RecoveryWrap): Promise<void> {
+  const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/recovery`, {
+    method: 'PUT',
+    headers: syncAuthHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ wrapB64: wrap.wrappedB64, saltB64: wrap.saltB64 }),
   });
+  if (!resp.ok) throw new Error(`vault recovery: ${resp.status}`);
+}
+
+async function downloadRecoveryWrap(): Promise<RecoveryWrap | null> {
+  if (!isCloudApiAvailable()) return null;
+  const resp = await apiFetch(`${API_BASE_URL}/v1/notes/vault/recovery`, {
+    headers: syncAuthHeaders(),
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`vault recovery: ${resp.status}`);
+  const body = (await resp.json()) as Record<string, unknown>;
+  return {
+    wrappedB64: requireJsonString(body, 'wrapB64'),
+    saltB64: requireJsonString(body, 'saltB64'),
+  };
 }
 
 export async function hasRecoveryWrap(userId?: string): Promise<boolean> {
   const uid = userId ?? requireUserId();
-  const row = await dbGet<{ wrappedB64?: string }>('meta', wrapKey(uid));
-  return !!row?.wrappedB64;
+  const row = await dbGet<RecoveryWrap>('meta', wrapKey(uid));
+  if (isRecoveryWrap(row)) return true;
+  const remote = await downloadRecoveryWrap();
+  if (!remote) return false;
+  await cacheRecoveryWrap(uid, remote);
+  return true;
 }
 
 export async function recoverPassphraseFromPhrase(recoveryPhrase: string): Promise<string> {
@@ -124,13 +173,19 @@ export async function recoverPassphraseFromPhrase(recoveryPhrase: string): Promi
     throw new Error('The recovery phrase needs exactly 24 words');
   }
   const userId = requireUserId();
-  const row = await dbGet<{ wrappedB64?: string }>('meta', wrapKey(userId));
-  if (!row?.wrappedB64) throw new Error('There is no recovery phrase saved on this device');
+  let row = await dbGet<RecoveryWrap>('meta', wrapKey(userId));
+  if (!isRecoveryWrap(row)) {
+    const remote = await downloadRecoveryWrap();
+    if (!remote) throw new Error('There is no recovery phrase saved for this account');
+    await cacheRecoveryWrap(userId, remote);
+    row = remote;
+  }
+  const salt = base64ToBytes(row.saltB64);
   const buf = base64ToBytes(row.wrappedB64);
   if (buf.length <= IV_BYTES) throw new Error('The saved recovery data on this device is damaged');
   const iv = buf.slice(0, IV_BYTES);
   const ct = buf.slice(IV_BYTES);
-  const key = await deriveRecoveryKey(recoveryPhrase);
+  const key = await deriveRecoveryKey(recoveryPhrase, salt);
   let pt: ArrayBuffer;
   try {
     pt = await crypto.subtle.decrypt(

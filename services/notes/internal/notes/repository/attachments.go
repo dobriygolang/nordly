@@ -158,14 +158,13 @@ func (r *Repository) GetPublishedNoteAsset(
 	err := r.pg.QueryRow(ctx, `
 		SELECT assets.mime, assets.data
 		FROM published_note_assets AS assets
-		JOIN notes ON notes.publish_slug = assets.publish_slug
+		JOIN published_notes ON published_notes.slug = assets.publish_slug
+		JOIN notes ON notes.id = published_notes.note_id
 		WHERE assets.publish_slug = $1
 		  AND assets.asset_id = $2
-		  AND notes.published = true
-		  AND notes.encrypted = false
 		  AND notes.archived_at IS NULL
-		  AND notes.publish_password_hash IS NULL
-		  AND (notes.publish_expires_at IS NULL OR notes.publish_expires_at > now())
+		  AND published_notes.password_hash IS NULL
+		  AND (published_notes.expires_at IS NULL OR published_notes.expires_at > now())
 	`, slug, assetID).Scan(&out.MIME, &out.Data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, notesmodel.ErrNotFound

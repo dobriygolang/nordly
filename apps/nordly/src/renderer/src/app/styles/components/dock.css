@@ -109,6 +109,91 @@
   transform: translateY(4px);
 }
 
+.nordly-dock-volume {
+  display: flex;
+  align-items: center;
+}
+
+.nordly-dock-volume__btn {
+  color: var(--ink-60);
+}
+
+.nordly-dock-volume:hover .nordly-dock-volume__btn,
+.nordly-dock-volume:focus-within .nordly-dock-volume__btn,
+.nordly-dock-volume.is-pinned .nordly-dock-volume__btn {
+  background: rgb(var(--ink-rgb) / 0.1);
+  color: var(--ink);
+}
+
+.nordly-dock-volume__slider {
+  display: flex;
+  align-items: center;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    width var(--motion-dur-medium) var(--motion-ease-standard),
+    opacity var(--motion-dur-medium) var(--motion-ease-standard);
+}
+
+.nordly-dock-volume:hover .nordly-dock-volume__slider,
+.nordly-dock-volume:focus-within .nordly-dock-volume__slider,
+.nordly-dock-volume.is-pinned .nordly-dock-volume__slider {
+  width: 84px;
+  margin-left: 4px;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nordly-dock-vol {
+  width: 72px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nordly-dock-vol:focus {
+  outline: none;
+}
+
+.nordly-dock-vol::-webkit-slider-runnable-track {
+  height: 2px;
+  background: rgb(var(--ink-rgb) / 0.18);
+  border-radius: 999px;
+}
+
+.nordly-dock-vol::-moz-range-track {
+  height: 2px;
+  background: rgb(var(--ink-rgb) / 0.18);
+  border: none;
+  border-radius: 999px;
+}
+
+.nordly-dock-vol::-webkit-slider-thumb {
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  appearance: none;
+  background: var(--ink);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.nordly-dock-vol::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--ink);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
 .nordly-dock-timer:hover .nordly-dock-timer-layer--reset {
   pointer-events: auto;
   opacity: 1;
@@ -128,5 +213,9 @@
   .nordly-dock-btn[data-variant='action']:hover,
   .nordly-dock-btn[data-variant='action']:active {
     transform: none;
+  }
+
+  .nordly-dock-volume__slider {
+    transition: none;
   }
 }

@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react';
 
+import {
+  acceptSpotifyRedirect,
+  noteSpotifyRedirectError,
+} from '@features/spotify/api/spotifyClient';
 import { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
@@ -34,11 +38,25 @@ export type DeepLinkAction =
       googleStatus: OAuthStatus | null;
       zoomStatus: OAuthStatus | null;
       detail: string | null;
+      spotifyCode: string | null;
+      spotifyState: string | null;
+      spotifyError: string | null;
     };
 
 const OAUTH_DETAIL_RE = /^[a-zA-Z0-9._-]{1,200}$/;
 const ENTITY_ID_RE = /^[a-zA-Z0-9._:-]{1,200}$/;
 const DEEP_LINK_DEDUPE_MS = 10_000;
+
+function sanitizeOAuthValue(raw: string | null): string | null {
+  if (!raw) return null;
+  const value = raw.trim();
+  if (!value || value.length > 1024) return null;
+  const hasControlCharacter = [...value].some((character) => {
+    const codePoint = character.codePointAt(0)!;
+    return codePoint < 33 || codePoint === 127;
+  });
+  return hasControlCharacter ? null : value;
+}
 
 function sanitizeOAuthDetail(raw: string | null): string | null {
   if (!raw) return null;
@@ -83,11 +101,23 @@ export function parseDeepLink(url: string): DeepLinkAction | null {
     return id && ENTITY_ID_RE.test(id) ? { kind: DeepLinkKind.Note, id } : null;
   }
   if (host === DeepLinkHost.Settings) {
+    const rawCode = parsed.searchParams.get('code');
+    const rawState = parsed.searchParams.get('state');
+    const rawError = parsed.searchParams.get('error');
+    const spotifyCode = sanitizeOAuthValue(rawCode);
+    const spotifyState = sanitizeOAuthValue(rawState);
+    let spotifyError = sanitizeOAuthValue(rawError);
+    if (rawCode && (!spotifyCode || !spotifyState)) {
+      spotifyError = 'invalid_callback';
+    }
     return {
       kind: DeepLinkKind.Settings,
       googleStatus: sanitizeOAuthStatus(parsed.searchParams.get('google_calendar')),
       zoomStatus: sanitizeOAuthStatus(parsed.searchParams.get('zoom')),
       detail: sanitizeOAuthDetail(parsed.searchParams.get('detail')),
+      spotifyCode: spotifyCode && spotifyState ? spotifyCode : null,
+      spotifyState: spotifyCode && spotifyState ? spotifyState : null,
+      spotifyError,
     };
   }
   return null;
@@ -147,6 +177,16 @@ export async function executeDeepLink(
   if (action.kind === DeepLinkKind.Note) {
     await runNavigation(action, () => handlers.openNote(action.id), handlers.onError);
     return;
+  }
+
+  if (action.spotifyCode && action.spotifyState) {
+    try {
+      await acceptSpotifyRedirect(action.spotifyCode, action.spotifyState);
+    } catch (error) {
+      handlers.onError(error);
+    }
+  } else if (action.spotifyError) {
+    noteSpotifyRedirectError(action.spotifyError);
   }
 
   if (

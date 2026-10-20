@@ -29,6 +29,8 @@ import { collectSubtreeIds } from '@features/notes/api/notesClient';
 import { FolderDragOverlay } from './FolderDragOverlay';
 import { NoteDragOverlay } from './NoteDragOverlay';
 import { NotesFolderTree } from './NotesFolderTree';
+import { NotesSyncHintCard } from './NotesSyncHintCard';
+import { NotesSyncStatusLine } from './NotesSyncStatusLine';
 import {
   parseFolderDraggableId,
   resolveDropFolderId,
@@ -376,6 +378,8 @@ export const Sidebar = memo(function Sidebar({
           document.body,
         )}
 
+      <NotesSyncHintCard />
+
       <DndContext
         sensors={sensors}
         collisionDetection={notesCollisionDetection}
@@ -517,6 +521,7 @@ export const Sidebar = memo(function Sidebar({
           </div>,
           document.body,
         )}
+      <NotesSyncStatusLine />
     </aside>
   );
 });

@@ -23,17 +23,11 @@ const LABELS: Record<NotesCodeLangId, string> = {
 };
 
 export function normalizeNotesCodeLang(info: string): NotesCodeLangId | null {
-  const raw = info.trim().toLowerCase();
-  if (!raw) return null;
+  const word = info.trim().toLowerCase().split(/\s+/)[0] ?? '';
+  if (!word) return null;
   for (const lang of NOTES_CODE_LANGS) {
-    if (raw === lang.id || lang.aliases.some((a) => raw === a || raw.startsWith(`${a} `))) {
-      return lang.id;
-    }
+    if (word === lang.id || lang.aliases.some((alias) => alias === word)) return lang.id;
   }
-  if (raw.startsWith('go')) return 'go';
-  if (raw.includes('python')) return 'python';
-  if (raw.includes('typescript')) return 'typescript';
-  if (raw.includes('javascript')) return 'javascript';
   return null;
 }
 
@@ -75,8 +69,8 @@ const notesCodeHighlightStyle = HighlightStyle.define([
   { tag: [t.number, t.atom, t.literal], color: 'rgb(var(--editor-syntax-number))' },
   { tag: t.bool, color: 'rgb(var(--editor-syntax-number))' },
   { tag: t.null, color: 'rgb(var(--editor-syntax-type))' },
-  { tag: t.keyword, color: 'rgb(var(--editor-syntax-keyword))', fontWeight: '600' },
-  { tag: [t.controlKeyword, t.moduleKeyword], color: 'rgb(var(--editor-syntax-keyword))', fontWeight: '600' },
+  { tag: t.keyword, color: 'rgb(var(--editor-syntax-keyword))' },
+  { tag: [t.controlKeyword, t.moduleKeyword], color: 'rgb(var(--editor-syntax-keyword))' },
   { tag: [t.operator, t.punctuation, t.bracket], color: 'rgb(var(--editor-syntax-operator))' },
   { tag: [t.typeName, t.className, t.namespace, t.angleBracket], color: 'rgb(var(--editor-syntax-type))' },
   { tag: t.macroName, color: 'rgb(var(--editor-syntax-type))' },

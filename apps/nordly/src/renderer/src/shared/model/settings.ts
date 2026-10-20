@@ -38,6 +38,11 @@ export const WeekStartsOn = {
 } as const;
 export type WeekStartsOn = (typeof WeekStartsOn)[keyof typeof WeekStartsOn];
 
+export interface FlashcardsSettings {
+  enabled: boolean;
+  dailyNewLimit: number;
+}
+
 export interface NordlySettings {
   pomodoroMinutes: number;
   timerMode: TimerMode;
@@ -63,6 +68,7 @@ export interface NordlySettings {
   planPreviewExhausted: boolean;
   /** Calendar week column order: Mon–Sun or Sun–Sat. */
   weekStartsOn: WeekStartsOn;
+  flashcards: FlashcardsSettings;
 }
 
 export const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -96,11 +102,22 @@ export const DEFAULTS: NordlySettings = {
   appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
   weekStartsOn: WeekStartsOn.Monday,
+  flashcards: { enabled: false, dailyNewLimit: 20 },
 };
 
 function parseWeekStartsOn(v: unknown): WeekStartsOn {
   if (v === WeekStartsOn.Monday || v === WeekStartsOn.Sunday) return v;
   throw new Error(`Invalid weekStartsOn: ${String(v)}`);
+}
+
+function parseFlashcards(value: unknown): FlashcardsSettings {
+  if (!value || typeof value !== 'object') throw new Error('Invalid setting: flashcards');
+  const row = value as { enabled?: unknown; dailyNewLimit?: unknown };
+  if (typeof row.enabled !== 'boolean') throw new Error('Invalid setting: flashcards.enabled');
+  return {
+    enabled: row.enabled,
+    dailyNewLimit: clampInt(row.dailyNewLimit, 1, 100, 'flashcards.dailyNewLimit'),
+  };
 }
 
 function parseTimerMode(v: unknown): TimerMode {
@@ -165,6 +182,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     parsed.appleCalendarIds === undefined ||
     parsed.appleCalendarPollMinutes === undefined ||
     parsed.weekStartsOn === undefined ||
+    parsed.flashcards === undefined ||
     (parsed as { quickCaptureEnabled?: unknown }).quickCaptureEnabled !== undefined ||
     (parsed as { quickCaptureShortcut?: unknown }).quickCaptureShortcut !== undefined;
 
@@ -212,6 +230,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
       parsed.weekStartsOn === undefined
         ? DEFAULTS.weekStartsOn
         : parseWeekStartsOn(parsed.weekStartsOn),
+    flashcards: parsed.flashcards === undefined ? DEFAULTS.flashcards : parseFlashcards(parsed.flashcards),
   };
 
   return { settings, migrated };

@@ -1,17 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  getNotesCloudCapability: vi.fn(),
+const registerSyncHandlers = vi.hoisted(() => vi.fn());
+
+vi.mock('@features/notes/sync/notesSync', () => ({
   pullNotes: vi.fn(),
   pushNotesOutbox: vi.fn(),
 }));
-
-vi.mock('@features/notes/api/notesCapabilities', () => ({
-  getNotesCloudCapability: mocks.getNotesCloudCapability,
+vi.mock('@features/notes/sync/vaultFileSync', () => ({
+  pullVaultFiles: vi.fn(),
+  pushVaultOutbox: vi.fn(),
 }));
-vi.mock('@features/notes/sync/notesSync', () => ({
-  pullNotes: mocks.pullNotes,
-  pushNotesOutbox: mocks.pushNotesOutbox,
+vi.mock('@features/notes/lib/notesSyncConsent', () => ({
+  clearNotesSyncConsentCache: vi.fn(),
 }));
 vi.mock('@features/focus/sync/focusSync', () => ({
   pullFocus: vi.fn(),
@@ -23,54 +23,28 @@ vi.mock('@features/tasks/sync/tasksSync', () => ({
   pushTasksOutbox: vi.fn(),
   reconcileTasksOutbox: vi.fn(),
 }));
+vi.mock('@features/calendar/lib/googleCalendarConnectionStore', () => ({
+  resetGoogleCalendarConnection: vi.fn(),
+}));
+vi.mock('@shared/model/userScopeLifecycle', () => ({
+  registerUserScopeResetHandler: vi.fn(),
+}));
+vi.mock('@shared/sync/registry', () => ({
+  registerSyncHandlers,
+}));
 
-import {
-  pullNotesWhenAvailable,
-  pushNotesWhenAvailable,
-} from '@app/syncRegistry';
-import { OutboxOp, SyncDomain, type OutboxEntry } from '@shared/sync/types';
+import { installSyncRegistry } from '@app/syncRegistry';
 
-const ENTRY: OutboxEntry = {
-  id: 'outbox-1',
-  userId: 'user-1',
-  domain: SyncDomain.Notes,
-  op: OutboxOp.Update,
-  entityId: 'note-1',
-  payload: { title: 'Note', bodyMd: '', wikiLinks: [] },
-  createdAt: 1,
-  attempts: 0,
-};
-
-describe('notes sync registry capability gate', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('defers pushes and skips pulls while the filesystem vault is active', async () => {
-    mocks.getNotesCloudCapability.mockResolvedValue({
-      available: false,
-      reason: 'filesystem_vault_cloud_unavailable',
-      message: 'Filesystem vault cloud operations are disabled',
-    });
-
-    await expect(pushNotesWhenAvailable(ENTRY)).rejects.toMatchObject({
-      name: 'SyncDeferredError',
-    });
-    await expect(pullNotesWhenAvailable()).resolves.toBeUndefined();
-    expect(mocks.pushNotesOutbox).not.toHaveBeenCalled();
-    expect(mocks.pullNotes).not.toHaveBeenCalled();
-  });
-
-  it('delegates both operations for IndexedDB notes', async () => {
-    mocks.getNotesCloudCapability.mockResolvedValue({
-      available: true,
-      reason: null,
-      message: null,
-    });
-
-    await pushNotesWhenAvailable(ENTRY);
-    await pullNotesWhenAvailable();
-    expect(mocks.pushNotesOutbox).toHaveBeenCalledWith(ENTRY);
-    expect(mocks.pullNotes).toHaveBeenCalledOnce();
+describe('installSyncRegistry', () => {
+  it('wires notes and vault handlers directly', () => {
+    installSyncRegistry();
+    expect(registerSyncHandlers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pushNotesOutbox: expect.any(Function),
+        pullNotes: expect.any(Function),
+        pushVaultOutbox: expect.any(Function),
+        pullVault: expect.any(Function),
+      }),
+    );
   });
 });

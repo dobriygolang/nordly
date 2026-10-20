@@ -40,6 +40,8 @@ async function notifyWeb(title: string, body?: string): Promise<void> {
 export interface NotifyOptions {
   /** Play a built-in chime. */
   sound?: boolean | 'session' | 'calendar';
+  /** Pomodoro break: offer a short card review when the banner opens. */
+  reviewCards?: boolean;
 }
 
 /**
@@ -56,7 +58,11 @@ export async function notify(title: string, body?: string, options?: NotifyOptio
   }
 
   if (isTauriRuntime()) {
-    await invoke('show_notification', { title, body: body ?? '' });
+    await invoke('show_notification', {
+      title,
+      body: body ?? '',
+      reviewCards: options?.reviewCards === true,
+    });
     return;
   }
 

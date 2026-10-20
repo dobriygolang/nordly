@@ -10,6 +10,7 @@ import {
 import type { ThemeId } from '@shared/model/theme';
 import { AppearanceSettingsBlock } from './general/AppearanceSettingsBlock';
 import { RolloverSettingsBlock } from './general/RolloverSettingsBlock';
+import { FlashcardsSettingsBlock } from './general/FlashcardsSettingsBlock';
 import { TimerSettingsBlock } from './general/TimerSettingsBlock';
 
 interface GeneralSectionProps {
@@ -51,6 +52,7 @@ export function GeneralSection({
         onTimerModeChange={onTimerModeChange}
       />
       <RolloverSettingsBlock settings={settings} update={update} />
+      <FlashcardsSettingsBlock settings={settings} update={update} />
     </>
   );
 }

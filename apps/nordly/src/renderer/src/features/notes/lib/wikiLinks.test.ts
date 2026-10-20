@@ -7,8 +7,13 @@ import {
 } from './wikiLinks';
 
 describe('extractWikiLinks', () => {
-  it('ignores whiteboard links', () => {
-    expect(extractWikiLinks('See [[board:Sprint]] and [[Idea]]')).toEqual([{ linkText: 'Idea' }]);
+  it('ignores whiteboard links, web links, and embeds', () => {
+    expect(extractWikiLinks('See [[board:Sprint]] and [[link:https://go.dev]] and [[Idea]]')).toEqual([
+      { linkText: 'Idea' },
+    ]);
+    expect(extractWikiLinks('![[shot.png]] and [[Встреча: Q3]]')).toEqual([
+      { linkText: 'Встреча: Q3' },
+    ]);
   });
 
   it('uses target title from alias syntax', () => {

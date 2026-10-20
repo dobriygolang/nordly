@@ -11,6 +11,8 @@ import (
 var protectedMethods = map[string]struct{}{
 	notesv1.NotesService_InitVault_FullMethodName:            {},
 	notesv1.NotesService_GetVaultSalt_FullMethodName:         {},
+	notesv1.NotesService_PutVaultRecovery_FullMethodName:     {},
+	notesv1.NotesService_GetVaultRecovery_FullMethodName:     {},
 	notesv1.NotesService_EncryptNote_FullMethodName:          {},
 	notesv1.NotesService_ListNotes_FullMethodName:            {},
 	notesv1.NotesService_GetNote_FullMethodName:              {},

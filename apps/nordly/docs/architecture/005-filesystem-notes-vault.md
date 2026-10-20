@@ -14,7 +14,7 @@ IndexedDB note rows + `nordly-asset:` blobs diverge from how users expect a loca
 2. **Identity:** Note id = relative path from vault root (e.g. `projects/foo.md`). Title = filename stem. Move/rename remaps UI selection to the new path.
 3. **Migration:** On first bind, optionally export IndexedDB notes + attachments into the folder once (`migratedFromIdb`), rewriting `nordly-asset:` links to relative paths. After bind, UI does not use IDB as notes SoT. Skipping export leaves `migratedFromIdb=false`.
 4. **Local disk plaintext:** Like Obsidian, vault files are not encrypted at rest. Passphrase “Encrypted vault” settings apply to cloud payload encryption when sync is on — not to local files.
-5. **Sync shape:** Outbox domain `vault` with `file_put` / `file_delete` keyed by relative path (`hash`, `mtime`, `kind`). Markdown files sync through existing notes CRUD (`title` = relative path) until dedicated vault-file RPCs exist. Conflict: LWW by `(mtime, contentHash)`. Binary files are not enqueued.
+5. **Sync shape:** Outbox domain `vault` with `file_put` / `file_delete` keyed by relative path. Markdown syncs through notes CRUD only after notes sync is on ([ADR 006](006-notes-sync-consent.md)). The last synced hash and server id live in IndexedDB `vault_sync_index`, not `id_map`. Each cycle plans push, pull, trash, or a conflict copy from the local folder, that index, and the server. Paths that differ only by case fail the plan instead of merging. An empty folder with a non-empty index pauses sync instead of deleting.
 
 ## Server contract (follow-up)
 
@@ -29,6 +29,6 @@ Until those RPCs ship, the desktop client backs up `.md` files through `POST/PUT
 
 - Desktop Notes gates on vault folder selection (Tauri).
 - Settings → Files & Links configures vault root + attachment folder (confirm on change/unbind).
-- Publish-to-web reads relative vault images via FS when publishing.
+- Publish-to-web reads relative vault images from the folder. The published copy rewrites those paths to `nordly-asset:` ids. The file in the folder stays a relative link. A missing image blocks publish.
 - FS watch reloads without blindly overwriting dirty drafts; suppress + deferred reload around local writes.
 - Paths are resolved under a canonical vault root (symlink escape rejected). Attachments capped at 5 MiB in Rust.

@@ -3,12 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import type { Note } from '@features/notes/api/notesClient';
+import { listBoards } from '@features/whiteboard/api/whiteboardClient';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
 import { Sidebar } from './Sidebar';
 import { Editor } from './Editor';
 import { FileDropOverlay } from './FileDropOverlay';
+import { errorMessage } from './utils';
 import { VaultOnboarding } from './VaultOnboarding';
 import { useNotesAutosave } from './useNotesAutosave';
 import { useNotesFileDrop } from './useNotesFileDrop';
@@ -40,6 +43,7 @@ export function NotesPage({
   const focusFolderIdRef = useRef<string | null>(null);
   focusFolderIdRef.current = createTargetFolderId;
   const [editorSessionKey, setEditorSessionKey] = useState(0);
+  const [boardTitles, setBoardTitles] = useState<string[]>([]);
   const bumpEditorSession = useCallback(() => {
     setEditorSessionKey((k) => k + 1);
   }, []);
@@ -77,6 +81,22 @@ export function NotesPage({
     if (vaultReady !== true) return;
     loadList();
   }, [loadList, vaultReady]);
+
+  useEffect(() => {
+    if (vaultReady !== true) return;
+    let cancelled = false;
+    void listBoards()
+      .then((boards) => {
+        if (cancelled) return;
+        setBoardTitles(boards.map((board) => board.title).filter((title) => title.trim().length > 0));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setActiveError(errorMessage(err, t));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [t, vaultReady]);
 
   const fileDrop = useNotesFileDrop({
     t,
@@ -251,10 +271,21 @@ export function NotesPage({
           draftBody={autosave.draftBody}
           saveStatus={autosave.saveStatus}
           noteTitles={noteTitles}
+          boardTitles={boardTitles}
           editorZoom={chrome.editorZoom}
           onTitleChange={autosave.setDraftTitle}
           onBodyChange={autosave.setDraftBody}
-          onWikiLinkClick={(linkText) => void actions.handleWikiLinkClick(linkText)}
+          onWikiTargetClick={(target) => void actions.handleWikiTargetClick(target)}
+          onReviewNote={() => {
+            const id = selectedIdRef.current;
+            if (!id) return;
+            void (async () => {
+              if (!(await flushNow())) return;
+              window.dispatchEvent(
+                new CustomEvent(NORDLY_EVENTS.openCards, { detail: { noteId: id } }),
+              );
+            })();
+          }}
           onCreate={actions.handleCreate}
           onRetryList={listApi.loadList}
           onError={setActiveError}

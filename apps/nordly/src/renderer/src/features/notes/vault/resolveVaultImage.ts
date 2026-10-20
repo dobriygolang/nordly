@@ -12,6 +12,7 @@ import { attachmentsStoreGetPlainBytes } from '@features/notes/repository/attach
 import {
   vaultGetConfig,
   vaultReadBytes,
+  vaultFindImage,
   vaultWritePastedImage,
 } from './ipc';
 import { withVaultNotePathMutation } from './vaultIo';
@@ -76,6 +77,71 @@ async function resolveLegacyAssetUrl(id: string): Promise<string | null> {
  * Resolve markdown image href for vault notes.
  * Supports https, leftover nordly-asset:, and relative vault paths.
  */
+function imageReadError(err: unknown): AttachmentError {
+  if (err instanceof AttachmentError) return err;
+  const message = err instanceof Error ? err.message : String(err);
+  const lower = message.toLowerCase();
+  if (lower.includes('5 mib') || lower.includes('exceeds')) return new AttachmentError('too_large');
+  if (lower.includes('unsupported image')) return new AttachmentError('bad_type');
+  if (lower.includes('vault_locked')) return new AttachmentError('vault_locked');
+  return new AttachmentError('missing', message);
+}
+
+async function readRelBytes(rel: string): Promise<{ bytes: Uint8Array; mime: string }> {
+  const mime = mimeFromFilename(rel);
+  if (!mime || !isAllowedImageMime(mime)) throw new AttachmentError('bad_type', rel);
+  try {
+    return { bytes: await vaultReadBytes(rel), mime };
+  } catch (err) {
+    throw imageReadError(err);
+  }
+}
+
+async function resolveVaultImageRel(href: string, notePath: string): Promise<string> {
+  const cfg = await vaultGetConfig();
+  if (!cfg) throw new AttachmentError('missing', href);
+  const rel = joinNoteRelative(notePath, href);
+  if (!rel || rel.split('/').includes('..')) throw new AttachmentError('missing', href);
+  try {
+    await readRelBytes(rel);
+    return rel;
+  } catch (err) {
+    if (!(err instanceof AttachmentError) || err.code !== 'missing') throw err;
+    if (href.includes('/') || href.includes('\\')) throw err;
+    const name = rel.split('/').pop();
+    if (!name) throw err;
+    try {
+      return await vaultFindImage(name);
+    } catch (findErr) {
+      throw imageReadError(findErr);
+    }
+  }
+}
+
+/** Bytes of a vault image for publish. Resolves next to the note, then by file name. */
+export async function readVaultImageBytes(
+  href: string,
+  notePath: string,
+): Promise<{ bytes: Uint8Array; mime: string; fileName: string }> {
+  const rel = await resolveVaultImageRel(href, notePath);
+  const read = await readRelBytes(rel);
+  const fileName = rel.split('/').pop() || rel;
+  return { bytes: read.bytes, mime: read.mime, fileName };
+}
+
+async function blobForVaultImage(rel: string): Promise<string> {
+  const cached = blobCache.get(rel);
+  if (cached) return cached;
+  const { bytes, mime } = await readRelBytes(rel);
+  const url = URL.createObjectURL(
+    new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
+      type: mime,
+    }),
+  );
+  blobCache.set(rel, url);
+  return url;
+}
+
 export async function resolveVaultImageHref(
   href: string,
   notePath: string,
@@ -84,29 +150,32 @@ export async function resolveVaultImageHref(
 
   const assetId = parseNordlyAssetId(href);
   if (assetId) {
-    return resolveLegacyAssetUrl(assetId);
+    const url = await resolveLegacyAssetUrl(assetId);
+    if (!url) throw new AttachmentError('missing', href);
+    return url;
   }
 
   const cfg = await vaultGetConfig();
-  if (!cfg) return null;
+  if (!cfg) throw new AttachmentError('missing', href);
 
   const rel = joinNoteRelative(notePath, href);
-  if (!rel || rel.split('/').includes('..')) return null;
+  if (!rel || rel.split('/').includes('..')) throw new AttachmentError('missing', href);
 
-  const mime = mimeFromFilename(rel);
-  if (!mime || !isAllowedImageMime(mime)) return null;
-
-  const cached = blobCache.get(rel);
-  if (cached) return cached;
-
-  const bytes = await vaultReadBytes(rel);
-  const url = URL.createObjectURL(
-    new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
-      type: mime,
-    }),
-  );
-  blobCache.set(rel, url);
-  return url;
+  try {
+    return await blobForVaultImage(rel);
+  } catch (err) {
+    if (!(err instanceof AttachmentError) || err.code !== 'missing') throw err;
+    if (href.includes('/') || href.includes('\\')) throw err;
+    const name = rel.split('/').pop();
+    if (!name) throw err;
+    let found: string;
+    try {
+      found = await vaultFindImage(name);
+    } catch (findErr) {
+      throw imageReadError(findErr);
+    }
+    return blobForVaultImage(found);
+  }
 }
 
 export async function createVaultPastedImageMarkdown(

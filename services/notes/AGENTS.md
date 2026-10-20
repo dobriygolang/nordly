@@ -21,7 +21,7 @@ internal/app/api/notes/              — gRPC/HTTP transport (one RPC per file)
 Obsidian-like notes for Nordly (Tauri desktop app):
 
 - Markdown notes (CRUD)
-- E2EE vault: server stores salt + ciphertext only (client PBKDF2 200k + AES-256-GCM)
+- E2EE vault: server stores salt + ciphertext only (client PBKDF2 600k + AES-256-GCM). Remote note body is one ciphertext of `{ v: 2, path, body }`; `title` is an opaque id. `EncryptNote` clears `note_links`. `UpdateNote` rejects wiki links when `encrypted=true`.
 - Share-to-web / unpublish / make-private flows
 
 ## Ports
@@ -32,7 +32,7 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 | Area | Paths |
 |------|-------|
-| Vault | `POST /v1/notes/vault/init`, `GET /v1/notes/vault/salt`, `POST /v1/notes/vault/notes/{id}/encrypt` |
+| Vault | `POST /v1/notes/vault/init`, `GET /v1/notes/vault/salt`, `PUT/GET /v1/notes/vault/recovery`, `POST /v1/notes/vault/notes/{id}/encrypt` |
 | Notes | `GET/POST /v1/notes`, `GET/PUT/DELETE /v1/notes/{id}` |
 | Attachments | `PUT/GET/DELETE /v1/notes/{note_id}/attachments/{id}`, `GET /v1/notes/{note_id}/attachments` (metadata only) |
 | Publish | `POST /v1/notes/{id}/share-to-web`, `unpublish`, `make-private`, `GET publish-status` |
@@ -50,7 +50,9 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Publish
 
-`ShareNoteToWeb` locks the owner note row and treats that row as authoritative for encrypted/published state. It rejects `encrypted=true` under the lock (the client must first store plaintext). Publishing keeps the existing live-note behavior: `body_md` is updated in place, while `published_note_assets` is a per-share snapshot.
+`ShareNoteToWeb` stores a public snapshot in `published_notes` and does not change the sync row. An encrypted note stays ciphertext; the published title and body are the plaintext the client sends for that share. `published_note_assets` stays a per-share snapshot keyed by slug.
+
+Recovery wrap (`recovery_wrap`, `recovery_salt` on `vault_salts`) is ciphertext of the passphrase under the recovery phrase. `PUT/GET /v1/notes/vault/recovery`.
 
 - `access_mode`: `PUBLIC` or `PASSWORD`; `expiry_policy`: `NEVER`, `SEVEN_DAYS`, `THIRTY_DAYS`, or `NINETY_DAYS`. Unspecified enum values are invalid.
 - `PUBLIC` requires `NEVER` and no password. It always clears any password hash and expiry.
@@ -63,17 +65,17 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Data model
 
-- `vault_salts` — per-user random 32-byte salt (base64 to client)
+- `vault_salts` — per-user random 32-byte salt (base64 to client), plus optional recovery wrap and its salt
+- `published_notes` — public snapshot (`note_id`, title, body, slug, password hash, expiry). The sync row is not rewritten on publish.
 - `notes` — `body_md` plaintext or ciphertext; `encrypted`, `published`, `publish_slug`, `publish_password_hash`, `publish_expires_at`. Database CHECK constraints require complete plaintext publish state, forbid publish state on unpublished/archived/encrypted rows, and allow expiry only with password access.
-- `note_links` — wiki-link graph metadata (`source_note_id`, optional `target_note_id`, `link_text`); **client-provided** on create/update (server does not parse encrypted `body_md`)
+- `note_links` — wiki-link graph metadata (`source_note_id`, optional `target_note_id`, `link_text`); **client-provided** on create/update of plaintext notes. Encrypted notes store none: `EncryptNote` deletes them and `UpdateNote` rejects a non-empty list.
 - `note_attachments` — owner-only image data (PNG/JPEG/GIF/WebP, matching plaintext magic bytes, max 5 MiB each and 50 per note); encrypted bytes are opaque; attachments are removed when the note is archived
 - `published_note_assets` — public-share image snapshots; public shares reference relative asset paths, while password-protected shares embed data URLs (capped at 15 MiB total raw bytes). Public asset GET requires an unprotected (non-password) published note.
 
 Soft-delete: `archived_at` is set transactionally; all publish fields/assets, attachments, and source/target `note_links` are cleared.
 Create/update validates every non-empty wiki target in the same write transaction and locks active target rows before replacing links.
 Titles are capped at 1 KiB and note/ciphertext/published bodies at 32 MiB.
-`ListNotes` is intentionally capped at 200 newest notes; cursor pagination is deferred until the
-desktop sync protocol can consume pages without introducing a second list path.
+`ListNotes` returns every active note summary (id, title, updated_at, size). Above 100000 rows it returns `ErrTooManyNotes` (`ResourceExhausted`) instead of a short page — vault reconcile treats a missing id as a remote delete.
 
 ## Commands
 
@@ -88,6 +90,6 @@ Build: `GOWORK=off`. Domain ports use mockery (`repository/mocks`); `service.New
 
 ## Metrics
 
-`GET /metrics` — HTTP instrumentation only (no domain counters yet).
+`GET /metrics` — HTTP instrumentation plus `notes_sync_ops_total{op,result}` (`internal/notes/metrics/`). `op` is `push` (create, update, encrypt), `pull` (list, get), or `delete`. `result` is `ok` or a closed code: `invalid_argument`, `not_found`, `access_denied`, `internal`. Labels do not include titles, paths, or note text. A conflict copy is written on the device and later counted as `push` when that file is created on the server.
 
 Nordly client: `apps/nordly/src/renderer/src/features/notes/api/notesClient.ts`, vault HTTP in `apps/nordly/src/renderer/src/features/notes/remote/vaultRemote.ts`.

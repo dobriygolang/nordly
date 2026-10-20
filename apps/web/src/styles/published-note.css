@@ -212,6 +212,17 @@
   text-decoration-color: rgb(var(--ink-rgb) / 0.35);
 }
 
+.nordly-published-md .nordly-md-wiki-link--external::after {
+  content: '↗';
+  margin-left: 0.2em;
+  font-size: 0.85em;
+}
+
+.nordly-published-md .nordly-md-wiki-link--invalid {
+  color: var(--ink-50);
+  text-decoration-style: wavy;
+}
+
 .nordly-published-md .nordly-md-image {
   display: block;
   max-width: 100%;

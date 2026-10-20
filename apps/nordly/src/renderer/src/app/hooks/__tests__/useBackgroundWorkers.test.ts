@@ -10,6 +10,7 @@ function dependencies(
 ): CloudWorkerDependencies {
   return {
     loadVaultPrefs: vi.fn(async () => undefined),
+    loadNotesSyncConsent: vi.fn(async () => undefined),
     isCloudEnabled: vi.fn(() => true),
     isVaultEnabled: vi.fn(() => true),
     hydrateCalendarCache: vi.fn(async () => undefined),
@@ -25,6 +26,9 @@ describe('initializeCloudWorkers', () => {
     const deps = dependencies({
       loadVaultPrefs: vi.fn(async () => {
         calls.push('vault');
+      }),
+      loadNotesSyncConsent: vi.fn(async () => {
+        calls.push('notes-sync');
       }),
       hydrateCalendarCache: vi.fn(async () => {
         calls.push('calendar');
@@ -44,7 +48,7 @@ describe('initializeCloudWorkers', () => {
       dependencies: deps,
     });
 
-    expect(calls).toEqual(['vault', 'calendar']);
+    expect(calls).toEqual(['vault', 'notes-sync', 'calendar']);
     expect(deps.startWorkers).not.toHaveBeenCalled();
     expect(setVaultGateActive).toHaveBeenCalledWith(true);
     expect(onVaultPrefsReady).toHaveBeenCalledTimes(1);

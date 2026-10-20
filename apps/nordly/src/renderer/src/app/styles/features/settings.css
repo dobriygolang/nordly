@@ -793,3 +793,24 @@ html.light .nordly-shortcuts-card {
   cursor: pointer;
 }
 
+@keyframes nordly-settings-pulse {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: rgb(var(--ink-rgb) / 0.08);
+  }
+}
+
+.nordly-setting-row.is-highlight {
+  animation: nordly-settings-pulse 0.7s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nordly-setting-row.is-highlight {
+    animation: none;
+    background: rgb(var(--ink-rgb) / 0.06);
+  }
+}
+

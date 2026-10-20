@@ -16,6 +16,8 @@ import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 export type { PageId, PaletteAction } from '@shared/model/navigation';
 
 import { PageId, PaletteAction } from '@shared/model/navigation';
+import { countDueCards } from '@features/cards/api/cardsClient';
+import { readSettings } from '@shared/model/settings';
 
 interface PaletteProps {
   onClose: () => void;
@@ -55,12 +57,16 @@ const NAV_ITEMS: Array<{
 const PALETTE_PAGE_PRELOAD: Partial<Record<PaletteAction, () => void>> = {
   [PageId.Today]: () => void import('@pages/TaskBoard'),
   [PageId.Planning]: () => void import('@pages/DailyPlanning/DailyPlanningModal'),
+  [PageId.Cards]: () => void import('@pages/Cards/CardsReviewPage'),
   [PageId.Settings]: () => void import('@pages/Settings'),
 };
 
 export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = false }: PaletteProps) {
   const t = useT();
   const [locale] = useLocale();
+  const cardsEnabled = readSettings().flashcards.enabled;
+  const [dueCount, setDueCount] = useState<number | null>(null);
+  const [dueError, setDueError] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
   const [q, setQ] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
@@ -84,17 +90,46 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
     timeCustomizedRef.current = false;
   }, [taskDate]);
 
-  const navItems: NavItem[] = useMemo(
-    () =>
-      NAV_ITEMS.map((it) => ({
-        id: it.id,
-        label: t(it.labelKey),
-        icon: it.icon,
-        shortcut: it.shortcut,
-        run: () => onOpen(it.id),
-      })),
-    [onOpen, t],
-  );
+  useEffect(() => {
+    if (!cardsEnabled) return;
+    let cancelled = false;
+    void countDueCards()
+      .then((count) => {
+        if (!cancelled) setDueCount(count);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setDueError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardsEnabled]);
+
+  const navItems: NavItem[] = useMemo(() => {
+    const items = NAV_ITEMS.map((it) => ({
+      id: it.id,
+      label: t(it.labelKey),
+      icon: it.icon,
+      shortcut: it.shortcut,
+      run: () => onOpen(it.id),
+    }));
+    if (!cardsEnabled) return items;
+    const label = dueError
+      ? dueError
+      : dueCount && dueCount > 0
+        ? t('nordly.palette.nav_cards_due', { count: String(dueCount) })
+        : t('nordly.palette.nav_cards');
+    const cards = {
+      id: PageId.Cards,
+      label,
+      icon: 'check' as const,
+      shortcut: ['R'],
+      run: () => onOpen(PageId.Cards),
+    };
+    const settingsAt = items.findIndex((item) => item.id === PageId.Settings);
+    items.splice(settingsAt < 0 ? items.length : settingsAt, 0, cards);
+    return items;
+  }, [cardsEnabled, dueCount, dueError, onOpen, t]);
 
   const filteredNav = useMemo(() => {
     const s = trimmed.toLowerCase();

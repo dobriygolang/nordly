@@ -9,6 +9,10 @@ const LAYERS = {
   '@shared': resolve(__dirname, 'src/renderer/src/shared'),
   '@platform': resolve(__dirname, 'src/renderer/src/platform'),
   '@nordly-i18n': resolve(__dirname, '../shared/i18n'),
+  '@nordly-markdown': resolve(__dirname, '../shared/markdown'),
+  '@nordly-collab': resolve(__dirname, '../shared/collab'),
+  yjs: resolve(__dirname, 'node_modules/yjs'),
+  'y-protocols/awareness': resolve(__dirname, 'node_modules/y-protocols/awareness.js'),
 };
 
 export default defineConfig({

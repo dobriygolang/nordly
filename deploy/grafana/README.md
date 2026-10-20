@@ -37,7 +37,7 @@ Import JSON dashboards from `deploy/grafana/dashboards/` via UI or API.
 |--------|-----|
 | `http_requests_total`, `http_request_duration_seconds` | RPS, latency (all prod services) |
 | `up` | service health (see `deploy/prometheus-alerts.yml`) |
-| `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total` | product activity |
+| `identity_auth_total`, `tracker_work_tasks_total`, `focus_sessions_total`, `notes_sync_ops_total` | product activity |
 | `node_memory_*` | host RAM (node_exporter) |
 
 Dashboards: **Platform**, **HTTP routes**, **Product** (`deploy/grafana/dashboards/`).
@@ -53,5 +53,6 @@ Dashboards: **Platform**, **HTTP routes**, **Product** (`deploy/grafana/dashboar
 - `identity_auth_total`: `method=telegram|refresh`, `result=ok|invalid_code|invalid_token`
 - `tracker_work_tasks_total`: `action=create|complete|status_change|delete|schedule|unschedule|conference`
 - `focus_sessions_total`: `result=started|completed|abandoned`
+- `notes_sync_ops_total`: `op=push|pull|delete`, `result=ok|invalid_argument|not_found|access_denied|internal` (no note content in labels). A conflict copy is written on the device and later counted as `push`.
 
 Retired services (interview, recommendation, admin) are not scraped in prod.

@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 
 import { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { readSettings } from '@shared/model/settings';
 import { dismissTopEscapeLayer } from '@shared/lib/escapeLayer';
 import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
 
@@ -108,6 +109,12 @@ export function useGlobalHotkeys(deps: GlobalHotkeysDeps): void {
       if (e.code === 'KeyP') {
         if (d.planningOpen) d.closePlanning();
         else d.openPlanning();
+        return;
+      }
+
+      if (e.code === 'KeyR' && readSettings().flashcards.enabled) {
+        if (d.page === PageId.Cards) d.goHome();
+        else d.open(PageId.Cards);
         return;
       }
 

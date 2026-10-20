@@ -18,6 +18,7 @@ const LegalTermsPage = lazy(() => import('@/pages/LegalTermsPage'))
 const LegalPrivacyPage = lazy(() => import('@/pages/LegalPrivacyPage'))
 const NordlyDownloadPage = lazy(() => import('@/pages/NordlyDownloadPage'))
 const OAuthBridgePage = lazy(() => import('@/pages/OAuthBridgePage'))
+const SpotifyOAuthBridgePage = lazy(() => import('@/pages/SpotifyOAuthBridgePage'))
 
 function RetiredRedirect() {
   return <Navigate to="/" replace />
@@ -82,6 +83,7 @@ export function AnimatedRoutes() {
             element={<OAuthBridgePage provider="google_calendar" />}
           />
           <Route path="/oauth/zoom" element={<OAuthBridgePage provider="zoom" />} />
+          <Route path="/oauth/spotify" element={<SpotifyOAuthBridgePage />} />
           <Route path="/notes/:slug" element={<PublishedNotePage />} />
           <Route path="/board/:slug" element={<PublishedBoardPage />} />
           <Route path="/n/:slug" element={<LegacyNoteSlugRedirect />} />

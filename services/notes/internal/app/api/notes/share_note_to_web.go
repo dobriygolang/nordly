@@ -33,6 +33,7 @@ func (i *Implementation) ShareNoteToWeb(
 		AccessMode:   accessMode,
 		Password:     req.GetPassword(),
 		ExpiryPolicy: expiryPolicy,
+		Title:        req.GetTitle(),
 	}, attachments)
 	if err != nil {
 		return nil, mapServiceError(err)

@@ -1,0 +1,22 @@
+# ADR 009 — Live whiteboard on the desktop
+
+## Status
+
+Accepted.
+
+## Context
+
+Sharing a board from the desktop app created a rooms session and opened the invite in the browser. The app threw away the owner token, so the local canvas never joined the Yjs room. Web clients synced with each other. The desktop canvas did not.
+
+## Decision
+
+1. The Yjs scene document and the editor websocket protocol live in `apps/shared/collab` (`@nordly-collab`). The web app and the desktop app both use that code.
+2. After `POST /v1/rooms/share-whiteboard`, the desktop keeps `roomId`, `accessToken`, and `expiresIn` in memory only. It connects to `/ws/editor/{roomId}` with `Sec-WebSocket-Protocol: access_token.<JWT>`.
+3. While the session is open, the room is the scene. Local IndexedDB saves continue from the canvas, including remote edits. Stop sharing, `room_closed`, or token expiry writes the Yjs scene back into the local board and disconnects. A failed socket is shown as an error. The board does not stay marked live.
+4. An unknown websocket envelope closes the socket. A remote scene with more than 5000 elements, or a file that is not PNG, JPEG, GIF, or WebP, ends the session. Element links open only as `https` URLs through the system browser.
+5. Production CSP allows `wss://trynordly.app` and `wss://code.trynordly.app`. Dev also allows `ws://localhost:8087`.
+6. Each client publishes a pointer in the awareness channel. Excalidraw draws the other participants' cursors and names. A client does not draw its own cursor.
+
+## Consequences
+
+The participant count is the awareness size. A second share replaces the in-memory session. Laser and selection pointers use the same channel.

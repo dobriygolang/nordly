@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { Facet, StateField, type EditorState, type Range } from '@codemirror/state';
+import { Facet, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import {
   Decoration,
   DecorationSet,
@@ -10,10 +10,28 @@ import {
 } from '@codemirror/view';
 
 import { translate } from '@nordly-i18n';
-import { NORDLY_ASSET_SCHEME } from '@shared/lib/nordlyAsset';
-import { boardWikiTitleSpan } from '@shared/lib/wikiLinkText';
+import {
+  findWikiMatches,
+  httpsUrlHost,
+  type WikiMatch,
+} from '@nordly-markdown/wikiTarget';
+import { findCardSeparator } from '@nordly-markdown/cardLine';
+import { normalizeWikiTitle } from '@shared/lib/wikiLinkText';
 
+import { imageEmbedField, imageHrefResolverFacet } from './imageEmbedField';
+import { findMarkdownImages } from './imageSyntax';
 import { notesCodeLangLabel } from './notesCodeLanguages';
+
+export { imageEmbedField, imageHrefResolverFacet };
+export type { ImageHrefResolver } from './imageEmbedField';
+
+/** When true, `front :: back` lines are styled. Off by default. */
+export const cardSyntaxFacet = Facet.define<boolean, boolean>({
+  combine(values) {
+    if (values.length === 0) return false;
+    return values[values.length - 1] ?? false;
+  },
+});
 
 interface DecorationSink {
   add(from: number, to: number, decoration: Decoration): void;
@@ -38,23 +56,6 @@ export const wikiLinkTitlesFacet = Facet.define<ReadonlySet<string>, ReadonlySet
     return values[values.length - 1] ?? new Set();
   },
 });
-
-/** Resolve markdown image href → displayable URL (blob or https). */
-export type ImageHrefResolver = (href: string) => Promise<string | null>;
-
-export const imageHrefResolverFacet = Facet.define<
-  ImageHrefResolver | null,
-  ImageHrefResolver | null
->({
-  combine(values) {
-    if (values.length === 0) return null;
-    return values[values.length - 1] ?? null;
-  },
-});
-
-function isRelativeImageHref(href: string): boolean {
-  return !/^[a-z][a-z\d+.-]*:/i.test(href) && !href.startsWith('//');
-}
 
 function rangeTouches(from: number, to: number, start: number, end: number): boolean {
   return from < end && to > start;
@@ -90,103 +91,6 @@ class CodeLangBadgeWidget extends WidgetType {
     badge.setAttribute('aria-hidden', 'true');
     bar.appendChild(badge);
     return bar;
-  }
-
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
-
-class MarkdownImageWidget extends WidgetType {
-  constructor(
-    readonly href: string,
-    readonly alt: string,
-    readonly resolver: ImageHrefResolver | null,
-  ) {
-    super();
-  }
-
-  eq(other: MarkdownImageWidget): boolean {
-    return other.href === this.href && other.alt === this.alt && other.resolver === this.resolver;
-  }
-
-  toDOM(): HTMLElement {
-    const wrap = document.createElement('span');
-    wrap.className = 'nordly-md-image';
-    wrap.setAttribute('contenteditable', 'false');
-
-    const img = document.createElement('img');
-    img.alt = this.alt || 'image';
-    img.className = 'nordly-md-image__img';
-    img.draggable = false;
-
-    const placeholder = document.createElement('span');
-    placeholder.className = 'nordly-md-image__placeholder';
-    placeholder.textContent = this.alt || 'image';
-
-    let cancelled = false;
-    (wrap as HTMLElement & { __nordlyCancel?: () => void }).__nordlyCancel = () => {
-      cancelled = true;
-    };
-
-    const showPlaceholder = () => {
-      if (cancelled) return;
-      img.remove();
-      if (!placeholder.isConnected) wrap.appendChild(placeholder);
-      wrap.classList.add('nordly-md-image--unresolved');
-    };
-
-    const showImg = (src: string) => {
-      if (cancelled) return;
-      placeholder.remove();
-      wrap.classList.remove('nordly-md-image--unresolved');
-      img.src = src;
-      if (!img.isConnected) wrap.appendChild(img);
-    };
-
-    if (/^https:\/\//i.test(this.href)) {
-      img.onerror = () => showPlaceholder();
-      showImg(this.href);
-    } else if (
-      this.resolver &&
-      (this.href.startsWith(NORDLY_ASSET_SCHEME) || isRelativeImageHref(this.href))
-    ) {
-      wrap.appendChild(placeholder);
-      wrap.classList.add('nordly-md-image--loading');
-      void this.resolver(this.href)
-        .then((src) => {
-          if (cancelled) return;
-          wrap.classList.remove('nordly-md-image--loading');
-          if (src) {
-            img.onerror = () => showPlaceholder();
-            showImg(src);
-          } else {
-            showPlaceholder();
-          }
-        })
-        .catch((err: unknown) => {
-          if (cancelled) return;
-          wrap.classList.remove('nordly-md-image--loading');
-          if (
-            err &&
-            typeof err === 'object' &&
-            'code' in err &&
-            (err as { code: unknown }).code === 'vault_locked'
-          ) {
-            placeholder.textContent = translate('nordly.vault.eyebrow.locked');
-            wrap.classList.add('nordly-md-image--vault-locked');
-          }
-          showPlaceholder();
-        });
-    } else {
-      showPlaceholder();
-    }
-
-    return wrap;
-  }
-
-  destroy(dom: HTMLElement): void {
-    (dom as HTMLElement & { __nordlyCancel?: () => void }).__nordlyCancel?.();
   }
 
   ignoreEvent(): boolean {
@@ -266,6 +170,54 @@ function applyDelimitedInline(
   }
 }
 
+function wikiVisibleRange(token: string, match: WikiMatch): { from: number; to: number } {
+  const inner = (token.startsWith('!') ? 1 : 0) + 2;
+  const endInner = token.length - 2;
+  if (match.alias) {
+    const pipe = token.lastIndexOf('|');
+    return { from: pipe + 1, to: endInner };
+  }
+  if (match.target.kind === 'board') {
+    const head = token.slice(inner, endInner);
+    const prefixLen = /^board:/i.exec(head)?.[0].length ?? 0;
+    const rest = head.slice(prefixLen);
+    const lead = rest.length - rest.trimStart().length;
+    const start = inner + prefixLen + lead;
+    return { from: start, to: start + match.target.title.length };
+  }
+  if (match.target.kind === 'link') {
+    const at = token.indexOf(match.target.url, inner);
+    const schemeLen = /^https:\/\//i.exec(match.target.url)?.[0].length ?? 0;
+    return { from: at + schemeLen, to: at + match.target.url.length };
+  }
+  return { from: inner, to: endInner };
+}
+
+function wikiMark(
+  match: WikiMatch,
+  resolvedTitles: ReadonlySet<string>,
+): { class: string; attributes?: Record<string, string> } {
+  if (match.target.kind === 'invalid') {
+    return {
+      class: 'nordly-md-wiki-link nordly-md-wiki-link--invalid',
+      attributes: { title: translate(`nordly.notes.wiki.${match.target.reason}`) },
+    };
+  }
+  if (match.target.kind === 'link') {
+    return {
+      class: 'nordly-md-wiki-link nordly-md-wiki-link--external',
+      attributes: { title: httpsUrlHost(match.target.url) },
+    };
+  }
+  if (match.target.kind === 'board') return { class: 'nordly-md-wiki-link' };
+  const known = resolvedTitles.has(normalizeWikiTitle(match.target.title));
+  return {
+    class: known
+      ? 'nordly-md-wiki-link'
+      : 'nordly-md-wiki-link nordly-md-wiki-link--unresolved',
+  };
+}
+
 function applyWikiLinkInline(
   builder: DecorationSink,
   state: EditorState,
@@ -274,41 +226,33 @@ function applyWikiLinkInline(
   occupied: [number, number][],
   resolvedTitles: ReadonlySet<string>,
 ): void {
-  const re = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-  let match = re.exec(text);
-  while (match != null) {
-    const relStart = match.index;
-    const relEnd = relStart + match[0].length;
-    if (!overlapsRange(occupied, relStart, relEnd)) {
-      const rawTarget = match[1] ?? '';
-      const targetTitle = rawTarget.trim();
-      const alias = match[2]?.trim();
-      const boardSpan = alias ? null : boardWikiTitleSpan(rawTarget);
-      const displayOffset = alias ? 2 + rawTarget.length + 1 : boardSpan ? 2 + boardSpan.start : 2;
-      const start = lineFrom + relStart;
-      const end = lineFrom + relEnd;
-      const contentStart = start + displayOffset;
-      const contentEnd = boardSpan ? start + 2 + boardSpan.end : end - 2;
-      const resolved = boardSpan != null || resolvedTitles.has(targetTitle.toLowerCase());
-      const className = resolved ? 'nordly-md-wiki-link' : 'nordly-md-wiki-link nordly-md-wiki-link--unresolved';
-      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
-      if (showSyntax && !boardSpan) {
-        addMark(builder, contentStart, contentEnd, { class: className });
-      } else if (showSyntax && boardSpan) {
-        hideRange(builder, start + 2, contentStart);
-        addMark(builder, contentStart, contentEnd, { class: className });
-        if (contentEnd < end - 2) hideRange(builder, contentEnd, end - 2);
-      } else {
-        hideRange(builder, start, start + 2);
-        if (alias || boardSpan) {
-          hideRange(builder, start + 2, contentStart);
-        }
-        addMark(builder, contentStart, contentEnd, { class: className });
-        hideRange(builder, boardSpan ? contentEnd : end - 2, end);
-      }
-      occupied.push([relStart, relEnd]);
+  for (const match of findWikiMatches(text)) {
+    if (overlapsRange(occupied, match.from, match.to)) continue;
+    const start = lineFrom + match.from;
+    const end = lineFrom + match.to;
+    const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
+    if (match.embed) {
+      if (showSyntax) addMark(builder, start, end, { class: 'nordly-md-image-syntax' });
+      else hideRange(builder, start, end);
+      occupied.push([match.from, match.to]);
+      continue;
     }
-    match = re.exec(text);
+    const token = text.slice(match.from, match.to);
+    const visible = wikiVisibleRange(token, match);
+    const contentStart = start + visible.from;
+    const contentEnd = start + visible.to;
+    const spec = wikiMark(match, resolvedTitles);
+    const bracket = token.startsWith('!') ? 1 : 0;
+    if (showSyntax) {
+      if (visible.from > bracket + 2) hideRange(builder, start + bracket + 2, contentStart);
+      addMark(builder, contentStart, contentEnd, spec);
+      if (visible.to < token.length - 2) hideRange(builder, contentEnd, end - 2);
+    } else {
+      hideRange(builder, start, contentStart);
+      addMark(builder, contentStart, contentEnd, spec);
+      hideRange(builder, contentEnd, end);
+    }
+    occupied.push([match.from, match.to]);
   }
 }
 
@@ -319,33 +263,16 @@ function applyImageInline(
   text: string,
   occupied: [number, number][],
 ): void {
-  const re = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
-  const resolver = state.facet(imageHrefResolverFacet);
-  let match = re.exec(text);
-  while (match != null) {
-    const relStart = match.index;
-    const relEnd = relStart + match[0].length;
-    if (!overlapsRange(occupied, relStart, relEnd)) {
-      const alt = match[1] ?? '';
-      const href = match[2] ?? '';
-      const start = lineFrom + relStart;
-      const end = lineFrom + relEnd;
-      const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
-      if (showSyntax) {
-        addMark(builder, start, end, { class: 'nordly-md-image-syntax' });
-      } else {
-        builder.add(
-          start,
-          end,
-          Decoration.replace({
-            widget: new MarkdownImageWidget(href, alt, resolver),
-            inclusive: false,
-          }),
-        );
-      }
-      occupied.push([relStart, relEnd]);
+  for (const image of findMarkdownImages(text)) {
+    if (overlapsRange(occupied, image.from, image.to)) continue;
+    const start = lineFrom + image.from;
+    const end = lineFrom + image.to;
+    if (showLineSyntax(state, state.doc.lineAt(start))) {
+      addMark(builder, start, end, { class: 'nordly-md-image-syntax' });
+    } else {
+      hideRange(builder, start, end);
     }
-    match = re.exec(text);
+    occupied.push([image.from, image.to]);
   }
 }
 
@@ -386,6 +313,27 @@ function applyLinkInline(
   }
 }
 
+function applyCardLine(
+  builder: DecorationSink,
+  state: EditorState,
+  lineFrom: number,
+  text: string,
+): void {
+  if (!state.facet(cardSyntaxFacet)) return;
+  const list = /^\s*[-*+]\s+(?:\[[ xX]\]\s+)?/.exec(text);
+  const contentFrom = list?.[0].length ?? 0;
+  const separator = findCardSeparator(text.slice(contentFrom));
+  if (!separator) return;
+  const sepFrom = lineFrom + contentFrom + separator.index;
+  const sepTo = sepFrom + separator.marker.length;
+  if (sepFrom > lineFrom + contentFrom) {
+    addMark(builder, lineFrom + contentFrom, sepFrom, { class: 'nordly-md-card-front' });
+  }
+  if (!showLineSyntax(state, state.doc.lineAt(lineFrom))) {
+    addMark(builder, sepFrom, sepTo, { class: 'nordly-md-card-sep' });
+  }
+}
+
 function decorateInlines(
   builder: DecorationSink,
   state: EditorState,
@@ -394,6 +342,7 @@ function decorateInlines(
 ): void {
   const occupied: [number, number][] = [];
   const resolvedTitles = state.facet(wikiLinkTitlesFacet);
+  applyCardLine(builder, state, lineFrom, text);
   applyDelimitedInline(builder, state, lineFrom, text, /`([^`\n]+)`/g, 'nordly-md-inline-code', 1, 1, occupied);
   applyImageInline(builder, state, lineFrom, text, occupied);
   applyLinkInline(builder, state, lineFrom, text, occupied);
@@ -582,7 +531,7 @@ function buildLivePreview(state: EditorState): DecorationSet {
   return builder.finish();
 }
 
-export const livePreviewPlugin = ViewPlugin.fromClass(
+const livePreviewView = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
 
@@ -596,7 +545,9 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
       const resolverChanged =
         update.startState.facet(imageHrefResolverFacet) !==
         update.state.facet(imageHrefResolverFacet);
-      if (update.docChanged || update.selectionSet || resolverChanged) {
+      const cardsChanged =
+        update.startState.facet(cardSyntaxFacet) !== update.state.facet(cardSyntaxFacet);
+      if (update.docChanged || update.selectionSet || resolverChanged || cardsChanged) {
         this.decorations = buildLivePreview(update.state);
       }
     }
@@ -605,6 +556,9 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
     decorations: (v) => v.decorations,
   },
 );
+
+/** Inline marks plus a block image under each image line (stays while the caret is on that line). */
+export const livePreviewPlugin: Extension = [imageEmbedField, livePreviewView];
 
 export const notesEditorTheme = EditorView.theme({
   '&': {

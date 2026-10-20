@@ -130,6 +130,10 @@ export async function vaultReadBytes(relativePath: string): Promise<Uint8Array> 
   return new Uint8Array(raw);
 }
 
+export async function vaultFindImage(name: string): Promise<string> {
+  return invoke<string>('notes_vault_find_image', { name });
+}
+
 export async function vaultWritePastedImage(
   noteRelativePath: string,
   bytes: Uint8Array,

@@ -9,15 +9,17 @@ interface HomeStatsSwipeDeps {
   closeStats: () => void;
 }
 
-function isInsideHorizontalScroller(target: EventTarget | null): boolean {
+function consumesHorizontalSwipe(target: EventTarget | null): boolean {
   let node = target instanceof Element ? target : null;
-  while (node && node !== document.body) {
+  while (node && node !== document.documentElement) {
+    if (node.classList.contains('nordly-stats-overlay')) {
+      node = node.parentElement;
+      continue;
+    }
     const overflowX = getComputedStyle(node).overflowX;
-    if (
-      (overflowX === 'auto' || overflowX === 'scroll') &&
-      node.scrollWidth > node.clientWidth + 1
-    ) {
-      return true;
+    if (overflowX === 'auto' || overflowX === 'scroll') {
+      const scrollbar = Math.max(0, node.offsetWidth - node.clientWidth);
+      if (node.scrollWidth > node.clientWidth + scrollbar + 2) return true;
     }
     node = node.parentElement;
   }
@@ -32,15 +34,15 @@ export function useHomeStatsSwipe(deps: HomeStatsSwipeDeps): void {
   useEffect(() => {
     const gesture = new StatsSwipeGesture();
     const onWheel = (event: WheelEvent): void => {
+      if (!isHorizontalSwipe(event.deltaX, event.deltaY)) return;
+      if (consumesHorizontalSwipe(event.target)) return;
+      event.preventDefault();
       const current = depsRef.current;
       if (!current.enabled) return;
-      if (!isHorizontalSwipe(event.deltaX, event.deltaY)) return;
-      if (isInsideHorizontalScroller(event.target)) return;
       const total = gesture.push(event.deltaX, performance.now());
       if (total == null) return;
       const action = statsSwipeAction(total, current.statsOpen);
       if (!action) return;
-      event.preventDefault();
       if (action === 'open') current.openStats();
       else current.closeStats();
     };

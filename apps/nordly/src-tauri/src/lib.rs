@@ -25,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
+            auth::ensure_persistent_store()?;
             let handle = app.handle().clone();
             #[cfg(desktop)]
             {

@@ -22,20 +22,25 @@ export function isHorizontalSwipe(deltaX: number, deltaY: number): boolean {
 export class StatsSwipeGesture {
   private accumulated = 0;
   private lastAt = 0;
-  private consumed = false;
+  private consumedSign = 0;
 
   push(deltaX: number, now: number): number | null {
     if (now - this.lastAt > STATS_SWIPE_GAP_MS) {
       this.accumulated = 0;
-      this.consumed = false;
+      this.consumedSign = 0;
     }
     this.lastAt = now;
-    if (this.consumed) return null;
+    const sign = Math.sign(deltaX);
+    if (this.consumedSign !== 0 && sign !== 0 && sign !== this.consumedSign) {
+      this.accumulated = 0;
+      this.consumedSign = 0;
+    }
+    if (this.consumedSign !== 0) return null;
     this.accumulated += deltaX;
     if (Math.abs(this.accumulated) < STATS_SWIPE_THRESHOLD_PX) return null;
     const total = this.accumulated;
     this.accumulated = 0;
-    this.consumed = true;
+    this.consumedSign = Math.sign(total);
     return total;
   }
 }

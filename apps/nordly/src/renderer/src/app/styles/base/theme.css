@@ -106,6 +106,13 @@ body {
   color: var(--ink);
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+#root {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 * {
   box-sizing: border-box;

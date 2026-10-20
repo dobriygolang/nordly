@@ -27,4 +27,11 @@ describe('StatsSwipeGesture', () => {
     expect(gesture.push(80, 0)).toBe(80);
     expect(gesture.push(-80, 400)).toBe(-80);
   });
+
+  it('accepts a reverse swipe without waiting for the gap', () => {
+    const gesture = new StatsSwipeGesture();
+    expect(gesture.push(80, 0)).toBe(80);
+    expect(gesture.push(-40, 20)).toBeNull();
+    expect(gesture.push(-40, 36)).toBe(-80);
+  });
 });

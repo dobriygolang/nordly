@@ -285,12 +285,36 @@
 .nordly-excalidraw .excalidraw .layer-ui__wrapper__top-right,
 .nordly-excalidraw .excalidraw .scroll-back-to-content,
 .nordly-excalidraw .excalidraw .help-icon,
+.nordly-excalidraw .excalidraw .main-menu-trigger,
+.nordly-excalidraw .excalidraw .App-menu_top__left,
 .nordly-excalidraw .excalidraw .App-menu__left,
 .nordly-excalidraw .excalidraw .App-menu_left,
 .nordly-excalidraw .excalidraw .color-picker-container,
 .nordly-excalidraw .excalidraw .zoom-actions,
 .nordly-excalidraw .excalidraw .layer-ui__wrapper__footer-left {
   display: none !important;
+}
+
+/* Shape toolbar sits in App-menu_top in Excalidraw 0.18. Pin that island to the bottom, same as the desktop app. */
+.nordly-excalidraw .excalidraw .FixedSideContainer_side_top {
+  top: auto !important;
+  bottom: 1.25rem !important;
+  left: 0 !important;
+  right: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.nordly-excalidraw .excalidraw .App-menu_top {
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  width: max-content !important;
+  max-width: calc(100% - 2rem);
+}
+
+.nordly-excalidraw .excalidraw .shapes-section {
+  display: flex;
+  justify-content: center;
 }
 
 /* Board canvas — no Excalidraw invert filter (true #000 / #fafaf8 backgrounds) */

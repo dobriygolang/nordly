@@ -9,7 +9,9 @@
   gap: 10px;
   z-index: 12;
   pointer-events: auto;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-bottom: 24px;
   outline: none;
 }

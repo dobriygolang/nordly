@@ -17,6 +17,23 @@ fn auth_entry() -> Result<Entry, String> {
     Entry::new(KEYRING_SERVICE, "auth-session").map_err(|e| e.to_string())
 }
 
+/// The `keyring` crate's default store is an in-memory mock. A write then
+/// succeeds, and the next process start reads `NoEntry` — a full quit looks
+/// like a signed-out local profile. macOS and Windows builds must link the
+/// OS store (`apple-native` / `windows-native`).
+pub fn ensure_persistent_store() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let entry = auth_entry().map_err(|err| -> Box<dyn std::error::Error> { err.into() })?;
+        if entry.get_credential().is::<keyring::mock::MockCredential>() {
+            return Err(
+                "auth keystore is in-memory; build keyring with the OS store feature".into(),
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn load_session(_app: &AppHandle) -> Result<Option<AuthSession>, String> {
     let entry = auth_entry()?;
     match entry.get_password() {
@@ -47,5 +64,13 @@ pub fn clear_session(_app: &AppHandle) -> Result<(), String> {
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
+mod tests {
+    #[test]
+    fn os_keystore_survives_process_exit() {
+        super::ensure_persistent_store().expect("OS keystore");
     }
 }

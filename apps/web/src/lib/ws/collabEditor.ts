@@ -10,6 +10,8 @@ export const EDITOR_WS_KINDS = [
   'cursor',
   'code_run',
   'room_closed',
+  'participant_joined',
+  'participant_left',
 ] as const
 export type EditorWsKind = (typeof EDITOR_WS_KINDS)[number]
 
@@ -197,7 +199,13 @@ function applyPresenceUpdate(awareness: Awareness, data: unknown): void {
   applyAwarenessUpdate(awareness, b64ToBytes(extractPresenceUpdate(data)), 'remote')
 }
 
-const SIDE_EFFECT_KINDS = new Set<EditorWsKind>(['room_closed', 'code_run', 'cursor'])
+const SIDE_EFFECT_KINDS = new Set<EditorWsKind>([
+  'room_closed',
+  'code_run',
+  'cursor',
+  'participant_joined',
+  'participant_left',
+])
 
 export function applyWsEnvelope(
   env: EditorWsEnvelope,

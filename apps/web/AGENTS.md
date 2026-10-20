@@ -90,8 +90,8 @@ Wire `RUN_STATUS_*`: `QUEUED` / `RUNNING` / `SUCCESS` / `COMPILE_ERROR` / `RUNTI
 |------|---------|--------|
 | `WS /ws/editor/{roomId}` (`Sec-WebSocket-Protocol: access_token.<JWT>`) | rooms | `lib/ws/collabEditor.ts` |
 
-WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_closed`.
-Corrupt JSON, unknown kinds, missing Yjs/presence/`code_run` payloads, or invalid Yjs payload types fail the socket (`status: failed`, no retry). `cursor` / `room_closed` / `code_run` are side-effect kinds (not applied to the Y.Doc). Close 1000 (room closed) and 1008 (policy) are terminal; 1001/1006/1011 may retry. Expired rooms return HTTP 410 on REST and WS upgrade.
+WS envelope kinds: `snapshot`, `op`, `presence`, `cursor`, `code_run`, `room_closed`, `participant_joined`, `participant_left`.
+Corrupt JSON, unknown kinds, missing Yjs/presence/`code_run` payloads, or invalid Yjs payload types fail the socket (`status: failed`, no retry). `cursor` / `room_closed` / `code_run` / `participant_joined` / `participant_left` are side-effect kinds (not applied to the Y.Doc). Close 1000 (room closed) and 1008 (policy) are terminal; 1001/1006/1011 may retry. Expired rooms return HTTP 410 on REST and WS upgrade.
 
 ## Guest JWT flow
 

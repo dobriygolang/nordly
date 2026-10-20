@@ -29,7 +29,13 @@ const indexStore = vi.hoisted(() => ({
   getVaultSyncIndex: vi.fn(),
   putVaultSyncIndex: vi.fn(),
   deleteVaultSyncIndex: vi.fn(),
-  listVaultSyncIndex: vi.fn(async () => []),
+  listVaultSyncIndex: vi.fn(async (): Promise<Array<{
+    userId: string;
+    path: string;
+    serverId: string;
+    hash: string;
+    remoteUpdatedAt: string;
+  }>> => []),
 }));
 
 const outbox = vi.hoisted(() => ({

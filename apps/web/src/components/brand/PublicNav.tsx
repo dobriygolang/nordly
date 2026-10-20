@@ -19,7 +19,7 @@ export function PublicPageShell({ children }: ShellProps) {
     <LandingDownloadProvider>
       <SiteThemeShell
         theme={theme}
-        className="flex min-h-screen flex-col bg-site-bg font-sans text-site-text selection:bg-site-accent/20 selection:text-site-text"
+        className="flex min-h-dvh flex-col bg-site-bg font-sans text-site-text selection:bg-site-accent/20 selection:text-site-text"
       >
         <SiteHeader />
         <div className="flex flex-1 flex-col">{children}</div>

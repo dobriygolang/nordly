@@ -80,6 +80,15 @@
     color: rgb(var(--color-text-primary));
   }
 
+  /* iOS zooms the page when a focused field is under 16px. */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
   body {
     background: rgb(var(--color-bg));
     color: rgb(var(--color-text-primary));
@@ -130,12 +139,12 @@
   html.theme-transition *::before,
   html.theme-transition *::after {
     transition:
-      background-color var(--motion-dur-medium) var(--motion-ease-standard),
-      color var(--motion-dur-medium) var(--motion-ease-standard),
-      border-color var(--motion-dur-medium) var(--motion-ease-standard),
-      fill var(--motion-dur-medium) var(--motion-ease-standard),
-      stroke var(--motion-dur-medium) var(--motion-ease-standard),
-      box-shadow var(--motion-dur-medium) var(--motion-ease-standard) !important;
+      background-color var(--theme-toggle-dur) var(--motion-ease-standard),
+      color var(--theme-toggle-dur) var(--motion-ease-standard),
+      border-color var(--theme-toggle-dur) var(--motion-ease-standard),
+      fill var(--theme-toggle-dur) var(--motion-ease-standard),
+      stroke var(--theme-toggle-dur) var(--motion-ease-standard),
+      box-shadow var(--theme-toggle-dur) var(--motion-ease-standard) !important;
   }
 }
 
@@ -152,7 +161,7 @@
 
   ::view-transition-new(root) {
     z-index: 2;
-    animation: theme-circle-in var(--motion-dur-xlarge) var(--motion-ease-emphasized) both;
+    animation: theme-circle-in var(--theme-toggle-dur) var(--motion-ease-emphasized) both;
   }
 
   @keyframes theme-circle-in {
@@ -166,6 +175,24 @@
 }
 
 @layer utilities {
+  .safe-x {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-floating {
+    right: max(1.25rem, env(safe-area-inset-right));
+    bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
   .cm-ySelectionCaret {
     position: relative;
     border-left: 2px solid;

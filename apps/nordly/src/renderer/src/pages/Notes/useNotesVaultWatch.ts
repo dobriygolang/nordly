@@ -224,11 +224,12 @@ export function useNotesVaultWatch({
     const stopListening = listenVaultChanged(
       () => {
         const reload = () => {
+          if (isNoteDraftDirty(draftRef.current, lastSavedRef.current)) return;
           const id = selectedIdRef.current;
           loadList();
           if (id) void reloadSelectedNote(id);
         };
-        if (isVaultWatchSuppressed()) {
+        if (isVaultWatchSuppressed() || isNoteDraftDirty(draftRef.current, lastSavedRef.current)) {
           deferVaultWatchReload(reload);
           return;
         }
@@ -241,6 +242,8 @@ export function useNotesVaultWatch({
       cancelDeferredVaultWatchReload();
     };
   }, [
+    draftRef,
+    lastSavedRef,
     loadList,
     reloadSelectedNote,
     selectedIdRef,

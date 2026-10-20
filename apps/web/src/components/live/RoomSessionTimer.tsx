@@ -85,7 +85,7 @@ export function RoomSessionTimer({ mode, createdAt, expiresAt, className, onExpi
   return (
     <div
       className={cn(
-        'hidden items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] tabular-nums sm:flex',
+        'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] tabular-nums sm:px-2.5',
         urgent
           ? 'border-amber-500/40 bg-amber-500/10 text-amber-800'
           : 'border-border bg-surface-1 text-text-secondary',
@@ -94,7 +94,7 @@ export function RoomSessionTimer({ mode, createdAt, expiresAt, className, onExpi
       title={mode === 'countdown' ? t('live.timerCountdownTitle') : t('live.timerElapsedTitle')}
     >
       <span className="font-medium text-text-primary">{value}</span>
-      <span>{label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </div>
   )
 }

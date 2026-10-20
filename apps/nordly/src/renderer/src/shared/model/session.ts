@@ -103,7 +103,7 @@ async function persistSessionToNative(session: PersistedSession, epoch: number):
     refreshToken: session.refreshToken ?? '',
     expiresAt: session.expiresAt,
   });
-  if (epoch !== sessionPersistEpoch) {
+  if (epoch !== sessionPersistEpoch && !sessionExitInProgress) {
     try {
       await bridge.auth.logout();
     } catch (err) {
@@ -114,6 +114,12 @@ async function persistSessionToNative(session: PersistedSession, epoch: number):
 
 /** Last in-flight keychain write — awaited on login/refresh so quit cannot race an empty keychain. */
 let pendingNativePersist: Promise<void> | null = null;
+/** Process exit is in progress — a stale persist must not wipe the keychain on the way out. */
+let sessionExitInProgress = false;
+
+export function beginSessionExit(): void {
+  sessionExitInProgress = true;
+}
 
 function queueNativePersist(session: PersistedSession): Promise<void> {
   const epoch = sessionPersistEpoch;

@@ -16,11 +16,36 @@ export type DownloadPlatform = 'mac' | 'windows' | 'other'
 
 export { NORDLY_DESKTOP_BASE, NORDLY_DESKTOP_PUBLIC_BASE, NORDLY_DOWNLOAD_PAGE, NORDLY_DOWNLOAD_PATH }
 
+type NavigatorHints = {
+  userAgent: string
+  platform: string
+  maxTouchPoints: number
+}
+
+/** iPadOS reports itself as a Mac when the site is in desktop mode. */
+export function isHandheldDevice(nav?: NavigatorHints): boolean {
+  const hints =
+    nav ??
+    (typeof navigator === 'undefined'
+      ? null
+      : {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform ?? '',
+          maxTouchPoints: navigator.maxTouchPoints ?? 0,
+        })
+  if (!hints) return false
+  const ua = hints.userAgent
+  const platform = hints.platform
+  if (/iPhone|iPad|iPod|Android/i.test(ua) || /iPhone|iPad|iPod/i.test(platform)) return true
+  return platform === 'MacIntel' && hints.maxTouchPoints > 1
+}
+
 export function detectPlatform(): DownloadPlatform {
   if (typeof navigator === 'undefined') return 'other'
+  if (isHandheldDevice()) return 'other'
   const ua = navigator.userAgent.toLowerCase()
   const platform = navigator.platform?.toLowerCase() ?? ''
-  if (/mac|iphone|ipad|ipod/.test(platform) || /mac os/.test(ua)) return 'mac'
+  if (/mac/.test(platform) || /mac os/.test(ua)) return 'mac'
   if (/win/.test(platform) || /windows/.test(ua)) return 'windows'
   return 'other'
 }

@@ -24,7 +24,10 @@ import {
   type PublishToWebOptions,
 } from '@features/notes/api/notesClient';
 import { remapVaultPath } from '@features/notes/api/vault';
+import { openOrCreateBoardByTitle } from '@features/whiteboard/api/whiteboardClient';
 import { requireCloudCta } from '@shared/api/cloudCta';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { boardTitleFromWikiLink } from '@shared/lib/wikiLinkText';
 import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { errorMessage, type ListState } from './utils';
@@ -630,6 +633,19 @@ export function useNotesPageActions({
 
   const handleWikiLinkClick = useCallback(
     async (linkText: string) => {
+      const boardTitle = boardTitleFromWikiLink(linkText);
+      if (boardTitle) {
+        if (!(await flushNow())) return;
+        try {
+          const board = await openOrCreateBoardByTitle(boardTitle);
+          window.dispatchEvent(
+            new CustomEvent(NORDLY_EVENTS.openBoard, { detail: { id: board.id } }),
+          );
+        } catch (err: unknown) {
+          setActiveError(errorMessage(err, t));
+        }
+        return;
+      }
       if (!(await flushNow())) return;
       const selectedAtStart = selectedIdRef.current;
       const draftRevisionAtStart = draftRef.current.revision;

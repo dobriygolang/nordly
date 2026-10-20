@@ -37,7 +37,7 @@ export function LiveToggle({ checked, onChange, label, className }: Props) {
           )}
         />
       </span>
-      <span className="text-[13px] font-medium">{label}</span>
+      <span className="sr-only text-[13px] font-medium sm:not-sr-only">{label}</span>
     </button>
   )
 }

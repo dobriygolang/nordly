@@ -32,7 +32,7 @@ export function LiveNewPage() {
   }
 
   return (
-    <Reveal className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-20 pt-12 sm:px-8 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
+    <Reveal className="safe-x mx-auto flex max-w-7xl flex-col gap-10 pb-16 pt-10 sm:pb-20 sm:pt-12 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
         <RevealItem className="flex-1 lg:max-w-md">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-site-muted">{t('live.newEyebrow')}</p>
           <h1 className="mt-3 text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-site-text">
@@ -69,7 +69,7 @@ export function LiveNewPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t('common.guest')}
-                className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-sm text-site-text outline-none focus:border-site-muted"
+                className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-base text-site-text outline-none focus:border-site-muted sm:text-sm"
               />
             </div>
 

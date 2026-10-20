@@ -15,6 +15,8 @@ interface PageStorage {
   setItem(key: string, value: string): void;
 }
 
+const NAV_FLUSH_TIMEOUT_MS = 2500;
+
 const FLUSH_ON_LEAVE = new Set<PageId>([
   PageId.Notes,
   PageId.Whiteboard,
@@ -40,11 +42,28 @@ export function shouldFlushBeforeNavigation(current: PageId, target: PageId): bo
   return FLUSH_ON_LEAVE.has(current) && current !== target;
 }
 
+function flushBeforeLeave(flush: () => Promise<boolean>): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => resolve(false), NAV_FLUSH_TIMEOUT_MS);
+    flush().then(
+      (saved) => {
+        window.clearTimeout(timer);
+        resolve(saved);
+      },
+      () => {
+        window.clearTimeout(timer);
+        resolve(false);
+      },
+    );
+  });
+}
+
 export interface AppNavigation {
   page: PageId;
   statsOpen: boolean;
   taskOpenRequest: EntityNavigationRequest | null;
   noteOpenRequest: EntityNavigationRequest | null;
+  boardOpenRequest: EntityNavigationRequest | null;
   navigateTo: (page: PageId) => Promise<boolean>;
   goHome: () => Promise<boolean>;
   openStats: () => Promise<boolean>;
@@ -55,8 +74,10 @@ export interface AppNavigation {
   closePlanning: () => Promise<boolean>;
   openTaskRequest: (id: string) => Promise<boolean>;
   openNoteRequest: (id: string) => Promise<boolean>;
+  openBoardRequest: (id: string) => Promise<boolean>;
   consumeTaskOpenRequest: (requestKey: number) => void;
   consumeNoteOpenRequest: (requestKey: number) => void;
+  consumeBoardOpenRequest: (requestKey: number) => void;
   registerPageFlush: (flush: (() => Promise<boolean>) | null) => void;
 }
 
@@ -71,6 +92,8 @@ export function useAppNavigation(
   const [taskOpenRequest, setTaskOpenRequest] =
     useState<EntityNavigationRequest | null>(null);
   const [noteOpenRequest, setNoteOpenRequest] =
+    useState<EntityNavigationRequest | null>(null);
+  const [boardOpenRequest, setBoardOpenRequest] =
     useState<EntityNavigationRequest | null>(null);
   const pageRef = useRef(page);
   const entityRequestKeyRef = useRef(0);
@@ -92,9 +115,13 @@ export function useAppNavigation(
     const flush = pageFlushRef.current;
     if (!flush) {
       console.error('[nav] page flush required but not registered');
-      return false;
+      return true;
     }
-    return flush();
+    const saved = await flushBeforeLeave(flush);
+    if (!saved) {
+      console.error('[nav] page flush did not finish; leaving the page anyway');
+    }
+    return true;
   }, []);
 
   const commitNavigation = useCallback(
@@ -142,6 +169,14 @@ export function useAppNavigation(
     [commitNavigation],
   );
 
+  const openBoardRequest = useCallback(
+    (id: string): Promise<boolean> => {
+      const request = { id, requestKey: ++entityRequestKeyRef.current };
+      return commitNavigation(PageId.Whiteboard, () => setBoardOpenRequest(request));
+    },
+    [commitNavigation],
+  );
+
   const consumeTaskOpenRequest = useCallback((requestKey: number) => {
     setTaskOpenRequest((current) =>
       current?.requestKey === requestKey ? null : current,
@@ -150,6 +185,12 @@ export function useAppNavigation(
 
   const consumeNoteOpenRequest = useCallback((requestKey: number) => {
     setNoteOpenRequest((current) =>
+      current?.requestKey === requestKey ? null : current,
+    );
+  }, []);
+
+  const consumeBoardOpenRequest = useCallback((requestKey: number) => {
+    setBoardOpenRequest((current) =>
       current?.requestKey === requestKey ? null : current,
     );
   }, []);
@@ -173,23 +214,31 @@ export function useAppNavigation(
       void navigateTo(PageId.Settings).catch(onError);
     };
 
+    const onOpenBoard = (event: Event): void => {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id;
+      if (id) void openBoardRequest(id).catch(onError);
+    };
+
     window.addEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
     window.addEventListener(NORDLY_EVENTS.navHome, onNavHome);
     window.addEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
     window.addEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
+    window.addEventListener(NORDLY_EVENTS.openBoard, onOpenBoard);
     return () => {
       window.removeEventListener(NORDLY_EVENTS.navOpenTask, onNavTask);
       window.removeEventListener(NORDLY_EVENTS.navHome, onNavHome);
       window.removeEventListener(NORDLY_EVENTS.openPlanning, onOpenPlanning);
       window.removeEventListener(NORDLY_EVENTS.openSettings, onOpenSettings);
+      window.removeEventListener(NORDLY_EVENTS.openBoard, onOpenBoard);
     };
-  }, [goHome, navigateTo, onError, openPlanning, openTaskRequest]);
+  }, [goHome, navigateTo, onError, openBoardRequest, openPlanning, openTaskRequest]);
 
   return {
     page,
     statsOpen,
     taskOpenRequest,
     noteOpenRequest,
+    boardOpenRequest,
     navigateTo,
     goHome,
     openStats,
@@ -200,8 +249,10 @@ export function useAppNavigation(
     closePlanning,
     openTaskRequest,
     openNoteRequest,
+    openBoardRequest,
     consumeTaskOpenRequest,
     consumeNoteOpenRequest,
+    consumeBoardOpenRequest,
     registerPageFlush,
   };
 }

@@ -17,7 +17,7 @@ export function PublishedBoardCanvas({
   return (
     <div
       className={`flex-1 min-h-0 ${EXCALIDRAW_MOUNT_CLASS}`}
-      style={{ height: 'calc(100vh - 57px)' }}
+      style={{ height: 'calc(100dvh - 4.5rem - env(safe-area-inset-top))' }}
       data-board-theme="dark"
     >
       <Excalidraw

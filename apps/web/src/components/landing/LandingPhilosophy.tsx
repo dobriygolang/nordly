@@ -9,8 +9,8 @@ export function LandingPhilosophy() {
   const lines = t('welcome.philosophyBody').split('\n')
 
   return (
-    <section id="manifesto" className="scroll-mt-24 border-t border-site-border bg-site-surface py-32">
-      <div className="mx-auto max-w-4xl px-6">
+    <section id="manifesto" className="scroll-mt-24 border-t border-site-border bg-site-surface py-16 md:py-32">
+      <div className="safe-x mx-auto max-w-4xl">
         <h2 className="mb-8 font-mono text-sm uppercase tracking-widest text-site-muted">
           {t('welcome.philosophyTitle')}
         </h2>
@@ -20,12 +20,12 @@ export function LandingPhilosophy() {
             src={isDark ? '/landing/landing-philosophy-dark.png' : '/landing/landing-philosophy-light.png'}
             alt=""
             aria-hidden="true"
-            className="h-full max-h-[420px] w-full object-cover"
+            className="h-full max-h-[220px] w-full object-cover sm:max-h-[320px] md:max-h-[420px]"
             loading="lazy"
           />
         </div>
 
-        <div className="mx-auto max-w-none text-lg leading-relaxed text-site-muted">
+        <div className="mx-auto max-w-none text-base leading-relaxed text-site-muted sm:text-lg">
           <p className="m-0 text-site-text/85">
             {lines.map((line, index) => (
               <Fragment key={`${index}-${line.slice(0, 8)}`}>

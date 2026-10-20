@@ -1,6 +1,6 @@
 /** Wiki-link extraction and resolution for Obsidian-style [[Title]] / [[Title|alias]] syntax. */
 
-import { normalizeWikiTitle } from '@shared/lib/wikiLinkText';
+import { boardTitleFromWikiLink, normalizeWikiTitle } from '@shared/lib/wikiLinkText';
 
 export interface WikiLinkRef {
   linkText: string;
@@ -33,12 +33,11 @@ function segmentsWithoutInlineCode(line: string): string[] {
 function extractFromText(text: string, seen: Set<string>, out: WikiLinkRef[]): void {
   for (const match of text.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)) {
     const linkText = match[1].trim();
-    if (linkText) {
-      const key = normalizeWikiTitle(linkText);
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({ linkText });
-      }
+    if (!linkText || boardTitleFromWikiLink(linkText)) continue;
+    const key = normalizeWikiTitle(linkText);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push({ linkText });
     }
   }
 }

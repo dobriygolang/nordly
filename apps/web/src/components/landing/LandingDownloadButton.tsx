@@ -63,7 +63,7 @@ export function LandingDownloadToast() {
   return (
     <div
       className={cn(
-        'pointer-events-none fixed bottom-6 right-6 z-50 rounded-full border border-site-border bg-site-card/90 px-4 py-2 text-xs text-site-muted shadow-lg backdrop-blur-md transition-all duration-300',
+        'safe-floating pointer-events-none fixed z-50 max-w-[calc(100vw-2.5rem)] rounded-full border border-site-border bg-site-card/90 px-4 py-2 text-xs text-site-muted shadow-lg backdrop-blur-md transition-all duration-300',
         downloaded ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
       )}
     >

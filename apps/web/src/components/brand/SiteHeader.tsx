@@ -27,8 +27,8 @@ export function SiteHeader({ right, className }: SiteHeaderProps) {
         className,
       )}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-        <Logo />
+      <div className="safe-x safe-top mx-auto flex max-w-7xl items-center justify-between gap-3 py-3 sm:gap-4 sm:py-4">
+        <Logo className="max-sm:text-xs max-sm:tracking-[0.18em]" />
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <SiteThemeToggle theme={theme} onToggle={toggleTheme} compact className="sm:hidden" />

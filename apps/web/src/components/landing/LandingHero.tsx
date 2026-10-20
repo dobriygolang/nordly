@@ -1,4 +1,3 @@
-import { LandingHeroMedia } from '@/components/landing/LandingHeroMedia'
 import { LandingDownloadButton } from '@/components/landing/LandingDownloadButton'
 import { cn } from '@/lib/cn'
 import { publicLiveNewUrl } from '@/lib/live/liveRoomUrl'
@@ -11,7 +10,7 @@ export function LandingHero() {
   const isDark = theme === 'dark'
 
   return (
-    <section className="relative overflow-hidden pb-20 pt-20 md:pb-32 md:pt-32">
+    <section className="relative overflow-hidden pb-16 pt-14 md:pb-32 md:pt-32">
       <div className="pointer-events-none absolute right-0 top-0 z-0 h-full w-full opacity-20">
         <div
           className={cn(
@@ -22,14 +21,14 @@ export function LandingHero() {
         />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6">
+      <div className="safe-x relative z-10 mx-auto max-w-7xl">
         <div className="max-w-3xl">
           <div className="mb-8 inline-flex animate-[fadeInUp_0.45s_ease-out_both] items-center gap-2 rounded-full border border-site-border bg-site-card px-3 py-1">
             <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
             <span className="font-mono text-xs text-site-muted">{t('welcome.pill')}</span>
           </div>
 
-          <h1 className="mb-8 animate-[fadeInUp_0.45s_ease-out_0.04s_both] text-5xl font-bold leading-[1.1] tracking-tight text-site-text md:text-7xl">
+          <h1 className="mb-6 animate-[fadeInUp_0.45s_ease-out_0.04s_both] text-[2.5rem] font-bold leading-[1.05] tracking-tight text-site-text sm:text-5xl md:mb-8 md:text-7xl md:leading-[1.1]">
             {t('welcome.heroLine1')}{' '}
             <br />
             <span
@@ -44,24 +43,20 @@ export function LandingHero() {
             </span>
           </h1>
 
-          <p className="mb-10 max-w-xl animate-[fadeInUp_0.45s_ease-out_0.08s_both] text-lg leading-relaxed text-site-muted md:text-xl">
+          <p className="mb-8 max-w-xl animate-[fadeInUp_0.45s_ease-out_0.08s_both] text-base leading-relaxed text-site-muted sm:text-lg md:mb-10 md:text-xl">
             {t('welcome.heroBody')}
           </p>
 
           <div className="flex animate-[fadeInUp_0.45s_ease-out_0.12s_both] flex-col gap-4 sm:flex-row sm:items-center">
-            <LandingDownloadButton />
+            <LandingDownloadButton className="w-full sm:w-auto" />
             <a
               href={publicLiveNewUrl()}
-              className="inline-flex items-center justify-center rounded-md border border-site-border px-6 py-3 text-sm font-medium text-site-text no-underline transition-colors hover:bg-site-card"
+              className="inline-flex w-full items-center justify-center rounded-md border border-site-border px-6 py-3 text-sm font-medium text-site-text no-underline transition-colors hover:bg-site-card sm:w-auto"
             >
               {t('welcome.heroLiveCta')}
             </a>
           </div>
         </div>
-      </div>
-
-      <div className="relative z-10 mx-auto mt-20 max-w-7xl animate-[fadeInUp_0.5s_ease-out_0.16s_both] px-6 md:mt-24">
-        <LandingHeroMedia />
       </div>
     </section>
   )

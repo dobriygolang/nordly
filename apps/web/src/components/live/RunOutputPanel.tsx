@@ -69,10 +69,11 @@ export function RunOutputPanel({
 
   return (
     <aside
-      style={{ width }}
+      style={{ ['--run-panel-width' as string]: `${width}px` }}
       className={cn(
-        'flex h-full shrink-0 flex-col',
-        'border-l border-border bg-surface-1 font-mono text-text-primary',
+        'flex h-[min(42dvh,22rem)] w-full shrink-0 flex-col',
+        'border-t border-border bg-surface-1 font-mono text-text-primary',
+        'lg:h-full lg:w-[var(--run-panel-width)] lg:border-l lg:border-t-0',
       )}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">

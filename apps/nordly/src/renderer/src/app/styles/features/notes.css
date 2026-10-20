@@ -830,6 +830,7 @@ body.nordly-note-dragging .nordly-note-row-wrap {
 
 .nordly-md-wiki-link {
   color: var(--ink-90);
+  font-style: italic;
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-color: rgb(var(--accent-rgb, var(--ink-rgb)) / 0.55);

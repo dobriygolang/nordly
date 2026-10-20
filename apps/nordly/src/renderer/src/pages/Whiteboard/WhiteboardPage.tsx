@@ -4,20 +4,29 @@ import { useT } from '@nordly-i18n';
 
 import {
   listBoards,
+  listBoardFolders,
   getBoard,
   createBoard,
+  createBoardFolder,
   deleteBoard,
+  deleteBoardFolder,
+  moveBoardFolder,
+  moveBoardToFolder,
+  renameBoardFolder,
   updateBoardTitle,
   shareWhiteboard,
   publishWhiteboard,
   type Board,
+  type BoardFolder,
 } from '@features/whiteboard/api/whiteboardClient';
 import { requireCloudCta } from '@shared/api/cloudCta';
 import { isCloudEnabled } from '@shared/model/features';
+import type { EntityNavigationRequest } from '@shared/model/navigation';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
+import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 
 import { BoardCanvas, type BoardCanvasHandle } from './BoardCanvas';
 import {
@@ -37,7 +46,6 @@ import {
   sameBoardSummaries,
   type ListState,
 } from './utils';
-import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 
 const SIDEBAR_W = VAULT_SIDEBAR_W;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
@@ -61,14 +69,22 @@ async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {
 
 interface WhiteboardPageProps {
   boardCanvas: BoardCanvasTheme;
+  openRequest?: EntityNavigationRequest | null;
+  onConsumeOpenRequest?: (requestKey: number) => void;
   onRegisterFlush: (flush: (() => Promise<boolean>) | null) => void;
 }
 
-export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageProps) {
+export function WhiteboardPage({
+  boardCanvas,
+  openRequest = null,
+  onConsumeOpenRequest,
+  onRegisterFlush,
+}: WhiteboardPageProps) {
   const t = useT();
   const [list, setList] = useState<ListState>(INITIAL_LIST);
   const listRef = useRef(list);
   listRef.current = list;
+  const [folders, setFolders] = useState<BoardFolder[]>([]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -139,8 +155,9 @@ export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageP
   }, []);
 
   const loadList = useCallback(() => {
-    void listBoards()
-      .then((boards) => {
+    void Promise.all([listBoards(), listBoardFolders()])
+      .then(([boards, nextFolders]) => {
+        setFolders(nextFolders);
         setList((prev) =>
           prev.status === BoardListStatus.Ready &&
           sameBoardSummaries(prev.boards, boards)
@@ -195,13 +212,34 @@ export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageP
     return (await canvasRef.current?.flush()) ?? true;
   }, []);
 
-  const handleCreate = useCallback(async () => {
+  useEffect(() => {
+    if (!openRequest) return;
+    const request = openRequest;
+    void (async () => {
+      if (!(await flushCanvas())) return;
+      onConsumeOpenRequest?.(request.requestKey);
+      if (selectedIdRef.current === request.id && activeRef.current?.id === request.id) return;
+      if (selectedIdRef.current === request.id) {
+        setActiveLoadAttempt((attempt) => attempt + 1);
+        return;
+      }
+      setBoardLoad(startBoardLoad(request.id));
+      setSelectedId(request.id);
+      setActiveError(null);
+      setSaveError(null);
+    })();
+  }, [flushCanvas, onConsumeOpenRequest, openRequest]);
+
+  const handleCreate = useCallback(async (folderId: string | null = null) => {
     if (!(await flushCanvas())) return;
     try {
-      const b = await createBoard(t('nordly.whiteboard.untitled'));
+      const b = await createBoard(t('nordly.whiteboard.untitled'), folderId);
       setList((prev) => ({
         status: BoardListStatus.Ready,
-        boards: [{ id: b.id, title: b.title, updatedAt: b.updatedAt }, ...prev.boards],
+        boards: [
+          { id: b.id, title: b.title, folderId: b.folderId, updatedAt: b.updatedAt },
+          ...prev.boards,
+        ],
       }));
       setSelectedId(b.id);
       setBoardLoad(finishBoardLoad(b));
@@ -244,7 +282,9 @@ export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageP
       setList((prev) => ({
         ...prev,
         boards: prev.boards.map((b) =>
-          b.id === id ? { id: updated.id, title: updated.title, updatedAt: updated.updatedAt } : b,
+          b.id === id
+            ? { id: updated.id, title: updated.title, folderId: updated.folderId, updatedAt: updated.updatedAt }
+            : b,
         ),
       }));
       setBoardLoad((current) =>
@@ -395,11 +435,64 @@ export function WhiteboardPage({ boardCanvas, onRegisterFlush }: WhiteboardPageP
         <div className="nordly-vault-sidebar-wrap__inner" style={{ width: SIDEBAR_W }}>
           <Sidebar
             list={list}
+            folders={folders}
             selectedId={selectedId}
             cloudEnabled={isCloudEnabled()}
             onSelect={onSelectBoard}
-            onCreate={() => void handleCreate()}
+            onCreate={(folderId) => void handleCreate(folderId)}
+            onCreateFolder={async (parentId) => {
+              try {
+                const folder = await createBoardFolder(
+                  t('nordly.whiteboard.folder.default_name'),
+                  parentId,
+                );
+                setFolders((prev) => [...prev, folder]);
+                return folder;
+              } catch (err: unknown) {
+                setActiveError(errorMessage(err));
+                throw err;
+              }
+            }}
+            onRenameFolder={async (id, name) => {
+              try {
+                const folder = await renameBoardFolder(id, name);
+                setFolders((prev) => prev.map((item) => (item.id === id ? folder : item)));
+              } catch (err: unknown) {
+                setActiveError(errorMessage(err));
+              }
+            }}
+            onDeleteFolder={async (id) => {
+              try {
+                await deleteBoardFolder(id);
+                loadList();
+              } catch (err: unknown) {
+                setActiveError(errorMessage(err));
+              }
+            }}
             onRename={handleRename}
+            onMove={async (id, folderId) => {
+              try {
+                const updated = await moveBoardToFolder(id, folderId);
+                setList((prev) => ({
+                  ...prev,
+                  boards: prev.boards.map((board) =>
+                    board.id === id
+                      ? { ...board, folderId: updated.folderId, updatedAt: updated.updatedAt }
+                      : board,
+                  ),
+                }));
+              } catch (err: unknown) {
+                setActiveError(errorMessage(err));
+              }
+            }}
+            onMoveFolder={async (id, parentId) => {
+              try {
+                const folder = await moveBoardFolder(id, parentId);
+                setFolders((prev) => prev.map((item) => (item.id === id ? folder : item)));
+              } catch (err: unknown) {
+                setActiveError(errorMessage(err));
+              }
+            }}
             onShare={() => void handleShareLive()}
             onPublish={() => void handlePublish()}
             onDelete={handleDelete}

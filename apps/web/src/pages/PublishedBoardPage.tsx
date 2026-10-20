@@ -83,7 +83,7 @@ export default function PublishedBoardPage() {
 
   if (state.kind === 'loading') {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex items-center justify-center">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex items-center justify-center">
         <div className="h-10 w-48 rounded-md bg-white/5 animate-pulse" />
       </div>
     )
@@ -91,7 +91,7 @@ export default function PublishedBoardPage() {
 
   if (state.kind === 'error') {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
         <h1 className="text-2xl font-bold mb-3">
           {state.status === 404 ? 'Board not found' : 'Could not load board'}
         </h1>
@@ -103,7 +103,7 @@ export default function PublishedBoardPage() {
   }
   if (state.kind !== 'ok' || !scene) {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col items-center justify-center px-6 text-center">
         <h1 className="text-2xl font-bold mb-3">Could not load board</h1>
         <Link to="/" className="text-sm text-zinc-300 underline underline-offset-4">
           {t('seo.goHome')}
@@ -113,8 +113,8 @@ export default function PublishedBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col">
-      <header className="px-6 py-4 border-b border-white/10">
+    <div className="flex min-h-dvh flex-col bg-[#050505] text-zinc-100">
+      <header className="safe-x safe-top border-b border-white/10 py-4">
         <h1 className="text-lg font-semibold truncate">{title}</h1>
       </header>
       <Suspense fallback={<div className="flex-1 min-h-0 bg-[#050505]" />}>
@@ -122,7 +122,7 @@ export default function PublishedBoardPage() {
       </Suspense>
       <Link
         to="/"
-        className="fixed bottom-6 right-6 flex items-center gap-2 px-2 py-2 rounded-md border border-white/10 bg-black text-xs text-zinc-400 hover:text-white z-50"
+        className="safe-floating fixed z-50 flex items-center gap-2 rounded-md border border-white/10 bg-black px-2 py-2 text-xs text-zinc-400 hover:text-white"
       >
         {t('seo.madeWith')}
       </Link>

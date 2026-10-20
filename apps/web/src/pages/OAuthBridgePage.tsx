@@ -70,7 +70,7 @@ export default function OAuthBridgePage({ provider }: { provider: OAuthProviderI
 
   if (!status) {
     return (
-      <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col justify-center px-6 py-16 text-center">
+      <main className="safe-x mx-auto flex min-h-[60vh] max-w-lg flex-col justify-center py-16 text-center">
         <h1 className="text-xl font-semibold">{t(copy.missing)}</h1>
         <p className="mt-3 text-sm text-neutral-500">
           <Link to="/" className="underline">
@@ -82,7 +82,7 @@ export default function OAuthBridgePage({ provider }: { provider: OAuthProviderI
   }
 
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col justify-center px-6 py-16 text-center">
+    <main className="safe-x mx-auto flex min-h-[60vh] max-w-lg flex-col justify-center py-16 text-center">
       <p className="text-xs uppercase tracking-wide text-neutral-500">Nordly</p>
       <h1 className="mt-2 text-2xl font-semibold">
         {ok ? t(copy.successTitle) : t(copy.errorTitle)}

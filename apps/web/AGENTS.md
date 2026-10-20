@@ -138,7 +138,7 @@ Room types in prod UI: `practice`, `system_design` only.
 | `VITE_WS_BASE` | derived from API origin | Live room WebSocket base |
 | `VITE_IDENTITY_URL`, `VITE_SANDBOX_URL`, `VITE_ROOMS_URL`, `VITE_NOTES_URL` | localhost service ports | Vite dev proxy targets |
 
-Landing download: `lib/landing/nordlyRelease.ts` reads `https://trynordly.app/desktop/releases.json`. Hero + header CTA; short link `/download` starts the installer or shows an OS picker (never self-redirects). Logo on `code.trynordly.app` goes to `https://trynordly.app/`.
+Landing download: `lib/landing/nordlyRelease.ts` reads `https://trynordly.app/desktop/releases.json`. Hero + header CTA; short link `/download` starts the installer or shows an OS picker (never self-redirects). iPhone, iPad, and Android are not treated as Mac — they get the picker and a note that the desktop app is Mac/Windows while live rooms work in the browser. Layout stacks below the `lg` breakpoint (live editor above the run panel; landing type and actions reflow). Logo on `code.trynordly.app` goes to `https://trynordly.app/`.
 
 ## Commands
 

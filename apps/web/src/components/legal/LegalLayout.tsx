@@ -21,13 +21,13 @@ export function LegalLayout({
   const { t } = useI18n()
 
   return (
-    <Reveal className="mx-auto max-w-[760px] px-6 py-16">
+    <Reveal className="safe-x mx-auto max-w-[760px] py-12 sm:py-16">
         <RevealItem className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-site-muted">{eyebrow}</p>
           {nav}
         </RevealItem>
         <RevealItem>
-          <h1 className="mt-3 text-[36px] font-semibold tracking-tight text-site-text sm:text-[44px]">{title}</h1>
+          <h1 className="mt-3 text-[1.75rem] font-semibold tracking-tight text-site-text sm:text-[2.75rem]">{title}</h1>
           <p className="mt-3 text-[12.5px] text-site-muted">
             {t('legal.layout.updated')} {updated}
           </p>

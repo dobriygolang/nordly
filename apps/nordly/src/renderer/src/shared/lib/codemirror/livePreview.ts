@@ -11,6 +11,7 @@ import {
 
 import { notesCodeLangLabel } from './notesCodeLanguages';
 import { NORDLY_ASSET_SCHEME } from '@shared/lib/nordlyAsset';
+import { boardWikiTitleSpan } from '@shared/lib/wikiLinkText';
 
 interface DecorationSink {
   add(from: number, to: number, decoration: Decoration): void;
@@ -277,25 +278,31 @@ function applyWikiLinkInline(
     const relStart = match.index;
     const relEnd = relStart + match[0].length;
     if (!overlapsRange(occupied, relStart, relEnd)) {
-      const targetTitle = match[1].trim();
+      const rawTarget = match[1] ?? '';
+      const targetTitle = rawTarget.trim();
       const alias = match[2]?.trim();
-      const displayOffset = alias ? 2 + match[1].length + 1 : 2;
+      const boardSpan = alias ? null : boardWikiTitleSpan(rawTarget);
+      const displayOffset = alias ? 2 + rawTarget.length + 1 : boardSpan ? 2 + boardSpan.start : 2;
       const start = lineFrom + relStart;
       const end = lineFrom + relEnd;
       const contentStart = start + displayOffset;
-      const contentEnd = end - 2;
-      const resolved = resolvedTitles.has(targetTitle.toLowerCase());
+      const contentEnd = boardSpan ? start + 2 + boardSpan.end : end - 2;
+      const resolved = boardSpan != null || resolvedTitles.has(targetTitle.toLowerCase());
       const className = resolved ? 'nordly-md-wiki-link' : 'nordly-md-wiki-link nordly-md-wiki-link--unresolved';
       const showSyntax = showLineSyntax(state, state.doc.lineAt(start));
-      if (showSyntax) {
+      if (showSyntax && !boardSpan) {
         addMark(builder, contentStart, contentEnd, { class: className });
+      } else if (showSyntax && boardSpan) {
+        hideRange(builder, start + 2, contentStart);
+        addMark(builder, contentStart, contentEnd, { class: className });
+        if (contentEnd < end - 2) hideRange(builder, contentEnd, end - 2);
       } else {
         hideRange(builder, start, start + 2);
-        if (alias) {
+        if (alias || boardSpan) {
           hideRange(builder, start + 2, contentStart);
         }
         addMark(builder, contentStart, contentEnd, { class: className });
-        hideRange(builder, end - 2, end);
+        hideRange(builder, boardSpan ? contentEnd : end - 2, end);
       }
       occupied.push([relStart, relEnd]);
     }

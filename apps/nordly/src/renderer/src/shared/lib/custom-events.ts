@@ -11,6 +11,8 @@ export const NORDLY_EVENTS = {
   openTask: 'nordly:open-task',
   /** Deeplink → Notes: select note by id. */
   openNote: 'nordly:open-note',
+  /** Notes wiki link → App: open a whiteboard by id. */
+  openBoard: 'nordly:open-board',
   /** Notes → App: open Settings (vault unlock). */
   openSettings: 'nordly:open-settings',
   /** TaskBoard → App: open palette prefilled for a day. */

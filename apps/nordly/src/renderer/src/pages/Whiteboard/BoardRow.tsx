@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@nordly-i18n';
@@ -16,6 +16,8 @@ export interface BoardRowProps {
   cloudEnabled: boolean;
   menuOpen: boolean;
   renaming: boolean;
+  dragging?: boolean;
+  dragHandleProps?: HTMLAttributes<HTMLElement>;
   onMenuOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
   onStartRename: (id: string) => void;
@@ -32,6 +34,8 @@ export const BoardRow = memo(function BoardRow({
   cloudEnabled,
   menuOpen,
   renaming,
+  dragging = false,
+  dragHandleProps,
   onMenuOpenChange,
   onSelect,
   onStartRename,
@@ -118,12 +122,14 @@ export const BoardRow = memo(function BoardRow({
         data-active={active ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
         data-renaming={renaming ? 'true' : 'false'}
+        data-dragging={dragging ? 'true' : 'false'}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => {
           if (renaming) return;
           onSelect(board.id);
         }}
+        {...(renaming ? undefined : dragHandleProps)}
       >
         <span className="nordly-note-row__icon" aria-hidden>
           <Icon name="grid" size={16} strokeWidth={1.5} />
@@ -171,6 +177,7 @@ export const BoardRow = memo(function BoardRow({
           data-open={menuOpen ? 'true' : 'false'}
           aria-label={t('nordly.whiteboard.menu.more')}
           onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onMenuOpenChange(!menuOpen);

@@ -36,6 +36,7 @@ export function sameBoardSummaries(a: BoardSummary[], b: BoardSummary[]): boolea
     if (
       left.id !== right.id ||
       left.title !== right.title ||
+      left.folderId !== right.folderId ||
       (left.updatedAt?.getTime() ?? 0) !== (right.updatedAt?.getTime() ?? 0)
     ) {
       return false;

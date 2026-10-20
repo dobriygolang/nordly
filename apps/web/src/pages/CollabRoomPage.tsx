@@ -361,7 +361,7 @@ export default function CollabRoomPage() {
         onThemeToggle={handleThemeToggle}
       />
 
-      <div className={cn('flex min-h-0 flex-1', designRoom ? 'bg-bg' : 'bg-surface-1')}>
+      <div className={cn('flex min-h-0 flex-1 flex-col lg:flex-row', designRoom ? 'bg-bg' : 'bg-surface-1')}>
         {designRoom ? (
           <Suspense fallback={<div className="min-h-0 flex-1 bg-bg" />}>
             <CollabExcalidrawEditor
@@ -402,7 +402,7 @@ export default function CollabRoomPage() {
               {fmt.formatError ? (
                 <div
                   role="alert"
-                  className="absolute left-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
+                  className="absolute left-4 right-4 top-4 z-[25] flex max-w-md items-start gap-2 rounded-lg border border-danger/30 bg-surface-1 px-3 py-2 text-xs text-danger shadow-md"
                 >
                   <span className="min-w-0 flex-1 leading-relaxed">{fmt.formatError}</span>
                   <button
@@ -433,7 +433,7 @@ export default function CollabRoomPage() {
                 })
               }
               className={cn(
-                'group relative z-10 w-1.5 shrink-0 cursor-col-resize touch-none select-none',
+                'group relative z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none select-none lg:block',
                 'before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border',
                 'hover:before:bg-border-strong',
                 isRunPanelResizing && 'before:bg-border-strong',
@@ -513,7 +513,7 @@ function GuestGate({
 
   return (
     <PublicPageShell>
-      <main className="mx-auto flex max-w-lg flex-col items-center px-6 py-16">
+      <main className="safe-x mx-auto flex max-w-lg flex-col items-center py-12 sm:py-16">
         <div className="w-full rounded-2xl border border-site-border bg-site-card p-6 sm:p-7">
           <h1 className="text-xl font-semibold tracking-[-0.02em] text-site-text">{t('live.guestTitle')}</h1>
           <p className="mt-2 text-sm leading-relaxed text-site-muted">
@@ -526,7 +526,7 @@ function GuestGate({
             id="guest-name"
             value={guestName}
             onChange={(e) => onNameChange(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-sm text-site-text outline-none focus:border-site-muted"
+            className="mt-1.5 w-full rounded-xl border border-site-border bg-site-bg px-3 py-2.5 text-base text-site-text outline-none focus:border-site-muted sm:text-sm"
             placeholder={t('live.namePlaceholder')}
           />
           {error ? (

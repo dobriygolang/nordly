@@ -74,7 +74,7 @@ export const en = {
     heroLine2: 'Beautiful design.',
     heroLine3: 'Made for builders.',
     heroBody:
-      'Notes, daily plan, and pomodoro in one calm desktop workspace — plus live collab rooms in the browser.',
+      'Notes, daily plan, and pomodoro in one calm desktop workspace - plus live collab rooms in the browser.',
     heroLiveCta: 'Start a live room',
     heroPreviewLine1: 'Today · 3 tasks scheduled',
     heroPreviewLine2: 'Notes · weekly plan synced',
@@ -85,6 +85,8 @@ export const en = {
     downloadStarted: 'Download started',
     downloadTitle: 'Download Nordly',
     downloadPickOs: 'Choose an installer for your system.',
+    downloadMobileNote:
+      'The desktop app is for Mac and Windows. Live rooms work in the browser on iPhone and iPad.',
     downloadUnavailable: 'No installer is available for this release yet.',
     downloadMacApple: 'macOS (Apple silicon)',
     downloadMacIntel: 'macOS (Intel)',
@@ -92,7 +94,7 @@ export const en = {
     philosophyTitle: 'Our philosophy',
     philosophyBody:
       'Nordly is not another tab in your browser.\n' +
-      'It is a workspace for people who build — notes, tasks, and focus in one place.\n' +
+      'It is a workspace for people who build - notes, tasks, and focus in one place.\n' +
       '\n' +
       'You should not jump between Notion, a task app, a timer, and a music player just to start working.\n' +
       'We kept planning, writing, and focus together so getting started takes one keystroke.\n' +
@@ -103,7 +105,7 @@ export const en = {
       'When you open Nordly, the goal is simple:\n' +
       'feel ready, stay oriented, and finish what matters today.\n' +
       '\n' +
-      'Need to pair with someone quickly? Open a live room — no account required.\n' +
+      'Need to pair with someone quickly? Open a live room - no account required.\n' +
       'Need a private vault of notes? Nordly has that too.\n' +
       '\n' +
       'If you care about what you build and how you build it, this is for you.\n' +

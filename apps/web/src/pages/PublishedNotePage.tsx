@@ -152,7 +152,7 @@ export default function PublishedNotePage() {
 
   if (state.kind === 'loading') {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col font-sans">
         <main className="flex-1 flex flex-col py-16 sm:py-24">
           <div className="w-full max-w-2xl mx-auto px-6 sm:px-8">
             <div className="h-10 w-48 rounded-md bg-white/5 animate-pulse" />
@@ -164,7 +164,7 @@ export default function PublishedNotePage() {
 
   if (state.kind === 'error') {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-white/20 selection:text-white relative">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-white/20 selection:text-white relative">
         <main className="flex-1 flex flex-col py-16 sm:py-24 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
           <div className="w-full max-w-2xl mx-auto px-6 sm:px-8 relative z-10 text-center">
@@ -191,7 +191,7 @@ export default function PublishedNotePage() {
 
   if (state.note.passwordRequired) {
     return (
-      <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans relative">
+      <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col font-sans relative">
         <main className="flex-1 flex flex-col py-16 sm:py-24 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
           <PasswordGate
@@ -211,7 +211,7 @@ export default function PublishedNotePage() {
   const displayTitle = publishedNoteDisplayTitle(state.note.title)
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-white/20 selection:text-white relative">
+    <div className="min-h-dvh bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-white/20 selection:text-white relative">
       <main className="flex-1 flex flex-col py-16 sm:py-24 relative overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
         <div className="w-full max-w-2xl mx-auto px-6 sm:px-8 relative z-10">
@@ -235,7 +235,7 @@ function MadeWithBadge() {
       to="/"
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 flex items-center gap-2 px-2 py-2 rounded-md border border-white/10 bg-black backdrop-blur-md shadow-2xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/10 hover:shadow-white/5 transition-all z-50 group"
+      className="safe-floating fixed z-50 flex items-center gap-2 rounded-md border border-white/10 bg-black px-2 py-2 text-xs font-medium text-zinc-400 shadow-2xl backdrop-blur-md transition-all hover:bg-white/10 hover:text-white hover:shadow-white/5 group"
     >
       <img
         src="/favicon.svg"

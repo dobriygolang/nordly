@@ -9,8 +9,8 @@ export function LandingFooter() {
   const year = new Date().getFullYear()
 
   return (
-    <footer className="border-t border-site-border bg-site-bg py-20">
-      <div className="mx-auto max-w-7xl px-6">
+    <footer className="safe-bottom border-t border-site-border bg-site-bg py-12 md:py-20">
+      <div className="safe-x mx-auto max-w-7xl">
         <div className="flex flex-col items-center justify-between gap-4 font-mono text-xs text-site-muted md:flex-row">
           <div className="text-center md:text-left">{t('welcome.footerCopyright', { year })}</div>
           <div className="flex flex-wrap justify-center gap-6">

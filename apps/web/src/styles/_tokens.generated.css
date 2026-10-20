@@ -6,6 +6,7 @@
   --motion-dur-small: 160ms;
   --motion-dur-medium: 240ms;
   --motion-dur-xlarge: 520ms;
+  --theme-toggle-dur: 1100ms;
   --motion-ease-standard: cubic-bezier(0.2, 0.7, 0.2, 1);
   --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 }

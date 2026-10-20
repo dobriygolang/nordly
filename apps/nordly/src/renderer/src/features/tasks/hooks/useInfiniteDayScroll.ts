@@ -19,6 +19,8 @@ const BATCH = 14;
 const EDGE_THRESHOLD_COLS = 3;
 const FAR_FROM_TODAY_COLS = 7;
 const SCROLL_IDLE_MS = 150;
+/** How long edge-growth stays paused while we animate back to today. */
+const RETURN_LOCK_MS = 700;
 const AUTO_EXPAND_PAST = 30;
 const AUTO_EXPAND_FUTURE = 45;
 
@@ -136,16 +138,25 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     });
   }, []);
 
+  const releaseReturnLock = useCallback(() => {
+    returningToTodayRef.current = false;
+    setReturningToToday(false);
+    scrollSettledRef.current = true;
+  }, []);
+
   const scrollToToday = useCallback(() => {
+    if (returningToTodayRef.current) return;
     returningToTodayRef.current = true;
     setReturningToToday(true);
     setShowBackToToday(false);
     farFromTodayRef.current = false;
-    pendingScrollTodayRef.current = true;
+    pendingScrollTodayRef.current = false;
     pendingScrollDayKeyRef.current = null;
-    setRangeStart(-INITIAL_PAST);
-    setRangeEnd(INITIAL_FUTURE);
-  }, []);
+    if (todayIndex >= 0) {
+      scrollToDayIndex(todayIndex, 'smooth');
+    }
+    window.setTimeout(releaseReturnLock, RETURN_LOCK_MS);
+  }, [releaseReturnLock, scrollToDayIndex, todayIndex]);
 
   const ensureDayVisible = useCallback(
     (dayKey: string) => {
@@ -193,11 +204,6 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     if (scrollAdjustRef.current !== 0) {
       el.scrollLeft += scrollAdjustRef.current;
       scrollAdjustRef.current = 0;
-      loadingPastRef.current = false;
-    }
-
-    if (loadingFutureRef.current) {
-      loadingFutureRef.current = false;
     }
 
     if (!didInitialScrollRef.current && todayIndex >= 0) {
@@ -209,12 +215,8 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     }
 
     if (pendingScrollTodayRef.current && todayIndex >= 0) {
-      scrollToDayIndex(todayIndex, 'auto');
+      scrollToDayIndex(todayIndex, 'smooth');
       pendingScrollTodayRef.current = false;
-      returningToTodayRef.current = false;
-      setReturningToToday(false);
-      scrollSettledRef.current = true;
-      syncBackButton();
       syncVisibleRange();
       return;
     }
@@ -242,6 +244,10 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       if (raf === 0) {
         raf = window.requestAnimationFrame(() => {
           raf = 0;
+          // Clear after this frame so a synchronous scroll from the prepend
+          // adjustment cannot extend again inside the same layout pass.
+          loadingPastRef.current = false;
+          loadingFutureRef.current = false;
           syncVisibleRange();
         });
       }

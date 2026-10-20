@@ -28,6 +28,8 @@ import { rejectPendingCloudAuth, resetAuthRefreshState } from '@shared/api/authS
 import {
   AuthKind,
   AuthStatus,
+  beginSessionExit,
+  flushNativeSessionPersist,
   useSessionStore,
 } from '@shared/model/session';
 import { useSyncStore } from '@shared/model/sync';
@@ -136,6 +138,7 @@ export default function App() {
     statsOpen,
     taskOpenRequest,
     noteOpenRequest,
+    boardOpenRequest,
     navigateTo,
     goHome,
     openStats,
@@ -148,6 +151,7 @@ export default function App() {
     openNoteRequest,
     consumeTaskOpenRequest,
     consumeNoteOpenRequest,
+    consumeBoardOpenRequest,
     registerPageFlush,
   } = useAppNavigation(captureOperationError);
 
@@ -192,6 +196,22 @@ export default function App() {
       setReauthOpen(false);
     }
   }, [sessionReauthRequired]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    return listenEffect('app:exit-requested', () => {
+      beginSessionExit();
+      void (async () => {
+        try {
+          await flushNativeSessionPersist();
+        } catch (error) {
+          captureOperationError(error);
+        }
+        const { exit } = await import('@tauri-apps/plugin-process');
+        await exit(0);
+      })();
+    });
+  }, [captureOperationError]);
 
   useEffect(() => {
     void bootstrap().catch(captureOperationError);
@@ -373,7 +393,14 @@ export default function App() {
               />
             );
           case PageId.Whiteboard:
-            return <WhiteboardPage boardCanvas={boardCanvas} onRegisterFlush={registerPageFlush} />;
+            return (
+              <WhiteboardPage
+                boardCanvas={boardCanvas}
+                openRequest={boardOpenRequest}
+                onConsumeOpenRequest={consumeBoardOpenRequest}
+                onRegisterFlush={registerPageFlush}
+              />
+            );
           case PageId.Calendar:
             return <CalendarPage onClose={() => navigateTo(PageId.Home)} onRegisterFlush={registerPageFlush} />;
           case PageId.Planning:
@@ -405,8 +432,10 @@ export default function App() {
       navigateTo,
       taskOpenRequest,
       noteOpenRequest,
+      boardOpenRequest,
       consumeTaskOpenRequest,
       consumeNoteOpenRequest,
+      consumeBoardOpenRequest,
       registerPageFlush,
     ],
   );

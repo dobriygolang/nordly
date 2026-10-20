@@ -15,6 +15,7 @@ export interface StoredWhiteboard {
   id: string;
   key: string;
   title: string;
+  folderId?: string | null;
   sceneJson: string;
   createdAt?: string;
   updatedAt: string;
@@ -29,6 +30,7 @@ export interface WhiteboardScene {
 export interface BoardSummary {
   id: string;
   title: string;
+  folderId: string | null;
   updatedAt: Date | null;
 }
 
@@ -48,6 +50,7 @@ function toSummary(row: StoredWhiteboard): BoardSummary {
   return {
     id: row.id,
     title: row.title,
+    folderId: row.folderId ?? null,
     updatedAt: parseOptionalDate(
       row.updatedAt,
       'stored whiteboard updatedAt',
@@ -133,7 +136,7 @@ export async function boardsStoreGet(id: string): Promise<Board | null> {
   return toBoard(await migrateEmptyScene(await migrateCreatedAt(row)));
 }
 
-export async function boardsStoreCreate(title: string): Promise<Board> {
+export async function boardsStoreCreate(title: string, folderId: string | null = null): Promise<Board> {
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Error('Board title is required');
   const userId = requireUserId();
@@ -142,6 +145,7 @@ export async function boardsStoreCreate(title: string): Promise<Board> {
   const row = rowFrom(userId, {
     id,
     title: cleanTitle,
+    folderId,
     sceneJson: serializeScene(emptyWhiteboardScene()),
     createdAt: now,
     updatedAt: now,
@@ -172,6 +176,17 @@ export async function boardsStoreUpdateTitle(id: string, title: string): Promise
   const migrated = await migrateEmptyScene(await migrateCreatedAt(existing));
   const now = new Date().toISOString();
   const row: StoredWhiteboard = { ...migrated, title: cleanTitle, updatedAt: now };
+  await dbPut('whiteboards', row);
+  return toBoard(row);
+}
+
+export async function boardsStoreUpdateFolder(id: string, folderId: string | null): Promise<Board> {
+  const userId = requireUserId();
+  const key = entityKey(id, userId);
+  const existing = await dbGet<StoredWhiteboard>('whiteboards', key);
+  if (!existing) throw new Error(`Board not found: ${id}`);
+  const migrated = await migrateEmptyScene(await migrateCreatedAt(existing));
+  const row: StoredWhiteboard = { ...migrated, folderId, updatedAt: new Date().toISOString() };
   await dbPut('whiteboards', row);
   return toBoard(row);
 }

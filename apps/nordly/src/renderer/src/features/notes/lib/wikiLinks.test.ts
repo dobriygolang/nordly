@@ -7,8 +7,8 @@ import {
 } from './wikiLinks';
 
 describe('extractWikiLinks', () => {
-  it('extracts simple wiki links', () => {
-    expect(extractWikiLinks('See [[Idea]] for context.')).toEqual([{ linkText: 'Idea' }]);
+  it('ignores whiteboard links', () => {
+    expect(extractWikiLinks('See [[board:Sprint]] and [[Idea]]')).toEqual([{ linkText: 'Idea' }]);
   });
 
   it('uses target title from alias syntax', () => {

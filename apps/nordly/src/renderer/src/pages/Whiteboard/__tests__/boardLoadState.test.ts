@@ -12,6 +12,7 @@ function board(id: string): Board {
   return {
     id,
     title: `Board ${id}`,
+    folderId: null,
     sceneJson: '{}',
     createdAt: null,
     updatedAt: null,

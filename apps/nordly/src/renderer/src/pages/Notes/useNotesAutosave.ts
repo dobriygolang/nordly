@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { TFunc } from '@nordly-i18n';
 
 import {
@@ -9,8 +8,6 @@ import {
   updateNote,
   type Note,
 } from '@features/notes/api/notesClient';
-import { isTauriRuntime } from '@platform/runtime';
-import { trackAsyncDisposer } from '@shared/lib/asyncDisposer';
 import { errorMessage, type ListState } from './utils';
 import { NoteSaveStatus, type NoteSaveStatus as SaveStatus } from './saveStatus';
 import {
@@ -335,28 +332,6 @@ export function useNotesAutosave({
     onRegisterFlush(flushNow);
     return () => onRegisterFlush(null);
   }, [flushNow, onRegisterFlush]);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    const currentWindow = getCurrentWindow();
-    let active = true;
-    const dispose = trackAsyncDisposer(
-      currentWindow.onCloseRequested(async (event) => {
-        event.preventDefault();
-        if (await flushNow()) {
-          await currentWindow.destroy();
-        }
-      }),
-      (err) => {
-        if (active) setActiveError(errorMessage(err, t));
-        else console.warn('[nordly:notes] close listener cleanup failed', err);
-      },
-    );
-    return () => {
-      active = false;
-      dispose();
-    };
-  }, [flushNow, setActiveError, t]);
 
   useEffect(
     () => () => {

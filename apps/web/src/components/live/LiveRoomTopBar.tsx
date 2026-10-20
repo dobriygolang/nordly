@@ -48,7 +48,7 @@ export function LiveRoomTopBar({
 
   return (
     <header
-      className="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b bg-surface-1 px-4 sm:px-5"
+      className="safe-x safe-top flex min-h-[52px] shrink-0 items-center justify-between gap-2 border-b bg-surface-1 py-2 sm:gap-4 sm:py-0"
       style={{ borderColor: brand.hair }}
     >
       <div className="flex min-w-0 items-center gap-4">
@@ -59,14 +59,15 @@ export function LiveRoomTopBar({
           </span>
         </a>
 
-        <div className="hidden items-center gap-2 sm:flex">
+        <div className="flex items-center gap-2">
           <TopBarButton
             variant="outline"
             icon={<X className="h-3.5 w-3.5" />}
             loading={closeLoading}
             onClick={onClose}
+            ariaLabel={t('live.closeRoom')}
           >
-            {t('live.closeRoom')}
+            <span className="hidden sm:inline">{t('live.closeRoom')}</span>
           </TopBarButton>
         </div>
       </div>
@@ -97,6 +98,7 @@ export function LiveRoomTopBar({
             disabled={inviteLoading}
             onClick={onInvite}
             title={t('live.inviteTitle')}
+            aria-label={inviteCopied ? t('live.inviteCopied') : t('live.invite')}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50',
               inviteCopied
@@ -113,6 +115,7 @@ export function LiveRoomTopBar({
 
         <details className="relative">
           <summary
+            aria-label={t('live.settings')}
             className={cn(
               'flex cursor-pointer list-none items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-1.5',
               'text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2',
@@ -123,7 +126,7 @@ export function LiveRoomTopBar({
             <span className="hidden sm:inline">{t('live.settings')}</span>
           </summary>
           <div
-            className="absolute right-0 top-[calc(100%+6px)] z-30 w-[240px] rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
+            className="absolute right-0 top-[calc(100%+6px)] z-30 max-h-[min(70dvh,24rem)] w-[min(240px,calc(100vw-2rem))] overflow-auto rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
             style={{ boxShadow: brand.cardShadow }}
           >
             <label className="block text-[11px] font-medium uppercase tracking-[0.06em] text-text-muted">
@@ -132,7 +135,7 @@ export function LiveRoomTopBar({
             <input
               value={displayName}
               onChange={(e) => onDisplayNameChange(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[13px] text-text-primary outline-none focus:border-border-strong"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-base text-text-primary outline-none focus:border-border-strong sm:text-[13px]"
               placeholder={t('live.namePlaceholder')}
             />
 
@@ -172,16 +175,19 @@ function TopBarButton({
   children,
   onClick,
   loading,
+  ariaLabel,
 }: {
   variant: 'outline' | 'solid'
   icon: React.ReactNode
-  children: React.ReactNode
+  children?: React.ReactNode
   onClick: () => void
   loading?: boolean
+  ariaLabel?: string
 }) {
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       disabled={loading}
       onClick={onClick}
       className={cn(

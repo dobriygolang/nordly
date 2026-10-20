@@ -239,11 +239,14 @@ Tauri IPC (OS keychain for passphrase):
 
 ## Whiteboard
 
-Local Excalidraw (`@excalidraw/excalidraw`). Multiple boards per user in IndexedDB (`whiteboards`); the sidebar creates, renames, and deletes boards. Scene writes go through a latest-only serializer so a failed load cannot keep a stale canvas.
+Local Excalidraw (`@excalidraw/excalidraw`). Multiple boards per user in IndexedDB (`whiteboards`); folders live in IndexedDB meta (`whiteboard_folders::{userId}`). The sidebar creates, nests, renames, and deletes folders. Boards and folders move by dragging onto a folder or the list root, the same way notes do. Deleting a folder keeps the boards and lifts them to the parent folder. Scene writes go through a latest-only serializer so a failed load cannot keep a stale canvas.
+
+A note can open a board with `[[board:Title]]` (alias form `[[board:Title|label]]` works too). Clicking the link flushes the note, opens the existing board with that title, or creates an empty one, then navigates to the whiteboard page.
 
 | File | Role |
 |------|------|
 | `features/whiteboard/repository/whiteboardStore.ts` | IndexedDB read/write |
+| `features/whiteboard/repository/whiteboardFolders.ts` | Folder tree in IndexedDB meta |
 | `features/whiteboard/api/whiteboardClient.ts` | Public local-board façade used by pages |
 | `pages/Whiteboard/WhiteboardPage.tsx` | Multi-board UI + latest-only save |
 | `shared/lib/excalidraw/nordlyTheme.ts` | Theme sync |

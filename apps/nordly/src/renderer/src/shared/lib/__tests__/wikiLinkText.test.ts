@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  boardWikiTitleSpan,
   normalizedWikiTitles,
   normalizeWikiTitle,
   wikiLinkAtPosition,
@@ -13,6 +14,12 @@ describe('wiki-link text helpers', () => {
       'notes',
     ]);
     expect(normalizeWikiTitle('  Mixed CASE  ')).toBe('mixed case');
+  });
+
+  it('hides the board: prefix and keeps the board title', () => {
+    expect(boardWikiTitleSpan('board:11')).toEqual({ start: 6, end: 8 });
+    expect(boardWikiTitleSpan('Board: Sprint plan')).toEqual({ start: 7, end: 18 });
+    expect(boardWikiTitleSpan('Idea')).toBeNull();
   });
 
   it('finds the wiki link under the cursor without shared regex state', () => {

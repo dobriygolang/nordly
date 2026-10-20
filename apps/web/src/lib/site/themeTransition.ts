@@ -36,7 +36,7 @@ function runCssThemeFallback(update: () => void): void {
   update()
   window.setTimeout(() => {
     root.classList.remove('theme-transition')
-  }, 320)
+  }, 1100)
 }
 
 export function runThemeTransition(update: () => void, origin?: ThemeToggleOrigin): void {

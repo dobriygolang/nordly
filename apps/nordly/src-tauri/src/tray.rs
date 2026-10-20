@@ -1,5 +1,7 @@
 #![cfg(desktop)]
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, RunEvent, WindowEvent,
@@ -12,6 +14,9 @@ use crate::window_macos;
 const TRAY_ID: &str = "nordly-tray";
 const POPOVER_LABEL: &str = "tray-popover";
 const MAIN_LABEL: &str = "main";
+
+/// First ExitRequested is held so the renderer can finish the keychain write.
+static ALLOW_PROCESS_EXIT: AtomicBool = AtomicBool::new(false);
 
 fn log_err(ctx: &str, err: impl std::fmt::Display) {
     eprintln!("[nordly:tray] {ctx}: {err}");
@@ -75,6 +80,17 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
+    if let RunEvent::ExitRequested { api, .. } = event {
+        if !ALLOW_PROCESS_EXIT.swap(true, Ordering::SeqCst) {
+            api.prevent_exit();
+            if let Err(e) = app.emit("app:exit-requested", ()) {
+                log_err("emit app:exit-requested", e);
+                app.exit(0);
+            }
+            return;
+        }
+    }
+
     #[cfg(target_os = "macos")]
     if let RunEvent::Reopen { .. } = event {
         if let Err(e) = show_main(app) {

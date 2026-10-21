@@ -75,6 +75,7 @@ export const ru = {
   'nordly.cards.loading': 'Загружаю карточки…',
   'nordly.cards.show': 'Показать ответ',
   'nordly.cards.show_hint': 'Пробел',
+  'nordly.cards.interval_days': '{{count}} д',
   'nordly.cards.progress': '{{current}} / {{total}}',
   'nordly.cards.new': 'Новая',
   'nordly.cards.due': 'К повторению',

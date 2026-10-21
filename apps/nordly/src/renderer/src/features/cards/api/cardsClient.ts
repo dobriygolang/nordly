@@ -24,6 +24,7 @@ export interface DeckCard {
   noteTitle: string;
   direction: ParsedCard['direction'];
   isNew: boolean;
+  review: ReviewState | null;
 }
 
 export interface CardDuplicate {
@@ -96,12 +97,12 @@ export async function buildCardDeck(noteId?: string | null, today = toDayKey(new
     if (!source) continue;
     const review = reviewByKey.get(key);
     if (review) {
-      if (review.due <= today) queue.push(toDeckCard(source, false));
+      if (review.due <= today) queue.push(toDeckCard(source, false, review));
       continue;
     }
     if (newLeft <= 0) continue;
     newLeft -= 1;
-    queue.push(toDeckCard(source, true));
+    queue.push(toDeckCard(source, true, null));
   }
   queue.sort((a, b) => Number(a.isNew) - Number(b.isNew));
 
@@ -133,7 +134,11 @@ async function mapLimit<T, R>(
   return out;
 }
 
-function toDeckCard(card: ParsedCard & { noteTitle: string }, isNew: boolean): DeckCard {
+function toDeckCard(
+  card: ParsedCard & { noteTitle: string },
+  isNew: boolean,
+  review: ReviewState | null,
+): DeckCard {
   return {
     key: card.key,
     front: card.front,
@@ -142,6 +147,7 @@ function toDeckCard(card: ParsedCard & { noteTitle: string }, isNew: boolean): D
     noteTitle: card.noteTitle,
     direction: card.direction,
     isNew,
+    review,
   };
 }
 

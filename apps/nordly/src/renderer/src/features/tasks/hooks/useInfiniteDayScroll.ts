@@ -129,13 +129,16 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     });
   }, []);
 
-  const scrollToDayIndex = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
+  const scrollToDayIndex = useCallback((index: number, behavior: ScrollBehavior = 'smooth'): boolean => {
     const el = scrollRef.current;
-    if (!el || index < 0) return;
-    el.scrollTo({
-      left: Math.max(0, index * DAY_COL_STRIDE - el.clientWidth * 0.35),
-      behavior,
-    });
+    if (!el || index < 0 || el.clientWidth === 0) return false;
+    const left = Math.max(0, index * DAY_COL_STRIDE - el.clientWidth * 0.35);
+    if (behavior === 'auto') {
+      el.scrollLeft = left;
+      return left === 0 || el.scrollLeft > 0;
+    }
+    el.scrollTo({ left, behavior });
+    return true;
   }, []);
 
   const releaseReturnLock = useCallback(() => {
@@ -201,37 +204,48 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     const el = scrollRef.current;
     if (!el) return;
 
-    if (scrollAdjustRef.current !== 0) {
-      el.scrollLeft += scrollAdjustRef.current;
-      scrollAdjustRef.current = 0;
-    }
+    const place = (): void => {
+      if (scrollAdjustRef.current !== 0) {
+        el.scrollLeft += scrollAdjustRef.current;
+        scrollAdjustRef.current = 0;
+      }
 
-    if (!didInitialScrollRef.current && todayIndex >= 0) {
-      scrollToDayIndex(todayIndex, 'auto');
-      didInitialScrollRef.current = true;
-      syncBackButton();
-      syncVisibleRange();
-      return;
-    }
-
-    if (pendingScrollTodayRef.current && todayIndex >= 0) {
-      scrollToDayIndex(todayIndex, 'smooth');
-      pendingScrollTodayRef.current = false;
-      syncVisibleRange();
-      return;
-    }
-
-    if (pendingScrollDayKeyRef.current) {
-      const idx = days.findIndex((d) => d.key === pendingScrollDayKeyRef.current);
-      if (idx >= 0) {
-        scrollToDayIndex(idx, 'auto');
-        pendingScrollDayKeyRef.current = null;
+      if (!didInitialScrollRef.current && todayIndex >= 0) {
+        if (!scrollToDayIndex(todayIndex, 'auto')) return;
+        didInitialScrollRef.current = true;
         syncBackButton();
         syncVisibleRange();
+        return;
       }
-    } else {
-      syncVisibleRange();
-    }
+
+      if (pendingScrollTodayRef.current && todayIndex >= 0) {
+        scrollToDayIndex(todayIndex, 'smooth');
+        pendingScrollTodayRef.current = false;
+        syncVisibleRange();
+        return;
+      }
+
+      if (pendingScrollDayKeyRef.current) {
+        const idx = days.findIndex((d) => d.key === pendingScrollDayKeyRef.current);
+        if (idx >= 0) {
+          scrollToDayIndex(idx, 'auto');
+          pendingScrollDayKeyRef.current = null;
+          syncBackButton();
+          syncVisibleRange();
+        }
+      } else {
+        syncVisibleRange();
+      }
+    };
+
+    place();
+    if (didInitialScrollRef.current) return;
+    const observer = new ResizeObserver(() => {
+      place();
+      if (didInitialScrollRef.current) observer.disconnect();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [days, todayIndex, scrollToDayIndex, syncBackButton, syncVisibleRange]);
 
   useLayoutEffect(() => {
@@ -252,7 +266,7 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
         });
       }
 
-      if (returningToTodayRef.current) return;
+      if (returningToTodayRef.current || !didInitialScrollRef.current) return;
 
       const threshold = EDGE_THRESHOLD_COLS * DAY_COL_STRIDE;
       if (el.scrollLeft < threshold) {

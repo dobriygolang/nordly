@@ -75,6 +75,7 @@ export const en = {
   'nordly.cards.loading': 'Loading cards…',
   'nordly.cards.show': 'Show answer',
   'nordly.cards.show_hint': 'Space',
+  'nordly.cards.interval_days': '{{count}}d',
   'nordly.cards.progress': '{{current}} / {{total}}',
   'nordly.cards.new': 'New',
   'nordly.cards.due': 'Due',

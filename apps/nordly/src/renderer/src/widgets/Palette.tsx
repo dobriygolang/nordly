@@ -16,7 +16,6 @@ import { useEscapeLayer } from '@shared/hooks/useEscapeLayer';
 export type { PageId, PaletteAction } from '@shared/model/navigation';
 
 import { PageId, PaletteAction } from '@shared/model/navigation';
-import { countDueCards } from '@features/cards/api/cardsClient';
 import { readSettings } from '@shared/model/settings';
 
 interface PaletteProps {
@@ -65,8 +64,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
   const t = useT();
   const [locale] = useLocale();
   const cardsEnabled = readSettings().flashcards.enabled;
-  const [dueCount, setDueCount] = useState<number | null>(null);
-  const [dueError, setDueError] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
   const [q, setQ] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
@@ -90,21 +87,6 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
     timeCustomizedRef.current = false;
   }, [taskDate]);
 
-  useEffect(() => {
-    if (!cardsEnabled) return;
-    let cancelled = false;
-    void countDueCards()
-      .then((count) => {
-        if (!cancelled) setDueCount(count);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setDueError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [cardsEnabled]);
-
   const navItems: NavItem[] = useMemo(() => {
     const items = NAV_ITEMS.map((it) => ({
       id: it.id,
@@ -114,14 +96,9 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
       run: () => onOpen(it.id),
     }));
     if (!cardsEnabled) return items;
-    const label = dueError
-      ? dueError
-      : dueCount && dueCount > 0
-        ? t('nordly.palette.nav_cards_due', { count: String(dueCount) })
-        : t('nordly.palette.nav_cards');
     const cards = {
       id: PageId.Cards,
-      label,
+      label: t('nordly.palette.nav_cards'),
       icon: 'check' as const,
       shortcut: ['R'],
       run: () => onOpen(PageId.Cards),
@@ -129,7 +106,7 @@ export function Palette({ onClose, onOpen, taskDate, onCreateTask, closing = fal
     const settingsAt = items.findIndex((item) => item.id === PageId.Settings);
     items.splice(settingsAt < 0 ? items.length : settingsAt, 0, cards);
     return items;
-  }, [cardsEnabled, dueCount, dueError, onOpen, t]);
+  }, [cardsEnabled, onOpen, t]);
 
   const filteredNav = useMemo(() => {
     const s = trimmed.toLowerCase();

@@ -199,16 +199,6 @@ function ReviewBody({
             {t('nordly.cards.issues', { count: String(deck.issues.length) })}
           </p>
         ) : null}
-        {deck.duplicates.length > 0 ? (
-          <p className="nordly-cards__notice">
-            {t('nordly.cards.duplicates', { count: String(deck.duplicates.length) })}
-          </p>
-        ) : null}
-        {deck.orphans.length > 0 ? (
-          <p className="nordly-cards__notice">
-            {t('nordly.cards.orphans', { count: String(deck.orphans.length) })}
-          </p>
-        ) : null}
         {!card ? (
           <div className="nordly-cards__panel motion-pop-in">
             <p className="nordly-cards__front">{t('nordly.cards.done', { count: String(reviewed) })}</p>

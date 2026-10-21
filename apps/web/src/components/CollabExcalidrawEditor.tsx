@@ -86,6 +86,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
     const paintCollaboratorsRef = useRef(() => {})
+    const pendingRemoteSceneRef = useRef<ScenePayload | null>(null)
+    const pushSceneRef = useRef<(scene: ScenePayload) => void>(() => {})
     const pointerFrameRef = useRef(0)
     const pendingPointerRef = useRef<LivePointer | null>(null)
     const reportPointer = (pointer: LivePointer | null): void => {
@@ -118,26 +120,33 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     }, [])
 
     const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
-      if (!apiRef.current || applyingRemoteRef.current || applyingThemeRef.current) return
-
-      if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
+      pendingRemoteSceneRef.current = scene
+      const api = apiRef.current
+      if (!api || applyingThemeRef.current || applyingRemoteRef.current) return
+      const next = pendingRemoteSceneRef.current
+      if (!next) return
+      pendingRemoteSceneRef.current = null
       applyingRemoteRef.current = true
       try {
-        apiRef.current.updateScene({
+        api.updateScene({
           elements: boardThemeSceneFromCanonical(
-            scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+            next.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
             boardThemeRef.current,
           ),
-          files: scene.files,
+          files: next.files,
           captureUpdate: CaptureUpdateAction.NEVER,
         })
       } finally {
-        remoteApplyTimerRef.current = window.setTimeout(() => {
-          applyingRemoteRef.current = false
+        if (remoteApplyTimerRef.current) cancelAnimationFrame(remoteApplyTimerRef.current)
+        remoteApplyTimerRef.current = requestAnimationFrame(() => {
           remoteApplyTimerRef.current = null
-        }, 100)
+          applyingRemoteRef.current = false
+          const queued = pendingRemoteSceneRef.current
+          if (queued) pushSceneRef.current(queued)
+        })
       }
     }, [])
+    pushSceneRef.current = pushSceneToExcalidraw
 
     useEffect(() => {
       const ydoc = session.ydoc
@@ -205,7 +214,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
 
       return () => {
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
-        if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
+        if (remoteApplyTimerRef.current) cancelAnimationFrame(remoteApplyTimerRef.current)
         const pending = pendingLocalRef.current
         if (pending) {
           pendingLocalRef.current = null

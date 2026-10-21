@@ -62,6 +62,29 @@ type ExcalidrawApi = {
 
 type ColoredElement = Parameters<typeof canonicalizeElementsForStorage>[0][number]
 
+const VOLATILE_ELEMENT_KEYS = new Set([
+  'version',
+  'versionNonce',
+  'updated',
+  'seed',
+  'strokeColor',
+  'backgroundColor',
+])
+
+/** Geometry only. Excalidraw bumps version when it paints a remote scene. */
+function sceneGeometryKey(elements: readonly unknown[]): string {
+  return JSON.stringify(
+    elements.map((el) => {
+      if (!el || typeof el !== 'object') return el
+      const out: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(el as Record<string, unknown>)) {
+        if (!VOLATILE_ELEMENT_KEYS.has(key)) out[key] = value
+      }
+      return out
+    }),
+  )
+}
+
 export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
   function CollabExcalidrawEditor(
     {
@@ -83,6 +106,9 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const skipChangeRef = useRef(true)
     const gotRemoteRef = useRef(false)
     const pendingLocalRef = useRef<ScenePayload | null>(null)
+    const pendingRemoteSceneRef = useRef<ScenePayload | null>(null)
+    const lastRemoteGeometryRef = useRef('')
+    const publishedIdsRef = useRef<Set<string>>(new Set())
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
     const paintCollaboratorsRef = useRef(() => {})
@@ -114,30 +140,51 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       const ydoc = ydocRef.current
       if (!pending || !ydoc) return
       pendingLocalRef.current = null
-      writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
+      const nextIds = new Set<string>()
+      for (const el of pending.elements) {
+        if (!el || typeof el !== 'object') continue
+        const id = (el as { id?: unknown }).id
+        if (typeof id === 'string' && id) nextIds.add(id)
+      }
+      const deleteIds = new Set<string>()
+      for (const id of publishedIdsRef.current) {
+        if (!nextIds.has(id)) deleteIds.add(id)
+      }
+      writeSceneToYjs(ydoc, pending.elements, pending.files, 'local', { deleteIds })
+      publishedIdsRef.current = nextIds
     }, [])
 
-    const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
-      if (!apiRef.current || applyingRemoteRef.current || applyingThemeRef.current) return
-
-      if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
+    const applyPendingRemote = useCallback(() => {
+      const api = apiRef.current
+      const next = pendingRemoteSceneRef.current
+      if (!api || !next || applyingRemoteRef.current) return
+      pendingRemoteSceneRef.current = null
       applyingRemoteRef.current = true
+      lastRemoteGeometryRef.current = sceneGeometryKey(next.elements)
       try {
-        apiRef.current.updateScene({
+        api.updateScene({
           elements: boardThemeSceneFromCanonical(
-            scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+            next.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
             boardThemeRef.current,
           ),
-          files: scene.files,
+          files: next.files,
           captureUpdate: CaptureUpdateAction.NEVER,
         })
       } finally {
+        if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
+        // setTimeout runs after Excalidraw's onChange. rAF runs before it and let the echo through.
         remoteApplyTimerRef.current = window.setTimeout(() => {
-          applyingRemoteRef.current = false
           remoteApplyTimerRef.current = null
-        }, 100)
+          applyingRemoteRef.current = false
+          if (pendingRemoteSceneRef.current) applyPendingRemote()
+        }, 0)
       }
     }, [])
+
+    const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
+      pendingRemoteSceneRef.current = scene
+      applyPendingRemote()
+    }, [applyPendingRemote])
 
     useEffect(() => {
       const ydoc = session.ydoc
@@ -206,11 +253,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       return () => {
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
         if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
-        const pending = pendingLocalRef.current
-        if (pending) {
-          pendingLocalRef.current = null
-          writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
-        }
+        if (pendingLocalRef.current) flushLocalToYjs()
         stopObserving()
         ydoc.off('afterTransaction', onAfterTransaction)
         apiRef.current = null
@@ -218,7 +261,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         canPublishLocalRef.current = false
         setReady(false)
       }
-    }, [roomId, session.ydoc, pushSceneToExcalidraw])
+    }, [roomId, session.ydoc, pushSceneToExcalidraw, flushLocalToYjs])
 
     useEffect(() => {
       const ydoc = ydocRef.current
@@ -298,13 +341,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           cancelAnimationFrame(localRafRef.current)
           localRafRef.current = 0
         }
-        writeSceneToYjs(
-          ydoc,
-          pendingLocalRef.current.elements,
-          pendingLocalRef.current.files,
-          'local',
-        )
-        pendingLocalRef.current = null
+        flushLocalToYjs()
       }
 
       applyingThemeRef.current = true
@@ -342,53 +379,41 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         cancelAnimationFrame(raf)
         window.clearTimeout(timer)
       }
-    }, [ready, roomId, boardTheme])
+    }, [ready, roomId, boardTheme, flushLocalToYjs])
 
     const handleChange = useCallback(
       (elements: readonly unknown[], _appState: unknown, files: unknown) => {
+        if (skipChangeRef.current || applyingRemoteRef.current) return
         const theme = boardThemeRef.current
         const typedElements = elements as ColoredElement[]
 
+        if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
+          throw new Error('CollabExcalidrawEditor: invalid files')
+        }
+        const canonical = canonicalizeElementsForStorage(typedElements)
+        if (sceneGeometryKey(canonical) === lastRemoteGeometryRef.current) return
         if (
-          !skipChangeRef.current &&
-          !applyingRemoteRef.current &&
           !applyingThemeRef.current &&
           boardElementsNeedThemeRemap(typedElements, theme) &&
           apiRef.current
         ) {
           applyingThemeRef.current = true
-          const fixed = applyLocalBoardTheme(
-            canonicalizeElementsForStorage(typedElements),
-            theme,
-          )
-          apiRef.current.updateScene({
-            elements: fixed,
-            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-          })
-          window.setTimeout(() => {
+          try {
+            apiRef.current.updateScene({
+              elements: applyLocalBoardTheme(canonical, theme),
+              captureUpdate: CaptureUpdateAction.NEVER,
+            })
+          } finally {
             applyingThemeRef.current = false
-          }, 100)
-          return
+          }
         }
 
-        if (
-          skipChangeRef.current ||
-          applyingRemoteRef.current ||
-          applyingThemeRef.current ||
-          !canPublishLocalRef.current
-        ) {
-          return
-        }
+        if (!canPublishLocalRef.current) return
         const ydoc = ydocRef.current
         if (!ydoc) return
-        if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
-          throw new Error('CollabExcalidrawEditor: invalid files')
-        }
 
         pendingLocalRef.current = {
-          elements: canonicalizeElementsForStorage(
-            elements as Parameters<typeof canonicalizeElementsForStorage>[0],
-          ),
+          elements: canonical,
           files: (files as Record<string, unknown> | null | undefined) ?? {},
         }
         if (localRafRef.current) return

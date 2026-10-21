@@ -63,11 +63,23 @@ export function readSceneFromYjs(ydoc: Y.Doc): ScenePayload {
   return { elements, files }
 }
 
+export type WriteSceneOptions = {
+  /** Ids this client removed. Other ids stay, so a peer cannot delete an element it has not seen. */
+  deleteIds?: ReadonlySet<string>
+}
+
+function elementVersion(el: unknown): number {
+  if (!el || typeof el !== 'object') return 0
+  const version = (el as { version?: unknown }).version
+  return typeof version === 'number' && Number.isFinite(version) ? version : 0
+}
+
 export function writeSceneToYjs(
   ydoc: Y.Doc,
   elements: readonly unknown[],
   files: Record<string, unknown>,
   origin?: unknown,
+  options?: WriteSceneOptions,
 ): void {
   const { elementsMap } = bindExcalidrawYjsDoc(ydoc)
   // Incidental empty Excalidraw onChange (e.g. before WS sync) must not wipe the room.
@@ -84,13 +96,20 @@ export function writeSceneToYjs(
       if (!id) continue
       nextIds.add(id)
       const serialized = JSON.stringify(el)
-      if (elementsMap.get(id) !== serialized) {
-        elementsMap.set(id, serialized)
-      }
+      const prev = elementsMap.get(id)
+      if (prev === serialized) continue
+      if (prev && elementVersion(el) < elementVersion(JSON.parse(prev))) continue
+      elementsMap.set(id, serialized)
     }
 
-    for (const id of Array.from(elementsMap.keys())) {
-      if (!nextIds.has(id)) elementsMap.delete(id)
+    if (options?.deleteIds) {
+      for (const id of options.deleteIds) {
+        if (!nextIds.has(id)) elementsMap.delete(id)
+      }
+    } else {
+      for (const id of Array.from(elementsMap.keys())) {
+        if (!nextIds.has(id)) elementsMap.delete(id)
+      }
     }
 
     const desiredOrder: string[] = []

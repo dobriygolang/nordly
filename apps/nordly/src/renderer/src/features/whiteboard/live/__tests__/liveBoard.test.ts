@@ -16,6 +16,32 @@ describe('writeSceneToYjs', () => {
     writeSceneToYjs(ydoc, [], {}, 'local');
     expect(ydoc.getMap('elements').size).toBe(1);
   });
+
+  it('keeps a newer element when an older version arrives later', () => {
+    const ydoc = new Y.Doc();
+    writeSceneToYjs(ydoc, [{ id: 'a', version: 4, width: 80 }], {}, 'local');
+    writeSceneToYjs(ydoc, [{ id: 'a', version: 1, width: 1 }], {}, 'local');
+    expect(JSON.parse(String(ydoc.getMap('elements').get('a')))).toMatchObject({
+      version: 4,
+      width: 80,
+    });
+  });
+
+  it('does not delete an element this writer has not published', () => {
+    const ydoc = new Y.Doc();
+    writeSceneToYjs(
+      ydoc,
+      [
+        { id: 'a', version: 2 },
+        { id: 'b', version: 1 },
+      ],
+      {},
+      'local',
+    );
+    writeSceneToYjs(ydoc, [{ id: 'b', version: 2 }], {}, 'local', { deleteIds: new Set() });
+    expect(ydoc.getMap('elements').has('a')).toBe(true);
+    expect(ydoc.getMap('elements').has('b')).toBe(true);
+  });
 });
 
 describe('editor websocket envelopes', () => {

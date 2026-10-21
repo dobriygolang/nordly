@@ -405,19 +405,21 @@ export default function CollabRoomPage() {
               )}
             >
               <div className="relative min-h-0 min-w-0 flex-1">
-                <Suspense fallback={<div className="absolute inset-0 bg-surface-1" />}>
-                  <CollabCodeEditor
-                    ref={codeEditorRef}
-                    session={session}
-                    language={room.language}
-                    theme={theme}
-                    autocompleteEnabled={autocompleteEnabled}
-                    userId={sessionUserId}
-                    fontSize={fontSize}
-                    onRun={canRun && codeVisible ? () => void handleRun() : undefined}
-                    onFormat={isGo && codeVisible ? () => void handleFormat() : undefined}
-                  />
-                </Suspense>
+                {codeVisible ? (
+                  <Suspense fallback={<div className="absolute inset-0 bg-surface-1" />}>
+                    <CollabCodeEditor
+                      ref={codeEditorRef}
+                      session={session}
+                      language={room.language}
+                      theme={theme}
+                      autocompleteEnabled={autocompleteEnabled}
+                      userId={sessionUserId}
+                      fontSize={fontSize}
+                      onRun={canRun ? () => void handleRun() : undefined}
+                      onFormat={isGo ? () => void handleFormat() : undefined}
+                    />
+                  </Suspense>
+                ) : null}
 
                 {fmt.formatError ? (
                   <div

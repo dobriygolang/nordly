@@ -101,10 +101,9 @@ func (rh *roomHub) replaceSnapshotLocked(payload []byte) error {
 	}
 	rh.lastSnapshot = slices.Clone(payload)
 	rh.snapshotSeq = rh.nextSeq
-	return rh.broadcastLocked(KindSnapshot, snapshotPayload{
-		Seq:     rh.snapshotSeq,
-		Payload: rh.lastSnapshot,
-	})
+	// Joiners receive this from bootstrapLocked. Live peers follow ops; a full
+	// snapshot broadcast stalls their canvas while cursors stay live.
+	return nil
 }
 
 func (rh *roomHub) broadcastLocked(kind Kind, data any) error {

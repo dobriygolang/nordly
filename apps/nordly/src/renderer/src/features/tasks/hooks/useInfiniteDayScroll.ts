@@ -210,6 +210,15 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    let followUp = 0;
+
+    const finishInitialScroll = (): void => {
+      if (todayIndex >= 0) scrollToDayIndex(todayIndex, 'auto');
+      syncBackButton();
+      syncVisibleRange();
+      initialScrollPhaseRef.current = 'done';
+      didInitialScrollRef.current = true;
+    };
 
     const place = (): void => {
       if (scrollAdjustRef.current !== 0) {
@@ -222,13 +231,19 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
         syncBackButton();
         const rangeChanged = syncVisibleRange();
         if (initialScrollPhaseRef.current === 'pending' && rangeChanged) {
-          // The padding/virtualization commit resets scrollLeft in WebKit.
-          // Re-apply on the next layout, after that commit.
+          // Padding from the new range resets scrollLeft in WebKit after this
+          // layout. Re-apply once on the next frame. Do not depend on
+          // visibleRange here: that re-entered this effect on every measure.
           initialScrollPhaseRef.current = 'armed';
+          if (followUp !== 0) window.cancelAnimationFrame(followUp);
+          followUp = window.requestAnimationFrame(() => {
+            followUp = 0;
+            if (initialScrollPhaseRef.current !== 'armed') return;
+            finishInitialScroll();
+          });
           return;
         }
-        initialScrollPhaseRef.current = 'done';
-        didInitialScrollRef.current = true;
+        finishInitialScroll();
         return;
       }
 
@@ -259,8 +274,11 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       if (initialScrollPhaseRef.current === 'done') observer.disconnect();
     });
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [days, todayIndex, visibleRange.first, visibleRange.last, scrollToDayIndex, syncBackButton, syncVisibleRange]);
+    return () => {
+      observer.disconnect();
+      if (followUp !== 0) window.cancelAnimationFrame(followUp);
+    };
+  }, [days, todayIndex, scrollToDayIndex, syncBackButton, syncVisibleRange]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;

@@ -1,4 +1,3 @@
-import { newElementWith } from '@excalidraw/excalidraw'
 import { EXCALIDRAW_STROKE, type BoardCanvasTheme } from '@/lib/collab/excalidrawTheme'
 
 /** Single ink color in Yjs / disk — local theme applies stroke on each client. */
@@ -15,10 +14,8 @@ function patchElementColors<T extends ColoredElement>(
   backgroundColor: string,
 ): T {
   if (el.strokeColor === strokeColor && el.backgroundColor === backgroundColor) return el
-  return newElementWith(el as unknown as Parameters<typeof newElementWith>[0], {
-    strokeColor,
-    backgroundColor,
-  }) as unknown as T
+  // Do not use newElementWith: it bumps `version`, so a color rewrite looks newer than the real geometry.
+  return { ...el, strokeColor, backgroundColor }
 }
 
 /** Persist geometry only — no per-user theme colors in shared state. */

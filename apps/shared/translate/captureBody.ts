@@ -1,8 +1,8 @@
 import { translationPair } from './mymemory';
 
-const MARKER = ' ::: ';
 const LETTER = /\p{L}/u;
 
+export type CaptureMarker = ':::' | '::';
 export type PhraseProblem = 'no-letters' | 'unsupported-script' | 'bad-phrase';
 
 export interface CaptureSession {
@@ -19,25 +19,37 @@ export function phraseProblem(text: string): PhraseProblem | null {
 }
 
 export function collapseTranslation(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-export function formatCaptureLine(front: string, translation: string): string {
-  const phrase = front.trim();
+function findCaptureMarker(line: string): { index: number; marker: CaptureMarker } | null {
+  for (let i = 0; i < line.length; i += 1) {
+    if (line.startsWith(':::', i)) return { index: i, marker: ':::' };
+    if (line.startsWith('::', i) && line[i + 2] !== ':') return { index: i, marker: '::' };
+  }
+  return null;
+}
+
+export function formatCaptureLine(
+  front: string,
+  translation: string,
+  marker: CaptureMarker = ':::',
+): string {
+  const phrase = front.normalize('NFC').trim().toLowerCase();
   const back = collapseTranslation(translation);
   if (phraseProblem(phrase) || !back || back.includes('::')) {
     throw new Error('capture line: phrase or translation is not a card');
   }
-  return `${phrase}${MARKER}${back}`;
+  return `${phrase} ${marker} ${back}`;
 }
 
-export function splitCaptureLine(line: string): { front: string; back: string } | null {
-  const at = line.indexOf(MARKER);
-  if (at <= 0) return null;
-  const front = line.slice(0, at).trim();
-  const back = line.slice(at + MARKER.length).trim();
+export function splitCaptureLine(line: string): { front: string; back: string; marker: CaptureMarker } | null {
+  const found = findCaptureMarker(line);
+  if (!found || found.index <= 0) return null;
+  const front = line.slice(0, found.index).trim();
+  const back = line.slice(found.index + found.marker.length).trim();
   if (!front || !back || phraseProblem(front) || back.includes('\n') || back.includes('::')) return null;
-  return { front, back };
+  return { front, back, marker: found.marker };
 }
 
 function cardFront(line: string): string | null {

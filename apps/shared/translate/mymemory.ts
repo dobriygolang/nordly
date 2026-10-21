@@ -1,6 +1,7 @@
 const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
 const CYRILLIC = /\p{Script=Cyrillic}/u;
 const LATIN = /\p{Script=Latin}/u;
+const MAX_TRANSLATIONS = 5;
 
 export type LangPair = 'ru|en' | 'en|ru';
 
@@ -56,11 +57,15 @@ async function requestMyMemory(
   if (!response.ok) {
     throw new Error(`MyMemory failed (${response.status})`);
   }
-  const text = readMyMemoryText(await response.json());
-  return text;
+  return readMyMemoryText(await response.json(), front);
 }
 
-export function readMyMemoryText(body: unknown): string {
+interface MyMemoryMatch {
+  translation?: unknown;
+  match?: unknown;
+}
+
+export function readMyMemoryText(body: unknown, query = ''): string {
   if (!body || typeof body !== 'object') {
     throw new Error('MyMemory returned no translation');
   }
@@ -68,13 +73,42 @@ export function readMyMemoryText(body: unknown): string {
     responseStatus?: number;
     quotaFinished?: boolean;
     responseData?: { translatedText?: string };
+    matches?: unknown;
   };
-  const text = record.responseData?.translatedText?.trim() ?? '';
-  if (record.quotaFinished || text.startsWith('MYMEMORY WARNING')) {
+  const primary = record.responseData?.translatedText?.trim() ?? '';
+  if (record.quotaFinished || primary.startsWith('MYMEMORY WARNING')) {
     throw new Error('MyMemory translation limit reached');
   }
-  if (record.responseStatus !== 200 || !text) {
+  if (record.responseStatus !== 200) {
     throw new Error('MyMemory returned no translation');
   }
-  return text;
+
+  const raw: string[] = [];
+  if (primary) raw.push(primary);
+  const matches = Array.isArray(record.matches) ? (record.matches as MyMemoryMatch[]) : [];
+  const ranked = matches
+    .map((row) => ({
+      text: typeof row.translation === 'string' ? row.translation.trim() : '',
+      score: typeof row.match === 'number' ? row.match : 0,
+    }))
+    .filter((row) => row.text.length > 0)
+    .sort((a, b) => b.score - a.score);
+  for (const row of ranked) raw.push(row.text);
+
+  const queryNorm = normalizeFront(query);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const text of raw) {
+    const next = normalizeFront(text);
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    unique.push(next);
+  }
+  const filtered =
+    unique.length > 1 && queryNorm ? unique.filter((text) => text !== queryNorm) : unique;
+  const picked = (filtered.length > 0 ? filtered : unique).slice(0, MAX_TRANSLATIONS);
+  if (picked.length === 0) {
+    throw new Error('MyMemory returned no translation');
+  }
+  return picked.join(', ');
 }

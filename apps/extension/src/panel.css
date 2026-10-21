@@ -58,3 +58,40 @@ input:focus, select:focus, button:focus {
   outline: 1px solid rgba(231, 228, 220, 0.4);
   outline-offset: 1px;
 }
+
+.marker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.marker button {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.marker button[aria-pressed='true'] {
+  border-color: rgba(231, 228, 220, 0.42);
+  background: rgba(231, 228, 220, 0.1);
+}
+
+#history {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+#history[hidden] {
+  display: none;
+}
+
+#history li {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

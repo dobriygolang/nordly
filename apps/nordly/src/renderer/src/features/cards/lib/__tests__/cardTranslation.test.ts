@@ -45,14 +45,22 @@ describe('card translation', () => {
     const fetchImpl = vi.fn(async (url: string) => {
       expect(url).toContain('langpair=en%7Cru');
       expect(url).toContain('q=hello');
-      return jsonResponse({ responseStatus: 200, responseData: { translatedText: 'привет' } });
+      return jsonResponse({
+        responseStatus: 200,
+        responseData: { translatedText: 'Привет' },
+        matches: [
+          { translation: 'hello', match: 1 },
+          { translation: 'Здравствуй', match: 0.9 },
+          { translation: 'привет', match: 0.8 },
+        ],
+      });
     });
     const [a, b] = await Promise.all([
       translateCardFront('hello', fetchImpl),
       translateCardFront('Hello', fetchImpl),
     ]);
-    expect(a).toBe('привет');
-    expect(b).toBe('привет');
+    expect(a).toBe('привет, здравствуй');
+    expect(b).toBe('привет, здравствуй');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -83,3 +91,4 @@ describe('card translation', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
+

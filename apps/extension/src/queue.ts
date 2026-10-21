@@ -6,6 +6,16 @@ export const NOTE_KEY = 'nordly.capture.noteId';
 export const QUEUE_KEY = 'nordly.capture.queue';
 export const REJECTED_KEY = 'nordly.capture.tokenRejected';
 export const LAST_ERROR_KEY = 'nordly.capture.lastError';
+export const MARKER_KEY = 'nordly.capture.marker';
+export const HISTORY_KEY = 'nordly.capture.history';
+export const HISTORY_LIMIT = 40;
+
+export type CaptureMarker = ':::' | '::';
+
+export interface HistoryEntry {
+  front: string;
+  back: string;
+}
 
 export interface QueuedCapture {
   noteId: string;
@@ -112,4 +122,36 @@ function isQueued(value: unknown): value is QueuedCapture {
   if (!value || typeof value !== 'object') return false;
   const row = value as { noteId?: unknown; captureId?: unknown; line?: unknown };
   return typeof row.noteId === 'string' && typeof row.captureId === 'string' && typeof row.line === 'string';
+}
+
+export async function loadMarker(): Promise<CaptureMarker> {
+  const stored = await readStorage([MARKER_KEY]);
+  return stored[MARKER_KEY] === '::' ? '::' : ':::';
+}
+
+export async function saveMarker(marker: CaptureMarker): Promise<void> {
+  await writeStorage({ [MARKER_KEY]: marker });
+}
+
+export async function loadHistory(): Promise<HistoryEntry[]> {
+  const stored = await readStorage([HISTORY_KEY]);
+  const value = stored[HISTORY_KEY];
+  if (!Array.isArray(value)) return [];
+  return value.filter(isHistoryEntry).slice(0, HISTORY_LIMIT);
+}
+
+export async function pushHistory(front: string, back: string): Promise<HistoryEntry[]> {
+  const next: HistoryEntry = { front, back };
+  const history = [next, ...(await loadHistory()).filter((row) => row.front !== front || row.back !== back)].slice(
+    0,
+    HISTORY_LIMIT,
+  );
+  await writeStorage({ [HISTORY_KEY]: history });
+  return history;
+}
+
+function isHistoryEntry(value: unknown): value is HistoryEntry {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as { front?: unknown; back?: unknown };
+  return typeof row.front === 'string' && typeof row.back === 'string' && row.front.trim() !== '' && row.back.trim() !== '';
 }

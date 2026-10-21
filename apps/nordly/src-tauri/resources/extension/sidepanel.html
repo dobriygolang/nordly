@@ -17,9 +17,14 @@
       <section id="capture" hidden>
         <input id="word" autocomplete="off" spellcheck="false" />
         <input id="translation" autocomplete="off" spellcheck="false" />
+        <div id="marker" class="marker" role="group" aria-label="Card separator">
+          <button type="button" data-marker=":::" aria-pressed="true">:::</button>
+          <button type="button" data-marker="::" aria-pressed="false">::</button>
+        </div>
       </section>
       <p id="hint" hidden></p>
       <p id="status"></p>
+      <ul id="history" hidden></ul>
     </main>
   </body>
 </html>

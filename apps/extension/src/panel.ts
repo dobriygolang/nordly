@@ -1,5 +1,5 @@
 /// <reference path="./chrome.d.ts" />
-import { formatCaptureLine, phraseProblem } from '@nordly-translate/captureBody';
+import { formatCaptureLine, phraseProblem, type CaptureMarker } from '@nordly-translate/captureBody';
 import { translatePhrase } from '@nordly-translate/mymemory';
 
 import { captureRequest, CaptureHttpError } from './api';
@@ -10,11 +10,16 @@ import {
   REJECTED_KEY,
   TOKEN_KEY,
   flushQueue,
+  loadHistory,
+  loadMarker,
   loadQueue,
   loadToken,
   postCapture,
+  pushHistory,
+  saveMarker,
   upsertQueue,
   writeStorage,
+  type HistoryEntry,
   type QueuedCapture,
 } from './queue';
 
@@ -30,8 +35,10 @@ const codeInput = required(document.querySelector<HTMLInputElement>('#code'), 'c
 const saveCode = required(document.querySelector<HTMLButtonElement>('#save-code'), 'save-code');
 const wordInput = required(document.querySelector<HTMLInputElement>('#word'), 'word');
 const translationInput = required(document.querySelector<HTMLInputElement>('#translation'), 'translation');
+const markerGroup = required(document.querySelector<HTMLElement>('#marker'), 'marker');
 const hint = required(document.querySelector<HTMLElement>('#hint'), 'hint');
 const status = required(document.querySelector<HTMLElement>('#status'), 'status');
+const historyList = required(document.querySelector<HTMLUListElement>('#history'), 'history');
 
 pairCopy.textContent = text('pair');
 saveCode.textContent = text('connect');
@@ -44,6 +51,7 @@ let lastCaptureId = '';
 let lastFront = '';
 let editTimer = 0;
 let captureNoteId = '';
+let marker: CaptureMarker = ':::';
 
 saveCode.addEventListener('click', () => {
   void savePairing();
@@ -72,9 +80,20 @@ translationInput.addEventListener('input', () => {
   }, 400);
 });
 
+markerGroup.addEventListener('click', (event) => {
+  const button = event.target instanceof HTMLElement ? event.target.closest('button[data-marker]') : null;
+  if (!(button instanceof HTMLButtonElement)) return;
+  const next = button.dataset.marker;
+  if (next !== ':::' && next !== '::') return;
+  void setMarker(next);
+});
+
 void boot();
 
 async function boot(): Promise<void> {
+  marker = await loadMarker();
+  paintMarker();
+  renderHistory(await loadHistory());
   const token = await loadToken();
   if (!token) {
     showPair();
@@ -85,6 +104,32 @@ async function boot(): Promise<void> {
   await flushQueue();
   const stored = await chrome.storage.local.get([LAST_ERROR_KEY]);
   if (typeof stored[LAST_ERROR_KEY] === 'string' && stored[LAST_ERROR_KEY]) setStatus(stored[LAST_ERROR_KEY]);
+}
+
+async function setMarker(next: CaptureMarker): Promise<void> {
+  marker = next;
+  paintMarker();
+  await saveMarker(next);
+}
+
+function paintMarker(): void {
+  for (const button of markerGroup.querySelectorAll<HTMLButtonElement>('button[data-marker]')) {
+    button.setAttribute('aria-pressed', button.dataset.marker === marker ? 'true' : 'false');
+  }
+}
+
+function renderHistory(entries: HistoryEntry[]): void {
+  historyList.replaceChildren();
+  if (entries.length === 0) {
+    historyList.hidden = true;
+    return;
+  }
+  historyList.hidden = false;
+  for (const entry of entries) {
+    const item = document.createElement('li');
+    item.textContent = `${entry.front} - ${entry.back}`;
+    historyList.append(item);
+  }
 }
 
 async function savePairing(): Promise<void> {
@@ -155,12 +200,14 @@ async function commitWord(): Promise<void> {
   try {
     const translated = await translatePhrase(front);
     if (wordInput.value.trim() !== front) return;
+    const normalized = front.normalize('NFC').trim().toLowerCase();
+    wordInput.value = normalized;
     translationInput.value = translated;
     const captureId = crypto.randomUUID();
     lastCaptureId = captureId;
-    lastFront = front;
-    const kept = await sendOrQueue({ noteId, captureId, line: formatCaptureLine(front, translated) });
-    if (kept && wordInput.value.trim() === front) wordInput.value = '';
+    lastFront = normalized;
+    renderHistory(await pushHistory(normalized, translated));
+    await sendOrQueue({ noteId, captureId, line: formatCaptureLine(normalized, translated, marker) });
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     setStatus(message.includes('limit') ? 'limit' : 'translate-failed');
@@ -179,11 +226,13 @@ async function pushTranslationEdit(): Promise<void> {
   }
   let line: string;
   try {
-    line = formatCaptureLine(lastFront, translationInput.value);
+    line = formatCaptureLine(lastFront, translationInput.value, marker);
   } catch {
     setStatus('bad-phrase');
     return;
   }
+  const back = translationInput.value.trim().replace(/\s+/g, ' ');
+  renderHistory(await pushHistory(lastFront, back));
   await sendOrQueue({ noteId, captureId: lastCaptureId, line });
 }
 

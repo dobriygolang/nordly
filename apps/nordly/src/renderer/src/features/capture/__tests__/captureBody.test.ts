@@ -19,7 +19,7 @@ describe('capture lines', () => {
   it('appends once, replaces the same capture, and skips a repeated word', () => {
     const sessions = new Map<string, CaptureSession>();
     const first = applyCaptureBody('', 'note', 'c1', formatCaptureLine('Hello', 'привет'), sessions);
-    expect(first).toEqual({ body: 'Hello ::: привет', wrote: true, duplicate: false });
+    expect(first).toEqual({ body: 'hello ::: привет', wrote: true, duplicate: false });
 
     const edited = applyCaptureBody(
       first.body,
@@ -28,7 +28,7 @@ describe('capture lines', () => {
       formatCaptureLine('Hello', 'здравствуй'),
       sessions,
     );
-    expect(edited.body).toBe('Hello ::: здравствуй');
+    expect(edited.body).toBe('hello ::: здравствуй');
     expect(edited.wrote).toBe(true);
 
     const again = applyCaptureBody(
@@ -48,5 +48,19 @@ describe('capture lines', () => {
     const first = applyCaptureBody('old', 'note', 'c1', formatCaptureLine('one', 'один'), sessions);
     const second = applyCaptureBody(first.body, 'note', 'c2', formatCaptureLine('two', 'два'), sessions);
     expect(second.body).toBe('old\none ::: один\ntwo ::: два');
+  });
+
+  it('writes :: when asked and still dedupes by front', () => {
+    const sessions = new Map<string, CaptureSession>();
+    const first = applyCaptureBody('', 'note', 'c1', formatCaptureLine('Hello', 'привет', '::'), sessions);
+    expect(first).toEqual({ body: 'hello :: привет', wrote: true, duplicate: false });
+    const again = applyCaptureBody(
+      first.body,
+      'note',
+      'c2',
+      formatCaptureLine('hello', 'ещё', '::'),
+      sessions,
+    );
+    expect(again.duplicate).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import { readSettings } from '@shared/model/settings';
 
 import { parseCards, type CardIssue, type ParsedCard } from '../lib/parseCards';
 import { scheduleReview, type Grade, type ReviewState } from '../lib/scheduleReview';
+import { shuffleInPlace } from '../lib/shuffle';
 import {
   getCardReview,
   listCardReviews,
@@ -104,7 +105,7 @@ export async function buildCardDeck(noteId?: string | null, today = toDayKey(new
     newLeft -= 1;
     queue.push(toDeckCard(source, true, null));
   }
-  queue.sort((a, b) => Number(a.isNew) - Number(b.isNew));
+  shuffleInPlace(queue);
 
   return {
     queue,

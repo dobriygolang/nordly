@@ -77,6 +77,11 @@ async function drain(): Promise<void> {
         remain.push(item, ...queue.slice(queue.indexOf(item) + 1));
         break;
       }
+      if (error.status === 409 && error.code === 'no_capture_note') {
+        remain.push(item, ...queue.slice(queue.indexOf(item) + 1));
+        await writeStorage({ [QUEUE_KEY]: remain, [LAST_ERROR_KEY]: 'need-note' });
+        return;
+      }
       if (error.status === 404) {
         await writeStorage({ [LAST_ERROR_KEY]: 'note_not_found' });
         continue;

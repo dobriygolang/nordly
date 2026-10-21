@@ -15,6 +15,7 @@ export const DAY_COL_STRIDE = DAY_COL_WIDTH + DAY_COL_GAP;
 
 const INITIAL_PAST = 14;
 const INITIAL_FUTURE = 21;
+const INITIAL_COLUMN_COUNT = INITIAL_PAST + INITIAL_FUTURE + 1;
 const BATCH = 14;
 const EDGE_THRESHOLD_COLS = 3;
 const FAR_FROM_TODAY_COLS = 7;
@@ -40,7 +41,14 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
   const [rangeEnd, setRangeEnd] = useState(INITIAL_FUTURE);
   const [showBackToToday, setShowBackToToday] = useState(false);
   const [returningToToday, setReturningToToday] = useState(false);
-  const [visibleRange, setVisibleRange] = useState({ first: 0, last: INITIAL_PAST + INITIAL_FUTURE });
+  const [visibleRange, setVisibleRange] = useState(() =>
+    visibleDayColumnRange(
+      INITIAL_PAST * DAY_COL_STRIDE,
+      900,
+      INITIAL_COLUMN_COUNT,
+      DAY_COL_STRIDE,
+    ),
+  );
   const visibleRangeRef = useRef(visibleRange);
 
   const scrollAdjustRef = useRef(0);
@@ -155,18 +163,26 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
   }, []);
 
   const scrollToToday = useCallback(() => {
-    if (returningToTodayRef.current) return;
+    const el = scrollRef.current;
+    if (returningToTodayRef.current || !el || todayIndex < 0 || el.clientWidth === 0) return;
     returningToTodayRef.current = true;
     setReturningToToday(true);
     setShowBackToToday(false);
     farFromTodayRef.current = false;
-    pendingScrollTodayRef.current = false;
     pendingScrollDayKeyRef.current = null;
-    if (todayIndex >= 0) {
-      scrollToDayIndex(todayIndex, 'smooth');
-    }
+    const target = Math.max(0, todayIndex * DAY_COL_STRIDE - el.clientWidth * 0.35);
+    const desired = visibleDayColumnRange(target, el.clientWidth, days.length, DAY_COL_STRIDE);
+    visibleRangeRef.current = desired;
+    setVisibleRange(desired);
+    pendingScrollTodayRef.current = true;
+    window.requestAnimationFrame(() => {
+      const node = scrollRef.current;
+      if (!node) return;
+      node.scrollLeft = target;
+      pendingScrollTodayRef.current = false;
+    });
     window.setTimeout(releaseReturnLock, RETURN_LOCK_MS);
-  }, [releaseReturnLock, scrollToDayIndex, todayIndex]);
+  }, [days.length, releaseReturnLock, todayIndex]);
 
   const ensureDayVisible = useCallback(
     (dayKey: string) => {
@@ -210,15 +226,6 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let followUp = 0;
-
-    const finishInitialScroll = (): void => {
-      if (todayIndex >= 0) scrollToDayIndex(todayIndex, 'auto');
-      syncBackButton();
-      syncVisibleRange();
-      initialScrollPhaseRef.current = 'done';
-      didInitialScrollRef.current = true;
-    };
 
     const place = (): void => {
       if (scrollAdjustRef.current !== 0) {
@@ -227,30 +234,29 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
       }
 
       if (initialScrollPhaseRef.current !== 'done' && todayIndex >= 0) {
-        if (!scrollToDayIndex(todayIndex, 'auto')) return;
-        syncBackButton();
-        const rangeChanged = syncVisibleRange();
-        if (initialScrollPhaseRef.current === 'pending' && rangeChanged) {
-          // Padding from the new range resets scrollLeft in WebKit after this
-          // layout. Re-apply once on the next frame. Do not depend on
-          // visibleRange here: that re-entered this effect on every measure.
-          initialScrollPhaseRef.current = 'armed';
-          if (followUp !== 0) window.cancelAnimationFrame(followUp);
-          followUp = window.requestAnimationFrame(() => {
-            followUp = 0;
-            if (initialScrollPhaseRef.current !== 'armed') return;
-            finishInitialScroll();
-          });
-          return;
+        if (el.clientWidth === 0) return;
+        const target = Math.max(0, todayIndex * DAY_COL_STRIDE - el.clientWidth * 0.35);
+        const desired = visibleDayColumnRange(target, el.clientWidth, days.length, DAY_COL_STRIDE);
+        const current = visibleRangeRef.current;
+        const rangeChanged = current.first !== desired.first || current.last !== desired.last;
+        if (rangeChanged) {
+          visibleRangeRef.current = desired;
+          setVisibleRange(desired);
         }
-        finishInitialScroll();
+        el.scrollLeft = target;
+        const scrolled = Math.abs(el.scrollLeft - target) < 2;
+        if (!scrolled || rangeChanged) return;
+        syncBackButton();
+        initialScrollPhaseRef.current = 'done';
+        didInitialScrollRef.current = true;
         return;
       }
 
       if (pendingScrollTodayRef.current && todayIndex >= 0) {
-        scrollToDayIndex(todayIndex, 'smooth');
+        const target = Math.max(0, todayIndex * DAY_COL_STRIDE - el.clientWidth * 0.35);
+        el.scrollLeft = target;
         pendingScrollTodayRef.current = false;
-        syncVisibleRange();
+        syncBackButton();
         return;
       }
 
@@ -276,7 +282,6 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     observer.observe(el);
     return () => {
       observer.disconnect();
-      if (followUp !== 0) window.cancelAnimationFrame(followUp);
     };
   }, [days, todayIndex, scrollToDayIndex, syncBackButton, syncVisibleRange]);
 

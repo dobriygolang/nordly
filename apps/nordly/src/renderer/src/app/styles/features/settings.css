@@ -78,9 +78,15 @@ html.light .nordly-settings-group__body {
   gap: 10px;
 }
 
+.nordly-setting-row--stack .nordly-setting-row__meta {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .nordly-setting-row--stack .nordly-setting-row__control {
   flex: 0 0 auto;
   width: 100%;
+  align-items: stretch;
   justify-content: flex-start;
 }
 
@@ -514,8 +520,14 @@ html.light .nordly-settings-group__body {
 .nordly-settings-capture {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 8px;
+  width: 100%;
   min-width: 0;
+}
+
+.nordly-settings-capture .nordly-settings-google-actions {
+  justify-content: flex-start;
 }
 
 .nordly-settings-capture__status {

@@ -353,7 +353,8 @@ fn read_request(stream: &mut TcpStream) -> Result<Incoming, u16> {
 
 fn authorize(headers: &HashMap<String, String>, token: Option<&str>) -> Result<(), u16> {
     let origin = headers.get("origin").map(String::as_str).unwrap_or("");
-    if !origin.starts_with("chrome-extension://") {
+    // Chrome's privileged extension fetch omits Origin. A web page cannot.
+    if !(origin.is_empty() || origin.starts_with("chrome-extension://")) {
         return Err(403);
     }
     if headers.get("host").map(String::as_str) != Some(HOST) {
@@ -459,6 +460,16 @@ mod tests {
             ("authorization", "Bearer no"),
         ]);
         assert_eq!(authorize(&map, Some("secret")), Err(401));
+    }
+
+    #[test]
+    fn extension_request_without_origin_passes() {
+        let map = headers(&[
+            ("host", HOST),
+            ("x-nordly-capture", "1"),
+            ("authorization", "Bearer secret"),
+        ]);
+        assert_eq!(authorize(&map, Some("secret")), Ok(()));
     }
 
     #[test]

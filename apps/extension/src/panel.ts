@@ -6,7 +6,6 @@ import { captureRequest, CaptureHttpError } from './api';
 import { text } from './copy';
 import {
   LAST_ERROR_KEY,
-  NOTE_KEY,
   QUEUE_KEY,
   REJECTED_KEY,
   TOKEN_KEY,
@@ -29,7 +28,6 @@ const capture = required(document.querySelector<HTMLElement>('#capture'), 'captu
 const pairCopy = required(document.querySelector<HTMLElement>('#pair-copy'), 'pair-copy');
 const codeInput = required(document.querySelector<HTMLInputElement>('#code'), 'code');
 const saveCode = required(document.querySelector<HTMLButtonElement>('#save-code'), 'save-code');
-const noteSelect = required(document.querySelector<HTMLSelectElement>('#note'), 'note');
 const wordInput = required(document.querySelector<HTMLInputElement>('#word'), 'word');
 const translationInput = required(document.querySelector<HTMLInputElement>('#translation'), 'translation');
 const hint = required(document.querySelector<HTMLElement>('#hint'), 'hint');
@@ -39,13 +37,13 @@ pairCopy.textContent = text('pair');
 saveCode.textContent = text('connect');
 wordInput.placeholder = text('word');
 translationInput.placeholder = text('translation');
-noteSelect.setAttribute('aria-label', text('note'));
-hint.textContent = text('cards-off');
+hint.hidden = true;
 
 let busy = false;
 let lastCaptureId = '';
 let lastFront = '';
 let editTimer = 0;
+let captureNoteId = '';
 
 saveCode.addEventListener('click', () => {
   void savePairing();
@@ -55,10 +53,6 @@ codeInput.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
   void savePairing();
-});
-
-noteSelect.addEventListener('change', () => {
-  void writeStorage({ [NOTE_KEY]: noteSelect.value });
 });
 
 wordInput.addEventListener('keydown', (event) => {
@@ -121,29 +115,17 @@ async function refreshNotes(token: string): Promise<void> {
     const payload = await captureRequest(token, '/v1/capture/notes');
     if (!payload || typeof payload !== 'object') throw new CaptureHttpError(500, 'failed');
     const row = payload as {
-      notes?: Array<{ id?: string; title?: string; locked?: boolean }>;
       flashcardsEnabled?: boolean;
+      captureNoteId?: string | null;
     };
-    const notes = Array.isArray(row.notes) ? row.notes : [];
-    const stored = await chrome.storage.local.get([NOTE_KEY]);
-    const selected = typeof stored[NOTE_KEY] === 'string' ? stored[NOTE_KEY] : '';
-    noteSelect.replaceChildren();
-    const empty = document.createElement('option');
-    empty.value = '';
-    empty.textContent = text('note');
-    noteSelect.append(empty);
-    let found = false;
-    for (const note of notes) {
-      if (!note || typeof note.id !== 'string') continue;
-      const option = document.createElement('option');
-      option.value = note.id;
-      option.textContent = note.locked ? text('locked-note') : note.title?.trim() || note.id;
-      noteSelect.append(option);
-      if (note.id === selected) found = true;
+    captureNoteId = typeof row.captureNoteId === 'string' ? row.captureNoteId : '';
+    hint.hidden = true;
+    if (row.flashcardsEnabled !== true) {
+      setStatus('need-cards');
+      return;
     }
-    noteSelect.value = found ? selected : '';
-    if (!found && selected) setStatus('note_not_found');
-    hint.hidden = row.flashcardsEnabled !== false;
+    if (!captureNoteId) setStatus('need-note');
+    else setStatus('');
   } catch (error) {
     if (error instanceof CaptureHttpError && (error.status === 401 || error.status === 403)) {
       await writeStorage({ [REJECTED_KEY]: true });
@@ -164,7 +146,7 @@ async function commitWord(): Promise<void> {
     setStatus(problem);
     return;
   }
-  const noteId = noteSelect.value;
+  const noteId = captureNoteId;
   if (!noteId) {
     setStatus('need-note');
     return;
@@ -190,7 +172,7 @@ async function commitWord(): Promise<void> {
 async function pushTranslationEdit(): Promise<void> {
   if (!lastCaptureId || !lastFront || busy) return;
   if (!translationInput.value.trim()) return;
-  const noteId = noteSelect.value;
+  const noteId = captureNoteId;
   if (!noteId) {
     setStatus('need-note');
     return;
@@ -227,6 +209,11 @@ async function sendOrQueue(item: QueuedCapture): Promise<boolean> {
       setStatus('offline');
       return false;
     }
+    if (error.status === 409 && error.code === 'no_capture_note') {
+      await upsertQueue(item);
+      setStatus('need-note');
+      return false;
+    }
     if (error.status === 409 || error.status === 503 || error.status === 0) {
       await upsertQueue(item);
       setStatus(error.status === 409 ? 'vault_locked' : 'offline');
@@ -250,6 +237,7 @@ async function sendOrQueue(item: QueuedCapture): Promise<boolean> {
 function setStatus(key: string): void {
   const known = [
     'need-note',
+    'need-cards',
     'need-code',
     'bad-code',
     'offline',

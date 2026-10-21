@@ -24,7 +24,9 @@ import { isCloudEnabled } from '@shared/model/features';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { noteMenuPos } from '@shared/lib/noteMenuPos';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { useVaultRowMenuDismiss } from '@shared/lib/useVaultRowMenuDismiss';
+import { patchSettings, readSettings } from '@shared/model/settings';
 
 import { NoteRowMenu } from './NoteRowMenu';
 
@@ -116,8 +118,20 @@ export const NoteRow = memo(function NoteRow({
   const rowLabel = vaultLocked
     ? t('nordly.notes.vault_locked_list')
     : note.title || t('nordly.notes.untitled');
+  const [cardsOn, setCardsOn] = useState(() => readSettings().flashcards.enabled);
+  const [captureNoteId, setCaptureNoteId] = useState(() => readSettings().flashcards.captureNoteId);
 
-  const menuW = publishingAvailable ? MENU_W_WIDE : MENU_W;
+  useEffect(() => {
+    const syncCapture = (): void => {
+      const cards = readSettings().flashcards;
+      setCardsOn(cards.enabled);
+      setCaptureNoteId(cards.captureNoteId);
+    };
+    window.addEventListener(NORDLY_EVENTS.settingsChanged, syncCapture);
+    return () => window.removeEventListener(NORDLY_EVENTS.settingsChanged, syncCapture);
+  }, []);
+
+  const menuW = publishingAvailable || cardsOn ? MENU_W_WIDE : MENU_W;
 
   const updateMenuPos = useCallback(() => {
     const el = moreRef.current;
@@ -265,10 +279,24 @@ export const NoteRow = memo(function NoteRow({
     closeMenu();
     try {
       await onDelete(note.id);
+      const cards = readSettings().flashcards;
+      if (cards.captureNoteId === note.id) {
+        patchSettings({ flashcards: { ...cards, captureNoteId: null } });
+      }
     } catch {
       /* error surfaced in NotesPage */
     }
   }, [note.id, onDelete, closeMenu]);
+
+  const handleCaptureWords = useCallback((on: boolean) => {
+    const cards = readSettings().flashcards;
+    patchSettings({
+      flashcards: {
+        ...cards,
+        captureNoteId: on ? note.id : cards.captureNoteId === note.id ? null : cards.captureNoteId,
+      },
+    });
+  }, [note.id]);
 
   return (
     <>
@@ -340,6 +368,8 @@ export const NoteRow = memo(function NoteRow({
             onViewPublic={viewPublic}
             onUnpublish={() => void handleUnpublish()}
             onDelete={() => void handleDelete()}
+            captureWords={cardsOn ? captureNoteId === note.id : null}
+            onCaptureWordsChange={handleCaptureWords}
           />,
           document.body,
         )}

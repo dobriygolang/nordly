@@ -61,14 +61,21 @@ export function TaskBoardPage({
               height: '100%',
               minHeight: 0,
               overflowX: 'auto',
-              display: 'flex',
-              alignItems: 'stretch',
-              gap: DAY_COL_GAP,
-              paddingLeft: leftPad,
-              paddingRight: rightPad,
               WebkitAppRegion: 'no-drag',
             }}
           >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'stretch',
+                height: '100%',
+                width: 'max-content',
+                minHeight: '100%',
+                gap: DAY_COL_GAP,
+                paddingLeft: leftPad,
+                paddingRight: rightPad,
+              }}
+            >
             {board.days.slice(Math.max(0, firstVisible), lastVisible + 1).map((d) => {
               const insertPreviewAt = board.dnd.getColumnInsertPreviewAt(d.key);
               return (
@@ -102,6 +109,7 @@ export function TaskBoardPage({
               />
               );
             })}
+            </div>
           </div>
         </DayTaskDndContext>
       </div>

@@ -94,7 +94,7 @@ export const en = {
   'nordly.palette.nav_cards_due': 'Review cards — {{count}} due',
   'nordly.settings.flashcards.title': 'Flashcards',
   'nordly.settings.flashcards.label': 'Review cards from notes',
-  'nordly.settings.flashcards.hint': 'Lines like “front :: back” become cards. Progress stays on this device.',
+  'nordly.settings.flashcards.hint': 'Lines like “front :: back” become cards. Progress stays on this device. In a note menu, turn on “Save words here” for the browser extension.',
   'nordly.settings.flashcards.daily_limit': 'New cards per day',
   'nordly.settings.flashcards.daily_limit_hint': 'Reviews that are already due are not limited.',
   'nordly.notes.menu.more': 'Note actions',
@@ -104,6 +104,8 @@ export const en = {
   'nordly.notes.menu.view_public': 'Open public page',
   'nordly.notes.menu.unpublish': 'Unpublish',
   'nordly.notes.menu.delete': 'Delete note',
+  'nordly.notes.menu.words': 'Browser',
+  'nordly.notes.menu.capture_words': 'Save words here',
   'nordly.notes.delete_many_confirm': 'Delete {{count}} selected items? This cannot be undone.',
   'nordly.notes.delete_confirm_title': 'Delete for good?',
   'nordly.notes.delete_confirm_body':

@@ -25,6 +25,9 @@ export interface NoteRowMenuProps {
   onViewPublic: () => void;
   onUnpublish: () => void;
   onDelete: () => void;
+  /** null hides the switch. Shown only while flashcards are enabled. */
+  captureWords: boolean | null;
+  onCaptureWordsChange: (on: boolean) => void;
 }
 
 function MenuItem({
@@ -179,6 +182,8 @@ export const NoteRowMenu = memo(
       onViewPublic,
       onUnpublish,
       onDelete,
+      captureWords,
+      onCaptureWordsChange,
     },
     ref,
   ) {
@@ -262,6 +267,18 @@ export const NoteRowMenu = memo(
             <MenuDivider />
           </>
           )
+        ) : null}
+
+        {captureWords !== null ? (
+          <>
+            <div className="nordly-note-menu__label mono">{t('nordly.notes.menu.words')}</div>
+            <MenuToggle
+              label={t('nordly.notes.menu.capture_words')}
+              checked={captureWords}
+              onChange={onCaptureWordsChange}
+            />
+            <MenuDivider />
+          </>
         ) : null}
 
         <MenuItem

@@ -56,19 +56,27 @@ async function answer(request: CaptureRequest): Promise<void> {
 
 async function route(request: CaptureRequest): Promise<CaptureResult> {
   if (request.method === 'GET' && request.path === '/v1/capture/notes') {
+    const cards = readSettings().flashcards;
+    const captureNoteId = cards.enabled ? cards.captureNoteId : null;
+    if (!captureNoteId) {
+      return json(200, { notes: [], flashcardsEnabled: cards.enabled, captureNoteId: null });
+    }
     const { notes } = await listNotes();
+    const note = notes.find((item) => item.id === captureNoteId);
     return json(200, {
-      notes: notes.map((note) => ({
-        id: note.id,
-        title: note.title,
-        locked: note.vaultLocked === true,
-      })),
-      flashcardsEnabled: readSettings().flashcards.enabled,
+      notes: note
+        ? [{ id: note.id, title: note.title, locked: note.vaultLocked === true }]
+        : [],
+      flashcardsEnabled: true,
+      captureNoteId: note ? note.id : null,
     });
   }
   if (request.method === 'POST' && request.path === '/v1/capture') {
     const parsed = parsePost(request.body);
     if (!parsed) return json(400, { error: 'bad_line' });
+    const cards = readSettings().flashcards;
+    if (!cards.enabled || !cards.captureNoteId) return json(409, { error: 'no_capture_note' });
+    if (parsed.noteId !== cards.captureNoteId) return json(404, { error: 'note_not_found' });
     return enqueue(parsed.noteId, () => append(parsed));
   }
   return json(404, { error: 'not_found' });

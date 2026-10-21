@@ -41,6 +41,8 @@ export type WeekStartsOn = (typeof WeekStartsOn)[keyof typeof WeekStartsOn];
 export interface FlashcardsSettings {
   enabled: boolean;
   dailyNewLimit: number;
+  /** Note that receives words from the browser extension. */
+  captureNoteId: string | null;
 }
 
 export interface NordlySettings {
@@ -102,7 +104,7 @@ export const DEFAULTS: NordlySettings = {
   appleCalendarPollMinutes: 5,
   planPreviewExhausted: false,
   weekStartsOn: WeekStartsOn.Monday,
-  flashcards: { enabled: false, dailyNewLimit: 20 },
+  flashcards: { enabled: false, dailyNewLimit: 20, captureNoteId: null },
 };
 
 function parseWeekStartsOn(v: unknown): WeekStartsOn {
@@ -110,13 +112,21 @@ function parseWeekStartsOn(v: unknown): WeekStartsOn {
   throw new Error(`Invalid weekStartsOn: ${String(v)}`);
 }
 
+function parseCaptureNoteId(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw new Error('Invalid setting: flashcards.captureNoteId');
+  const id = value.trim();
+  return id.length > 0 ? id : null;
+}
+
 function parseFlashcards(value: unknown): FlashcardsSettings {
   if (!value || typeof value !== 'object') throw new Error('Invalid setting: flashcards');
-  const row = value as { enabled?: unknown; dailyNewLimit?: unknown };
+  const row = value as { enabled?: unknown; dailyNewLimit?: unknown; captureNoteId?: unknown };
   if (typeof row.enabled !== 'boolean') throw new Error('Invalid setting: flashcards.enabled');
   return {
     enabled: row.enabled,
     dailyNewLimit: clampInt(row.dailyNewLimit, 1, 100, 'flashcards.dailyNewLimit'),
+    captureNoteId: parseCaptureNoteId(row.captureNoteId),
   };
 }
 

@@ -94,7 +94,7 @@ export const ru = {
   'nordly.palette.nav_cards_due': 'Повторить карточки — к сроку {{count}}',
   'nordly.settings.flashcards.title': 'Карточки',
   'nordly.settings.flashcards.label': 'Повторять карточки из заметок',
-  'nordly.settings.flashcards.hint': 'Строки вида «вопрос :: ответ» становятся карточками. Прогресс остаётся на этом устройстве.',
+  'nordly.settings.flashcards.hint': 'Строки вида «вопрос :: ответ» становятся карточками. Прогресс остаётся на этом устройстве. В меню заметки включи «Слова из браузера», чтобы расширение писало туда.',
   'nordly.settings.flashcards.daily_limit': 'Новых карточек в день',
   'nordly.settings.flashcards.daily_limit_hint': 'Уже назначенные повторения лимит не режет.',
   'nordly.notes.menu.more': 'Действия с заметкой',
@@ -104,6 +104,8 @@ export const ru = {
   'nordly.notes.menu.view_public': 'Открыть страницу',
   'nordly.notes.menu.unpublish': 'Снять с публикации',
   'nordly.notes.menu.delete': 'Удалить заметку',
+  'nordly.notes.menu.words': 'Браузер',
+  'nordly.notes.menu.capture_words': 'Слова из браузера',
   'nordly.notes.delete_many_confirm': 'Удалить выбранное: {{count}}? Это нельзя отменить.',
   'nordly.notes.delete_confirm_title': 'Удалить навсегда?',
   'nordly.notes.delete_confirm_body':

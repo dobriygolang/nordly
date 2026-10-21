@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Nordly",
+  "version": "0.1.0",
+  "description": "Save a word and its translation into a Nordly note.",
+  "action": {
+    "default_title": "Nordly"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["sidePanel", "storage", "alarms"],
+  "host_permissions": [
+    "http://127.0.0.1:47231/*",
+    "https://api.mymemory.translated.net/*"
+  ]
+}

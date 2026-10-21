@@ -1,0 +1,1 @@
+import{f as e}from"./assets/queue.js";chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:!0});chrome.runtime.onStartup.addListener(()=>{e()});chrome.alarms.create("nordly-capture-flush",{periodInMinutes:1});chrome.alarms.onAlarm.addListener(()=>{e()});e();

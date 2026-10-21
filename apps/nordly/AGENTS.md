@@ -268,7 +268,7 @@ Sharing (requires sign-in + network):
 
 ## Browser capture
 
-Settings → Browser shows how to load the unpacked Chrome folder and a pairing code stored in the OS keychain. The installer copies that folder into the app resources, so a downloaded Nordly still has it. `npm run extension:stage` refreshes the copy before a desktop build. While the process is running, Nordly listens on `127.0.0.1:47231` for the Chrome extension only (`Origin: chrome-extension://`, header `X-Nordly-Capture`, bearer code). `GET /v1/capture/notes` lists local notes. `POST /v1/capture` appends `word ::: translation`. The open note goes through the editor draft. Any other note uses `updateNote`. Appends to one note are serialized. A locked vault returns an error and does not write an empty note. Hiding the window does not stop the listener.
+Settings → Browser shows how to load the unpacked Chrome folder and a pairing code stored in the OS keychain. The installer copies that folder into the app resources, so a downloaded Nordly still has it. `src-tauri/resources/extension` is committed so Rust checks can see it, and `npm run extension:stage` refreshes it before a desktop build. While the process is running, Nordly listens on `127.0.0.1:47231` for the Chrome extension only (`Origin: chrome-extension://`, header `X-Nordly-Capture`, bearer code). `GET /v1/capture/notes` lists local notes. `POST /v1/capture` appends `word ::: translation`. The open note goes through the editor draft. Any other note uses `updateNote`. Appends to one note are serialized. A locked vault returns an error and does not write an empty note. Hiding the window does not stop the listener.
 
 ## Flashcards
 

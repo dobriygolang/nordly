@@ -19,6 +19,7 @@ import {
   shareWhiteboard,
   publishWhiteboard,
   updateBoardScene,
+  parseSceneJson,
   type Board,
   type BoardFolder,
 } from '@features/whiteboard/api/whiteboardClient';
@@ -53,6 +54,11 @@ import {
 
 const SIDEBAR_W = VAULT_SIDEBAR_W;
 const SIDEBAR_RESIZE_SETTLE_MS = 80;
+
+function paintStoredScene(canvas: BoardCanvasHandle | null, sceneJson: string): void {
+  const scene = parseSceneJson(sceneJson);
+  canvas?.applyRemoteScene(scene.elements, scene.files);
+}
 
 async function copyLinkAndOpen(url: string): Promise<'copied' | 'opened'> {
   try {
@@ -383,12 +389,8 @@ export function WhiteboardPage({
         accessToken: res.accessToken,
         expiresIn: res.expiresIn,
         initialSceneJson: sceneJson,
-        onRemoteScene: (elements, files) => {
-          canvasRef.current?.applyRemoteScene(elements, files);
-        },
-        onCollaborators: (peers) => {
-          canvasRef.current?.applyCollaborators(peers);
-        },
+        onRemoteScene: () => {},
+        onCollaborators: () => {},
         onStatus: (status) => {
           setLiveStatus(status);
           if (status.kind !== 'ended') return;
@@ -399,6 +401,7 @@ export function WhiteboardPage({
           if (session && boardId) {
             try {
               const sceneJson = session.readSceneJson();
+              if (boardId === selectedIdRef.current) paintStoredScene(canvasRef.current, sceneJson);
               void updateBoardScene(boardId, sceneJson).catch((err: unknown) => {
                 setShareMsg(err instanceof Error ? err.message : t('nordly.whiteboard.share_error'));
               });
@@ -436,6 +439,7 @@ export function WhiteboardPage({
     canvasRef.current?.applyCollaborators([]);
     if (!id) return;
     try {
+      paintStoredScene(canvasRef.current, sceneJson);
       await updateBoardScene(id, sceneJson);
       setShareMsg(t('nordly.whiteboard.live.stopped'));
     } catch (err: unknown) {
@@ -600,9 +604,7 @@ export function WhiteboardPage({
             boardTheme={boardCanvas}
             onSaved={handleSaved}
             onSaveError={setSaveError}
-            onLiveChange={(elements, files) => liveRef.current?.writeLocal(elements, files)}
-            collaborating={liveStatus?.kind === 'live' || liveStatus?.kind === 'connecting'}
-            onPointerUpdate={(pointer) => liveRef.current?.reportPointer(pointer)}
+            liveLocked={liveStatus?.kind === 'live' || liveStatus?.kind === 'connecting'}
           />
         ) : (
           <EmptyPane message={t('nordly.whiteboard.empty_dim')} onCreate={() => void handleCreate()} dim />
@@ -614,6 +616,8 @@ export function WhiteboardPage({
               {liveStatus.kind === 'live'
                 ? t('nordly.whiteboard.live.badge', { count: String(liveStatus.participants) })
                 : t('nordly.whiteboard.live.connecting')}
+              {' · '}
+              {t('nordly.whiteboard.live.locked')}
             </span>
             <button type="button" className="nordly-whiteboard-live__stop focus-ring" onClick={() => void handleStopLive()}>
               {t('nordly.whiteboard.live.stop')}

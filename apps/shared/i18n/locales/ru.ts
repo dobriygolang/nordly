@@ -684,6 +684,7 @@ export const ru = {
   'nordly.whiteboard.publish_opened': 'Страница открыта в браузере. Скопировать ссылку не получилось.',
   'nordly.whiteboard.live.badge': 'Live · {{count}}',
   'nordly.whiteboard.live.connecting': 'Подключаюсь…',
+  'nordly.whiteboard.live.locked': 'Рисуй в браузере. Это окно обновится, когда остановишь доступ.',
   'nordly.whiteboard.live.stop': 'Остановить',
   'nordly.whiteboard.live.stopped': 'Совместный доступ остановлен. Доска снова только на этом устройстве.',
   'nordly.whiteboard.live.room_closed': 'Комната закрыта.',

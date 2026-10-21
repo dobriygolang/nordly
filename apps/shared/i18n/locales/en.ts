@@ -685,6 +685,7 @@ export const en = {
   'nordly.whiteboard.publish_opened': 'Opened the page in the browser. Copying the link was blocked.',
   'nordly.whiteboard.live.badge': 'Live · {{count}}',
   'nordly.whiteboard.live.connecting': 'Connecting…',
+  'nordly.whiteboard.live.locked': 'Draw in the browser. This window updates when sharing stops.',
   'nordly.whiteboard.live.stop': 'Stop sharing',
   'nordly.whiteboard.live.stopped': 'Sharing stopped. This board is local again.',
   'nordly.whiteboard.live.room_closed': 'The room closed.',

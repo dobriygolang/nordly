@@ -40,6 +40,7 @@ const SAVE_DEBOUNCE_MS = 1500;
 type ExcalidrawApi = {
   updateScene: (scene: {
     elements?: readonly unknown[];
+    files?: Record<string, unknown>;
     appState?: Record<string, unknown>;
     collaborators?: Map<string, unknown>;
     captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction];
@@ -66,6 +67,8 @@ interface BoardCanvasProps {
   onLiveChange?: (elements: readonly unknown[], files: Record<string, unknown>) => void;
   collaborating?: boolean;
   onPointerUpdate?: (pointer: LivePointer | null) => void;
+  /** Share is open. The canvas does not edit or publish strokes. */
+  liveLocked?: boolean;
 }
 
 function paintCollaborators(api: ExcalidrawApi | null, peers: readonly LiveCollaborator[]): void {
@@ -103,7 +106,17 @@ function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
 }
 
 export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(function BoardCanvas(
-  { boardId, sceneJson, boardTheme, onSaved, onSaveError, onLiveChange, collaborating = false, onPointerUpdate },
+  {
+    boardId,
+    sceneJson,
+    boardTheme,
+    onSaved,
+    onSaveError,
+    onLiveChange,
+    collaborating = false,
+    onPointerUpdate,
+    liveLocked = false,
+  },
   ref,
 ) {
   const sceneRef = useRef<WhiteboardScene | null>(null);
@@ -113,8 +126,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const applyingRemoteRef = useRef(false);
   const onLiveChangeRef = useRef(onLiveChange);
   const onPointerUpdateRef = useRef(onPointerUpdate);
+  const liveLockedRef = useRef(liveLocked);
   onLiveChangeRef.current = onLiveChange;
   onPointerUpdateRef.current = onPointerUpdate;
+  liveLockedRef.current = liveLocked;
   const themeApplyTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawApi | null>(null);
@@ -188,6 +203,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         sceneWriter.update(sceneRef.current);
         api?.updateScene({
           elements: remapDisplayElementsForBoardTheme(canonical, boardThemeRef.current),
+          files,
           captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
         window.setTimeout(() => {
@@ -316,8 +332,15 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     };
   }, [excalidrawApi, boardId, boardTheme, applyCanvasBackground]);
 
+  useEffect(() => {
+    if (!liveLocked || saveTimerRef.current === null) return;
+    window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+  }, [liveLocked]);
+
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
+      if (liveLockedRef.current) return;
       if (skipSaveRef.current || applyingThemeRef.current || applyingRemoteRef.current) return;
       if (!appState || typeof appState !== 'object' || Array.isArray(appState)) {
         throw new Error('BoardCanvas: invalid appState');
@@ -365,9 +388,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
           appState: initialData.appState as never,
         }}
         onChange={handleChange}
-        isCollaborating={collaborating}
+        viewModeEnabled={liveLocked}
+        isCollaborating={collaborating && !liveLocked}
         onPointerUpdate={
-          collaborating
+          collaborating && !liveLocked
             ? (payload) => {
                 onPointerUpdateRef.current?.({
                   x: payload.pointer.x,

@@ -41,11 +41,14 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
   const [showBackToToday, setShowBackToToday] = useState(false);
   const [returningToToday, setReturningToToday] = useState(false);
   const [visibleRange, setVisibleRange] = useState({ first: 0, last: INITIAL_PAST + INITIAL_FUTURE });
+  const visibleRangeRef = useRef(visibleRange);
 
   const scrollAdjustRef = useRef(0);
   const loadingPastRef = useRef(false);
   const loadingFutureRef = useRef(false);
   const didInitialScrollRef = useRef(false);
+  /** pending → armed after the first successful scroll, done after the virtualized frame re-applies it. */
+  const initialScrollPhaseRef = useRef<'pending' | 'armed' | 'done'>('pending');
   const pendingScrollTodayRef = useRef(false);
   const pendingScrollDayKeyRef = useRef<string | null>(null);
   const returningToTodayRef = useRef(false);
@@ -65,11 +68,15 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     [days, todayKey],
   );
 
-  const syncVisibleRange = useCallback(() => {
+  const syncVisibleRange = useCallback((): boolean => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el) return false;
     const next = visibleDayColumnRange(el.scrollLeft, el.clientWidth, days.length, DAY_COL_STRIDE);
-    setVisibleRange((prev) => (prev.first === next.first && prev.last === next.last ? prev : next));
+    const prev = visibleRangeRef.current;
+    if (prev.first === next.first && prev.last === next.last) return false;
+    visibleRangeRef.current = next;
+    setVisibleRange(next);
+    return true;
   }, [days.length]);
 
   const syncBackButton = useCallback(() => {
@@ -210,11 +217,18 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
         scrollAdjustRef.current = 0;
       }
 
-      if (!didInitialScrollRef.current && todayIndex >= 0) {
+      if (initialScrollPhaseRef.current !== 'done' && todayIndex >= 0) {
         if (!scrollToDayIndex(todayIndex, 'auto')) return;
-        didInitialScrollRef.current = true;
         syncBackButton();
-        syncVisibleRange();
+        const rangeChanged = syncVisibleRange();
+        if (initialScrollPhaseRef.current === 'pending' && rangeChanged) {
+          // The padding/virtualization commit resets scrollLeft in WebKit.
+          // Re-apply on the next layout, after that commit.
+          initialScrollPhaseRef.current = 'armed';
+          return;
+        }
+        initialScrollPhaseRef.current = 'done';
+        didInitialScrollRef.current = true;
         return;
       }
 
@@ -239,14 +253,14 @@ export function useInfiniteDayScroll(today: Date): UseInfiniteDayScrollResult {
     };
 
     place();
-    if (didInitialScrollRef.current) return;
+    if (initialScrollPhaseRef.current === 'done') return;
     const observer = new ResizeObserver(() => {
       place();
-      if (didInitialScrollRef.current) observer.disconnect();
+      if (initialScrollPhaseRef.current === 'done') observer.disconnect();
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [days, todayIndex, scrollToDayIndex, syncBackButton, syncVisibleRange]);
+  }, [days, todayIndex, visibleRange.first, visibleRange.last, scrollToDayIndex, syncBackButton, syncVisibleRange]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;

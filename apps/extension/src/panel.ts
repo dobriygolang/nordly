@@ -1,3 +1,4 @@
+/// <reference path="./chrome.d.ts" />
 import { formatCaptureLine, phraseProblem } from '@nordly-translate/captureBody';
 import { translatePhrase } from '@nordly-translate/mymemory';
 
@@ -18,20 +19,21 @@ import {
   type QueuedCapture,
 } from './queue';
 
-const pair = document.querySelector<HTMLElement>('#pair');
-const capture = document.querySelector<HTMLElement>('#capture');
-const pairCopy = document.querySelector<HTMLElement>('#pair-copy');
-const codeInput = document.querySelector<HTMLInputElement>('#code');
-const saveCode = document.querySelector<HTMLButtonElement>('#save-code');
-const noteSelect = document.querySelector<HTMLSelectElement>('#note');
-const wordInput = document.querySelector<HTMLInputElement>('#word');
-const translationInput = document.querySelector<HTMLInputElement>('#translation');
-const hint = document.querySelector<HTMLElement>('#hint');
-const status = document.querySelector<HTMLElement>('#status');
-
-if (!pair || !capture || !pairCopy || !codeInput || !saveCode || !noteSelect || !wordInput || !translationInput || !hint || !status) {
-  throw new Error('Nordly panel is missing its fields');
+function required<T extends Element>(element: T | null, id: string): T {
+  if (!element) throw new Error(`Nordly panel is missing #${id}`);
+  return element;
 }
+
+const pair = required(document.querySelector<HTMLElement>('#pair'), 'pair');
+const capture = required(document.querySelector<HTMLElement>('#capture'), 'capture');
+const pairCopy = required(document.querySelector<HTMLElement>('#pair-copy'), 'pair-copy');
+const codeInput = required(document.querySelector<HTMLInputElement>('#code'), 'code');
+const saveCode = required(document.querySelector<HTMLButtonElement>('#save-code'), 'save-code');
+const noteSelect = required(document.querySelector<HTMLSelectElement>('#note'), 'note');
+const wordInput = required(document.querySelector<HTMLInputElement>('#word'), 'word');
+const translationInput = required(document.querySelector<HTMLInputElement>('#translation'), 'translation');
+const hint = required(document.querySelector<HTMLElement>('#hint'), 'hint');
+const status = required(document.querySelector<HTMLElement>('#status'), 'status');
 
 pairCopy.textContent = text('pair');
 saveCode.textContent = text('connect');
@@ -46,6 +48,12 @@ let lastFront = '';
 let editTimer = 0;
 
 saveCode.addEventListener('click', () => {
+  void savePairing();
+});
+
+codeInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
   void savePairing();
 });
 
@@ -139,6 +147,7 @@ async function refreshNotes(token: string): Promise<void> {
   } catch (error) {
     if (error instanceof CaptureHttpError && (error.status === 401 || error.status === 403)) {
       await writeStorage({ [REJECTED_KEY]: true });
+      showPair();
       setStatus('bad-code');
       return;
     }
@@ -168,8 +177,8 @@ async function commitWord(): Promise<void> {
     const captureId = crypto.randomUUID();
     lastCaptureId = captureId;
     lastFront = front;
-    await sendOrQueue({ noteId, captureId, line: formatCaptureLine(front, translated) });
-    if (wordInput.value.trim() === front) wordInput.value = '';
+    const kept = await sendOrQueue({ noteId, captureId, line: formatCaptureLine(front, translated) });
+    if (kept && wordInput.value.trim() === front) wordInput.value = '';
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     setStatus(message.includes('limit') ? 'limit' : 'translate-failed');
@@ -196,11 +205,12 @@ async function pushTranslationEdit(): Promise<void> {
   await sendOrQueue({ noteId, captureId: lastCaptureId, line });
 }
 
-async function sendOrQueue(item: QueuedCapture): Promise<void> {
+async function sendOrQueue(item: QueuedCapture): Promise<boolean> {
   const token = await loadToken();
   if (!token) {
+    showPair();
     setStatus('need-code');
-    return;
+    return false;
   }
   try {
     const result = await postCapture(token, item);
@@ -211,26 +221,29 @@ async function sendOrQueue(item: QueuedCapture): Promise<void> {
       [LAST_ERROR_KEY]: '',
     });
     setStatus(result.duplicate ? 'duplicate' : 'saved');
+    return true;
   } catch (error) {
     if (!(error instanceof CaptureHttpError)) {
       setStatus('offline');
-      return;
+      return false;
     }
     if (error.status === 409 || error.status === 503 || error.status === 0) {
       await upsertQueue(item);
       setStatus(error.status === 409 ? 'vault_locked' : 'offline');
-      return;
+      return true;
     }
     if (error.status === 401 || error.status === 403) {
       await writeStorage({ [REJECTED_KEY]: true });
+      showPair();
       setStatus('bad-code');
-      return;
+      return false;
     }
     if (error.status === 404) {
       setStatus('note_not_found');
-      return;
+      return false;
     }
     setStatus('translate-failed');
+    return false;
   }
 }
 

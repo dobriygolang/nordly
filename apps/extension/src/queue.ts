@@ -1,3 +1,4 @@
+/// <reference path="./chrome.d.ts" />
 import { captureRequest, CaptureHttpError } from './api';
 
 export const TOKEN_KEY = 'nordly.capture.token';

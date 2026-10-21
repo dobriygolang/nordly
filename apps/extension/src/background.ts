@@ -1,3 +1,4 @@
+/// <reference path="./chrome.d.ts" />
 import { flushQueue } from './queue';
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });

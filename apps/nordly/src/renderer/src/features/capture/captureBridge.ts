@@ -110,12 +110,15 @@ async function append(input: { noteId: string; captureId: string; line: string }
     if (draft.isLocked()) return json(409, { error: 'vault_locked' });
     let wrote = false;
     let duplicate = false;
-    draft.setBody((current) => {
-      const applied = applyCaptureBody(current, input.noteId, input.captureId, input.line, sessions);
-      wrote = applied.wrote;
-      duplicate = applied.duplicate;
-      return applied.body;
+    let applied = false;
+    const accepted = draft.setBody((current) => {
+      const next = applyCaptureBody(current, input.noteId, input.captureId, input.line, sessions);
+      wrote = next.wrote;
+      duplicate = next.duplicate;
+      applied = true;
+      return next.body;
     });
+    if (!accepted || !applied) return json(503, { error: 'unavailable' });
     return json(200, { ok: true, wrote, duplicate });
   }
   let note: Note;

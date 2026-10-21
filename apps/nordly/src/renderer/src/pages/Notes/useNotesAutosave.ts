@@ -316,8 +316,9 @@ export function useNotesAutosave({
       noteId: id,
       matches: () => draftRef.current.activeId === id,
       setBody: (update) => {
-        if (draftRef.current.activeId !== id) return;
+        if (draftRef.current.activeId !== id) return false;
         setDraftBody(update);
+        return true;
       },
       isLocked: () => {
         const note = activeRef.current;

@@ -1,7 +1,7 @@
 export interface CaptureDraft {
   noteId: string;
   matches: () => boolean;
-  setBody: (update: (current: string) => string) => void;
+  setBody: (update: (current: string) => string) => boolean;
   isLocked: () => boolean;
 }
 

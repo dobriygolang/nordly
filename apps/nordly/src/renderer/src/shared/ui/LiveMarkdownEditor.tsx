@@ -7,13 +7,6 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
 
-import {
-  lineWithTranslation,
-  splitCardColonLine,
-  translateCardFront,
-  translationPair,
-} from '@features/cards/lib/cardTranslation';
-import { markdownLines } from '@nordly-markdown/proseLines';
 import { httpsLinkAt, wikiMatchAt, type WikiTarget } from '@nordly-markdown/wikiTarget';
 import {
   codeBlockField,
@@ -46,67 +39,10 @@ interface LiveMarkdownEditorProps {
   /** Paste/drop image → insert markdown snippet at cursor (return null to ignore). */
   onInsertImageFile?: (file: File) => Promise<string | null>;
   onAttachmentError?: (err: unknown) => void;
+  /** Doc edits after the note value is emitted. Pages use this for card translation. */
+  onDocChanged?: (update: ViewUpdate) => void;
   /** Focus editor on mount (e.g. Notes opened via hotkey N). */
   autoFocus?: boolean;
-}
-
-const reportedTranslationErrors = new WeakSet<Promise<string>>();
-
-function fillCardTranslations(
-  update: ViewUpdate,
-  opts: {
-    enabled: boolean;
-    applying: { current: boolean };
-    onError: (err: unknown) => void;
-  },
-): void {
-  if (!opts.enabled || opts.applying.current) return;
-  let addedColon = false;
-  update.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
-    if (inserted.toString().includes(':')) addedColon = true;
-  });
-  if (!addedColon) return;
-  const rows = markdownLines(update.state.doc.toString());
-  const seen = new Set<number>();
-  update.changes.iterChanges((_fromA, _toA, fromB, toB) => {
-    const start = update.state.doc.lineAt(fromB).number;
-    const end = update.state.doc.lineAt(Math.max(fromB, toB)).number;
-    for (let number = start; number <= end; number += 1) seen.add(number);
-  });
-  for (const number of seen) {
-    const row = rows[number - 1];
-    if (!row || row.inFence) continue;
-    const split = splitCardColonLine(row.text);
-    if (!split || split.back || !translationPair(split.front)) continue;
-    const front = split.front;
-    const pending = translateCardFront(front);
-    void pending
-      .then((translation) => {
-        const view = update.view;
-        if (opts.applying.current || number < 1 || number > view.state.doc.lines) return;
-        const line = view.state.doc.line(number);
-        const current = splitCardColonLine(line.text);
-        if (!current || current.front !== front) return;
-        const next = lineWithTranslation(line.text, translation);
-        if (!next || next === line.text) return;
-        const head = view.state.selection.main.head;
-        const onLine = head >= line.from && head <= line.to;
-        opts.applying.current = true;
-        try {
-          view.dispatch({
-            changes: { from: line.from, to: line.to, insert: next },
-            selection: onLine ? { anchor: line.from + next.length } : undefined,
-          });
-        } finally {
-          opts.applying.current = false;
-        }
-      })
-      .catch((err: unknown) => {
-        if (reportedTranslationErrors.has(pending)) return;
-        reportedTranslationErrors.add(pending);
-        opts.onError(err instanceof Error ? err : new Error('MyMemory returned no translation'));
-      });
-  }
 }
 
 function findSlashTrigger(state: EditorState): { slashStart: number; query: string } | null {
@@ -145,6 +81,7 @@ export function LiveMarkdownEditor({
   resolveImageHref = null,
   onInsertImageFile,
   onAttachmentError,
+  onDocChanged,
   autoFocus = false,
 }: LiveMarkdownEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -153,8 +90,7 @@ export function LiveMarkdownEditor({
   const onWikiTargetClickRef = useRef(onWikiTargetClick);
   const onInsertImageFileRef = useRef(onInsertImageFile);
   const onAttachmentErrorRef = useRef(onAttachmentError);
-  const flashcardsEnabledRef = useRef(flashcardsEnabled);
-  const applyingCardTranslationRef = useRef(false);
+  const onDocChangedRef = useRef(onDocChanged);
   /** Last doc string we pushed via onChange — ignore stale React props lagging behind. */
   const lastEmittedRef = useRef(value);
   const awaitingEchoRef = useRef(false);
@@ -166,7 +102,7 @@ export function LiveMarkdownEditor({
   onWikiTargetClickRef.current = onWikiTargetClick;
   onInsertImageFileRef.current = onInsertImageFile;
   onAttachmentErrorRef.current = onAttachmentError;
-  flashcardsEnabledRef.current = flashcardsEnabled;
+  onDocChangedRef.current = onDocChanged;
 
   const resolvedTitles = useMemo(() => normalizedWikiTitles(noteTitles), [noteTitles]);
 
@@ -338,11 +274,7 @@ export function LiveMarkdownEditor({
               lastEmittedRef.current = next;
               awaitingEchoRef.current = true;
               onChangeRef.current(next);
-              fillCardTranslations(update, {
-                enabled: flashcardsEnabledRef.current,
-                applying: applyingCardTranslationRef,
-                onError: (err) => onAttachmentErrorRef.current?.(err),
-              });
+              onDocChangedRef.current?.(update);
             }
             if (update.docChanged || update.selectionSet) {
               updateSlash(update.view);

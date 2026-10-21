@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import type { ViewUpdate } from '@codemirror/view';
 
 import { useT } from '@nordly-i18n';
 import type { WikiTarget } from '@nordly-markdown/wikiTarget';
@@ -9,6 +11,7 @@ import {
   createNoteAttachmentFromFile,
   resolveAttachmentObjectUrl,
 } from '@features/notes/api/attachmentsClient';
+import { fillCardTranslations } from '@features/cards/lib/fillCardTranslations';
 import { countNoteCards } from '@features/cards/lib/parseCards';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
@@ -195,6 +198,17 @@ function ActiveEditor({
     },
     [onError, t],
   );
+  const applyingCardTranslationRef = useRef(false);
+  const onDocChanged = useCallback(
+    (update: ViewUpdate) => {
+      fillCardTranslations(update, {
+        enabled: cardsOn,
+        applying: applyingCardTranslationRef,
+        onError: onAttachmentError,
+      });
+    },
+    [cardsOn, onAttachmentError],
+  );
 
   const titleEmpty = !title.trim();
 
@@ -223,6 +237,7 @@ function ActiveEditor({
         resolveImageHref={resolveImageHref}
         onInsertImageFile={onInsertImageFile}
         onAttachmentError={onAttachmentError}
+        onDocChanged={onDocChanged}
         autoFocus={!titleEmpty}
       />
     </div>

@@ -1,6 +1,6 @@
 [package]
 name = "nordly"
-version = "0.0.43"
+version = "0.0.44"
 description = "Nordly — focus workspace"
 authors = ["nordly"]
 edition = "2021"

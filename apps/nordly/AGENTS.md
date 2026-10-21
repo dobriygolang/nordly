@@ -268,7 +268,7 @@ Sharing (requires sign-in + network):
 
 ## Flashcards
 
-`front :: back` in a note is one card. `front ::: back` is that card and the reverse. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
+`front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
 ## Tauri IPC commands
 

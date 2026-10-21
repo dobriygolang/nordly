@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { TFunc } from '@nordly-i18n';
 
+import { currentCaptureDraft, registerCaptureDraft } from '@features/capture/draftBridge';
 import {
   getNote,
   isNoteVaultLocked,
@@ -304,6 +305,29 @@ export function useNotesAutosave({
     setActiveError,
     t,
   ]);
+
+  useEffect(() => {
+    const id = selectedId;
+    if (!id) {
+      registerCaptureDraft(null);
+      return;
+    }
+    registerCaptureDraft({
+      noteId: id,
+      matches: () => draftRef.current.activeId === id,
+      setBody: (update) => {
+        if (draftRef.current.activeId !== id) return;
+        setDraftBody(update);
+      },
+      isLocked: () => {
+        const note = activeRef.current;
+        return note?.id === id && isNoteVaultLocked(note);
+      },
+    });
+    return () => {
+      if (currentCaptureDraft()?.noteId === id) registerCaptureDraft(null);
+    };
+  }, [activeRef, draftRef, selectedId, setDraftBody]);
 
   useEffect(() => {
     if (!active || isNoteVaultLocked(active)) return;

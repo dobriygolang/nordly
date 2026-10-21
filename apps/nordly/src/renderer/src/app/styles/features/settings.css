@@ -506,6 +506,24 @@ html.light .nordly-settings-group__body {
   border-color: rgb(var(--ink-rgb) / 0.22);
 }
 
+.nordly-settings-text-input--wide {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.nordly-settings-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nordly-settings-capture__status {
+  margin: 0;
+  color: var(--ink-40);
+  font-size: 12px;
+}
+
 .nordly-settings-text-input:disabled {
   opacity: 0.45;
   cursor: not-allowed;

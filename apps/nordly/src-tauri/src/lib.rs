@@ -1,4 +1,5 @@
 mod auth;
+mod capture;
 #[cfg(desktop)]
 mod aux_windows;
 mod eventkit;
@@ -163,6 +164,7 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::setup(app)?;
+                capture::start(app.handle().clone());
             }
             Ok(())
         })
@@ -220,6 +222,13 @@ pub fn run() {
             notes_vault_write_pasted_image,
             notes_vault_start_watch,
             notes_vault_stop_watch,
+            capture_status,
+            capture_token,
+            capture_token_rotate,
+            capture_extension_dir,
+            capture_reveal_extension,
+            capture_open_chrome_extensions,
+            capture_reply,
         ])
         .build(tauri::generate_context!())
         .expect("error while building nordly")
@@ -232,6 +241,48 @@ pub fn run() {
 #[derive(Clone, serde::Serialize)]
 struct DeepLinkPayload {
     url: String,
+}
+
+#[tauri::command]
+fn capture_status(window: WebviewWindow) -> Result<capture::CaptureStatus, String> {
+    require_main_window(&window)?;
+    Ok(capture::status())
+}
+
+#[tauri::command]
+fn capture_token(window: WebviewWindow) -> Result<String, String> {
+    require_main_window(&window)?;
+    capture::token_or_create()
+}
+
+#[tauri::command]
+fn capture_token_rotate(window: WebviewWindow) -> Result<String, String> {
+    require_main_window(&window)?;
+    capture::rotate_token()
+}
+
+#[tauri::command]
+fn capture_extension_dir(window: WebviewWindow, app: AppHandle) -> Result<String, String> {
+    require_main_window(&window)?;
+    Ok(capture::extension_dir(&app)?.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn capture_reveal_extension(window: WebviewWindow, app: AppHandle) -> Result<String, String> {
+    require_main_window(&window)?;
+    capture::reveal_extension(&app)
+}
+
+#[tauri::command]
+fn capture_open_chrome_extensions(window: WebviewWindow) -> Result<(), String> {
+    require_main_window(&window)?;
+    capture::open_chrome_extensions()
+}
+
+#[tauri::command]
+fn capture_reply(window: WebviewWindow, id: String, status: u16, body: String) -> Result<(), String> {
+    require_main_window(&window)?;
+    capture::reply(id, status, body)
 }
 
 fn require_main_window(window: &WebviewWindow) -> Result<(), String> {

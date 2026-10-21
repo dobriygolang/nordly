@@ -20,6 +20,8 @@ When working on a service, **open only that service folder** and read its local 
 
 **Web companion:** [apps/web/AGENTS.md](apps/web/AGENTS.md) — landing, guest live collab, published notes/boards.
 
+**Chrome extension:** [apps/extension/AGENTS.md](apps/extension/AGENTS.md) — side panel that appends a translated card line to a local Nordly note.
+
 Prod deploy: [deploy/PRODUCTION_CHECKLIST.md](deploy/PRODUCTION_CHECKLIST.md), [deploy/RUNBOOK.md](deploy/RUNBOOK.md)
 
 Observability: [deploy/grafana/README.md](deploy/grafana/README.md) — Prometheus `GET /metrics` on all prod services; Grafana dashboards **Platform**, **HTTP routes**, **Product**.

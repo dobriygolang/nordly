@@ -11,6 +11,7 @@ const LAYERS = {
   '@nordly-i18n': resolve(__dirname, '../shared/i18n'),
   '@nordly-markdown': resolve(__dirname, '../shared/markdown'),
   '@nordly-collab': resolve(__dirname, '../shared/collab'),
+  '@nordly-translate': resolve(__dirname, '../shared/translate'),
   yjs: resolve(__dirname, 'node_modules/yjs'),
   'y-protocols/awareness': resolve(__dirname, 'node_modules/y-protocols/awareness.js'),
 };

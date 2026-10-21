@@ -51,6 +51,13 @@ commands.allow = [
   "apple_calendar_get_event",
   "apple_calendar_list_calendars",
   "apple_calendar_list_events",
+  "capture_status",
+  "capture_token",
+  "capture_token_rotate",
+  "capture_extension_dir",
+  "capture_reveal_extension",
+  "capture_open_chrome_extensions",
+  "capture_reply",
 ]
 
 [[permission]]

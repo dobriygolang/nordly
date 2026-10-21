@@ -11,6 +11,7 @@ import { SettingsBlock } from '../primitives/SettingRow';
 import { AppleCalendarSection } from './AppleCalendarSection';
 
 import { GoogleCalendarSection } from './GoogleCalendarSection';
+import { CaptureSection } from './CaptureSection';
 import { SpotifySection } from './SpotifySection';
 import { ZoomSection } from './ZoomSection';
 
@@ -22,8 +23,9 @@ export function IntegrationsSection() {
   const showApple = isMacOsDesktop();
   const showCloud = isCloudEnabled();
   const showSpotify = isTauriRuntime();
+  const showBrowser = isTauriRuntime();
 
-  if (!showApple && !showCloud && !showSpotify) {
+  if (!showApple && !showCloud && !showSpotify && !showBrowser) {
     return <p className="nordly-settings-empty">{t('nordly.settings.integrations_local_only')}</p>;
   }
 
@@ -51,6 +53,11 @@ export function IntegrationsSection() {
       {showSpotify ? (
         <SettingsBlock title={t('nordly.settings.section.spotify')}>
           <SpotifySection />
+        </SettingsBlock>
+      ) : null}
+      {showBrowser ? (
+        <SettingsBlock title={t('nordly.settings.section.browser')}>
+          <CaptureSection />
         </SettingsBlock>
       ) : null}
     </>

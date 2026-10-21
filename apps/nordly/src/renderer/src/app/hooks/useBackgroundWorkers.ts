@@ -26,6 +26,7 @@ import {
   stopUpdateCheckWorker,
 } from '@shared/lib/updateCheckWorker';
 import { readAppVersion } from '@shared/lib/updater';
+import { startCaptureBridge } from '@features/capture/captureBridge';
 import { isTauriRuntime } from '@platform/runtime';
 import {
   initializeCloudWorkers,
@@ -68,6 +69,10 @@ export function useBackgroundWorkers({
   onError,
 }: UseBackgroundWorkersOptions): void {
   useEffect(() => initPomodoroLeader(), []);
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    return startCaptureBridge();
+  }, []);
   useEffect(() => initSpotifyLeader(), []);
 
   useEffect(() => {

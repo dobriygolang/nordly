@@ -29,6 +29,8 @@
       "@nordly-markdown/*": ["../shared/markdown/*"],
       "@nordly-collab": ["../shared/collab"],
       "@nordly-collab/*": ["../shared/collab/*"],
+      "@nordly-translate": ["../shared/translate"],
+      "@nordly-translate/*": ["../shared/translate/*"],
       "yjs": ["./node_modules/yjs"],
       "y-protocols/awareness": ["./node_modules/y-protocols/awareness"],
       "react": ["./node_modules/@types/react/index.d.ts"]
@@ -40,6 +42,7 @@
     "../shared/i18n/**/*",
     "../shared/markdown/**/*",
     "../shared/collab/**/*",
+    "../shared/translate/**/*",
     "../web/src/lib/markdown/renderNordlyMarkdown.ts"
   ],
   "exclude": ["out", "dist", "node_modules", "src-tauri/target"]

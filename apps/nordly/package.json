@@ -16,6 +16,8 @@
     "lint": "eslint 'src/**/*.{ts,tsx,jsx}'",
     "typecheck": "node_modules/typescript/bin/tsc -b --noEmit",
     "test": "vitest run",
+    "extension:build": "vite build --config extension.vite.config.ts",
+    "extension:stage": "npm run extension:build && rm -rf src-tauri/resources/extension && mkdir -p src-tauri/resources/extension && cp -R ../extension/dist/. src-tauri/resources/extension/",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },

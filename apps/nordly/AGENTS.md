@@ -266,9 +266,13 @@ Sharing (requires sign-in + network):
 - **Live share** → `POST /v1/rooms/share-whiteboard` keeps `roomId` and `accessToken` in memory and joins `WS /ws/editor/{roomId}` as a subscriber. The desktop canvas is view-only and does not publish strokes. Drawing is web+web. Stop sharing, room close, or token expiry writes the Yjs scene into the local board and paints it once. Invite URL is `code.trynordly.app/{roomId}`.
 - **Publish** → `POST /v1/rooms/publish-whiteboard` → web `/board/{slug}` (read-only)
 
+## Browser capture
+
+Settings → Browser shows how to load the unpacked Chrome folder and a pairing code stored in the OS keychain. The installer copies that folder into the app resources, so a downloaded Nordly still has it. `npm run extension:stage` refreshes the copy before a desktop build. While the process is running, Nordly listens on `127.0.0.1:47231` for the Chrome extension only (`Origin: chrome-extension://`, header `X-Nordly-Capture`, bearer code). `GET /v1/capture/notes` lists local notes. `POST /v1/capture` appends `word ::: translation`. The open note goes through the editor draft. Any other note uses `updateNote`. Appends to one note are serialized. A locked vault returns an error and does not write an empty note. Hiding the window does not stop the listener.
+
 ## Flashcards
 
-`front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
+`front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. The Chrome extension in `apps/extension` asks once on Enter and appends `word ::: translation` through the local capture port while this app is running. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
 ## Tauri IPC commands
 
@@ -283,6 +287,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
 | `spotify_secret_load/save/clear` | Spotify tokens and PKCE verifier in the OS keychain. Not cleared by `auth_logout` |
 | `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch, `notes_vault_find_image` (shortest image path by file name) |
+| `capture_status` / `capture_token` / `capture_token_rotate` / `capture_reply` | Loopback capture for the Chrome extension. Token is in the OS keychain |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 60s |
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |

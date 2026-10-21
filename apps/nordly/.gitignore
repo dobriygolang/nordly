@@ -4,6 +4,7 @@ dist/
 coverage/
 macos-dev/
 src-tauri/target/
+src-tauri/resources/extension/
 src-tauri/signing.ci.json
 .tauri/nordly.key
 *.tsbuildinfo

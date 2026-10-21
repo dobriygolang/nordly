@@ -86,9 +86,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
     const paintCollaboratorsRef = useRef(() => {})
-    const pendingRemoteSceneRef = useRef<ScenePayload | null>(null)
-    const pushSceneRef = useRef<(scene: ScenePayload) => void>(() => {})
-    const scheduleLocalFlushRef = useRef<() => void>(() => {})
     const pointerFrameRef = useRef(0)
     const pendingPointerRef = useRef<LivePointer | null>(null)
     const reportPointer = (pointer: LivePointer | null): void => {
@@ -116,55 +113,31 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       const pending = pendingLocalRef.current
       const ydoc = ydocRef.current
       if (!pending || !ydoc) return
-      if (
-        skipChangeRef.current ||
-        applyingRemoteRef.current ||
-        applyingThemeRef.current ||
-        !canPublishLocalRef.current
-      ) {
-        return
-      }
       pendingLocalRef.current = null
       writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
     }, [])
 
-    const scheduleLocalFlush = useCallback(() => {
-      if (localRafRef.current) return
-      localRafRef.current = requestAnimationFrame(() => {
-        localRafRef.current = 0
-        flushLocalToYjs()
-      })
-    }, [flushLocalToYjs])
-    scheduleLocalFlushRef.current = scheduleLocalFlush
-
     const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
-      pendingRemoteSceneRef.current = scene
-      const api = apiRef.current
-      if (!api || applyingThemeRef.current || applyingRemoteRef.current) return
-      const next = pendingRemoteSceneRef.current
-      if (!next) return
-      pendingRemoteSceneRef.current = null
+      if (!apiRef.current || applyingRemoteRef.current || applyingThemeRef.current) return
+
+      if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
       applyingRemoteRef.current = true
       try {
-        api.updateScene({
+        apiRef.current.updateScene({
           elements: boardThemeSceneFromCanonical(
-            next.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
+            scene.elements as Parameters<typeof boardThemeSceneFromCanonical>[0],
             boardThemeRef.current,
           ),
-          files: next.files,
+          files: scene.files,
           captureUpdate: CaptureUpdateAction.NEVER,
         })
       } finally {
-        if (remoteApplyTimerRef.current) cancelAnimationFrame(remoteApplyTimerRef.current)
-        remoteApplyTimerRef.current = requestAnimationFrame(() => {
-          remoteApplyTimerRef.current = null
+        remoteApplyTimerRef.current = window.setTimeout(() => {
           applyingRemoteRef.current = false
-          const queued = pendingRemoteSceneRef.current
-          if (queued) pushSceneRef.current(queued)
-        })
+          remoteApplyTimerRef.current = null
+        }, 100)
       }
     }, [])
-    pushSceneRef.current = pushSceneToExcalidraw
 
     useEffect(() => {
       const ydoc = session.ydoc
@@ -216,7 +189,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         .finally(() => {
           window.setTimeout(() => {
             canPublishLocalRef.current = true
-            scheduleLocalFlushRef.current()
           }, 300)
         })
 
@@ -228,13 +200,12 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         if (tr.origin !== 'remote') return
         gotRemoteRef.current = true
         canPublishLocalRef.current = true
-        scheduleLocalFlushRef.current()
       }
       ydoc.on('afterTransaction', onAfterTransaction)
 
       return () => {
         if (localRafRef.current) cancelAnimationFrame(localRafRef.current)
-        if (remoteApplyTimerRef.current) cancelAnimationFrame(remoteApplyTimerRef.current)
+        if (remoteApplyTimerRef.current) window.clearTimeout(remoteApplyTimerRef.current)
         const pending = pendingLocalRef.current
         if (pending) {
           pendingLocalRef.current = null
@@ -365,7 +336,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       const timer = window.setTimeout(() => {
         applyingThemeRef.current = false
         skipChangeRef.current = false
-        scheduleLocalFlushRef.current()
       }, 350)
 
       return () => {
@@ -379,34 +349,55 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         const theme = boardThemeRef.current
         const typedElements = elements as ColoredElement[]
 
-        if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
-          throw new Error('CollabExcalidrawEditor: invalid files')
-        }
-        const canonical = canonicalizeElementsForStorage(typedElements)
         if (
-          !applyingThemeRef.current &&
+          !skipChangeRef.current &&
           !applyingRemoteRef.current &&
+          !applyingThemeRef.current &&
           boardElementsNeedThemeRemap(typedElements, theme) &&
           apiRef.current
         ) {
           applyingThemeRef.current = true
-          try {
-            apiRef.current.updateScene({
-              elements: applyLocalBoardTheme(canonical, theme),
-              captureUpdate: CaptureUpdateAction.NEVER,
-            })
-          } finally {
+          const fixed = applyLocalBoardTheme(
+            canonicalizeElementsForStorage(typedElements),
+            theme,
+          )
+          apiRef.current.updateScene({
+            elements: fixed,
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+          })
+          window.setTimeout(() => {
             applyingThemeRef.current = false
-          }
+          }, 100)
+          return
+        }
+
+        if (
+          skipChangeRef.current ||
+          applyingRemoteRef.current ||
+          applyingThemeRef.current ||
+          !canPublishLocalRef.current
+        ) {
+          return
+        }
+        const ydoc = ydocRef.current
+        if (!ydoc) return
+        if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
+          throw new Error('CollabExcalidrawEditor: invalid files')
         }
 
         pendingLocalRef.current = {
-          elements: canonical,
+          elements: canonicalizeElementsForStorage(
+            elements as Parameters<typeof canonicalizeElementsForStorage>[0],
+          ),
           files: (files as Record<string, unknown> | null | undefined) ?? {},
         }
-        scheduleLocalFlush()
+        if (localRafRef.current) return
+        localRafRef.current = requestAnimationFrame(() => {
+          localRafRef.current = 0
+          flushLocalToYjs()
+        })
       },
-      [scheduleLocalFlush],
+      [flushLocalToYjs],
     )
 
     useEffect(() => {

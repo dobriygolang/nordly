@@ -2,7 +2,12 @@ import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 
 import { CollabSocket } from '@nordly-collab/collabSocket';
-import { observeSceneChanges, sceneToJSON, writeSceneToYjs } from '@nordly-collab/excalidrawYjsDoc';
+import {
+  observeSceneChanges,
+  readSceneFromYjs,
+  sceneToJSON,
+  writeSceneToYjs,
+} from '@nordly-collab/excalidrawYjsDoc';
 import {
   collabUserColors,
   collaboratorsFromAwareness,
@@ -10,6 +15,14 @@ import {
   type LiveCollaborator,
   type LivePointer,
 } from '@nordly-collab/liveCursors';
+import {
+  collectDraftElements,
+  draftSignature,
+  draftsFromAwareness,
+  indexElementsById,
+  mergeCommittedWithRemoteDrafts,
+  setLocalDraft,
+} from '@nordly-collab/liveDraft';
 import {
   applyWsEnvelope,
   bytesToB64,
@@ -31,7 +44,12 @@ export type LiveBoardStatus =
   | { kind: 'ended'; reason: LiveEndReason; message?: string };
 
 export type LiveBoardSession = {
-  writeLocal: (elements: readonly unknown[], files: Record<string, unknown>) => void;
+  /** While `gesturing`, mutated elements go to awareness draft; otherwise commit to Yjs. */
+  writeLocal: (
+    elements: readonly unknown[],
+    files: Record<string, unknown>,
+    opts?: { gesturing?: boolean },
+  ) => void;
   reportPointer: (pointer: LivePointer | null) => void;
   readSceneJson: () => string;
   stop: () => string;
@@ -93,10 +111,46 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
     args.onStatus({ kind: 'ended', reason, message });
   };
 
+  let committedJsonById = new Map<string, string>();
+  let lastDraftSig = '';
+  let draftFrame = 0;
+  let pendingDraft: unknown[] | null | undefined;
+
   const publishCount = () => {
     if (ended) return;
     args.onStatus({ kind: 'live', participants: participants() });
     args.onCollaborators(collaboratorsFromAwareness(awareness));
+  };
+
+  const pushMergedScene = (force = false) => {
+    if (ended) return;
+    const drafts = draftsFromAwareness(awareness);
+    const sig = draftSignature(drafts);
+    if (!force && sig === lastDraftSig) return;
+    lastDraftSig = sig;
+    try {
+      const scene = readSceneFromYjs(ydoc);
+      assertRemoteScene(scene.elements, scene.files);
+      const merged = mergeCommittedWithRemoteDrafts(scene.elements, drafts);
+      if (merged.length > MAX_ELEMENTS) throw new Error('live board has too many elements');
+      args.onRemoteScene(merged, scene.files);
+    } catch (err) {
+      finish('error', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const flushDraft = () => {
+    draftFrame = 0;
+    if (ended) return;
+    const next = pendingDraft;
+    pendingDraft = undefined;
+    setLocalDraft(awareness, next === undefined ? null : next);
+  };
+
+  const scheduleDraft = (elements: unknown[] | null) => {
+    pendingDraft = elements;
+    if (draftFrame) return;
+    draftFrame = requestAnimationFrame(flushDraft);
   };
 
   const socket = new CollabSocket({
@@ -133,6 +187,7 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
         applyWsEnvelope(env, ydoc, awareness);
         if (env.kind === 'presence' || env.kind === 'participant_joined' || env.kind === 'participant_left') {
           publishCount();
+          if (env.kind === 'presence') pushMergedScene(false);
         }
       } catch (err) {
         finish('error', err instanceof Error ? err.message : String(err));
@@ -140,16 +195,12 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
     },
   });
 
-  stopObserving = observeSceneChanges(ydoc, (scene) => {
-    try {
-      assertRemoteScene(scene.elements, scene.files);
-      args.onRemoteScene(scene.elements, scene.files);
-    } catch (err) {
-      finish('error', err instanceof Error ? err.message : String(err));
-    }
+  stopObserving = observeSceneChanges(ydoc, () => {
+    pushMergedScene(true);
   });
 
   seedInitialScene(ydoc, args.initialSceneJson);
+  committedJsonById = indexElementsById(readSceneFromYjs(ydoc).elements);
   publishTimer = window.setTimeout(() => {
     canPublish = true;
   }, 300);
@@ -173,7 +224,11 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
     });
   };
   awareness.on('update', onAwarenessUpdate);
-  awareness.on('change', publishCount);
+  const onAwarenessChange = () => {
+    publishCount();
+    pushMergedScene(false);
+  };
+  awareness.on('change', onAwarenessChange);
   socket.start();
   args.onStatus({ kind: 'connecting' });
 
@@ -181,9 +236,21 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
   let pendingPointer: LivePointer | null | undefined;
 
   return {
-    writeLocal(elements, files) {
+    writeLocal(elements, files, opts) {
       if (ended) return;
+      if (opts?.gesturing) {
+        const draft = collectDraftElements(elements, committedJsonById);
+        scheduleDraft(draft.length > 0 ? draft : null);
+        return;
+      }
+      if (draftFrame) {
+        cancelAnimationFrame(draftFrame);
+        draftFrame = 0;
+      }
+      pendingDraft = undefined;
+      setLocalDraft(awareness, null);
       writeSceneToYjs(ydoc, elements, files, 'local');
+      committedJsonById = indexElementsById(elements);
     },
     reportPointer(pointer) {
       if (ended) return;
@@ -202,9 +269,11 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
     stop() {
       const json = sceneToJSON(ydoc);
       if (pointerFrame) cancelAnimationFrame(pointerFrame);
+      if (draftFrame) cancelAnimationFrame(draftFrame);
+      setLocalDraft(awareness, null);
       ydoc.off('update', onYUpdate);
       awareness.off('update', onAwarenessUpdate);
-      awareness.off('change', publishCount);
+      awareness.off('change', onAwarenessChange);
       finish('stopped');
       awareness.destroy();
       ydoc.destroy();

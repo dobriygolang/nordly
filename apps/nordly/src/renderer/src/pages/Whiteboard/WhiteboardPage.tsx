@@ -600,7 +600,9 @@ export function WhiteboardPage({
             boardTheme={boardCanvas}
             onSaved={handleSaved}
             onSaveError={setSaveError}
-            onLiveChange={(elements, files) => liveRef.current?.writeLocal(elements, files)}
+            onLiveChange={(elements, files, opts) =>
+              liveRef.current?.writeLocal(elements, files, opts)
+            }
             collaborating={liveStatus?.kind === 'live' || liveStatus?.kind === 'connecting'}
             onPointerUpdate={(pointer) => liveRef.current?.reportPointer(pointer)}
           />

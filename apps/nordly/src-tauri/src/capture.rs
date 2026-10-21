@@ -79,7 +79,9 @@ fn load_token() -> Result<Option<String>, String> {
 }
 
 fn store_token(token: &str) -> Result<(), String> {
-    token_entry()?.set_password(token).map_err(|err| err.to_string())
+    token_entry()?
+        .set_password(token)
+        .map_err(|err| err.to_string())
 }
 
 fn random_hex(bytes: usize) -> Result<String, String> {
@@ -222,7 +224,8 @@ fn handle_connection(mut stream: TcpStream) -> std::io::Result<()> {
     };
     if request.method == "OPTIONS" {
         let origin = request.headers.get("origin").cloned().unwrap_or_default();
-        if origin.starts_with("chrome-extension://") && request.headers.get("host").map(String::as_str) == Some(HOST)
+        if origin.starts_with("chrome-extension://")
+            && request.headers.get("host").map(String::as_str) == Some(HOST)
         {
             write_response(&mut stream, 204, &origin, "")?;
         } else {
@@ -388,10 +391,17 @@ fn tokens_match(presented: &str, expected: &str) -> bool {
 }
 
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
-fn write_response(stream: &mut TcpStream, status: u16, origin: &str, body: &str) -> std::io::Result<()> {
+fn write_response(
+    stream: &mut TcpStream,
+    status: u16,
+    origin: &str,
+    body: &str,
+) -> std::io::Result<()> {
     let reason = match status {
         200 => "OK",
         204 => "No Content",

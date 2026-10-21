@@ -1,7 +1,7 @@
 mod auth;
-mod capture;
 #[cfg(desktop)]
 mod aux_windows;
+mod capture;
 mod eventkit;
 mod notes_vault;
 mod notification;
@@ -280,7 +280,12 @@ fn capture_open_chrome_extensions(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn capture_reply(window: WebviewWindow, id: String, status: u16, body: String) -> Result<(), String> {
+fn capture_reply(
+    window: WebviewWindow,
+    id: String,
+    status: u16,
+    body: String,
+) -> Result<(), String> {
     require_main_window(&window)?;
     capture::reply(id, status, body)
 }

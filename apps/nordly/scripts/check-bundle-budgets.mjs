@@ -12,7 +12,8 @@ const budgets = {
   // yjs stays off this graph (`features/whiteboard/api/liveBoard.ts`).
   Notes: { source: 'src/pages/Notes/index.ts', bytes: 1460 * 1024 },
   // Excalidraw route plus the live Yjs session, loaded with the board page.
-  Whiteboard: { entry: 'whiteboard', bytes: 2100 * 1024 },
+  // The shared app shell now includes the browser capture listener, and this route counts that graph.
+  Whiteboard: { entry: 'whiteboard', bytes: 2120 * 1024 },
 };
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

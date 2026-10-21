@@ -27,10 +27,10 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-setting-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  column-gap: 20px;
+  align-items: start;
   padding: 16px 18px;
   border-top: 1px solid var(--ink-tint-06);
 }
@@ -61,20 +61,27 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-setting-row__control {
-  flex: 0 1 280px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
 }
 
 .nordly-setting-row--stack {
+  display: flex;
   flex-direction: column;
   align-items: stretch;
+  justify-content: flex-start;
   gap: 10px;
 }
 
 .nordly-setting-row--stack .nordly-setting-row__control {
-  flex: 1;
+  flex: 0 0 auto;
   width: 100%;
+  justify-content: flex-start;
 }
 
 .nordly-settings-apple-calendars__meta {

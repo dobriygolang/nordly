@@ -29,9 +29,28 @@ type Handler struct {
 	Upgrader websocket.Upgrader
 }
 
+// Packaged Tauri and Vite dev send a non-empty Origin. Browser guests use the public hosts in env.
+var desktopOrigins = []string{
+	"http://tauri.localhost",
+	"https://tauri.localhost",
+	"tauri://localhost",
+	"http://localhost:5173",
+}
+
+func originAllowed(origins map[string]struct{}, origin string) bool {
+	if origin == "" {
+		return true
+	}
+	_, ok := origins[origin]
+	return ok
+}
+
 func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger, allowedOrigins []string) *Handler {
-	origins := make(map[string]struct{}, len(allowedOrigins))
+	origins := make(map[string]struct{}, len(allowedOrigins)+len(desktopOrigins))
 	for _, origin := range allowedOrigins {
+		origins[origin] = struct{}{}
+	}
+	for _, origin := range desktopOrigins {
 		origins[origin] = struct{}{}
 	}
 	return &Handler{
@@ -44,11 +63,11 @@ func NewHandler(hub *Hub, v *jwt.Validator, store RoomStore, log logger.Logger, 
 			WriteBufferSize: 8192,
 			CheckOrigin: func(r *http.Request) bool {
 				origin := r.Header.Get("Origin")
-				if origin == "" {
+				if originAllowed(origins, origin) {
 					return true
 				}
-				_, ok := origins[origin]
-				return ok
+				log.Warn("ws origin rejected", "origin", origin)
+				return false
 			},
 		},
 	}

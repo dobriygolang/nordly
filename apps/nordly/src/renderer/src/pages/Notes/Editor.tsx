@@ -9,7 +9,7 @@ import {
   createNoteAttachmentFromFile,
   resolveAttachmentObjectUrl,
 } from '@features/notes/api/attachmentsClient';
-import { parseCards } from '@features/cards/lib/parseCards';
+import { countNoteCards } from '@features/cards/lib/parseCards';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 import { readSettings } from '@shared/model/settings';
@@ -156,7 +156,7 @@ function ActiveEditor({
     window.addEventListener(NORDLY_EVENTS.settingsChanged, sync);
     return () => window.removeEventListener(NORDLY_EVENTS.settingsChanged, sync);
   }, []);
-  const cardCount = useMemo(() => parseCards(noteId, title, body).cards.length, [body, noteId, title]);
+  const cardCount = useMemo(() => countNoteCards(noteId, title, body), [body, noteId, title]);
 
   const resolveImageHref = useMemo((): ImageHrefResolver => {
     return async (href: string) => {

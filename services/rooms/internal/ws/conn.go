@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	wsRateLimit         = 200
+	wsRateLimit = 200
+	// Same ceiling as the client MAX_YJS_BYTES. A full board snapshot must not die as 1009.
+	wsReadLimit         = 8_000_000
 	wsPingInterval      = 30 * time.Second
 	wsReadDeadline      = 120 * time.Second
 	wsWriteDeadline     = 10 * time.Second

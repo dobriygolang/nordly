@@ -71,6 +71,7 @@ export async function buildCardDeck(noteId?: string | null, today = toDayKey(new
   const duplicates: CardDuplicate[] = [];
   for (const group of byKey.values()) {
     if (group.length < 2) continue;
+    if (group[0]!.direction === 'reverse') continue;
     if (noteId && !group.some((card) => card.noteId === noteId)) continue;
     duplicates.push({
       front: group[0]!.front,

@@ -74,6 +74,8 @@ export const en = {
   'nordly.cards.open_settings': 'Open settings',
   'nordly.cards.loading': 'Loading cards…',
   'nordly.cards.show': 'Show answer',
+  'nordly.cards.show_hint': 'Space',
+  'nordly.cards.progress': '{{current}} / {{total}}',
   'nordly.cards.new': 'New',
   'nordly.cards.due': 'Due',
   'nordly.cards.done': 'Session done. Reviewed {{count}}.',
@@ -214,7 +216,7 @@ export const en = {
   'nordly.settings.notification_volume.hint': 'Volume for notification sounds and the end bell. 0 is silent.',
   'nordly.settings.notification_volume.label': 'Notification volume',
   'nordly.settings.calendar_notifications.hint':
-    'Remind you when a Google Calendar event is about to start.',
+    'Remind you when a Google or Apple Calendar event starts.',
   'nordly.settings.calendar_notifications.label': 'Calendar reminders',
   'nordly.settings.task_notifications.hint':
     'Remind you when a task on Today is about to start.',
@@ -468,6 +470,7 @@ export const en = {
   'nordly.settings.spotify.connected': 'Connected',
   'nordly.settings.spotify.connected_as': 'Connected as {{name}}',
   'nordly.settings.spotify.not_connected': 'Not connected',
+  'nordly.settings.spotify.missing_client': 'Spotify client id is not set',
   'nordly.settings.spotify.loading': 'Checking…',
   'nordly.settings.spotify.connecting': 'Opening browser…',
   'nordly.settings.spotify.connect': 'Connect Spotify',

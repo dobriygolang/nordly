@@ -68,6 +68,23 @@ interface BoardCanvasProps {
   onPointerUpdate?: (pointer: LivePointer | null) => void;
 }
 
+function paintCollaborators(api: ExcalidrawApi | null, peers: readonly LiveCollaborator[]): void {
+  if (!api) return;
+  const map = new Map<string, unknown>();
+  for (const peer of peers) {
+    map.set(String(peer.clientId), {
+      username: peer.username,
+      color: { background: peer.color, stroke: peer.color },
+      pointer: peer.pointer,
+      button: peer.pointer?.button ?? 'up',
+    });
+  }
+  api.updateScene({
+    collaborators: map,
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
+}
+
 function buildInitialData(sceneJson: string, boardTheme: BoardCanvasTheme) {
   const parsed = parseSceneJson(sceneJson);
   const canonical = canonicalizeElementsForStorage(
@@ -101,6 +118,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const themeApplyTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawApi | null>(null);
+  const excalidrawApiRef = useRef<ExcalidrawApi | null>(null);
+  const collaboratorsRef = useRef<readonly LiveCollaborator[]>([]);
   const onSavedRef = useRef(onSaved);
   const onSaveErrorRef = useRef(onSaveError);
   const boardThemeRef = useRef(boardTheme);
@@ -176,19 +195,8 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         }, 50);
       },
       applyCollaborators: (peers) => {
-        const map = new Map<string, unknown>();
-        for (const peer of peers) {
-          map.set(String(peer.clientId), {
-            username: peer.username,
-            color: { background: peer.color, stroke: peer.color },
-            pointer: peer.pointer,
-            button: peer.pointer?.button ?? 'up',
-          });
-        }
-        excalidrawApi?.updateScene({
-          collaborators: map,
-          captureUpdate: CaptureUpdateAction.NEVER,
-        });
+        collaboratorsRef.current = peers;
+        paintCollaborators(excalidrawApiRef.current, peers);
       },
     }),
     [flushSave, prepareDelete, sceneJson, excalidrawApi, sceneWriter],
@@ -385,11 +393,14 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
           void open(url.toString());
         }}
         excalidrawAPI={(api) => {
-          setExcalidrawApi(api as ExcalidrawApi);
-          api.updateScene({
+          const typed = api as ExcalidrawApi;
+          excalidrawApiRef.current = typed;
+          setExcalidrawApi(typed);
+          typed.updateScene({
             appState: nordlyExcalidrawCanvasPatch(boardThemeRef.current),
             captureUpdate: CaptureUpdateAction.NEVER,
           });
+          paintCollaborators(typed, collaboratorsRef.current);
         }}
         UIOptions={NORDLY_EXCALIDRAW_UI_OPTIONS}
         aiEnabled={false}

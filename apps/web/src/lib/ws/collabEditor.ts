@@ -48,7 +48,10 @@ export function useEditorWs(
       url,
       token,
       onEnvelope: (env) => onEnvelopeRef.current?.(env),
-      onStatus: setStatus,
+      onStatus: (status, close) => {
+        if (status === 'failed' && close) console.error('[collabEditor] socket failed', close.code);
+        setStatus(status);
+      },
       onProtocolError: (err) => console.error('[collabEditor] corrupt WS envelope', err),
     })
     socketRef.current = socket

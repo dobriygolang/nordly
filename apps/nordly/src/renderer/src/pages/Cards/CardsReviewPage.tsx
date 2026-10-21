@@ -101,6 +101,16 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
           {t('nordly.cards.back')}
         </button>
         <h1 className="nordly-cards__title">{t('nordly.cards.title')}</h1>
+        {shown && card ? (
+          <p className="nordly-cards__progress">
+            {t('nordly.cards.progress', {
+              current: String(index + 1),
+              total: String(shown.queue.length),
+            })}
+          </p>
+        ) : (
+          <span className="nordly-cards__progress" />
+        )}
         {noteId ? (
           <button type="button" className="nordly-cards__back focus-ring" onClick={onShowAll}>
             {t('nordly.cards.all_notes')}
@@ -108,15 +118,17 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
         ) : null}
       </header>
       {!enabled ? (
-        <div className="nordly-cards__panel">
-          <p>{t('nordly.cards.disabled')}</p>
-          <button
-            type="button"
-            className="nordly-cards__primary focus-ring"
-            onClick={() => openSettings({ section: SettingsSectionId.General })}
-          >
-            {t('nordly.cards.open_settings')}
-          </button>
+        <div className="nordly-cards__stage">
+          <div className="nordly-cards__panel">
+            <p className="nordly-cards__front">{t('nordly.cards.disabled')}</p>
+            <button
+              type="button"
+              className="nordly-cards__primary focus-ring motion-press"
+              onClick={() => openSettings({ section: SettingsSectionId.General })}
+            >
+              {t('nordly.cards.open_settings')}
+            </button>
+          </div>
         </div>
       ) : error ? (
         <p className="nordly-cards__error">{error}</p>
@@ -126,6 +138,7 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
         <ReviewBody
           deck={shown}
           card={card}
+          index={index}
           revealed={revealed}
           reviewed={reviewed}
           busy={busy}
@@ -140,6 +153,7 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
 function ReviewBody({
   deck,
   card,
+  index,
   revealed,
   reviewed,
   busy,
@@ -148,6 +162,7 @@ function ReviewBody({
 }: {
   deck: CardDeck;
   card: DeckCard | null;
+  index: number;
   revealed: boolean;
   reviewed: number;
   busy: boolean;
@@ -156,7 +171,7 @@ function ReviewBody({
 }): JSX.Element {
   const t = useT();
   return (
-    <div className="nordly-cards__body">
+    <div className="nordly-cards__stage">
       {deck.issues.length > 0 ? (
         <p className="nordly-cards__notice">
           {t('nordly.cards.issues', { count: String(deck.issues.length) })}
@@ -173,15 +188,18 @@ function ReviewBody({
         </p>
       ) : null}
       {!card ? (
-        <div className="nordly-cards__panel">
-          <p>{t('nordly.cards.done', { count: String(reviewed) })}</p>
+        <div className="nordly-cards__panel motion-pop-in">
+          <p className="nordly-cards__front">{t('nordly.cards.done', { count: String(reviewed) })}</p>
         </div>
       ) : (
-        <div className="nordly-cards__panel">
-          <p className="nordly-cards__kicker">
-            {card.noteTitle} · {card.isNew ? t('nordly.cards.new') : t('nordly.cards.due')}
-          </p>
-          <p className="nordly-cards__front">{card.front}</p>
+        <div key={index} className="nordly-cards__panel motion-pop-in">
+          <div className="nordly-cards__meta">
+            <span>{card.noteTitle}</span>
+            <span className="nordly-cards__pill">
+              {card.isNew ? t('nordly.cards.new') : t('nordly.cards.due')}
+            </span>
+          </div>
+          <p className={revealed ? 'nordly-cards__front is-revealed' : 'nordly-cards__front'}>{card.front}</p>
           {revealed ? <p className="nordly-cards__answer">{card.back}</p> : null}
           {revealed ? (
             <div className="nordly-cards__grades">
@@ -189,18 +207,22 @@ function ReviewBody({
                 <button
                   key={grade}
                   type="button"
-                  className="nordly-cards__grade focus-ring"
+                  className="nordly-cards__grade focus-ring motion-press"
                   disabled={busy}
                   onClick={() => onGrade(grade)}
                 >
-                  {gradeIndex + 1} {t(`nordly.cards.grade.${grade}`)}
+                  <span className="nordly-cards__grade-key">{gradeIndex + 1}</span>
+                  {t(`nordly.cards.grade.${grade}`)}
                 </button>
               ))}
             </div>
           ) : (
-            <button type="button" className="nordly-cards__primary focus-ring" onClick={onReveal}>
-              {t('nordly.cards.show')}
-            </button>
+            <div className="nordly-cards__actions">
+              <button type="button" className="nordly-cards__primary focus-ring motion-press" onClick={onReveal}>
+                {t('nordly.cards.show')}
+              </button>
+              <p className="nordly-cards__hint">{t('nordly.cards.show_hint')}</p>
+            </div>
           )}
         </div>
       )}

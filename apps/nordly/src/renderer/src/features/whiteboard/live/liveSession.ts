@@ -102,11 +102,26 @@ export function startLiveBoard(args: StartLiveBoardArgs): LiveBoardSession {
   const socket = new CollabSocket({
     url: editorWsUrl(args.roomId),
     token: args.accessToken,
-    onStatus: (status) => {
+    onStatus: (status, close) => {
       if (ended) return;
-      if (status === 'open') publishCount();
-      else if (status === 'connecting' || status === 'reconnecting') args.onStatus({ kind: 'connecting' });
-      else if (status === 'failed') finish('error', 'live board connection failed');
+      if (status === 'open') {
+        publishCount();
+        const full = Y.encodeStateAsUpdate(ydoc);
+        if (full.byteLength > 0) {
+          socket.send({ kind: 'snapshot', data: { payload: bytesToB64(full) } });
+        }
+        socket.send({
+          kind: 'presence',
+          data: { update: bytesToB64(encodeAwarenessUpdate(awareness, [awareness.clientID])) },
+        });
+      } else if (status === 'connecting' || status === 'reconnecting') args.onStatus({ kind: 'connecting' });
+      else if (status === 'failed') {
+        const code = close?.code;
+        finish(
+          'error',
+          code === undefined ? 'live board connection failed' : `live board connection failed (close ${code})`,
+        );
+      }
     },
     onProtocolError: (err) => {
       finish('error', err instanceof Error ? err.message : String(err));

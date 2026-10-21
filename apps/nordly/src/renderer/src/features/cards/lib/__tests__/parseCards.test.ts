@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cardKey } from '../cardKey';
-import { parseCards } from '../parseCards';
+import { countNoteCards, parseCards } from '../parseCards';
 import { scheduleReview } from '../scheduleReview';
 
 describe('parseCards', () => {
@@ -27,6 +27,23 @@ describe('parseCards', () => {
     const body = '````\n```\nhidden :: no\n````\nvisible :: yes';
     const { cards } = parseCards('n1', 'Words', body);
     expect(cards.map((card) => card.front)).toEqual(['visible']);
+  });
+
+  it('unwraps a wiki line and counts two identical two-way lines as two keys', () => {
+    const body = '[[вопрос ::: ответ]]\n[[вопрос ::: ответ]]';
+    const { cards } = parseCards('n1', 'вопрос --- ответ', body);
+    expect(cards.map((card) => [card.direction, card.front, card.back])).toEqual([
+      ['forward', 'вопрос', 'ответ'],
+      ['reverse', 'ответ', 'вопрос'],
+      ['forward', 'вопрос', 'ответ'],
+      ['reverse', 'ответ', 'вопрос'],
+    ]);
+    expect(countNoteCards('n1', 'вопрос --- ответ', body)).toBe(2);
+  });
+
+  it('unwraps wiki on each side without joining them into one link', () => {
+    const { cards } = parseCards('n1', 'Words', '[[вопрос]] :: [[ответ]]');
+    expect(cards.map((card) => [card.front, card.back])).toEqual([['вопрос', 'ответ']]);
   });
 
   it('keeps the same key when the question only changes case or spacing', () => {

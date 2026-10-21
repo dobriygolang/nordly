@@ -104,13 +104,11 @@ async function runCheck(): Promise<void> {
 function schedule(): void {
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = window.setInterval(() => {
-    if (document.hidden) return;
     void runCheck();
   }, CHECK_INTERVAL_MS);
 }
 
 function onChanged(): void {
-  if (document.hidden) return;
   void runCheck();
 }
 

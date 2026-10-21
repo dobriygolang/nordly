@@ -144,6 +144,27 @@ func wsTestValidator(t *testing.T) (*rsa.PrivateKey, *jwt.Validator) {
 	return key, validator
 }
 
+func TestCheckOriginAllowsDesktopAndRejectsUnknown(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(NewHub(logger.Nop()), nil, nil, logger.Nop(), []string{"https://code.trynordly.app"})
+	allow := func(origin string) bool {
+		request := httptest.NewRequest(http.MethodGet, "/ws/editor/x", nil)
+		if origin != "" {
+			request.Header.Set("Origin", origin)
+		}
+		return handler.Upgrader.CheckOrigin(request)
+	}
+
+	require.True(t, allow(""))
+	require.True(t, allow("https://code.trynordly.app"))
+	require.True(t, allow("http://tauri.localhost"))
+	require.True(t, allow("https://tauri.localhost"))
+	require.True(t, allow("tauri://localhost"))
+	require.True(t, allow("http://localhost:5173"))
+	require.False(t, allow("https://evil.example"))
+}
+
 func wsTestAccessToken(t *testing.T, key *rsa.PrivateKey, subject, scope string) string {
 	t.Helper()
 	token := jwtlib.NewWithClaims(jwtlib.SigningMethodRS256, jwtlib.MapClaims{

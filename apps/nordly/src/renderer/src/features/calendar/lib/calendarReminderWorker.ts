@@ -1,9 +1,11 @@
 import { translate } from '@nordly-i18n';
 
+import { listAppleCalendarEvents, type AppleCalendarEvent } from '@features/calendar/api/appleCalendarClient';
 import {
   googleEventDisplayDate,
   type GoogleCalendarEvent,
 } from '@features/calendar/model/calendar';
+import { isMacOsDesktop } from '@platform/macos';
 import { readSettings } from '@shared/model/settings';
 import { notify } from '@shared/api/notifications';
 import { requireUserId } from '@shared/db/nordlyDb';
@@ -56,8 +58,13 @@ function formatReminderTime(start: Date): string {
   }).format(start);
 }
 
-async function emitReminder(id: string, title: string, start: Date): Promise<void> {
-  const key = `${requireUserId()}:google:${id}:${start.toISOString()}`;
+async function emitReminder(
+  source: 'google' | 'apple',
+  id: string,
+  title: string,
+  start: Date,
+): Promise<void> {
+  const key = `${requireUserId()}:${source}:${id}:${start.toISOString()}`;
   if (seen.has(key)) return;
   seen.add(key);
   trimSeen();
@@ -88,7 +95,25 @@ async function checkGoogleEvents(now: number, generation: number): Promise<void>
       const start = googleEventDisplayDate(event.start, false);
       if (!isDue(start, now)) return;
       if (generation !== workerGeneration) return;
-      await emitReminder(`${event.calendarId}:${event.id}`, event.title, start);
+      await emitReminder('google', `${event.calendarId}:${event.id}`, event.title, start);
+    }),
+  );
+}
+
+async function checkAppleEvents(now: number, generation: number): Promise<void> {
+  if (!isMacOsDesktop() || !readSettings().appleCalendarEnabled) return;
+  const events = await listAppleCalendarEvents(
+    new Date(now - 2 * 60_000),
+    new Date(now + 2 * 60_000),
+    readSettings().appleCalendarIds,
+  );
+  await Promise.all(
+    events.map(async (event: AppleCalendarEvent) => {
+      if (generation !== workerGeneration || event.allDay) return;
+      const start = new Date(event.start);
+      if (!isDue(start, now)) return;
+      if (generation !== workerGeneration) return;
+      await emitReminder('apple', `${event.calendarId ?? ''}:${event.id}`, event.title, start);
     }),
   );
 }
@@ -100,6 +125,7 @@ async function runCheck(): Promise<void> {
   const now = Date.now();
   try {
     await checkGoogleEvents(now, generation);
+    if (generation === workerGeneration) await checkAppleEvents(now, generation);
   } catch (err) {
     if (generation === workerGeneration) {
       console.error('[nordly:calendar-reminder]', err);
@@ -112,13 +138,11 @@ async function runCheck(): Promise<void> {
 function schedule(): void {
   if (intervalId !== null) window.clearInterval(intervalId);
   intervalId = window.setInterval(() => {
-    if (document.hidden) return;
     void runCheck();
   }, CHECK_INTERVAL_MS);
 }
 
 function onChanged(): void {
-  if (document.hidden) return;
   void runCheck();
 }
 

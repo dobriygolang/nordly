@@ -5,11 +5,15 @@ import {
   type EditorWsStatus,
 } from './wsProtocol';
 
+export type CollabSocketClose = {
+  code: number;
+};
+
 export type CollabSocketOptions = {
   url: string;
   token: string;
   onEnvelope: (env: EditorWsEnvelope) => void;
-  onStatus: (status: EditorWsStatus) => void;
+  onStatus: (status: EditorWsStatus, close?: CollabSocketClose) => void;
   onProtocolError?: (err: unknown) => void;
 };
 
@@ -80,12 +84,12 @@ export class CollabSocket {
         return;
       }
       if (!shouldRetryEditorWsClose(ev.code)) {
-        this.options.onStatus(ev.code === 1000 ? 'closed' : 'failed');
+        this.options.onStatus(ev.code === 1000 ? 'closed' : 'failed', { code: ev.code });
         return;
       }
       this.attempts += 1;
       if (this.attempts > 5) {
-        this.options.onStatus('failed');
+        this.options.onStatus('failed', { code: ev.code });
         return;
       }
       const backoff = Math.min(10_000, 500 * 2 ** this.attempts);

@@ -178,7 +178,7 @@ func (h *Hub) readLoop(ctx context.Context, c *wsConn) {
 		c.requestClose(websocket.CloseNormalClosure, "")
 	}()
 
-	c.socket.SetReadLimit(256 * 1024)
+	c.socket.SetReadLimit(wsReadLimit)
 	if err := c.socket.SetReadDeadline(time.Now().Add(wsReadDeadline)); err != nil {
 		h.log.Warn("ws set read deadline", "err", err)
 		c.requestClose(websocket.CloseInternalServerErr, closeReasonInternal)

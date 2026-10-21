@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { useT } from '@nordly-i18n';
 
 import { isMacOsDesktop } from '@platform/macos';
+import { isTauriRuntime } from '@platform/runtime';
 import { isCloudEnabled } from '@shared/model/features';
 import { patchSettings, readSettings, type GoogleCalendarPollMinutes } from '@shared/model/settings';
 
 import { SettingsBlock } from '../primitives/SettingRow';
 import { AppleCalendarSection } from './AppleCalendarSection';
-import { isSpotifyConfigured } from '@features/spotify/api/spotifyClient';
 
 import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { SpotifySection } from './SpotifySection';
@@ -21,7 +21,7 @@ export function IntegrationsSection() {
   );
   const showApple = isMacOsDesktop();
   const showCloud = isCloudEnabled();
-  const showSpotify = isSpotifyConfigured();
+  const showSpotify = isTauriRuntime();
 
   if (!showApple && !showCloud && !showSpotify) {
     return <p className="nordly-settings-empty">{t('nordly.settings.integrations_local_only')}</p>;

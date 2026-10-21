@@ -101,7 +101,10 @@ func (rh *roomHub) replaceSnapshotLocked(payload []byte) error {
 	}
 	rh.lastSnapshot = slices.Clone(payload)
 	rh.snapshotSeq = rh.nextSeq
-	return nil
+	return rh.broadcastLocked(KindSnapshot, snapshotPayload{
+		Seq:     rh.snapshotSeq,
+		Payload: rh.lastSnapshot,
+	})
 }
 
 func (rh *roomHub) broadcastLocked(kind Kind, data any) error {
@@ -120,7 +123,6 @@ func (rh *roomHub) broadcastLocked(kind Kind, data any) error {
 
 func (rh *roomHub) bootstrapLocked() ([][]byte, error) {
 	messages := make([][]byte, 0, rh.bufLen+1)
-	afterSeq := int64(0)
 	if len(rh.lastSnapshot) > 0 {
 		snapshot, err := encodeEnvelope(KindSnapshot, snapshotPayload{
 			Seq:     rh.snapshotSeq,
@@ -130,15 +132,11 @@ func (rh *roomHub) bootstrapLocked() ([][]byte, error) {
 			return nil, err
 		}
 		messages = append(messages, snapshot)
-		afterSeq = rh.snapshotSeq
 	}
 
 	start := (rh.bufHead - rh.bufLen + replayBufferCap) % replayBufferCap
 	for offset := 0; offset < rh.bufLen; offset++ {
 		op := rh.buffer[(start+offset)%replayBufferCap]
-		if op.Seq <= afterSeq {
-			continue
-		}
 		envelope, err := encodeEnvelope(KindOp, sequencedOpPayload(op))
 		if err != nil {
 			return nil, err

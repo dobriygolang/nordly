@@ -39,14 +39,12 @@ const cloudWorkerDependencies: CloudWorkerDependencies = {
   isVaultEnabled: isVaultEnabledSync,
   hydrateCalendarCache: hydrateGoogleCalendarCache,
   startWorkers: () => {
-    startCalendarReminderWorker();
     startSyncEngine();
     startGoogleCalendarSyncWorker();
   },
   stopWorkers: () => {
     stopSyncEngine();
     stopGoogleCalendarSyncWorker();
-    stopCalendarReminderWorker();
   },
 };
 
@@ -86,10 +84,15 @@ export function useBackgroundWorkers({
   useEffect(() => {
     if (status !== AuthStatus.SignedIn || !userId) {
       stopTaskReminderWorker();
+      stopCalendarReminderWorker();
       return;
     }
     startTaskReminderWorker();
-    return () => stopTaskReminderWorker();
+    startCalendarReminderWorker();
+    return () => {
+      stopTaskReminderWorker();
+      stopCalendarReminderWorker();
+    };
   }, [status, userId]);
 
   // Vault + calendar hydrate once per signed-in user — do not remount on reauth flips.

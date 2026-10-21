@@ -37,6 +37,8 @@ Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `
 
 Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on (default **off**), at startup and on window focus (after 03:00 local, once/day via a `nordly:task-rollover-day` marker) unfinished tasks scheduled on earlier days are re-anchored onto today at the same clock time. End-bell sound on timer completion is gated by the `endBell` setting; default focus timer mode is seeded from `timerMode`.
 
+Calendar and task reminders keep checking while the main window is hidden (the red button only hides it). Apple Calendar reminders fire at the event start, on the same window as Google, and do not wait for cloud sync.
+
 **Daily Planning** (`pages/DailyPlanning/`): 3-step triage wizard — Pick (Today + All tasks), Defer (Today / Tomorrow / Next week; full-width, no timeline), Finalize (summary + obstacles + timeline preview). Open via Palette or `P`.
 
 **All tasks pool** (`features/planning/lib/planningTasks.ts` → `buildPlanningPool`): a date window, not every task. Overdue first (oldest → newest), then upcoming through the end of the current week (`weekStartsOn`-aware), strictly chronological — `order` is a within-day index and is deliberately not used here. Done, dismissed and dateless tasks are excluded. When the window holds nothing, it rolls forward **whole weeks** until it reaches the nearest upcoming task, so the column is never empty and days from different weeks never interleave; anything past the window is a "reveal one more week" button (`extendPool`). Pick folds tomorrow / next week into the pool (`poolAbsorbsNearDays`) because it renders no columns for them; Defer gives them their own. Dropping into the pool schedules to **tomorrow** — the model has no dateless state, so that is the only non-arbitrary "not today". On **Get started**: saves obstacles + plan snapshot to IndexedDB meta `daily_plan::{userId}::{YYYY-MM-DD}`, dispatches `nordly:daily-plan-changed`, navigates Home. **Home** shows today task list + obstacles (no plan progress header); **Stats** overlay shows plan vs actual when finalized today. Manual open only (no auto-open on launch).
@@ -49,7 +51,7 @@ Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on 
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | optional | Unused by renderer today (share/publish URLs come from rooms/notes API) |
-| `VITE_SPOTIFY_CLIENT_ID` | unset | Spotify PKCE app id. Empty hides Settings → Spotify |
+| `VITE_SPOTIFY_CLIENT_ID` | unset | Spotify PKCE app id. Settings → Integrations still shows Spotify on the desktop app. Connect stays disabled until this id is set |
 | `VITE_SPOTIFY_REDIRECT_URI` | `https://trynordly.app/oauth/spotify` | Must match a Redirect URI on the Spotify app. The page forwards `code` and `state` to `nordly://settings` |
 
 Prod desktop CI sets `VITE_NORDLY_LOCAL_ONLY=false` so cloud APIs (identity + tracker) are on — Google Calendar and Zoom appear under Settings → Integrations.

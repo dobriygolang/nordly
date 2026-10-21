@@ -74,6 +74,8 @@ export const ru = {
   'nordly.cards.open_settings': 'Открыть настройки',
   'nordly.cards.loading': 'Загружаю карточки…',
   'nordly.cards.show': 'Показать ответ',
+  'nordly.cards.show_hint': 'Пробел',
+  'nordly.cards.progress': '{{current}} / {{total}}',
   'nordly.cards.new': 'Новая',
   'nordly.cards.due': 'К повторению',
   'nordly.cards.done': 'Сессия закончена. Повторено: {{count}}.',
@@ -214,7 +216,7 @@ export const ru = {
   'nordly.settings.notification_volume.hint': 'Громкость уведомлений и сигнала в конце таймера. 0 - без звука.',
   'nordly.settings.notification_volume.label': 'Громкость уведомлений',
   'nordly.settings.calendar_notifications.hint':
-    'Напомнить, когда скоро начнётся событие в Google Календаре.',
+    'Напомнить в момент начала события Google или Apple Calendar.',
   'nordly.settings.calendar_notifications.label': 'Напоминания календаря',
   'nordly.settings.task_notifications.hint':
     'Напомнить, когда скоро начнётся задача на сегодня.',
@@ -467,6 +469,7 @@ export const ru = {
   'nordly.settings.spotify.connected': 'Подключено',
   'nordly.settings.spotify.connected_as': 'Подключено как {{name}}',
   'nordly.settings.spotify.not_connected': 'Не подключено',
+  'nordly.settings.spotify.missing_client': 'Не задан client id Spotify',
   'nordly.settings.spotify.loading': 'Проверяем…',
   'nordly.settings.spotify.connecting': 'Открываем браузер…',
   'nordly.settings.spotify.connect': 'Подключить Spotify',

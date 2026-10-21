@@ -9,6 +9,7 @@ import {
   useSpotifyStore,
   type SpotifyConnectError,
 } from '@features/spotify/api/spotifyClient';
+import { isSpotifyConfigured } from '@features/spotify/lib/pkce';
 
 import { SettingRow } from '../primitives/SettingRow';
 import { InlineOAuthSpinner } from '../useIntegrationOAuth';
@@ -36,8 +37,12 @@ export function SpotifySection(): JSX.Element {
     void hydrateSpotify();
   }, []);
 
+  const configured = isSpotifyConfigured();
   const controlsDisabled = !hydrated || busy || oauthPending;
-  const statusLabel = !hydrated
+  const connectDisabled = !configured || controlsDisabled;
+  const statusLabel = !configured
+    ? t('nordly.settings.spotify.missing_client')
+    : !hydrated
     ? t('nordly.settings.spotify.loading')
     : reauthRequired
       ? t('nordly.settings.spotify.reauth')
@@ -107,7 +112,7 @@ export function SpotifySection(): JSX.Element {
             <button
               type="button"
               className="nordly-settings-vault-btn"
-              disabled={controlsDisabled}
+              disabled={connectDisabled}
               onClick={() => void connect()}
             >
               {busy || oauthPending ? (

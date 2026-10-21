@@ -2,7 +2,7 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 
 import { writeSceneToYjs } from '@nordly-collab/excalidrawYjsDoc';
-import { parseEditorWsEnvelope, shouldRetryEditorWsClose } from '@nordly-collab/wsProtocol';
+import { applyWsEnvelope, parseEditorWsEnvelope, shouldRetryEditorWsClose } from '@nordly-collab/wsProtocol';
 
 describe('writeSceneToYjs', () => {
   it('does not wipe a room when an empty local change arrives first', () => {
@@ -24,5 +24,11 @@ describe('editor websocket envelopes', () => {
     expect(shouldRetryEditorWsClose(1000)).toBe(false);
     expect(shouldRetryEditorWsClose(1008)).toBe(false);
     expect(shouldRetryEditorWsClose(1006)).toBe(true);
+  });
+
+  it('treats participant_joined as a side effect, not a failed socket', () => {
+    const env = parseEditorWsEnvelope({ kind: 'participant_joined', data: { user_id: 'abc' } });
+    const doc = new Y.Doc();
+    expect(() => applyWsEnvelope(env, doc, null)).not.toThrow();
   });
 });

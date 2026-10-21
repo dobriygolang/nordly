@@ -107,11 +107,13 @@ func TestLateJoinQueuesSnapshotAndReplayBeforeLiveVisibility(t *testing.T) {
 		require.Equal(t, []byte("snapshot"), snapshot.Payload)
 
 		ops := sequencedOps(t, envelopes)
-		require.Len(t, ops, 2)
-		require.Equal(t, int64(2), ops[0].Seq)
-		require.Equal(t, []byte("after-snapshot"), ops[0].Payload)
-		require.Equal(t, int64(3), ops[1].Seq)
-		require.Equal(t, []byte("racing-live-op"), ops[1].Payload)
+		require.Len(t, ops, 3)
+		require.Equal(t, int64(1), ops[0].Seq)
+		require.Equal(t, []byte("before-snapshot"), ops[0].Payload)
+		require.Equal(t, int64(2), ops[1].Seq)
+		require.Equal(t, []byte("after-snapshot"), ops[1].Payload)
+		require.Equal(t, int64(3), ops[2].Seq)
+		require.Equal(t, []byte("racing-live-op"), ops[2].Payload)
 	}
 }
 

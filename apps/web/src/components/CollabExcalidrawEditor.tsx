@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { collaboratorsFromAwareness, setLocalCursor } from '@nordly-collab/liveCursors'
+import { collaboratorsFromAwareness, setLocalCursor, type LivePointer } from '@nordly-collab/liveCursors'
 import type * as Y from 'yjs'
 import {
   applyLocalBoardTheme,
@@ -86,6 +86,16 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
     const paintCollaboratorsRef = useRef(() => {})
+    const pointerFrameRef = useRef(0)
+    const pendingPointerRef = useRef<LivePointer | null>(null)
+    const reportPointer = (pointer: LivePointer | null): void => {
+      pendingPointerRef.current = pointer
+      if (pointerFrameRef.current) return
+      pointerFrameRef.current = requestAnimationFrame(() => {
+        pointerFrameRef.current = 0
+        setLocalCursor(session.awareness, pendingPointerRef.current)
+      })
+    }
 
     const [ready, setReady] = useState(false)
     const [seedError, setSeedError] = useState<string | null>(null)
@@ -177,13 +187,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           failSeed(err)
         })
         .finally(() => {
-          // Allow local edits once initial scene seed is done. Do not gate on peer
-          // count — with 2+ clients connected, awareness size is always > 1 and
-          // edits would never sync without a prior remote snapshot.
           window.setTimeout(() => {
-            if (!gotRemoteRef.current && !seedFailedRef.current) {
-              canPublishLocalRef.current = true
-            }
+            canPublishLocalRef.current = true
           }, 300)
         })
 
@@ -194,9 +199,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       const onAfterTransaction = (tr: Y.Transaction) => {
         if (tr.origin !== 'remote') return
         gotRemoteRef.current = true
-        if (tr.changedParentTypes.size > 0) {
-          canPublishLocalRef.current = true
-        }
+        canPublishLocalRef.current = true
       }
       ydoc.on('afterTransaction', onAfterTransaction)
 
@@ -453,7 +456,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
             onChange={handleChange}
             isCollaborating
             onPointerUpdate={(payload) => {
-              setLocalCursor(session.awareness, {
+              reportPointer({
                 x: payload.pointer.x,
                 y: payload.pointer.y,
                 tool: payload.pointer.tool,

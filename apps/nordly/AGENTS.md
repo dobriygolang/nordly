@@ -263,7 +263,7 @@ A note opens another note with `[[Title]]`, a board with `[[board:Title]]`, or a
 
 Sharing (requires sign-in + network):
 
-- **Live share** → `POST /v1/rooms/share-whiteboard` keeps `roomId` and `accessToken` in memory and joins `WS /ws/editor/{roomId}`. The desktop canvas and the web room share one Yjs document, including participant cursors. In-progress strokes sync via awareness `draft`; finished edits commit to Yjs. Stop sharing writes the room scene back into the local board. Invite URL is `code.trynordly.app/{roomId}`.
+- **Live share** → `POST /v1/rooms/share-whiteboard` keeps `roomId` and `accessToken` in memory and joins `WS /ws/editor/{roomId}`. The desktop canvas and the web room share one Yjs document, including participant cursors. Stop sharing writes the room scene back into the local board. Invite URL is `code.trynordly.app/{roomId}`.
 - **Publish** → `POST /v1/rooms/publish-whiteboard` → web `/board/{slug}` (read-only)
 
 ## Flashcards

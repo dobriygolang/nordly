@@ -34,18 +34,12 @@ import {
 } from '@shared/lib/excalidraw/excalidrawBoardColors';
 import { createLatestOnlyWriter } from '@shared/lib/latestOnlyWriter';
 import type { LiveCollaborator, LivePointer } from '@nordly-collab/liveCursors';
-import {
-  inProgressElementIds,
-  isBoardGesturing,
-  preserveLocalDrafts,
-} from '@nordly-collab/liveDraft';
 
 const SAVE_DEBOUNCE_MS = 1500;
 
 type ExcalidrawApi = {
   updateScene: (scene: {
     elements?: readonly unknown[];
-    files?: Record<string, unknown>;
     appState?: Record<string, unknown>;
     collaborators?: Map<string, unknown>;
     captureUpdate?: (typeof CaptureUpdateAction)[keyof typeof CaptureUpdateAction];
@@ -69,11 +63,7 @@ interface BoardCanvasProps {
   boardTheme: BoardCanvasTheme;
   onSaved: () => void;
   onSaveError: (msg: string) => void;
-  onLiveChange?: (
-    elements: readonly unknown[],
-    files: Record<string, unknown>,
-    opts: { gesturing: boolean },
-  ) => void;
+  onLiveChange?: (elements: readonly unknown[], files: Record<string, unknown>) => void;
   collaborating?: boolean;
   onPointerUpdate?: (pointer: LivePointer | null) => void;
 }
@@ -121,9 +111,6 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
   const skipSaveRef = useRef(true);
   const applyingThemeRef = useRef(false);
   const applyingRemoteRef = useRef(false);
-  const remoteApplyRafRef = useRef(0);
-  const pointerButtonRef = useRef<'up' | 'down'>('up');
-  const localDraftIdsRef = useRef<Set<string>>(new Set());
   const onLiveChangeRef = useRef(onLiveChange);
   const onPointerUpdateRef = useRef(onPointerUpdate);
   onLiveChangeRef.current = onLiveChange;
@@ -189,15 +176,10 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
       },
       applyRemoteScene: (elements, files) => {
         const api = excalidrawApi;
-        const reconciled = preserveLocalDrafts(
-          elements,
-          sceneRef.current?.elements ?? [],
-          localDraftIdsRef.current,
-        );
-        const canonical = canonicalizeElementsForStorage(
-          reconciled as Parameters<typeof canonicalizeElementsForStorage>[0],
-        );
         applyingRemoteRef.current = true;
+        const canonical = canonicalizeElementsForStorage(
+          elements as Parameters<typeof canonicalizeElementsForStorage>[0],
+        );
         sceneRef.current = {
           elements: canonical,
           files,
@@ -206,14 +188,11 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         sceneWriter.update(sceneRef.current);
         api?.updateScene({
           elements: remapDisplayElementsForBoardTheme(canonical, boardThemeRef.current),
-          files: files as never,
-          captureUpdate: CaptureUpdateAction.NEVER,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
-        if (remoteApplyRafRef.current) cancelAnimationFrame(remoteApplyRafRef.current);
-        remoteApplyRafRef.current = requestAnimationFrame(() => {
-          remoteApplyRafRef.current = 0;
+        window.setTimeout(() => {
           applyingRemoteRef.current = false;
-        });
+        }, 50);
       },
       applyCollaborators: (peers) => {
         collaboratorsRef.current = peers;
@@ -337,22 +316,6 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     };
   }, [excalidrawApi, boardId, boardTheme, applyCanvasBackground]);
 
-  const publishLive = useCallback(
-    (
-      elements: readonly unknown[],
-      files: Record<string, unknown>,
-      appState: Record<string, unknown>,
-      gesturing: boolean,
-    ) => {
-      const canonical = canonicalizeElementsForStorage(
-        elements as Parameters<typeof canonicalizeElementsForStorage>[0],
-      );
-      localDraftIdsRef.current = gesturing ? inProgressElementIds(appState) : new Set();
-      onLiveChangeRef.current?.(canonical, files, { gesturing });
-    },
-    [],
-  );
-
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
       if (skipSaveRef.current || applyingThemeRef.current || applyingRemoteRef.current) return;
@@ -362,27 +325,26 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
       if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
         throw new Error('BoardCanvas: invalid files');
       }
-      const app = appState as Record<string, unknown>;
-      appStateRef.current = sanitizeAppStateForPersistence(app, boardTheme) ??
-        nordlyExcalidrawInitialAppState(boardTheme);
-      const nextFiles = (files as Record<string, unknown> | null | undefined) ?? {};
+      appStateRef.current = sanitizeAppStateForPersistence(
+        appState as Record<string, unknown>,
+        boardTheme,
+      ) ?? nordlyExcalidrawInitialAppState(boardTheme);
       sceneRef.current = {
         elements: canonicalizeElementsForStorage(
           elements as Parameters<typeof canonicalizeElementsForStorage>[0],
         ),
-        files: nextFiles,
+        files: (files as Record<string, unknown> | null | undefined) ?? {},
         appState: appStateRef.current,
       };
       sceneWriter.update(sceneRef.current);
-      const gesturing = isBoardGesturing(app, pointerButtonRef.current);
-      publishLive(sceneRef.current.elements, nextFiles, app, gesturing);
+      onLiveChangeRef.current?.(sceneRef.current.elements, sceneRef.current.files);
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => {
         saveTimerRef.current = null;
         void flushSave();
       }, SAVE_DEBOUNCE_MS);
     },
-    [boardTheme, flushSave, publishLive, sceneWriter],
+    [boardTheme, flushSave, sceneWriter],
   );
 
   return (
@@ -407,23 +369,12 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
         onPointerUpdate={
           collaborating
             ? (payload) => {
-                const wasDown = pointerButtonRef.current === 'down';
-                pointerButtonRef.current = payload.button;
                 onPointerUpdateRef.current?.({
                   x: payload.pointer.x,
                   y: payload.pointer.y,
                   tool: payload.pointer.tool,
                   button: payload.button,
                 });
-                // Pointer-up often arrives after the last onChange still marked gesturing.
-                if (wasDown && payload.button === 'up' && sceneRef.current) {
-                  publishLive(
-                    sceneRef.current.elements,
-                    sceneRef.current.files,
-                    appStateRef.current,
-                    false,
-                  );
-                }
               }
             : undefined
         }

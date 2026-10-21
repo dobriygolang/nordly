@@ -11,17 +11,6 @@ import {
 import { CaptureUpdateAction, Excalidraw } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { collaboratorsFromAwareness, setLocalCursor, type LivePointer } from '@nordly-collab/liveCursors'
-import {
-  collectDraftElements,
-  draftSignature,
-  draftsFromAwareness,
-  indexElementsById,
-  inProgressElementIds,
-  isBoardGesturing,
-  mergeCommittedWithRemoteDrafts,
-  preserveLocalDrafts,
-  setLocalDraft,
-} from '@nordly-collab/liveDraft'
 import type * as Y from 'yjs'
 import {
   applyLocalBoardTheme,
@@ -93,7 +82,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const remoteApplyTimerRef = useRef<number | null>(null)
     const skipChangeRef = useRef(true)
     const gotRemoteRef = useRef(false)
-    const pendingLocalRef = useRef<(ScenePayload & { gesturing: boolean }) | null>(null)
+    const pendingLocalRef = useRef<ScenePayload | null>(null)
     const localRafRef = useRef(0)
     const canPublishLocalRef = useRef(false)
     const paintCollaboratorsRef = useRef(() => {})
@@ -102,11 +91,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     const scheduleLocalFlushRef = useRef<() => void>(() => {})
     const pointerFrameRef = useRef(0)
     const pendingPointerRef = useRef<LivePointer | null>(null)
-    const pointerButtonRef = useRef<'up' | 'down'>('up')
-    const committedJsonByIdRef = useRef<Map<string, string>>(new Map())
-    const localDraftIdsRef = useRef<Set<string>>(new Set())
-    const lastDraftSigRef = useRef('')
-    const localElementsRef = useRef<readonly unknown[]>([])
     const reportPointer = (pointer: LivePointer | null): void => {
       pendingPointerRef.current = pointer
       if (pointerFrameRef.current) return
@@ -141,15 +125,8 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         return
       }
       pendingLocalRef.current = null
-      if (pending.gesturing) {
-        const draft = collectDraftElements(pending.elements, committedJsonByIdRef.current)
-        setLocalDraft(session.awareness, draft.length > 0 ? draft : null)
-        return
-      }
-      setLocalDraft(session.awareness, null)
       writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
-      committedJsonByIdRef.current = indexElementsById(pending.elements)
-    }, [session.awareness])
+    }, [])
 
     const scheduleLocalFlush = useCallback(() => {
       if (localRafRef.current) return
@@ -161,14 +138,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     scheduleLocalFlushRef.current = scheduleLocalFlush
 
     const pushSceneToExcalidraw = useCallback((scene: ScenePayload) => {
-      const drafts = draftsFromAwareness(session.awareness)
-      const merged = mergeCommittedWithRemoteDrafts(scene.elements, drafts)
-      const reconciled = preserveLocalDrafts(
-        merged,
-        localElementsRef.current,
-        localDraftIdsRef.current,
-      )
-      pendingRemoteSceneRef.current = { elements: reconciled, files: scene.files }
+      pendingRemoteSceneRef.current = scene
       const api = apiRef.current
       if (!api || applyingThemeRef.current || applyingRemoteRef.current) return
       const next = pendingRemoteSceneRef.current
@@ -193,7 +163,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           if (queued) pushSceneRef.current(queued)
         })
       }
-    }, [session.awareness])
+    }, [])
     pushSceneRef.current = pushSceneToExcalidraw
 
     useEffect(() => {
@@ -250,11 +220,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           }, 300)
         })
 
-      committedJsonByIdRef.current = indexElementsById(readSceneFromYjs(ydoc).elements)
-      lastDraftSigRef.current = ''
-
       const stopObserving = observeSceneChanges(ydoc, (scene) => {
-        lastDraftSigRef.current = draftSignature(draftsFromAwareness(session.awareness))
         pushSceneToExcalidraw(scene)
       })
 
@@ -272,10 +238,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         const pending = pendingLocalRef.current
         if (pending) {
           pendingLocalRef.current = null
-          setLocalDraft(session.awareness, null)
           writeSceneToYjs(ydoc, pending.elements, pending.files, 'local')
-        } else {
-          setLocalDraft(session.awareness, null)
         }
         stopObserving()
         ydoc.off('afterTransaction', onAfterTransaction)
@@ -284,7 +247,7 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
         canPublishLocalRef.current = false
         setReady(false)
       }
-    }, [roomId, session.ydoc, session.awareness, pushSceneToExcalidraw])
+    }, [roomId, session.ydoc, pushSceneToExcalidraw])
 
     useEffect(() => {
       const ydoc = ydocRef.current
@@ -412,17 +375,13 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
     }, [ready, roomId, boardTheme])
 
     const handleChange = useCallback(
-      (elements: readonly unknown[], appState: unknown, files: unknown) => {
+      (elements: readonly unknown[], _appState: unknown, files: unknown) => {
         const theme = boardThemeRef.current
         const typedElements = elements as ColoredElement[]
 
         if (files !== null && files !== undefined && (typeof files !== 'object' || Array.isArray(files))) {
           throw new Error('CollabExcalidrawEditor: invalid files')
         }
-        if (!appState || typeof appState !== 'object' || Array.isArray(appState)) {
-          throw new Error('CollabExcalidrawEditor: invalid appState')
-        }
-        const app = appState as Record<string, unknown>
         const canonical = canonicalizeElementsForStorage(typedElements)
         if (
           !applyingThemeRef.current &&
@@ -441,13 +400,9 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           }
         }
 
-        const gesturing = isBoardGesturing(app, pointerButtonRef.current)
-        localElementsRef.current = canonical
-        localDraftIdsRef.current = gesturing ? inProgressElementIds(app) : new Set()
         pendingLocalRef.current = {
           elements: canonical,
           files: (files as Record<string, unknown> | null | undefined) ?? {},
-          gesturing,
         }
         scheduleLocalFlush()
       },
@@ -472,13 +427,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
           collaborators: map,
           captureUpdate: CaptureUpdateAction.NEVER,
         })
-        const drafts = draftsFromAwareness(awareness)
-        const sig = draftSignature(drafts)
-        if (sig === lastDraftSigRef.current) return
-        lastDraftSigRef.current = sig
-        const ydoc = ydocRef.current
-        if (!ydoc) return
-        pushSceneRef.current(readSceneFromYjs(ydoc))
       }
       awareness.on('change', paint)
       paintCollaboratorsRef.current = paint
@@ -486,7 +434,6 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
       return () => {
         awareness.off('change', paint)
         setLocalCursor(awareness, null)
-        setLocalDraft(awareness, null)
       }
     }, [session.awareness])
 
@@ -518,22 +465,12 @@ export const CollabExcalidrawEditor = forwardRef<CollabExcalidrawHandle, Props>(
             onChange={handleChange}
             isCollaborating
             onPointerUpdate={(payload) => {
-              const wasDown = pointerButtonRef.current === 'down'
-              pointerButtonRef.current = payload.button
               reportPointer({
                 x: payload.pointer.x,
                 y: payload.pointer.y,
                 tool: payload.pointer.tool,
                 button: payload.button,
               })
-              if (wasDown && payload.button === 'up') {
-                const pending = pendingLocalRef.current
-                const elements = pending?.elements ?? localElementsRef.current
-                const files = pending?.files ?? {}
-                localDraftIdsRef.current = new Set()
-                pendingLocalRef.current = { elements: elements.slice(), files, gesturing: false }
-                scheduleLocalFlushRef.current()
-              }
             }}
             viewModeEnabled={false}
             excalidrawAPI={(api) => {

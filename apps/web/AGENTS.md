@@ -113,7 +113,7 @@ Sandbox run/format send the guest JWT **and** `roomId` (editor-scoped tokens req
 | Code | `practice` | `CollabCodeEditor` and `CollabExcalidrawEditor` on one Y.Doc. Top bar switches surfaces with the same circular view transition as the theme toggle. |
 | Diagram | `system_design` | `CollabExcalidrawEditor` |
 
-`useLiveCollabSession` owns the Y.Doc and the editor websocket. Practice rooms keep `Y.Text code` and the Excalidraw maps in that document from the moment the room opens, so the board is not a second room. The Yjs scene and the websocket envelope live in `apps/shared/collab` (`@nordly-collab`); `lib/collab/excalidrawYjsDoc.ts` re-exports them. The board draws other participants' cursors from the awareness channel. In-progress strokes use awareness `draft` (merged onto the committed Yjs scene); gesture end commits to Yjs.
+`useLiveCollabSession` owns the Y.Doc and the editor websocket. Practice rooms keep `Y.Text code` and the Excalidraw maps in that document from the moment the room opens, so the board is not a second room. The Yjs scene and the websocket envelope live in `apps/shared/collab` (`@nordly-collab`); `lib/collab/excalidrawYjsDoc.ts` re-exports them. The board draws other participants' cursors from the awareness channel.
 
 Room types in prod UI: `practice`, `system_design` only.
 

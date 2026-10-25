@@ -26,10 +26,6 @@
   line-height: 1.35;
 }
 
-.nordly-sync-banner__detail {
-  color: var(--ink-60);
-}
-
 .nordly-sync-banner__actions {
   display: flex;
   align-items: center;

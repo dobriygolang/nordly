@@ -1,0 +1,26 @@
+.nordly-sidebar-divider {
+  transition: width var(--t-base), opacity var(--t-fast);
+}
+.nordly-sidebar-divider__line {
+  background: rgb(var(--ink-rgb) / 0.1);
+  transition: background-color var(--t-fast);
+}
+.nordly-sidebar-divider:hover .nordly-sidebar-divider__line {
+  background: rgb(var(--ink-rgb) / 0.2);
+}
+.nordly-sidebar-edge {
+  background: transparent;
+  transition: background-color var(--t-fast);
+}
+.nordly-sidebar-edge:hover {
+  background: rgb(var(--ink-rgb) / 0.05);
+}
+.nordly-sidebar-edge__handle {
+  height: 28px;
+  background: var(--ink-40);
+  transition: height var(--t-base), background-color var(--t-fast);
+}
+.nordly-sidebar-edge:hover .nordly-sidebar-edge__handle {
+  height: 40px;
+  background: var(--ink-60);
+}

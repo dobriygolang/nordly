@@ -238,9 +238,3 @@ export function sendPomodoroCommand(action: PomodoroCmdAction): void {
     console.error('[nordly:pomodoro] command broadcast failed', error);
   });
 }
-
-export function formatTimerDigits(totalSec: number): string {
-  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
-  const ss = String(totalSec % 60).padStart(2, '0');
-  return `${mm[0]!} ${mm[1]!} : ${ss[0]!} ${ss[1]!}`;
-}

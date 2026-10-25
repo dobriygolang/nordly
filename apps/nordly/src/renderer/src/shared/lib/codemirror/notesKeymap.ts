@@ -18,25 +18,6 @@ function wrapSelection(state: EditorState, before: string, after: string, placeh
   });
 }
 
-function prependLines(state: EditorState, prefix: string | ((i: number) => string)): Transaction | null {
-  const range = state.selection.main;
-  const lineStart = state.doc.lineAt(range.from).from;
-  const lineEnd = state.doc.lineAt(range.to).to;
-  const block = state.sliceDoc(lineStart, lineEnd);
-  const lines = block.split('\n');
-  const transformed = lines
-    .map((l, i) => {
-      const px = typeof prefix === 'function' ? prefix(i) : prefix;
-      const stripped = l.replace(/^(#{1,6}\s|>\s|-\s|\d+\.\s)/, '');
-      return px + stripped;
-    })
-    .join('\n');
-  return state.update({
-    changes: { from: lineStart, to: lineEnd, insert: transformed },
-    selection: { anchor: lineStart, head: lineStart + transformed.length },
-  });
-}
-
 /** True when lezer's closer belongs to this opening line, not to a later fence. */
 function openingFenceIsComplete(state: EditorState, openLineNumber: number): boolean {
   const openLine = state.doc.line(openLineNumber);
@@ -345,5 +326,3 @@ export const notesKeymap = [
     },
   },
 ];
-
-export { wrapSelection, prependLines };

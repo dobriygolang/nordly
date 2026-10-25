@@ -132,11 +132,6 @@ export function buildWeekDays(weekStart: Date): WeekDay[] {
   });
 }
 
-export function weekRange(weekStart: Date): { start: Date; end: Date } {
-  const start = parseDayKey(toDayKey(weekStart));
-  return { start, end: addDays(start, 7) };
-}
-
 export function yearRange(year: number): { start: Date; end: Date } {
   return { start: new Date(year, 0, 1), end: new Date(year + 1, 0, 1) };
 }
@@ -660,14 +655,6 @@ export function formatWeekHeaderMonth(date: Date, locale?: Locale): string {
 
 export function formatDayHeader(date: Date, locale?: Locale): string {
   return formatLocaleDate(date, locale, { weekday: 'short', day: 'numeric' });
-}
-
-export function monthRange(viewMonth: Date): { start: Date; end: Date } {
-  const y = viewMonth.getFullYear();
-  const m = viewMonth.getMonth();
-  const start = new Date(y, m, 1);
-  const end = new Date(y, m + 1, 1);
-  return { start, end };
 }
 
 export function buildMonthGrid(

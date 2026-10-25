@@ -1,6 +1,3 @@
-import type { ThemeId } from '@shared/model/theme';
-import { isLightTheme } from '@shared/lib/applyTheme';
-
 /** Excalidraw chrome — follows Nordly theme, bottom toolbar only.
  *
  * Canvas fill is `appState.viewBackgroundColor` (not the `theme` prop).
@@ -8,7 +5,6 @@ import { isLightTheme } from '@shared/lib/applyTheme';
  * @see https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/props/initialdata
  */
 
-export type ExcalidrawThemeMode = 'light' | 'dark';
 export type BoardCanvasTheme = 'light' | 'dark';
 
 export const NORDLY_EXCALIDRAW_CANVAS_LIGHT = '#fafaf8';
@@ -33,10 +29,6 @@ export const NORDLY_EXCALIDRAW_UI_OPTIONS = {
     image: true,
   },
 } as const;
-
-export function nordlyExcalidrawThemeFor(nordlyTheme: ThemeId): ExcalidrawThemeMode {
-  return isLightTheme(nordlyTheme) ? 'light' : 'dark';
-}
 
 export function nordlyExcalidrawStrokeColor(boardTheme: BoardCanvasTheme): string {
   return boardTheme === 'light' ? NORDLY_EXCALIDRAW_STROKE_LIGHT : NORDLY_EXCALIDRAW_STROKE_DARK;

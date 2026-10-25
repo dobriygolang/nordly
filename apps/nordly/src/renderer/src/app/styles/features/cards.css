@@ -263,41 +263,8 @@
   font-size: 13px;
 }
 
-.nordly-settings-number {
-  width: 4.5rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid rgb(var(--ink-rgb) / 0.16);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-}
 
-.nordly-notes-review-note {
-  align-self: flex-start;
-  margin: 0 0 0.35rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-60);
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
 
-.nordly-md-card-front {
-  font-weight: 600;
-}
-
-.nordly-md-card-sep {
-  font-size: 0;
-}
-
-.nordly-md-card-sep::after {
-  content: '→';
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--ink-40);
-}
 
 .nordly-cards__question {
   display: grid;

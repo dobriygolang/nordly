@@ -30,7 +30,6 @@ import {
   isCloudEnabled,
   isSyncEnabled,
 } from '@shared/sync/syncConfig';
-import { mapPool } from '@shared/lib/mapPool';
 import { collectPublishPayload } from '../lib/publishPayload';
 import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { enqueueVaultFilePut, isNotesVaultBound, vaultListNotes, vaultReadNote } from '@features/notes/vault';
@@ -93,11 +92,6 @@ export async function createFolder(
   return (await notesPersistence()).createFolder(name, parentId);
 }
 
-export async function renameFolder(id: string, name: string): Promise<NoteFolder> {
-  const { folder } = await (await notesPersistence()).renameFolder(id, name);
-  return folder;
-}
-
 /**
  * Rename a vault folder and return path remap so the UI can update note ids.
  * IDB mode: fromPath === toPath === id (UUID stable).
@@ -107,15 +101,6 @@ export async function renameFolderWithRemap(
   name: string,
 ): Promise<{ folder: NoteFolder; fromPath: string; toPath: string }> {
   return (await notesPersistence()).renameFolder(id, name);
-}
-
-/**
- * Move a folder under a new parent (`null` = top-level).
- * Notes and nested folders travel with it (they keep pointing at the same ids).
- */
-export async function moveFolder(id: string, parentId: string | null): Promise<NoteFolder> {
-  const { folder } = await (await notesPersistence()).moveFolder(id, parentId);
-  return folder;
 }
 
 export async function moveFolderWithRemap(
@@ -209,21 +194,6 @@ export async function getPublishStatus(noteId: string): Promise<PublishStatus> {
     return { published: false };
   }
   return status;
-}
-
-export async function countPublishedNotes(): Promise<number> {
-  assertPublishAllowed();
-  if (!isCloudEnabled() || !canUseLocalApp()) {
-    throw new Error('Published note count requires a cloud session');
-  }
-
-  const { notes } = await listNotes();
-  const published = await mapPool(notes, 6, async (note) => {
-    const serverId = await lookupServerNoteId(note.id);
-    if (!serverId) return false;
-    return (await getPublishStatus(note.id)).published;
-  });
-  return published.filter(Boolean).length;
 }
 
 export async function publishNoteToWeb(

@@ -69,18 +69,6 @@ export function isLocalAuthProfile(): boolean {
   return status === AuthStatus.SignedIn && authKind === AuthKind.Local;
 }
 
-/** True when cloud JWT/session can call authenticated APIs (or refresh soon). */
-export function hasCloudAuthSession(): boolean {
-  const { status, authKind, accessToken, refreshToken } = useSessionStore.getState();
-  if (
-    status !== AuthStatus.SignedIn ||
-    authKind !== AuthKind.Cloud
-  ) {
-    return false;
-  }
-  return Boolean(accessToken || refreshToken);
-}
-
 /** Definitive: no way to mint a new access token without interactive login. */
 function markReauthRequired(): void {
   // Local profiles never had tokens — soft banner / ensureCloudAuth, not reauth lock.

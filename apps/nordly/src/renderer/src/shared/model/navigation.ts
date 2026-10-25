@@ -26,7 +26,3 @@ export const NAV_PAGES = new Set<PageId>(Object.values(PageId));
 export function isPageId(value: string): value is PageId {
   return NAV_PAGES.has(value as PageId);
 }
-
-export function isPaletteAction(value: string): value is PaletteAction {
-  return value === PaletteAction.Stats || isPageId(value);
-}

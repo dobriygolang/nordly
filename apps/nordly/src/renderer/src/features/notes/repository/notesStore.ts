@@ -132,11 +132,6 @@ export async function notesStoreGetRow(id: string, userId?: string): Promise<Sto
   return dbGet<StoredNote>('notes', entityKey(id, uid));
 }
 
-export async function notesStorePut(note: StoredNote): Promise<void> {
-  const enc = await encryptAtRest(note.userId, note);
-  await dbPut('notes', enc);
-}
-
 export async function notesStoreUpsert(
   id: string,
   title: string,
@@ -253,19 +248,6 @@ export async function notesStoreMergeRemote(remote: StoredNote): Promise<void> {
     await dbPut('notes', row);
   }
   await setServerId(SyncDomain.Notes, remote.id, remote.id, userId);
-}
-
-export async function notesStoreBulkImport(
-  userId: string,
-  records: Record<string, Omit<StoredNote, 'key' | 'userId'>>,
-): Promise<void> {
-  for (const row of Object.values(records)) {
-    const encrypted = await encryptAtRest(userId, {
-      ...row,
-      deleted: false,
-    });
-    await dbPut('notes', encrypted);
-  }
 }
 
 export async function notesStoreAll(userId?: string): Promise<StoredNote[]> {

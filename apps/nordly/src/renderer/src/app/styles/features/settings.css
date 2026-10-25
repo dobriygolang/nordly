@@ -568,18 +568,6 @@ html.light .nordly-settings-group__body {
 
 /* ── Shortcuts list ── */
 
-.nordly-shortcuts-config {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: 100%;
-}
-
-.nordly-shortcuts-config[data-disabled='true'] {
-  opacity: 0.55;
-}
-
 .nordly-shortcuts-card {
   border: 1px solid var(--ink-tint-08);
   border-radius: 14px;
@@ -597,14 +585,6 @@ html.light .nordly-shortcuts-card {
 
 .nordly-shortcuts-card .nordly-shortcut-row {
   padding: 14px 18px;
-}
-
-.nordly-shortcuts-block-error {
-  margin: -4px 0 0;
-  padding: 0 2px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--red, #ff3b30);
 }
 
 .nordly-shortcuts-list {
@@ -649,14 +629,6 @@ html.light .nordly-shortcuts-card {
   background: rgb(var(--ink-rgb) / 0.08);
   color: var(--ink-90);
   font-size: 11px;
-}
-
-.nordly-shortcuts-list__presets {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  max-width: 280px;
 }
 
 .nordly-shortcuts-list__preset {
@@ -880,4 +852,15 @@ html.light .nordly-shortcuts-card {
   .nordly-settings-nav__list { flex-direction: row; overflow-x: auto; }
   .nordly-settings-nav__item { white-space: nowrap; }
   .nordly-settings-content__inner { padding: 24px 18px 80px; }
+}
+
+
+.nordly-settings-number {
+  width: 4.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.16);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
 }

@@ -30,7 +30,7 @@ import type { EntityNavigationRequest } from '@shared/model/navigation';
 import type { BoardCanvasTheme } from '@shared/lib/excalidraw/nordlyTheme';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { isEditableKeyboardTarget } from '@shared/lib/keyboardTarget';
-import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
+import { SidebarDivider, SidebarEdge } from '@shared/ui/SidebarDivider';
 import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 
 import { BoardCanvas, type BoardCanvasHandle } from './BoardCanvas';
@@ -577,13 +577,13 @@ export function WhiteboardPage({
         </div>
       </aside>
 
-      <NotesSidebarDivider
+      <SidebarDivider
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(true)}
       />
 
       <div className="nordly-vault-main nordly-whiteboard-main">
-        {sidebarCollapsed && <NotesSidebarEdge onExpand={() => setSidebarCollapsed(false)} />}
+        {sidebarCollapsed && <SidebarEdge onExpand={() => setSidebarCollapsed(false)} />}
 
         {list.status === BoardListStatus.Failed ? (
           <EmptyPane message={list.error} onRetry={loadList} />

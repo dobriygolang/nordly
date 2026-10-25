@@ -1,16 +1,16 @@
 import { useT } from '@nordly-i18n';
 
-interface NotesSidebarDividerProps {
+interface SidebarDividerProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
-export function NotesSidebarDivider({ collapsed, onToggle }: NotesSidebarDividerProps): JSX.Element {
+export function SidebarDivider({ collapsed, onToggle }: SidebarDividerProps): JSX.Element {
   const t = useT();
   return (
     <button
       type="button"
-      className="nordly-notes-divider"
+      className="nordly-sidebar-divider"
       aria-label={t('nordly.sidebar.hide')}
       title={t('nordly.sidebar.hide')}
       onClick={onToggle}
@@ -29,7 +29,7 @@ export function NotesSidebarDivider({ collapsed, onToggle }: NotesSidebarDivider
       }}
     >
       <span
-        className="nordly-notes-divider__line"
+        className="nordly-sidebar-divider__line"
         style={{
           position: 'absolute',
           left: '50%',
@@ -44,12 +44,12 @@ export function NotesSidebarDivider({ collapsed, onToggle }: NotesSidebarDivider
 }
 
 /** Left-edge hit zone — expand sidebar when collapsed (Notion-style). */
-export function NotesSidebarEdge({ onExpand }: { onExpand: () => void }): JSX.Element {
+export function SidebarEdge({ onExpand }: { onExpand: () => void }): JSX.Element {
   const t = useT();
   return (
     <button
       type="button"
-      className="nordly-notes-edge"
+      className="nordly-sidebar-edge"
       aria-label={t('nordly.sidebar.show')}
       title={t('nordly.sidebar.show')}
       onClick={onExpand}
@@ -70,7 +70,7 @@ export function NotesSidebarEdge({ onExpand }: { onExpand: () => void }): JSX.El
     >
       <span
         aria-hidden
-        className="nordly-notes-edge__handle"
+        className="nordly-sidebar-edge__handle"
         style={{
           width: 2,
           borderRadius: 99,

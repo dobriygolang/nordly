@@ -74,4 +74,3 @@ export async function collectPublishPayload(
   const assets = await collectNordlyAssetAttachments(bodyMd);
   return { body: vault.body, attachments: [...assets, ...vault.attachments] };
 }
-

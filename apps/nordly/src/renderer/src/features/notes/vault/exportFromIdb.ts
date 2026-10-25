@@ -8,7 +8,6 @@ import {
 } from '@features/notes/repository/attachmentsStore';
 import {
   extractNordlyAssetIds,
-  mimeFromFilename,
 } from '@features/notes/lib/noteAttachments';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 
@@ -201,8 +200,4 @@ function relativePath(fromDir: string, toFile: string): string {
   const down = toParts.slice(i);
   const parts = [...ups, ...down];
   return parts.length ? parts.join('/') : toParts[toParts.length - 1] ?? toFile;
-}
-
-export function mimeOrFilenameHint(fileName: string, mime: string): string {
-  return mime || mimeFromFilename(fileName) || 'application/octet-stream';
 }

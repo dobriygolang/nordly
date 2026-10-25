@@ -4,7 +4,7 @@ import { useT } from '@nordly-i18n';
 
 import type { Note } from '@features/notes/api/notesClient';
 import { listBoards } from '@features/whiteboard/api/whiteboardClient';
-import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
+import { SidebarDivider, SidebarEdge } from '@shared/ui/SidebarDivider';
 import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { STORAGE_KEYS } from '@shared/lib/storage-keys';
@@ -281,14 +281,14 @@ export function NotesPage({
         </div>
       </aside>
 
-      <NotesSidebarDivider
+      <SidebarDivider
         collapsed={chrome.sidebarCollapsed}
         onToggle={() => chrome.setSidebarCollapsed(true)}
       />
 
       <div className="nordly-vault-main">
         {chrome.sidebarCollapsed && (
-          <NotesSidebarEdge onExpand={() => chrome.setSidebarCollapsed(false)} />
+          <SidebarEdge onExpand={() => chrome.setSidebarCollapsed(false)} />
         )}
         <Editor
           list={listApi.list}

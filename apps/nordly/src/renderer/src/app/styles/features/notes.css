@@ -395,14 +395,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   color: var(--ink-40);
   line-height: 1.2;
 }
-.nordly-note-menu__error {
-  margin: 0;
-  padding: 4px 10px 6px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--danger, #e05252);
-  word-break: break-word;
-}
 .nordly-note-menu__item {
   display: flex;
   align-items: center;
@@ -469,13 +461,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   flex-direction: column;
   gap: 2px;
   padding: 2px 0 4px;
-}
-.nordly-note-menu__options-hint {
-  margin: 0;
-  padding: 0 10px 6px;
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--ink-40);
 }
 .nordly-note-menu__toggle {
   display: flex;
@@ -572,352 +557,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
 }
 
 /* Notes sidebar divider + edge expand */
-.nordly-notes-divider {
-  transition: width var(--t-base), opacity var(--t-fast);
-}
-.nordly-notes-divider__line {
-  background: rgb(var(--ink-rgb) / 0.1);
-  transition: background-color var(--t-fast);
-}
-.nordly-notes-divider:hover .nordly-notes-divider__line {
-  background: rgb(var(--ink-rgb) / 0.2);
-}
-.nordly-notes-edge {
-  background: transparent;
-  transition: background-color var(--t-fast);
-}
-.nordly-notes-edge:hover {
-  background: rgb(var(--ink-rgb) / 0.05);
-}
-.nordly-notes-edge__handle {
-  height: 28px;
-  background: var(--ink-40);
-  transition: height var(--t-base), background-color var(--t-fast);
-}
-.nordly-notes-edge:hover .nordly-notes-edge__handle {
-  height: 40px;
-  background: var(--ink-60);
-}
-
-@keyframes slide-from-right {
-  from {
-    opacity: 0;
-    transform: translateX(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-.slide-from-right {
-  animation: slide-from-right var(--motion-dur-large) var(--motion-ease-interactive) both;
-}
-
-@keyframes slide-to-right {
-  from { opacity: 1; transform: translateX(0); }
-  to   { opacity: 0; transform: translateX(14px); }
-}
-.slide-to-right {
-  animation: slide-to-right var(--motion-dur-medium) var(--motion-ease-interactive) both;
-}
-
-.nordly-hide-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.nordly-hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Live preview block styles (Obsidian-like) — scoped to CM so token colors never win */
-.nordly-live-md .cm-content span.nordly-md-h1 {
-  font-size: 1.875rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-  color: var(--ink);
-}
-.nordly-live-md .cm-content span.nordly-md-h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  color: var(--ink);
-}
-.nordly-live-md .cm-content span.nordly-md-h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--ink);
-}
-/* h4–h6 line-heights are picked so `font-size * line-height` lands on whole
-   pixels at the default root (18×1.333=24, 16×1.5=24, 14×1.5=21). Fractional
-   line boxes put each following line on a half device pixel and the text
-   shimmers as the editor scrolls. */
-.nordly-live-md .cm-content span.nordly-md-h4 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.3333;
-  color: var(--ink);
-}
-.nordly-live-md .cm-content span.nordly-md-h5 {
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--ink-90);
-}
-.nordly-live-md .cm-content span.nordly-md-h6 {
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.025em;
-  text-transform: uppercase;
-  line-height: 1.5;
-  color: var(--ink-80);
-}
-.nordly-md-quote {
-  border-left: 3px solid rgb(var(--ink-rgb) / 0.2);
-  padding-left: 0.75rem;
-  color: var(--ink-70);
-}
-.nordly-md-list-item {
-  padding-left: 0.125rem;
-}
-/* Marker `- ` keeps its width and cursor positions; • is painted over that exact span. */
-.nordly-md-bullet-marker {
-  position: relative;
-  color: transparent;
-  caret-color: var(--ink);
-}
-.nordly-md-bullet-marker::before {
-  content: '•';
-  position: absolute;
-  left: 0;
-  color: var(--ink-60);
-  font-weight: 700;
-  pointer-events: none;
-}
-/* Keep glyph width so caret/space mapping stays honest — never font-size:0 / replace. */
-.nordly-md-syntax-hidden {
-  font-size: 0;
-  letter-spacing: 0;
-  color: transparent;
-  caret-color: var(--ink);
-}
-.nordly-md-bullet {
-  display: inline-block;
-  width: 1.25rem;
-  margin-right: 0.25rem;
-  color: var(--ink-60);
-  user-select: none;
-}
-.nordly-md-list-num {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-60);
-  margin-right: 0.35rem;
-}
-.nordly-md-checkbox-marker {
-  position: relative;
-  color: transparent;
-  caret-color: var(--ink);
-  cursor: pointer;
-}
-.nordly-md-checkbox-marker::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgb(var(--ink-rgb) / 0.35);
-  border-radius: 3px;
-  transform: translateY(-50%);
-  color: var(--paper);
-  background: transparent;
-  font-size: 10px;
-  line-height: 12px;
-  text-align: center;
-}
-.nordly-md-checkbox-marker--checked::before {
-  content: '✓';
-  border-color: var(--ink);
-  background: var(--ink);
-}
-.nordly-md-hr {
-  border: none;
-  border-top: 1px solid rgb(var(--ink-rgb) / 0.14);
-  margin: 0.75rem 0;
-}
-.cm-line.nordly-md-hr-line {
-  position: relative;
-  min-height: 1.7em;
-}
-.cm-line.nordly-md-hr-line::after {
-  content: '';
-  position: absolute;
-  inset: 50% 0 auto;
-  border-top: 1px solid rgb(var(--ink-rgb) / 0.14);
-  pointer-events: none;
-}
-
-.nordly-md-inline-code {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.875em;
-  background: rgb(var(--ink-rgb) / 0.08);
-  padding: 0.08em 0.35em;
-  border-radius: 4px;
-  color: var(--ink-90);
-}
-
-.nordly-md-bold {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.nordly-md-italic {
-  font-style: italic;
-}
-
-.nordly-md-strike {
-  text-decoration: line-through;
-  color: var(--ink-60);
-}
-
-.nordly-md-highlight {
-  background: rgb(var(--ink-rgb) / 0.14);
-  padding: 0.04em 0.2em;
-  border-radius: 3px;
-}
-
-.nordly-md-link {
-  color: var(--ink-90);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: rgb(var(--ink-rgb) / 0.35);
-}
-
-.nordly-md-image {
-  display: block;
-  margin: 0.5rem 0;
-  max-width: 100%;
-}
-
-.nordly-md-image--loading {
-  min-height: 6rem;
-}
-
-.nordly-md-image__img {
-  display: block;
-  max-width: min(100%, 36rem);
-  max-height: 24rem;
-  width: auto;
-  height: auto;
-  border-radius: 6px;
-  object-fit: contain;
-}
-
-.nordly-md-image__placeholder {
-  display: inline-block;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  background: rgb(var(--ink-rgb) / 0.08);
-  color: var(--ink-50);
-  font-size: 0.8125rem;
-}
-
-.nordly-md-image--unresolved .nordly-md-image__placeholder {
-  border: 1px dashed rgb(var(--ink-rgb) / 0.25);
-}
-
-.nordly-md-image-syntax {
-  color: var(--ink-60);
-}
-
-.nordly-md-wiki-link {
-  color: var(--ink-90);
-  font-style: italic;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: rgb(var(--accent-rgb, var(--ink-rgb)) / 0.55);
-  cursor: pointer;
-}
-
-.nordly-md-wiki-link--unresolved {
-  text-decoration-style: dashed;
-  text-decoration-color: rgb(var(--ink-rgb) / 0.35);
-}
-
-.nordly-md-wiki-link--external::after {
-  content: '↗';
-  margin-left: 0.2em;
-  font-style: normal;
-  font-size: 0.85em;
-}
-
-.nordly-md-wiki-link--invalid {
-  color: var(--ink-50);
-  text-decoration-style: wavy;
-  cursor: text;
-}
-
-.cm-line.nordly-md-code-block {
-  background: rgb(var(--ink-rgb) / 0.09);
-  padding: 0 1.25rem;
-  border-left: 1px solid rgb(var(--ink-rgb) / 0.12);
-  border-right: 1px solid rgb(var(--ink-rgb) / 0.12);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.875em;
-  /* 14px × 1.5 = 21px — whole pixels, see the h4–h6 note above. */
-  line-height: 1.5;
-}
-
-.cm-line.nordly-md-code-block--lang {
-  position: relative;
-}
-
-.nordly-live-md .cm-line.nordly-md-code-block:not(.nordly-md-code-block + .nordly-md-code-block) {
-  border-top: 1px solid rgb(var(--ink-rgb) / 0.12);
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  padding-top: 0.5rem;
-}
-
-.nordly-live-md .cm-line.nordly-md-code-block:not(:has(+ .nordly-md-code-block)) {
-  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.12);
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
-  padding-bottom: 0.5rem;
-}
-
-.nordly-md-code-block__fence {
-  color: var(--ink-40);
-}
-
-.nordly-md-code-pending span:not([class*='nordly-md-']) {
-  color: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-}
-
-.nordly-md-code-block__lang-bar {
-  position: absolute;
-  right: 1rem;
-  top: 0;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  min-height: 0;
-  cursor: text;
-  user-select: none;
-}
-
-.nordly-md-code-block__lang {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  color: var(--ink-40);
-  text-transform: lowercase;
-}
 
 .nordly-notes-title {
   width: 100%;
@@ -978,3 +617,64 @@ body.nordly-note-dragging .nordly-note-row-wrap {
 }
 .nordly-notes-title-row .nordly-notes-title { min-width: 0; flex: 1; }
 .nordly-notes-title-row .nordly-notes-review-note { margin: 0; align-self: center; flex-shrink: 0; }
+
+
+.nordly-notes-editor-shell {
+  width: 100%;
+  max-width: 50rem;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Notes-only zoom (⌘+/⌘−): scale type, keep full column width (CSS zoom shrinks layout). */
+  font-size: calc(1rem * var(--nordly-notes-zoom, 1));
+}
+
+.nordly-notes-editor-shell .nordly-notes-title {
+  font-size: 1.25em;
+  min-height: var(--nordly-page-heading-height);
+  line-height: 1.4;
+  padding: 0;
+}
+
+.nordly-notes-editor-shell .nordly-live-md {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 1em;
+}
+
+.nordly-notes-editor-shell .nordly-live-md[data-empty='true']::before {
+  font-size: 1em;
+}
+
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h1 {
+  font-size: 1.875em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h2 {
+  font-size: 1.5em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h3 {
+  font-size: 1.25em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h4 {
+  font-size: 1.125em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h5 {
+  font-size: 1em;
+}
+.nordly-notes-editor-shell .nordly-live-md .cm-content span.nordly-md-h6 {
+  font-size: 0.875em;
+}
+
+.nordly-notes-review-note {
+  align-self: flex-start;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-60);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}

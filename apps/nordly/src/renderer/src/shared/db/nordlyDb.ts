@@ -162,46 +162,12 @@ export async function dbGetAllByIndex<T>(
   });
 }
 
-export async function dbClearUser(store: NordlyStore, userId: string): Promise<void> {
-  const rows = await dbGetAllByUser<{ key: string; userId: string }>(store, userId);
-  await openDb().then(
-    (db) =>
-      new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(store, 'readwrite');
-        const os = tx.objectStore(store);
-        for (const row of rows) os.delete(row.key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      }),
-  );
-}
-
 export function getDbUserId(): string | null {
   return resolveUserId();
 }
 
 export function entityKey(id: string, userId?: string): string {
   return scopedKey(userId ?? requireUserId(), id);
-}
-
-/** Test helper — close cached IDB so deleteDatabase / reopen works cleanly. */
-export async function resetNordlyDbForTests(): Promise<void> {
-  if (dbPromise) {
-    try {
-      const db = await dbPromise;
-      db.close();
-    } catch {
-      /* ignore */
-    }
-  }
-  dbPromise = null;
-  currentUserId = null;
-  await new Promise<void>((resolve, reject) => {
-    const req = indexedDB.deleteDatabase(DB_NAME);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error ?? new Error('deleteDatabase failed'));
-    req.onblocked = () => resolve();
-  });
 }
 
 export { scopedKey, requireUserId, openDb };

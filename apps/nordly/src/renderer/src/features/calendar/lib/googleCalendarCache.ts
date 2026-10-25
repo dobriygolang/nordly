@@ -20,11 +20,6 @@ import { startOfWeekMonday } from '@features/calendar/lib/events';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 
-/** Background worker refetches after this age (from app settings). */
-export function getGoogleCalendarFreshMs(): number {
-  return googleCalendarPollIntervalMs();
-}
-
 /**
  * Soft hint for when UI should prefer a network refresh while online.
  * Display still shows persisted events indefinitely when offline.

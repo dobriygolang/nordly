@@ -30,19 +30,3 @@ export function conferenceProvider(
   if (/zoom\.us/i.test(url)) return ConferenceDisplayProvider.Zoom;
   return ConferenceDisplayProvider.Other;
 }
-
-/** Short display for generated meeting links in the popover. */
-export function conferenceDisplay(url: string): string {
-  try {
-    const u = new URL(url);
-    if (/meet\.google\.com/i.test(u.hostname)) {
-      return u.pathname.replace(/^\//, '');
-    }
-    if (/zoom\.us/i.test(u.hostname)) {
-      return `j/${u.pathname.split('/').pop() ?? ''}`;
-    }
-    return u.hostname;
-  } catch {
-    return url;
-  }
-}

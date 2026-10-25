@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, extname, relative, resolve } from 'node:path';
+import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const RENDERER_ROOT = resolve(process.cwd(), 'src/renderer/src');
@@ -43,7 +43,7 @@ describe('renderer import boundaries', () => {
 
   it('keeps feature sync independent from React hooks', () => {
     const violations = sourceFiles(resolve(RENDERER_ROOT, 'features'))
-      .filter((path) => relative(RENDERER_ROOT, path).split('/').includes('sync'))
+      .filter((path) => relative(RENDERER_ROOT, path).split(sep).includes('sync'))
       .flatMap((path) => {
         const source = relative(RENDERER_ROOT, path);
         return importsOf(path)
@@ -72,7 +72,7 @@ describe('renderer import boundaries', () => {
   it('keeps pages from importing other pages', () => {
     const violations = sourceFiles(PAGES_ROOT).flatMap((path) => {
       const source = relative(RENDERER_ROOT, path);
-      const pageRoot = relative(PAGES_ROOT, path).split('/')[0];
+      const pageRoot = relative(PAGES_ROOT, path).split(sep)[0];
       return importsOf(path)
         .map((specifier) => {
           if (specifier.startsWith('@pages/')) {
@@ -85,7 +85,7 @@ describe('renderer import boundaries', () => {
           const target = resolve(dirname(path), specifier);
           const targetRelative = relative(PAGES_ROOT, target);
           if (targetRelative.startsWith('..')) return null;
-          return { specifier, targetPage: targetRelative.split('/')[0] };
+          return { specifier, targetPage: targetRelative.split(sep)[0] };
         })
         .filter(
           (

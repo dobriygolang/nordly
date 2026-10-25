@@ -568,18 +568,6 @@ html.light .nordly-settings-group__body {
 
 /* ── Shortcuts list ── */
 
-.nordly-shortcuts-config {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: 100%;
-}
-
-.nordly-shortcuts-config[data-disabled='true'] {
-  opacity: 0.55;
-}
-
 .nordly-shortcuts-card {
   border: 1px solid var(--ink-tint-08);
   border-radius: 14px;
@@ -641,14 +629,6 @@ html.light .nordly-shortcuts-card {
   background: rgb(var(--ink-rgb) / 0.08);
   color: var(--ink-90);
   font-size: 11px;
-}
-
-.nordly-shortcuts-list__presets {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  max-width: 280px;
 }
 
 .nordly-shortcuts-list__preset {

@@ -395,14 +395,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   color: var(--ink-40);
   line-height: 1.2;
 }
-.nordly-note-menu__error {
-  margin: 0;
-  padding: 4px 10px 6px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--danger, #e05252);
-  word-break: break-word;
-}
 .nordly-note-menu__item {
   display: flex;
   align-items: center;
@@ -469,13 +461,6 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   flex-direction: column;
   gap: 2px;
   padding: 2px 0 4px;
-}
-.nordly-note-menu__options-hint {
-  margin: 0;
-  padding: 0 10px 6px;
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--ink-40);
 }
 .nordly-note-menu__toggle {
   display: flex;

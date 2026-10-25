@@ -43,12 +43,6 @@ export async function loadVaultPrefs(userId: string): Promise<boolean> {
   return cachedEnabled;
 }
 
-export async function isVaultEnabled(userId?: string): Promise<boolean> {
-  const uid = userId ?? requireUserId();
-  if (cachedUserId === uid) return cachedEnabled;
-  return loadVaultPrefs(uid);
-}
-
 export async function setVaultEnabled(enabled: boolean, userId?: string): Promise<void> {
   const uid = userId ?? requireUserId();
   await dbPut('meta', { key: metaKey(uid), userId: uid, enabled });

@@ -150,26 +150,6 @@ export async function foldersStoreCreate(
   return created;
 }
 
-/** Find sibling by name or create it. */
-export async function foldersStoreFindOrCreate(
-  name: string,
-  parentId: string | null,
-  userId?: string,
-): Promise<NoteFolder> {
-  const uid = userId ?? requireUserId();
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error('Folder name is empty');
-  const folders = await foldersStoreList(uid);
-  if (parentId !== null && !folders.some((f) => f.id === parentId)) {
-    throw new Error(`Folder not found: ${parentId}`);
-  }
-  const existing = folders.find(
-    (f) => f.parentId === parentId && f.name === trimmed,
-  );
-  if (existing) return existing;
-  return foldersStoreCreate(trimmed, parentId, uid);
-}
-
 export async function foldersStoreRename(
   id: string,
   name: string,

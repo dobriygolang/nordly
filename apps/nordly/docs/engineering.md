@@ -85,6 +85,21 @@ Per-feature offline vs online:
 
 Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).
 
+## Stylesheet ownership
+
+`app/styles/globals.css` loads the styles; keep each rule with its owner:
+
+- `base/`: app tokens and general utilities.
+- `components/`: shared editor, error pane, sidebar, vault layout, chrome and backgrounds.
+- `features/`: notes, cards, settings, calendar, task board and whiteboard canvas integration.
+- `motion.css`: shared animation utilities. `components/transitions.css`: shell and page transitions.
+
+Feature files must not host styles for another feature or shared UI. Reuse the
+shared sidebar components and layout styles for notes and whiteboards. Preserve
+selector specificity and cascade when moving rules. Check dynamic classes,
+platform branches, editor-generated markup and third-party selectors before
+removing an apparently unused rule. Tests alone do not prove a UI rule is dead.
+
 ## Code-split shell — keep Notes/App budgets green
 
 CI runs `npm run bundle:check` (`scripts/check-bundle-budgets.mjs`) after `build:vite`. Notes and main budgets count **static** import graphs; anything eagerly pulled into `app/App.tsx` can land in a shared chunk that Notes also imports and blow the budget.

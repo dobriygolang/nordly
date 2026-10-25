@@ -2,7 +2,6 @@ import {
   dbGet,
   dbGetAllByUser,
   dbPut,
-  dbPutMany,
   entityKey,
   requireUserId,
 } from '@shared/db/nordlyDb';
@@ -64,16 +63,6 @@ export async function focusStoreGet(id: string, userId?: string): Promise<Stored
 export async function focusStoreList(userId?: string): Promise<StoredFocusSession[]> {
   const uid = userId ?? requireUserId();
   return dbGetAllByUser<StoredFocusSession>('focus_sessions', uid);
-}
-
-export async function focusStoreBulkImport(
-  userId: string,
-  records: Record<string, Omit<StoredFocusSession, 'key' | 'userId'>>,
-): Promise<void> {
-  await dbPutMany(
-    'focus_sessions',
-    Object.values(records).map((session) => rowFrom(userId, session)),
-  );
 }
 
 export async function focusStoreUnsynced(userId?: string): Promise<StoredFocusSession[]> {

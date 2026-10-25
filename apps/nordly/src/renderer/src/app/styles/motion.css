@@ -16,19 +16,9 @@
   --t-slow: var(--motion-dur-content) var(--motion-ease-content);
 }
 
-@keyframes motion-page-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 @keyframes motion-modal-in {
   from { opacity: 0; transform: scale(0.98) translateY(4px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes motion-scrim-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 /*
@@ -57,16 +47,8 @@
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.motion-page-in {
-  animation: motion-page-in var(--motion-dur-large) var(--motion-ease-interactive) both;
-}
-
 .motion-modal-in {
   animation: motion-modal-in var(--motion-dur-large) var(--motion-ease-interactive) both;
-}
-
-.motion-scrim-in {
-  animation: motion-scrim-in var(--motion-dur-medium) var(--motion-ease-interactive) both;
 }
 
 .motion-pop-in {
@@ -80,3 +62,26 @@
   transform: scale(0.98);
 }
 
+
+
+@keyframes slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.slide-from-right {
+  animation: slide-from-right var(--motion-dur-large) var(--motion-ease-interactive) both;
+}
+
+@keyframes slide-to-right {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(14px); }
+}
+.slide-to-right {
+  animation: slide-to-right var(--motion-dur-medium) var(--motion-ease-interactive) both;
+}

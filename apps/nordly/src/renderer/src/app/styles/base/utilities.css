@@ -124,3 +124,12 @@ html[data-text-scale='xlarge'] {
   }
 }
 
+
+
+.nordly-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nordly-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

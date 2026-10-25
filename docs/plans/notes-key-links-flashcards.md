@@ -587,7 +587,7 @@ Web + web работает: оба клиента — `CollabExcalidrawEditor` �
 
 На `code.trynordly.app/{roomId}` под панелью инструментов видна обрезанная строка Excalidraw «To move canvas, hold mouse wheel or spacebar while dragging, or use the hand tool».
 
-Причина: веб переносит панель инструментов вниз (`apps/web/src/styles/main.css`, `.nordly-excalidraw .excalidraw .FixedSideContainer_side_top { bottom: 1.25rem }`). Подсказка `.HintViewer` рисуется под панелью внутри того же контейнера, поэтому уезжает ниже и прячется под нижней полосой комнаты (`Whiteboard · LIVE · Guest`). В приложении она уже скрыта (`apps/nordly/src/renderer/src/app/styles/components/excalidraw.css`, `.nordly-excalidraw-mount .HintViewer`), а в веб-список скрываемых элементов не попала.
+Причина: веб переносит панель инструментов вниз (`apps/web/src/styles/main.css`, `.nordly-excalidraw .excalidraw .FixedSideContainer_side_top { bottom: 1.25rem }`). Подсказка `.HintViewer` рисуется под панелью внутри того же контейнера, поэтому уезжает ниже и прячется под нижней полосой комнаты (`Whiteboard · LIVE · Guest`). В приложении она уже скрыта (`apps/nordly/src/renderer/src/app/styles/features/whiteboard-canvas.css`, `.nordly-excalidraw-mount .HintViewer`), а в веб-список скрываемых элементов не попала.
 
 Решение — подсказку убрать совсем, как в приложении: добавить `.nordly-excalidraw .excalidraw .HintViewer` в список `display: none !important` в `main.css`.
 

@@ -20,11 +20,13 @@
 @import './components/dock.css';
 @import './components/odometer-timer.css';
 @import './components/transitions.css';
-@import './components/themes.css';
-@import './components/excalidraw.css';
+@import './components/background-themes.css';
+@import './features/whiteboard-canvas.css';
+@import './components/data-loader.css';
 @import './components/editor.css';
+@import './components/sidebar.css';
 @import './features/calendar.css';
-@import './features/vault.css';
+@import './components/vault-layout.css';
 @import './features/notes.css';
 @import './features/whiteboard.css';
 @import './features/stats-overlay.css';

@@ -1,20 +1,3 @@
-/* ─── Theme preview cards ───────────────────────────────────────── */
-
-.nordly-theme-card__fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 14px 10px 8px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-html.light .nordly-theme-card__fade {
-  background: linear-gradient(to top, rgb(255 255 255 / 0.96), transparent);
-}
-
 /* ─── Winter canvas (grid, stars, waves) ────────────────────────── */
 @keyframes wave-drift {
   0% { transform: translate3d(-3%, 0, 0); }
@@ -69,18 +52,3 @@ html.light .nordly-theme-card__fade {
   0%, 100% { opacity: 0.6; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
 }
-
-/* ─── Abyss theme ───────────────────────────────────────────────── */
-@keyframes abyss-rotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes abyss-rotate-rev {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(-360deg); }
-}
-@keyframes abyss-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-

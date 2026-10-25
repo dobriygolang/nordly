@@ -172,11 +172,6 @@ export async function removeOutboxForEntity(
   return removed;
 }
 
-export async function clearOutbox(userId: string): Promise<void> {
-  const rows = await dbGetAllByUser<OutboxRow>('outbox', userId);
-  for (const row of rows) await dbDelete('outbox', row.key);
-}
-
 export async function clearOutboxDomain(domain: SyncDomain, userId?: string): Promise<void> {
   const uid = userId ?? requireUserId();
   const rows = await listOutbox(uid);

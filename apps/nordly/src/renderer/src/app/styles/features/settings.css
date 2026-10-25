@@ -599,14 +599,6 @@ html.light .nordly-shortcuts-card {
   padding: 14px 18px;
 }
 
-.nordly-shortcuts-block-error {
-  margin: -4px 0 0;
-  padding: 0 2px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--red, #ff3b30);
-}
-
 .nordly-shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -880,4 +872,15 @@ html.light .nordly-shortcuts-card {
   .nordly-settings-nav__list { flex-direction: row; overflow-x: auto; }
   .nordly-settings-nav__item { white-space: nowrap; }
   .nordly-settings-content__inner { padding: 24px 18px 80px; }
+}
+
+
+.nordly-settings-number {
+  width: 4.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.16);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
 }

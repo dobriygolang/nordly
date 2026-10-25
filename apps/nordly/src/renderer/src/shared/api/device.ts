@@ -15,11 +15,6 @@ export function setDeviceId(id: string): void {
   cached = id;
 }
 
-export function clearDeviceId(): void {
-  window.localStorage.removeItem(DEVICE_ID_KEY);
-  cached = null;
-}
-
 /** Assign a stable local device id for API headers (x-device-id). */
 export async function ensureDevice(_opts: { appVersion: string; name?: string }): Promise<string> {
   const existing = getDeviceId();

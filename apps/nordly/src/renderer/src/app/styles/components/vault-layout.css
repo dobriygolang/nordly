@@ -157,12 +157,6 @@
   padding: 32px;
   background: var(--bg);
 }
-.nordly-vault-gate--center {
-  color: var(--ink-40);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .nordly-vault-pass-input {
   padding: 12px 14px;
   font-size: 13px;
@@ -382,4 +376,3 @@
   text-decoration: underline;
   cursor: pointer;
 }
-

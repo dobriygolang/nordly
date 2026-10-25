@@ -175,15 +175,6 @@ export async function tasksStoreMergeRemote(task: TaskCard): Promise<void> {
   await setServerId(SyncDomain.Tasks, task.id, task.id, userId);
 }
 
-export async function tasksStoreBulkImport(
-  userId: string,
-  records: Record<string, TaskCard>,
-): Promise<void> {
-  for (const task of Object.values(records)) {
-    await dbPut('tasks', rowFrom(userId, task));
-  }
-}
-
 export async function tasksStoreSoftDelete(id: string): Promise<void> {
   const userId = requireUserId();
   const existing = await dbGet<StoredTask>('tasks', entityKey(id, userId));

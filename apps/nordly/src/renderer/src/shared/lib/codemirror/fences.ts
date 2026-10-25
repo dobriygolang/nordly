@@ -4,8 +4,3 @@ export function parseOpeningFence(lineText: string): { fence: string; info: stri
   if (!match?.[1]) return null;
   return { fence: match[1], info: (match[2] ?? '').trim() };
 }
-
-/** First word of a fence info string. `go main.go` → `go`. */
-export function fenceInfoWord(info: string): string {
-  return info.trim().split(/\s+/)[0] ?? '';
-}

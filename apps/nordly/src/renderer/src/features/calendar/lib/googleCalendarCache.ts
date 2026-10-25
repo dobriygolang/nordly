@@ -18,6 +18,7 @@ import {
 } from '@features/calendar/repository/calendarStore';
 import { startOfWeekMonday } from '@features/calendar/lib/events';
 import { requireUserId } from '@shared/db/nordlyDb';
+import { googleCalendarPollIntervalMs } from '@shared/model/settings';
 
 /**
  * Soft hint for when UI should prefer a network refresh while online.

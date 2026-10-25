@@ -25,16 +25,12 @@ export function DockVolume(): JSX.Element | null {
   const volumePercent = useSpotifyStore((s) => s.volumePercent);
   const volumeError = useSpotifyStore((s) => s.volumeError);
   const [pinned, setPinned] = useState(false);
-  const [draft, setDraft] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (volumeError) setDraft(null);
-  }, [volumeError]);
+  useEffect(() => () => setSpotifyVolumeLock(false), []);
 
   if (!connected) return null;
 
-  const shown = draft ?? volumePercent ?? 0;
-  const muted = (draft ?? volumePercent) === 0;
+  const shown = volumePercent ?? 0;
+  const muted = volumePercent === 0;
   const title = volumeError
     ? volumeErrorText(t, volumeError)
     : t('nordly.dock.spotify_volume', { volume: shown });
@@ -45,8 +41,8 @@ export function DockVolume(): JSX.Element | null {
       onMouseEnter={() => {
         void refreshSpotifyVolume();
       }}
-      onFocus={() => {
-        void refreshSpotifyVolume();
+      onFocus={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) void refreshSpotifyVolume();
       }}
     >
       <button
@@ -82,16 +78,13 @@ export function DockVolume(): JSX.Element | null {
           onPointerUp={() => {
             setPinned(false);
             setSpotifyVolumeLock(false);
-            setDraft(null);
           }}
           onPointerCancel={() => {
             setPinned(false);
             setSpotifyVolumeLock(false);
-            setDraft(null);
           }}
           onChange={(event) => {
             const next = Number(event.target.value);
-            setDraft(next);
             queueSpotifyVolume(next);
           }}
         />

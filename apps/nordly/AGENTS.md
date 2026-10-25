@@ -283,6 +283,11 @@ Settings → Browser shows how to load the unpacked Chrome folder and a pairing 
 
 `front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. The Chrome extension in `apps/extension` asks once on Enter and appends `word ::: translation` through the local capture port while this app is running. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
+Spotify volume updates the displayed target immediately, including after pointer-up.
+The main renderer sends a leading command and coalesces subsequent values through
+one writer (minimum 120ms between sends); delayed device reads cannot overwrite a
+newer user choice. A failed write restores the last confirmed volume and shows the error.
+
 ## Secret access
 
 `src-tauri/src/credentials.rs` caches successful Keychain reads, including missing

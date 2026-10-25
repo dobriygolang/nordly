@@ -30,7 +30,7 @@ import { clearSpotifySecret, emptySecret, loadSpotifySecret, saveSpotifySecret, 
 import { patchSpotify, useSpotifyStore, type SpotifyConnectError } from './spotifyStore';
 
 const OAUTH_TIMEOUT_MS = 3 * 60_000;
-const VOLUME_DEBOUNCE_MS = 180;
+const VOLUME_SEND_INTERVAL_MS = 120;
 const TOKEN_SKEW_MS = 60_000;
 
 let hydratePromise: Promise<void> | null = null;
@@ -39,6 +39,14 @@ let oauthGeneration = 0;
 let pollTimer: number | null = null;
 let volumeTimer: number | null = null;
 let volumeLocked = false;
+let volumeVersion = 0;
+let volumeSession = 0;
+let queuedVolume: number | null = null;
+let volumeWrite: Promise<void> | null = null;
+let volumeRead: Promise<void> | null = null;
+let lastVolumeSentAt = 0;
+let lastVolumeReadAt = 0;
+let confirmedVolume: number | null = null;
 let leaderStarted = false;
 let playbackRefresh: Promise<void> | null = null;
 let lastPlaybackReadAt = 0;
@@ -340,6 +348,10 @@ export async function disconnectSpotify(): Promise<void> {
   if (volumeTimer !== null) window.clearTimeout(volumeTimer);
   volumeTimer = null;
   volumeLocked = false;
+  volumeVersion += 1;
+  volumeSession += 1;
+  queuedVolume = null;
+  confirmedVolume = null;
   if (isTauriRuntime() && window.nordly?.spotify) await clearSpotifySecret();
   patchSpotify({
     connected: false,
@@ -401,48 +413,82 @@ export function setSpotifyVolumeLock(locked: boolean): void {
   volumeLocked = locked;
 }
 
-export async function refreshSpotifyVolume(): Promise<void> {
-  if (!useSpotifyStore.getState().connected || volumeLocked) return;
+export function refreshSpotifyVolume(): Promise<void> {
+  if (!useSpotifyStore.getState().connected || volumeLocked || volumeWrite || queuedVolume !== null) return Promise.resolve();
+  if (volumeRead) return volumeRead;
+  if (Date.now() < spotifyRetryAt() || Date.now() - lastVolumeReadAt < 1500) return Promise.resolve();
+  lastVolumeReadAt = Date.now();
+  const requestedVersion = volumeVersion;
+  volumeRead = readSpotifyVolume(requestedVersion).finally(() => { volumeRead = null; });
+  return volumeRead;
+}
+
+async function readSpotifyVolume(requestedVersion: number): Promise<void> {
   try {
     const body = await withToken((token) => spotifySend(token, 'GET', '/me/player'));
-    if (volumeLocked) return;
+    if (volumeLocked || requestedVersion !== volumeVersion) return;
     const volume = body === null ? null : mapDeviceVolume(body);
     if (volume === null) {
       patchSpotify({ volumeError: { kind: 'no_device' } });
       return;
     }
+    confirmedVolume = volume;
     patchSpotify({ volumePercent: volume, volumeError: null });
   } catch (error) {
-    if (volumeLocked) return;
+    if (volumeLocked || requestedVersion !== volumeVersion) return;
     console.error('[nordly:spotify] volume read failed', error);
-    const message = spotifyErrorText(error);
-    patchSpotify({ volumeError: { kind: 'api', message } });
+    patchSpotify({ volumeError: { kind: 'api', message: spotifyErrorText(error) } });
   }
 }
 
 export function queueSpotifyVolume(percent: number): void {
+  if (!useSpotifyStore.getState().connected) return;
   const next = Math.max(0, Math.min(100, Math.round(percent)));
-  if (volumeTimer !== null) window.clearTimeout(volumeTimer);
-  volumeTimer = window.setTimeout(() => {
-    volumeTimer = null;
-    void commitSpotifyVolume(next);
-  }, VOLUME_DEBOUNCE_MS);
+  volumeVersion += 1;
+  queuedVolume = next;
+  // The thumb follows the user's input, including after pointer-up. API latency
+  // must not reset it to the last device reading.
+  patchSpotify({ volumePercent: next, volumeError: null });
+  scheduleVolumeWrite();
 }
 
-async function commitSpotifyVolume(percent: number): Promise<void> {
+function scheduleVolumeWrite(): void {
+  if (volumeWrite || volumeTimer !== null || queuedVolume === null) return;
+  const wait = Math.max(0, lastVolumeSentAt + VOLUME_SEND_INTERVAL_MS - Date.now());
+  if (wait > 0) {
+    volumeTimer = window.setTimeout(() => {
+      volumeTimer = null;
+      scheduleVolumeWrite();
+    }, wait);
+    return;
+  }
+  const target = queuedVolume;
+  const requestedVersion = volumeVersion;
+  queuedVolume = null;
+  lastVolumeSentAt = Date.now();
+  volumeWrite = commitSpotifyVolume(target, requestedVersion).finally(() => {
+    volumeWrite = null;
+    scheduleVolumeWrite();
+  });
+}
+
+async function commitSpotifyVolume(percent: number, requestedVersion: number): Promise<void> {
+  const session = volumeSession;
   try {
     await withToken((token) =>
       spotifySend(token, 'PUT', `/me/player/volume?volume_percent=${percent}`),
     );
-    patchSpotify({ volumePercent: percent, volumeError: null });
+    if (!useSpotifyStore.getState().connected || session !== volumeSession) return;
+    confirmedVolume = percent;
+    if (requestedVersion === volumeVersion) patchSpotify({ volumeError: null });
   } catch (error) {
+    if (requestedVersion !== volumeVersion) return;
     console.error('[nordly:spotify] volume write failed', error);
-    if (error instanceof SpotifyHttpError && error.status === 404) {
-      patchSpotify({ volumeError: { kind: 'no_device' } });
-      return;
-    }
-    const message = spotifyErrorText(error);
-    patchSpotify({ volumeError: { kind: 'api', message } });
+    patchSpotify({
+      volumePercent: confirmedVolume,
+      volumeError: error instanceof SpotifyHttpError && error.status === 404
+        ? { kind: 'no_device' } : { kind: 'api', message: spotifyErrorText(error) },
+    });
   }
 }
 

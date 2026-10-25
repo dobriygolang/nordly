@@ -2,8 +2,8 @@
 
 export type PlaybackItem =
   | { kind: 'empty' }
-  | { kind: 'track'; trackId: string; title: string; artist: string }
-  | { kind: 'other'; title: string; artist: string };
+  | { kind: 'track'; trackId: string; title: string; artist: string; isPlaying?: boolean }
+  | { kind: 'other'; title: string; artist: string; isPlaying?: boolean };
 
 export interface SpotifyTokens {
   accessToken: string;
@@ -57,6 +57,7 @@ export function mapCurrentlyPlaying(body: unknown): PlaybackItem {
       kind: 'track',
       trackId: requireString(track, 'id', 'track'),
       title,
+      isPlaying: obj.is_playing === true,
       artist: trackArtist(track),
     };
   }
@@ -66,7 +67,7 @@ export function mapCurrentlyPlaying(body: unknown): PlaybackItem {
     if (show !== undefined && show !== null) {
       artist = requireString(asRecord(show, 'show'), 'name', 'show');
     }
-    return { kind: 'other', title, artist };
+    return { kind: 'other', title, artist, isPlaying: obj.is_playing === true };
   }
   throw new Error(`Invalid Spotify item type: ${type}`);
 }

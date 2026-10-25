@@ -28,6 +28,7 @@ func TestRepositoryIntegration(t *testing.T) {
 	}
 
 	repo, pool := newIntegrationRepository(t, dsn, 0)
+	t.Run("content refresh preserves policy and cannot recreate a revoked share", func(t *testing.T) { testContentRefresh(t, repo) })
 	t.Run("publish transitions are atomic", func(t *testing.T) {
 		testPublishTransitions(t, repo)
 	})
@@ -532,4 +533,36 @@ func waitForBlockedQuery(ctx context.Context, pool *Pool, queryFragment string) 
 		case <-ticker.C:
 		}
 	}
+}
+
+func testContentRefresh(t *testing.T, repo *Repository) {
+	ctx := context.Background()
+	userID := uuid.NewString()
+	note, err := repo.CreateNote(ctx, userID, "Original", "private draft", nil)
+	require.NoError(t, err)
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.MinCost)
+	require.NoError(t, err)
+	hash := string(hashBytes)
+	shared, err := repo.ShareNoteToWeb(ctx, userID, note.ID, "first", "https://notes.example", notesmodel.PublishMeta{AccessMode: notesmodel.PublishAccessModePassword, ExpiryPolicy: notesmodel.PublishExpiryPolicySevenDays, NewPasswordHash: &hash}, nil)
+	require.NoError(t, err)
+	before, err := repo.GetPublishStatus(ctx, userID, note.ID, "https://notes.example")
+	require.NoError(t, err)
+	meta := notesmodel.PublishMeta{ContentOnly: true, ExpectedSlug: shared.Slug, AccessMode: notesmodel.PublishAccessModePassword, ExpiryPolicy: notesmodel.PublishExpiryPolicyNever, Title: "Updated"}
+	result, err := repo.ShareNoteToWeb(ctx, userID, note.ID, "second", "https://notes.example", meta, nil)
+	require.NoError(t, err)
+	require.Equal(t, shared.Slug, result.Slug)
+	after, err := repo.GetPublishStatus(ctx, userID, note.ID, "https://notes.example")
+	require.NoError(t, err)
+	require.Equal(t, before.ExpiresAt, after.ExpiresAt)
+	published, err := repo.GetPublishedNoteRecordBySlug(ctx, shared.Slug)
+	require.NoError(t, err)
+	require.Equal(t, "second", published.BodyMD)
+	require.Equal(t, "Updated", published.Title)
+	require.NoError(t, bcrypt.CompareHashAndPassword([]byte(*published.PasswordHash), []byte("password")))
+	require.NoError(t, repo.UnpublishNote(ctx, userID, note.ID))
+	_, err = repo.ShareNoteToWeb(ctx, userID, note.ID, "late", "https://notes.example", meta, nil)
+	require.ErrorIs(t, err, notesmodel.ErrNotFound)
+	after, err = repo.GetPublishStatus(ctx, userID, note.ID, "https://notes.example")
+	require.NoError(t, err)
+	require.False(t, after.Published)
 }

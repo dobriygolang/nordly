@@ -87,7 +87,7 @@ Prod ops: [deploy/RUNBOOK.md](../../deploy/RUNBOOK.md). Monitoring: [deploy/graf
 
 ## First week checklist
 
-- [ ] Read [AGENTS.md](../../AGENTS.md) + [architecture-standard.mdc](../../.cursor/rules/architecture-standard.mdc)
+- [ ] Read [AGENTS.md](../../AGENTS.md) + [architecture-standard.md](../engineering/architecture-standard.md)
 - [ ] Read [apps/nordly/AGENTS.md](../../apps/nordly/AGENTS.md) or [apps/web/AGENTS.md](../../apps/web/AGENTS.md) for your area
 - [ ] Skim [backend-client-matrix.md](../backend-client-matrix.md)
 - [ ] Run nordly locally; try notes, task board, whiteboard

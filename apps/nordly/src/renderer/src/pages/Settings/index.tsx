@@ -9,6 +9,7 @@ import type { TimerMode } from '@shared/model/settings';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
   SettingsSectionId,
+  SettingsHighlightId as HighlightId,
   takeSettingsDetail,
   type SettingsHighlightId,
   type SettingsSectionId as SectionId,
@@ -30,6 +31,8 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { id: SettingsSectionId.General, icon: 'settings', labelKey: 'nordly.settings.nav.general' },
+  { id: SettingsSectionId.Timer, icon: 'clock', labelKey: 'nordly.settings.section.timer' },
+  { id: SettingsSectionId.Cards, icon: 'grid', labelKey: 'nordly.settings.flashcards.title' },
   { id: SettingsSectionId.Integrations, icon: 'link', labelKey: 'nordly.settings.nav.integrations' },
   { id: SettingsSectionId.FilesLinks, icon: 'folder', labelKey: 'nordly.settings.nav.files_links' },
   { id: SettingsSectionId.Sync, icon: 'lock', labelKey: 'nordly.settings.nav.sync' },
@@ -50,19 +53,22 @@ interface SettingsPageProps {
 export function SettingsPage(props: SettingsPageProps) {
   const t = useT();
   const opened = useState(() => takeSettingsDetail())[0];
-  const [section, setSection] = useState<SectionId>(opened?.section ?? SettingsSectionId.General);
+  const [section, setSection] = useState<SectionId>(opened?.highlight === HighlightId.Flashcards ? SettingsSectionId.Cards : opened?.section ?? SettingsSectionId.General);
   const [highlight, setHighlight] = useState<SettingsHighlightId | null>(opened?.highlight ?? null);
 
   useEffect(() => {
     const onOpen = (): void => {
       const detail = takeSettingsDetail();
       if (!detail) return;
-      if (detail.section) setSection(detail.section);
+      if (detail.highlight === HighlightId.Flashcards) setSection(SettingsSectionId.Cards);
+      else if (detail.section) setSection(detail.section);
       setHighlight(detail.highlight ?? null);
     };
     window.addEventListener(NORDLY_EVENTS.openSettings, onOpen);
     return () => window.removeEventListener(NORDLY_EVENTS.openSettings, onOpen);
   }, []);
+
+  const activeItem = NAV.find((item) => item.id === section)!;
 
   return (
     <div className="nordly-settings-shell">
@@ -97,20 +103,23 @@ export function SettingsPage(props: SettingsPageProps) {
         </ul>
       </nav>
 
-      <div className="nordly-settings-content">
+      <div className="nordly-settings-content" key={section}>
         <div className="nordly-settings-content__inner">
-          {section === SettingsSectionId.General && <GeneralSection {...props} />}
+          <header className="nordly-settings-content__header">
+            <h1 className="nordly-settings-content__title">{t(activeItem.labelKey)}</h1>
+            <p className="nordly-settings-content__description">{t(`nordly.settings.description.${section}`)}</p>
+          </header>
+          {(section === SettingsSectionId.General || section === SettingsSectionId.Timer || section === SettingsSectionId.Cards) &&
+            <GeneralSection {...props} category={section} />}
 
           {section === SettingsSectionId.Integrations && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.integrations')}</h1>
               <IntegrationsSection />
             </>
           )}
 
           {section === SettingsSectionId.FilesLinks && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.files_links')}</h1>
               <FilesAndLinksSection />
             </>
           )}
@@ -118,21 +127,18 @@ export function SettingsPage(props: SettingsPageProps) {
 
           {section === SettingsSectionId.Sync && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.sync')}</h1>
               <SyncSection highlight={highlight} />
             </>
           )}
 
           {section === SettingsSectionId.Shortcuts && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.shortcuts')}</h1>
               <ShortcutsSection />
             </>
           )}
 
           {section === SettingsSectionId.About && (
             <>
-              <h1 className="nordly-settings-content__title">{t('nordly.settings.nav.about')}</h1>
               <SoftwareSection />
               <SignOutSection />
             </>

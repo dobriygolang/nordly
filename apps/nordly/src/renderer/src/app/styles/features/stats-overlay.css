@@ -1,7 +1,7 @@
 .nordly-stats-overlay {
   position: absolute;
   right: 32px;
-  top: 56px;
+  top: var(--nordly-page-top);
   bottom: 24px;
   width: 320px;
   display: flex;
@@ -19,4 +19,12 @@
 .nordly-stats-overlay:focus,
 .nordly-stats-overlay:focus-visible {
   outline: none;
+}
+
+.nordly-stats-overlay__heading {
+  margin: 0;
+  font-size: var(--nordly-page-heading-size);
+  font-weight: 600;
+  line-height: var(--nordly-page-heading-height);
+  color: var(--ink);
 }

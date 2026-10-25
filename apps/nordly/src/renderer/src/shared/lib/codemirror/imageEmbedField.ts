@@ -150,7 +150,7 @@ function lineInFencedCode(state: EditorState, lineFrom: number, lineTo: number):
   const pos = lineFrom === lineTo ? lineFrom : lineFrom + 1;
   let node = syntaxTree(state).resolveInner(pos, 1);
   while (true) {
-    if (node.name === 'FencedCode') return true;
+    if (node.name === 'FencedCode') return node.getChildren('CodeMark').length === 2;
     const parent = node.parent;
     if (!parent) return false;
     node = parent;

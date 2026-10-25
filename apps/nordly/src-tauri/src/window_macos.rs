@@ -1,6 +1,28 @@
 #![allow(deprecated)]
 
 #[cfg(target_os = "macos")]
+pub fn configure_tray_popover(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
+    use cocoa::base::id;
+    use objc::{msg_send, sel, sel_impl};
+
+    let ns_window = window.ns_window().map_err(|e| e.to_string())? as id;
+    unsafe {
+        let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary;
+        ns_window.setCollectionBehavior_(behavior);
+        // NSStatusWindowLevel: above regular and fullscreen app windows.
+        let _: () = msg_send![ns_window, setLevel: 25isize];
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn configure_tray_popover(_window: &tauri::WebviewWindow) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 pub fn set_traffic_lights(window: &tauri::WebviewWindow, visible: bool) -> Result<(), String> {
     use cocoa::appkit::{NSWindow, NSWindowButton};
     use cocoa::base::{id, NO, YES};

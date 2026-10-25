@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react';
 
-const wrapStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 18 };
-const inputStyle: React.CSSProperties = { flex: 1, height: 4, accentColor: '#fff', cursor: 'pointer' };
+const wrapStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 14, width: '100%', minWidth: 0 };
+const inputStyle: React.CSSProperties = { flex: 1, minWidth: 0, width: '100%', height: 4, accentColor: 'var(--ink)', cursor: 'pointer' };
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
   color: 'var(--ink)',

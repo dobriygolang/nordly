@@ -34,6 +34,8 @@ const pairCopy = required(document.querySelector<HTMLElement>('#pair-copy'), 'pa
 const codeInput = required(document.querySelector<HTMLInputElement>('#code'), 'code');
 const saveCode = required(document.querySelector<HTMLButtonElement>('#save-code'), 'save-code');
 const wordInput = required(document.querySelector<HTMLInputElement>('#word'), 'word');
+const translateButton = required(document.querySelector<HTMLButtonElement>('#translate'), 'translate');
+const translateHint = required(document.querySelector<HTMLElement>('#translate-hint'), 'translate-hint');
 const translationInput = required(document.querySelector<HTMLInputElement>('#translation'), 'translation');
 const markerGroup = required(document.querySelector<HTMLElement>('#marker'), 'marker');
 const hint = required(document.querySelector<HTMLElement>('#hint'), 'hint');
@@ -44,6 +46,12 @@ pairCopy.textContent = text('pair');
 saveCode.textContent = text('connect');
 wordInput.placeholder = text('word');
 translationInput.placeholder = text('translation');
+wordInput.setAttribute('aria-label', text('word'));
+translationInput.setAttribute('aria-label', text('translation'));
+translateButton.textContent = text('translate');
+translateHint.textContent = text('translate-hint');
+wordInput.setAttribute('aria-describedby', 'translate-hint');
+status.setAttribute('role', 'status');
 hint.hidden = true;
 
 let busy = false;
@@ -64,8 +72,12 @@ codeInput.addEventListener('keydown', (event) => {
 });
 
 wordInput.addEventListener('keydown', (event) => {
-  if (event.key !== 'Enter') return;
+  if (event.key !== 'Enter' || event.isComposing) return;
   event.preventDefault();
+  void commitWord();
+});
+
+translateButton.addEventListener('click', () => {
   void commitWord();
 });
 
@@ -197,6 +209,8 @@ async function commitWord(): Promise<void> {
     return;
   }
   busy = true;
+  translateButton.disabled = true;
+  translateButton.textContent = text('translating');
   try {
     const translated = await translatePhrase(front);
     if (wordInput.value.trim() !== front) return;
@@ -213,6 +227,8 @@ async function commitWord(): Promise<void> {
     setStatus(message.includes('limit') ? 'limit' : 'translate-failed');
   } finally {
     busy = false;
+    translateButton.disabled = false;
+    translateButton.textContent = text('translate');
   }
 }
 

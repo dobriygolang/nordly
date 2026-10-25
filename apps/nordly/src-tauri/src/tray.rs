@@ -1,6 +1,8 @@
 #![cfg(desktop)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -20,6 +22,7 @@ const MAIN_LABEL: &str = "main";
 /// before that flush finishes, and allowing it deletes the session.
 static EXIT_FLUSH_ARMED: AtomicBool = AtomicBool::new(false);
 static EXIT_CONFIRMED: AtomicBool = AtomicBool::new(false);
+static LAST_TRAY_CLICK: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn confirm_process_exit(app: &tauri::AppHandle) {
     EXIT_CONFIRMED.store(true, Ordering::SeqCst);
@@ -61,11 +64,15 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             on_tray_event(tray.app_handle(), &event);
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
+                button_state,
                 ..
             } = event
             {
-                toggle_popover(tray.app_handle());
+                *LAST_TRAY_CLICK.lock().expect("tray click lock") = Some(Instant::now());
+                aux_windows::tray_interaction();
+                if button_state == MouseButtonState::Up {
+                    toggle_popover(tray.app_handle());
+                }
             }
         })
         .build(app)?;
@@ -105,6 +112,14 @@ pub fn on_run_event(app: &tauri::AppHandle, event: &RunEvent) {
 
     #[cfg(target_os = "macos")]
     if let RunEvent::Reopen { .. } = event {
+        // Activating the status item must not be interpreted as a Dock reopen.
+        if LAST_TRAY_CLICK
+            .lock()
+            .expect("tray click lock")
+            .is_some_and(|at| at.elapsed() < Duration::from_millis(500))
+        {
+            return;
+        }
         if let Err(e) = show_main(app) {
             log_err("reopen show_main", e);
         }

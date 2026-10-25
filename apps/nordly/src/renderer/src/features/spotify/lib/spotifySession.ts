@@ -1,3 +1,4 @@
+import { translate } from '@nordly-i18n';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import { isTauriRuntime } from '@platform/runtime';
@@ -134,13 +135,17 @@ async function readNowPlaying(): Promise<SpotifyNowPlaying> {
   if (playback.kind !== 'track') {
     return { connected: true, playback, liked: false, likeError: '' };
   }
-  const likedBody = await withToken((token) =>
-    spotifySend(token, 'GET', `/me/tracks/contains?ids=${encodeURIComponent(playback.trackId)}`),
-  );
-  return { connected: true, playback, liked: mapTrackLiked(likedBody), likeError: '' };
+  try {
+    const likedBody = await withToken((token) =>
+      spotifySend(token, 'GET', `/me/library/contains?uris=${encodeURIComponent(`spotify:track:${playback.trackId}`)}`),
+    );
+    return { connected: true, playback, liked: mapTrackLiked(likedBody), likeError: '' };
+  } catch (error) {
+    return { connected: true, playback, liked: false, likeError: spotifyErrorText(error) };
+  }
 }
 
-async function publishNowPlaying(): Promise<void> {
+export async function refreshSpotifyPlayback(): Promise<void> {
   if (!useSpotifyStore.getState().connected) {
     await broadcast(disconnectedNowPlaying());
     return;
@@ -148,7 +153,7 @@ async function publishNowPlaying(): Promise<void> {
   try {
     await broadcast(await readNowPlaying());
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Spotify playback failed';
+    const message = spotifyErrorText(error);
     console.error('[nordly:spotify] now playing failed', error);
     await broadcast({
       connected: true,
@@ -161,9 +166,9 @@ async function publishNowPlaying(): Promise<void> {
 
 function startWatch(): void {
   if (pollTimer !== null) window.clearInterval(pollTimer);
-  void publishNowPlaying();
+  void refreshSpotifyPlayback();
   pollTimer = window.setInterval(() => {
-    void publishNowPlaying();
+    void refreshSpotifyPlayback();
   }, SPOTIFY_POLL_MS);
 }
 
@@ -175,23 +180,55 @@ function stopWatch(): void {
 async function toggleLike(): Promise<void> {
   const current = useSpotifyStore.getState().nowPlaying;
   const playback: PlaybackItem | { kind: 'error'; message: string } = current.playback;
-  if (!current.connected || playback.kind !== 'track') return;
+  if (!current.connected || playback.kind !== 'track' || current.likeError) return;
   const trackId = playback.trackId;
   try {
     await withToken((token) =>
       spotifySend(
         token,
         current.liked ? 'DELETE' : 'PUT',
-        `/me/tracks?ids=${encodeURIComponent(trackId)}`,
+        `/me/library?uris=${encodeURIComponent(`spotify:track:${trackId}`)}`,
       ),
     );
     const latest = useSpotifyStore.getState().nowPlaying;
     if (latest.playback.kind !== 'track' || latest.playback.trackId !== trackId) return;
     await broadcast({ ...latest, liked: !current.liked, likeError: '' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Could not update Liked Songs';
+    const message = spotifyErrorText(error);
     console.error('[nordly:spotify] like failed', error);
     await broadcast({ ...current, likeError: message });
+  }
+}
+
+export function spotifyErrorText(error: unknown): string {
+  if (error instanceof SpotifyHttpError) {
+    if (error.status === 404) return translate('nordly.spotify.error.device');
+    if (error.status === 403) {
+      if (/premium/i.test(error.message)) return translate('nordly.spotify.error.premium');
+      if (/scope/i.test(error.message)) return translate('nordly.spotify.error.scope');
+      return translate('nordly.spotify.error.access');
+    }
+  }
+  return error instanceof Error ? error.message : 'Spotify playback failed';
+}
+
+let playbackBusy = false;
+export async function toggleSpotifyPlayback(): Promise<void> {
+  if (playbackBusy || !useSpotifyStore.getState().connected) return;
+  playbackBusy = true;
+  try {
+    // Read the device state before deciding, since playback may change outside Nordly.
+    const body = await withToken((token) => spotifySend(token, 'GET', '/me/player'));
+    if (body !== null && (typeof body !== 'object' || !('is_playing' in body) || typeof body.is_playing !== 'boolean')) {
+      throw new Error('Invalid Spotify player response');
+    }
+    const playing = body !== null && body.is_playing === true;
+    await withToken((token) => spotifySend(token, 'PUT', playing ? '/me/player/pause' : '/me/player/play'));
+    await refreshSpotifyPlayback();
+  } catch (error) {
+    await broadcast({ connected: true, playback: { kind: 'error', message: spotifyErrorText(error) }, liked: false, likeError: '' });
+  } finally {
+    playbackBusy = false;
   }
 }
 
@@ -398,6 +435,7 @@ export function initSpotifyLeader(): () => void {
     track(
       listen<{ action?: string }>(SPOTIFY_CMD_EVENT, ({ payload }) => {
         if (payload?.action === 'like') void toggleLike();
+        if (payload?.action === 'playback') void toggleSpotifyPlayback();
       }),
     );
   });

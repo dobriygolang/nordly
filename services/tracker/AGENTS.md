@@ -4,6 +4,16 @@ Self-contained. Work from `services/tracker/` only.
 
 Module: `github.com/dobriygolang/project-nordly/services/tracker`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/tracker/app/run.go`; keep transport thin.
+
+- Required: `TOKEN_ENCRYPTION_KEY` and `NORDLY_CALLBACK_URL` in `config.Load()`.
+- `service.New` returns an error if `Repo`, `Cipher`, `Google`, `Zoom`, or `Now` is missing (cipher always built in `run.go`).
+- Google/Zoom: optional when OAuth env unset — use `Configured()`, not nil guards on wired deps.
+
 ## Purpose
 
 Nordly work task board: kanban columns + day schedule. Optional **Google Calendar** integration for inbound events, Meet links, and calendar notifications.

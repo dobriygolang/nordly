@@ -117,12 +117,13 @@ func (r *Repository) ShareNoteToWeb(
 	var existingSlug string
 	var existingPublishedAt time.Time
 	var existingHash *string
+	var existingExpiry *time.Time
 	err = tx.QueryRow(ctx, `
-		SELECT slug, published_at, password_hash
+		SELECT slug, published_at, password_hash, expires_at
 		FROM published_notes
 		WHERE note_id = $1 AND user_id = $2
 		FOR UPDATE
-	`, noteID, userID).Scan(&existingSlug, &existingPublishedAt, &existingHash)
+	`, noteID, userID).Scan(&existingSlug, &existingPublishedAt, &existingHash, &existingExpiry)
 	alreadyPublished := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -146,6 +147,17 @@ func (r *Repository) ShareNoteToWeb(
 		}
 	} else {
 		publishedAt = now
+	}
+
+	// Checked under the same row lock as unpublish: a delayed sync must never
+	// recreate a revoked link, extend expiry, or overwrite a newer access mode.
+	if meta.ContentOnly {
+		if !alreadyPublished || existingSlug != meta.ExpectedSlug || (existingExpiry != nil && !existingExpiry.After(now)) {
+			return nil, notesmodel.ErrNotFound
+		}
+		if oldAccessMode != meta.AccessMode {
+			return nil, fmt.Errorf("%w: publish access changed during content refresh", notesmodel.ErrInvalidArgument)
+		}
 	}
 
 	displayTitle := strings.TrimSpace(meta.Title)
@@ -172,6 +184,10 @@ func (r *Repository) ShareNoteToWeb(
 	if meta.AccessMode == notesmodel.PublishAccessModePassword && expiryDays > 0 {
 		t := now.AddDate(0, 0, expiryDays)
 		expiresAt = &t
+	}
+
+	if meta.ContentOnly {
+		expiresAt = existingExpiry
 	}
 
 	slug := oldSlug

@@ -4,6 +4,18 @@ Work from `services/notes/` only. Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/notes`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/notes/app/run.go`; keep transport thin.
+
+- `PUBLIC_BASE_URL` required at startup.
+- `service.New` returns an error if `Repo` or `PublicBaseURL` missing — no mid-request invents.
+- Ports (`repository.Store`) use mockery; service tests use generated mocks only.
+- Transport: 1 RPC = 1 file under `internal/app/api/notes/`.
+- No unused DTO fields; no `SELECT` columns discarded after scan.
+
 ## Layout
 
 ```
@@ -50,7 +62,9 @@ HTTP `8090` | gRPC `9100` | PG `5442` / `nordly_notes`
 
 ## Publish
 
-`ShareNoteToWeb` stores a public snapshot in `published_notes` and does not change the sync row. An encrypted note stays ciphertext; the published title and body are the plaintext the client sends for that share. `published_note_assets` stays a per-share snapshot keyed by slug.
+`ShareNoteToWeb` stores a public snapshot in `published_notes` and does not change the sync row. The desktop refreshes the public content on successful note uploads through `POST /v1/notes/{id}/refresh-published-content` (an additional binding of `ShareNoteToWeb`). This sends `content_only=true` and `expected_slug`; under the publication row lock the server refuses a missing, expired, or changed share, preserves password and absolute expiry, and never creates a share. Deploy the API before the desktop update; older servers return an error and keep the sync operation pending rather than falling back to ordinary publish. Unpublish only deletes the public copy and assets.
+
+An encrypted note stays ciphertext; the published title and body are the plaintext the client sends for that share. `published_note_assets` stays a per-share snapshot keyed by slug.
 
 Recovery wrap (`recovery_wrap`, `recovery_salt` on `vault_salts`) is ciphertext of the passphrase under the recovery phrase. `PUT/GET /v1/notes/vault/recovery`.
 

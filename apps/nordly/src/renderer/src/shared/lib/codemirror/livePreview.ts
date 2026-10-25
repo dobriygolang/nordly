@@ -74,15 +74,15 @@ function showLineSyntax(state: EditorState, line: { from: number; to: number }):
 }
 
 class CodeLangBadgeWidget extends WidgetType {
-  constructor(readonly label: string) {
+  constructor(readonly label: string, readonly sourcePos: number) {
     super();
   }
 
   eq(other: CodeLangBadgeWidget): boolean {
-    return other.label === this.label;
+    return other.label === this.label && other.sourcePos === this.sourcePos;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const bar = document.createElement('div');
     bar.className = 'nordly-md-code-block__lang-bar';
     const badge = document.createElement('span');
@@ -90,6 +90,12 @@ class CodeLangBadgeWidget extends WidgetType {
     badge.textContent = this.label;
     badge.setAttribute('aria-hidden', 'true');
     bar.appendChild(badge);
+    bar.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.sourcePos } });
+      view.focus();
+    });
     return bar;
   }
 
@@ -359,7 +365,7 @@ function lineInFencedCode(state: EditorState, line: { from: number; to: number }
   const pos = line.from === line.to ? line.from : line.from + 1;
   let node: import('@lezer/common').SyntaxNode | null = syntaxTree(state).resolve(pos, 1);
   while (node) {
-    if (node.name === 'FencedCode') return true;
+    if (node.name === 'FencedCode') return node.getChildren('CodeMark').length === 2;
     node = node.parent;
   }
   return false;
@@ -374,6 +380,14 @@ function buildCodeBlockDecorations(state: EditorState): DecorationSet {
 
       const openLine = state.doc.lineAt(node.from);
       const closeLine = state.doc.lineAt(node.to);
+      // CommonMark parses an unfinished fence to EOF. Keep it as editable
+      // markdown until a closing fence exists instead of styling the rest as code.
+      if (node.node.getChildren('CodeMark').length !== 2) {
+        for (let n = openLine.number; n <= closeLine.number; n++) {
+          decorations.push(Decoration.line({ class: 'nordly-md-code-pending' }).range(state.doc.line(n).from));
+        }
+        return;
+      }
       const codeInfo = node.node.getChild('CodeInfo');
       const langInfo = codeInfo ? state.doc.sliceString(codeInfo.from, codeInfo.to).trim() : '';
       const langLabel = notesCodeLangLabel(langInfo);
@@ -396,7 +410,7 @@ function buildCodeBlockDecorations(state: EditorState): DecorationSet {
           } else if (isOpenFence && langLabel) {
             pushHide(decorations, line.from, line.to);
             decorations.push(
-              Decoration.widget({ widget: new CodeLangBadgeWidget(langLabel), side: 1 }).range(line.to),
+              Decoration.widget({ widget: new CodeLangBadgeWidget(langLabel, line.to), side: 1 }).range(line.to),
             );
           } else if (line.from < line.to) {
             pushHide(decorations, line.from, line.to);

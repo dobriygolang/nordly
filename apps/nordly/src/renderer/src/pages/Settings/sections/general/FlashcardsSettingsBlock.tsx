@@ -34,6 +34,7 @@ export function FlashcardsSettingsBlock({
         <input
           className="nordly-settings-number"
           type="number"
+          aria-label={t('nordly.settings.flashcards.daily_limit')}
           min={1}
           max={100}
           step={1}

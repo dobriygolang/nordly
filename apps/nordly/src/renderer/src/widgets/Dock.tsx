@@ -21,7 +21,7 @@ export function Dock({ onMenu }: DockProps) {
     <div
       style={{
         position: 'absolute',
-        bottom: 36,
+        bottom: 'max(12px, env(safe-area-inset-bottom))',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10,

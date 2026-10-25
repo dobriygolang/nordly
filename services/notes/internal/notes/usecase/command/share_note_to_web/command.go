@@ -24,6 +24,9 @@ func (c Command) Validate() error {
 	if len(c.Plaintext) > notesmodel.MaxNoteBodyBytes {
 		return fmt.Errorf("%w: note body exceeds %d bytes", notesmodel.ErrInvalidArgument, notesmodel.MaxNoteBodyBytes)
 	}
+	if c.Options.ContentOnly && (strings.TrimSpace(c.Options.ExpectedSlug) == "" || c.Options.Password != "" || c.Options.ExpiryPolicy != notesmodel.PublishExpiryPolicyNever) {
+		return fmt.Errorf("%w: content refresh requires a slug and cannot change access options", notesmodel.ErrInvalidArgument)
+	}
 	if !c.Options.AccessMode.IsValid() {
 		return fmt.Errorf("%w: unsupported publish access mode", notesmodel.ErrInvalidArgument)
 	}

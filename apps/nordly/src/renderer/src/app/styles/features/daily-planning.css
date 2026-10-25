@@ -55,9 +55,9 @@
 
 .nordly-planning-rail__title {
   margin: 0 0 12px;
-  font-size: 22px;
+  font-size: var(--nordly-page-heading-size);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: var(--nordly-page-heading-height);
   letter-spacing: -0.02em;
   color: var(--ink);
 }

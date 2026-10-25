@@ -4,6 +4,15 @@
 
 Module: `github.com/dobriygolang/project-nordly/services/template`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/template/app/run.go`; keep transport thin.
+
+Transport thin; logic in `internal/<domain>/service/` → extract `usecase/{command,query}` as complexity grows.
+Mockery-only tests; `New` returns an error on missing required deps.
+
 ## Copy as new service
 
 ```bash
@@ -19,7 +28,7 @@ On Linux: `sed -i` without `''`. Pick unique ports — [root AGENTS.md port tabl
 
 ## Layout
 
-See [.cursor/rules/architecture-standard.mdc](../../.cursor/rules/architecture-standard.mdc). Exemplars:
+See [architecture-standard.md](../../docs/engineering/architecture-standard.md). Exemplars:
 
 - Read: `internal/example/usecase/query/get_item/`
 - Write: add `internal/<domain>/usecase/command/<op>/` following the root architecture standard.

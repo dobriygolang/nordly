@@ -7,6 +7,8 @@ html.dark {
   --ink-rgb: 255 255 255;
   --nordly-header-h: 40px;
   --nordly-page-top: 40px;
+  --nordly-page-heading-height: 28px;
+  --nordly-page-heading-size: 20px;
   /* Draggable strip: matches page top inset so vault sidebars stay clickable. */
   --nordly-drag-h: 40px;
   --ink-90: rgb(var(--ink-rgb) / 0.9);

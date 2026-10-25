@@ -1,0 +1,82 @@
+name: nordly-windows-check
+
+on:
+  pull_request:
+    paths:
+      - 'apps/nordly/**'
+      - 'apps/extension/**'
+      - 'apps/shared/**'
+      - '.github/workflows/nordly-windows-check.yml'
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/nordly/**'
+      - 'apps/extension/**'
+      - 'apps/shared/**'
+      - '.github/workflows/nordly-windows-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nordly-windows-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows tests and installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/nordly
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          cache-dependency-path: apps/nordly/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/nordly/src-tauri -> target
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Check frontend types
+        run: npm run typecheck
+      - name: Check extension types
+        run: node node_modules/typescript/bin/tsc -p ../extension/tsconfig.json
+      - name: Lint renderer
+        run: npm run lint
+      - name: Stage bundled extension
+        run: npm run extension:stage
+      - name: Test renderer and bundled extension
+        run: npm test
+      - name: Check Rust formatting
+        working-directory: apps/nordly/src-tauri
+        run: cargo fmt --all -- --check
+      - name: Test Rust on Windows
+        working-directory: apps/nordly/src-tauri
+        run: cargo test --locked
+      - name: Build unsigned NSIS installer without publishing
+        shell: pwsh
+        env:
+          VITE_NORDLY_LOCAL_ONLY: 'false'
+        run: |
+          $config = Join-Path $env:RUNNER_TEMP 'nordly-windows-check.json'
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Encoding utf8 $config
+          npm exec -- tauri build --bundles nsis --config $config
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check renderer bundle budgets
+        run: npm run bundle:check
+      - name: Upload test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: nordly-windows-test-installer
+          path: apps/nordly/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7

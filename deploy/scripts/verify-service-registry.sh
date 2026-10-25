@@ -69,7 +69,7 @@ for db in "${DB_DATABASES[@]}"; do
 done
 
 if [ "$fail" -ne 0 ]; then
-  echo "Fix lists in deploy/scripts/services.conf.sh and sync dependents — see .cursor/rules/service-registry.mdc" >&2
+  echo "Fix lists in deploy/scripts/services.conf.sh and sync dependents — see docs/engineering/service-registry.md" >&2
   exit 1
 fi
 

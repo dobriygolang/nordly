@@ -3,6 +3,9 @@ type Key =
   | 'connect'
   | 'word'
   | 'translation'
+  | 'translate'
+  | 'translating'
+  | 'translate-hint'
   | 'note'
   | 'locked-note'
   | 'need-note'
@@ -25,6 +28,9 @@ const en: Record<Key, string> = {
   connect: 'Connect',
   word: 'Word',
   translation: 'Translation',
+  translate: 'Translate and save',
+  translating: 'Translating…',
+  'translate-hint': 'Press Enter or click Translate and save.',
   note: 'Note',
   'locked-note': 'Locked note',
   'need-note': 'In the Nordly note menu, turn on “Save words here”.',
@@ -48,6 +54,9 @@ const ru: Record<Key, string> = {
   connect: 'Подключить',
   word: 'Слово',
   translation: 'Перевод',
+  translate: 'Перевести и сохранить',
+  translating: 'Переводим…',
+  'translate-hint': 'Нажми Enter или «Перевести и сохранить».',
   note: 'Заметка',
   'locked-note': 'Заметка закрыта',
   'need-note': 'В меню заметки Nordly включи «Слова из браузера».',

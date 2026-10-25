@@ -2,7 +2,8 @@
 
 Work from `apps/web/` only. Desktop app: [../nordly/AGENTS.md](../nordly/AGENTS.md). Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
-**Agent rules:** [.cursor/rules/web.mdc](.cursor/rules/web.mdc) + root [fail-fast-no-fallbacks.mdc](../../.cursor/rules/fail-fast-no-fallbacks.mdc).
+Before any work in this app, read [engineering conventions](docs/engineering.md)
+and the root [fail-fast policy](../../docs/engineering/fail-fast-no-fallbacks.md).
 
 ## Purpose
 

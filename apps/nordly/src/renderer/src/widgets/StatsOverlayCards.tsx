@@ -42,6 +42,7 @@ export function StatsOverlayCards({
       aria-label={t('nordly.stats.focus_activity')}
       tabIndex={-1}
     >
+      <h1 className="nordly-stats-overlay__heading">{t('nordly.palette.nav_stats')}</h1>
       <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '120ms' : '0ms' }}>
         <BigCard>
           <CardHead title={t('nordly.stats.focus_activity')} right={<HeatmapLegend />} />

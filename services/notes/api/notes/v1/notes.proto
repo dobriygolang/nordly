@@ -133,6 +133,10 @@ service NotesService {
     option (google.api.http) = {
       post: "/v1/notes/{note_id}/share-to-web"
       body: "*"
+      additional_bindings {
+        post: "/v1/notes/{note_id}/refresh-published-content"
+        body: "*"
+      }
     };
   }
 
@@ -356,6 +360,9 @@ message ShareNoteToWebRequest {
   PublishAccessMode access_mode = 7;
   PublishExpiryPolicy expiry_policy = 8;
   string title = 9;
+  // Refresh an existing share without creating it or changing its access policy.
+  bool content_only = 10;
+  string expected_slug = 11;
 }
 
 message PublishedAttachmentInput {

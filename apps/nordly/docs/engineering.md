@@ -1,0 +1,130 @@
+# Nordly — renderer HTTP
+
+Packaged Tauri builds cannot rely on WebView `fetch()` to `https://trynordly.app` (cross-origin from `tauri://localhost` → "Load failed"). Dev works via Vite same-origin proxy.
+
+## Rule: backend HTTP via `apiFetch` only
+
+All renderer calls to project REST **must** use `apiFetch` from `src/renderer/src/shared/api/http.ts`.
+
+```typescript
+// ❌ BAD — breaks in release .dmg/.exe
+const resp = await fetch(`${API_BASE_URL}/v1/notes`, { headers: authHeaders() });
+
+// ✅ GOOD
+import { apiFetch } from '@shared/api/http';
+const resp = await apiFetch(`${API_BASE_URL}/v1/notes`, { headers: authHeaders() });
+```
+
+`apiFetch` routing:
+
+| Mode | Transport |
+|------|-----------|
+| `npm run dev` (`import.meta.env.DEV`) | browser `fetch` + Vite proxy (`vite.config.ts`) |
+| `tauri build` (packaged) | `@tauri-apps/plugin-http` → Rust `reqwest` |
+
+Do **not** add per-endpoint Rust HTTP commands for normal REST — extend `apiFetch` / scope instead.
+
+## New API host or path
+
+1. Add URL glob to `src-tauri/capabilities/default.json` under `http:default` → `allow`.
+2. If needed for WebView CSP, extend `connect-src` in `src-tauri/tauri.conf.json` and `src/renderer/index.html`.
+3. Use `API_BASE_URL` from `shared/api/config.ts` (prod: `https://trynordly.app`).
+
+## Exceptions (do not use `apiFetch`)
+
+- **App updates** — `tauri-plugin-updater` (`shared/lib/updater.ts`)
+- **Tauri IPC** — keychain session, vault passphrase, pomodoro snapshot (`window.nordly` / `platform/ipc.ts`)
+- **Local-only data** — IndexedDB, Tauri store
+- **Static assets** — `img-src` / CDN fonts, not REST
+
+## API base (dev vs prod)
+
+- Dev: `API_BASE_URL` is empty → relative `/v1/*` proxied by Vite to local services or prod.
+- Prod build: `API_BASE_URL` = `https://trynordly.app` (override with `VITE_NORDLY_API_BASE`).
+
+Full endpoint list: [apps/nordly/AGENTS.md](../AGENTS.md).
+
+## Fail fast — no silent fallbacks
+
+Same policy as repo root [fail-fast-no-fallbacks.md](../../../docs/engineering/fail-fast-no-fallbacks.md). Nordly-specific:
+
+- **Authenticated REST:** use `syncAuthHeaders()` / `requireAccessToken()` from `shared/api/authToken.ts`. No dev bearer bypass, no dev login panel.
+- **Settings:** single reader — `shared/model/settings.ts` (`readSettings`, `persistSettings`). Invalid/missing required fields **throw**; one-way migration only for missing new keys.
+- **Cloud mode:** `isCloudEnabled()` / `isSyncEnabled()` from `shared/model/features.ts` + `shared/sync/syncConfig.ts` — do not scatter `LOCAL_ONLY` or duplicate guards.
+- **JSON API:** grpc-gateway protojson uses camelCase — use `shared/api/json.ts` (`requireJsonString`, etc.). No dual `camelCase ?? snake_case` reads.
+- **Login:** bot username from `GET /v1/auth/config` only — no `VITE_TELEGRAM_BOT_USERNAME` fallback.
+- **Share links:** use `invite.url` / publish `url` from rooms API responses (canonical live host: `code.trynordly.app`).
+- **Deep links:** `task.open?id=…`, `note.open?id=…` only (no legacy `task` / `note` query aliases).
+- **User mutations:** task board, planning, sync outbox — surface errors (`loadError` / throw / inline on intentional online actions). `SyncStatusBanner` is reauth-only; no passive offline/unreachable banners. Do not `catch {}` and refresh silently.
+- **No legacy paths:** delete old storage/API shims outright; do not keep dual readers (e.g. prefs + settings-store).
+- **No redundant conditions:** do not nest “just in case” branches or invent defaults after a failed read; throw or surface empty honest state.
+- **Storage / clipboard:** log failures (`console.warn`) — do not empty-`catch` quota or permission errors.
+- **Import / sync payloads:** reject empty required fields (e.g. markdown import title) instead of inventing `"Untitled"`.
+- **Tests:** Vitest — `vi.fn` / `vi.mock` / shared harness only. Do **not** hand-write stub classes that re-implement feature ports; prefer mocking the module under test’s imports.
+
+## Renderer layering
+
+```
+platform/   IPC + runtime
+shared/     db, sync, crypto, model, lib, ui — never import pages/ or widgets/
+features/   domain — see offline/online table below — never import pages/
+pages/      route composition
+widgets/    chrome/overlays — import features + shared, not pages/lib
+app/        bootstrap + shell
+```
+
+Per-feature offline vs online:
+
+| Layer | Role |
+|-------|------|
+| `repository/` | IndexedDB only |
+| `remote/` | HTTP clients |
+| `sync/` | outbox push/pull |
+| `vault/` | filesystem vault internals — pages/widgets use `@features/notes/api/vault` |
+| `api/` | local-first façade (`isSyncEnabled()` / `isCloudEnabled()` gates) |
+
+Move shared helpers out of `pages/` when features or widgets need them (`shared/lib/dates.ts`, `shared/model/theme.ts`, `shared/model/navigation.ts`, `shared/model/settings.ts`, `features/planning/`, `features/tasks/components/`).
+
+## Code-split shell — keep Notes/App budgets green
+
+CI runs `npm run bundle:check` (`scripts/check-bundle-budgets.mjs`) after `build:vite`. Notes and main budgets count **static** import graphs; anything eagerly pulled into `app/App.tsx` can land in a shared chunk that Notes also imports and blow the budget.
+
+### Do not static-import into `App.tsx`
+
+| Pulls into shell graph | Prefer |
+|------------------------|--------|
+| Calendar / meetings UI (`HomeTodayTasks`, inspectors, DayTimeline-heavy widgets) | `lazy(() => import(...))` + `<Suspense fallback={null}>` |
+| Route pages / Palette / modals | already lazy — keep them lazy |
+| Feature barrels that re-export hooks + workers | import leaf modules (`appleCalendarClient`, `calendarClient`, `lib/events`, hooks, components) |
+
+```tsx
+// ❌ BAD — Home meetings + calendar hooks inflate App → Notes static graph
+import { HomeTodayTasks } from '@widgets/HomeTodayTasks';
+import { AppleEventInspectorHost } from '@features/calendar/components/AppleEventInspectorHost';
+
+// ✅ GOOD
+const HomeTodayTasks = lazy(() =>
+  import('@widgets/HomeTodayTasks').then((m) => ({ default: m.HomeTodayTasks })),
+);
+const AppleEventInspectorHost = lazy(() =>
+  import('@features/calendar/components/AppleEventInspectorHost').then((m) => ({
+    default: m.AppleEventInspectorHost,
+  })),
+);
+```
+
+### When you change App / Home / calendar shell
+
+1. From `apps/nordly`: `npm run build:vite && node scripts/check-bundle-budgets.mjs`
+2. If Notes/main FAIL: lazy-load the new shell widget or narrow barrel imports — **do not** silently raise the budget unless the product intentionally ships that weight on cold Notes open.
+3. Never static-import calendar cache/sync workers from modules that App already imports (e.g. `features/tasks/api/tasks.ts`) — use a dynamic `import()` on the Meet path only.
+
+Vitest: alias `react` (and jsx-runtime / `react-dom`) to `apps/nordly/node_modules/...` in `vitest.config.ts` whenever code outside the package (e.g. `apps/shared/i18n`) is resolved — otherwise schedule/calendar unit tests fail with `Failed to resolve import "react"`.
+
+## Escape closes topmost overlay first
+
+Global Esc (`useGlobalHotkeys`, capture phase) must not `goHome()` while a modal/popover/picker is open.
+
+1. Register dismissible UI with `useEscapeLayer(onClose, active)` (`shared/hooks/useEscapeLayer.ts`).
+2. Stack is LIFO via `shared/lib/escapeLayer.ts` — Esc pops the top layer, then palette → planning → calendar → stats → page home.
+3. Do **not** rely on `window.confirm` for critical flows in Tauri (often returns `false`); use in-app dialogs that also call `useEscapeLayer`.

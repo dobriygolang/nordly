@@ -1,14 +1,7 @@
 // Local-first notes — filesystem vault SoT when bound; IndexedDB until first vault pick (non-Tauri tests).
-import { isVaultUnlocked } from '@shared/crypto/vault';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
-import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { type NoteFolder } from '@features/notes/repository/foldersStore';
-import { type StoredWikiLink } from '@features/notes/repository/notesStore';
-import { encryptNoteForRemote } from '@features/notes/crypto/noteCrypto';
-import { remoteUpdateNote } from '@features/notes/remote/notesRemote';
 import {
   remoteGetPublishStatus,
-  remoteMakeNotePrivate,
   remoteShareNoteToWeb,
   remoteUnpublishNote,
 } from '@features/notes/remote/publishRemote';
@@ -18,7 +11,6 @@ import type {
 } from '@features/notes/model/publishOptions';
 import { DEFAULT_PUBLISH_OPTIONS } from '@features/notes/model/publishOptions';
 import {
-  isNoteVaultLocked,
   type Note,
   type NoteSummary,
 } from '@features/notes/model/note';
@@ -39,15 +31,7 @@ import {
   isSyncEnabled,
 } from '@shared/sync/syncConfig';
 import { mapPool } from '@shared/lib/mapPool';
-import {
-  AttachmentError,
-  extractNordlyAssetIds,
-} from '@features/notes/lib/noteAttachments';
-import { bytesToBase64 } from '@shared/lib/base64';
-import { attachmentsStoreGetPlainBytes } from '@features/notes/repository/attachmentsStore';
-import { readVaultImageBytes } from '@features/notes/vault/resolveVaultImage';
-import { applyPublishImageRewrites, findLocalPublishImages } from '@features/notes/lib/publishImages';
-import type { PublishedAttachmentInput } from '@features/notes/remote/publishRemote';
+import { collectPublishPayload } from '../lib/publishPayload';
 import { isNotesSyncEnabled } from '@features/notes/lib/notesSyncConsent';
 import { enqueueVaultFilePut, isNotesVaultBound, vaultListNotes, vaultReadNote } from '@features/notes/vault';
 import { assertPublishAllowed } from './notesSync';
@@ -74,10 +58,6 @@ export async function encryptAllNotesForVault(): Promise<void> {
     return;
   }
   await pushAllNotesEncrypted();
-}
-
-async function wikiLinksForSave(bodyMd: string): Promise<StoredWikiLink[]> {
-  return (await notesPersistence()).wikiLinksForSave(bodyMd);
 }
 
 export async function listNotes(): Promise<{ notes: NoteSummary[] }> {
@@ -246,75 +226,6 @@ export async function countPublishedNotes(): Promise<number> {
   return published.filter(Boolean).length;
 }
 
-async function collectNordlyAssetAttachments(bodyMd: string): Promise<PublishedAttachmentInput[]> {
-  const out: PublishedAttachmentInput[] = [];
-  const ids = extractNordlyAssetIds(bodyMd);
-  for (const id of ids) {
-    let plain: Awaited<ReturnType<typeof attachmentsStoreGetPlainBytes>>;
-    try {
-      plain = await attachmentsStoreGetPlainBytes(id);
-    } catch (err) {
-      if (err instanceof AttachmentError && err.code === 'vault_locked') {
-        throw new AttachmentError('vault_locked');
-      }
-      throw err;
-    }
-    if (!plain) {
-      throw new AttachmentError('publish_unresolved');
-    }
-    out.push({
-      id,
-      fileName: plain.fileName,
-      mime: plain.mime,
-      dataB64: bytesToBase64(plain.bytes),
-    });
-  }
-  return out;
-}
-
-async function collectVaultPublishImages(
-  noteId: string,
-  bodyMd: string,
-): Promise<{ body: string; attachments: PublishedAttachmentInput[] }> {
-  const spans = findLocalPublishImages(bodyMd);
-  if (spans.length === 0) return { body: bodyMd, attachments: [] };
-  if (!(await isNotesVaultBound())) {
-    throw new AttachmentError('publish_unresolved');
-  }
-  const assetIds = new Map<string, string>();
-  const attachments: PublishedAttachmentInput[] = [];
-  for (const span of spans) {
-    if (assetIds.has(span.href)) continue;
-    let image: Awaited<ReturnType<typeof readVaultImageBytes>>;
-    try {
-      image = await readVaultImageBytes(span.href, noteId);
-    } catch (err) {
-      if (err instanceof AttachmentError && (err.code === 'too_large' || err.code === 'vault_locked')) {
-        throw err;
-      }
-      throw new AttachmentError('publish_unresolved', span.href);
-    }
-    const id = crypto.randomUUID();
-    assetIds.set(span.href, id);
-    attachments.push({
-      id,
-      fileName: image.fileName,
-      mime: image.mime,
-      dataB64: bytesToBase64(image.bytes),
-    });
-  }
-  return { body: applyPublishImageRewrites(bodyMd, spans, assetIds), attachments };
-}
-
-async function collectPublishPayload(
-  noteId: string,
-  bodyMd: string,
-): Promise<{ body: string; attachments: PublishedAttachmentInput[] }> {
-  const vault = await collectVaultPublishImages(noteId, bodyMd);
-  const assets = await collectNordlyAssetAttachments(bodyMd);
-  return { body: vault.body, attachments: [...assets, ...vault.attachments] };
-}
-
 export async function publishNoteToWeb(
   noteId: string,
   options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
@@ -354,27 +265,9 @@ export async function updatePublishedNoteOptions(
 }
 
 export async function unpublishNoteFromWeb(noteId: string): Promise<void> {
-  assertPublishAllowed();
-  const serverId = await resolveServerNoteId(noteId);
+  const serverId = await mappedServerNoteId(noteId);
   if (!serverId) throw new Error('note is not on the server yet');
-  if (!isVaultReadyForPublish()) {
-    throw new Error('Unlock vault to unpublish');
-  }
-  await withNotesRemoteMutation(async () => {
-    const note = await getNote(noteId);
-    if (isNoteVaultLocked(note) || (!note.title && !note.bodyMd && isVaultEnabledSync())) {
-      throw new Error('Unlock vault to unpublish');
-    }
-    await remoteUnpublishNote(serverId);
-    if (isVaultEnabledSync() && isVaultUnlocked()) {
-      const { encTitle, encBody } = await encryptNoteForRemote(note.title, note.bodyMd);
-      await remoteMakeNotePrivate(serverId, encBody);
-      await remoteUpdateNote(serverId, encTitle, encBody, []);
-    } else {
-      const wikiLinks = await wikiLinksForSave(note.bodyMd);
-      await remoteUpdateNote(serverId, note.title, note.bodyMd, wikiLinks);
-    }
-  });
+  await withNotesRemoteMutation(() => remoteUnpublishNote(serverId));
 }
 
 export async function deleteNote(id: string): Promise<void> {

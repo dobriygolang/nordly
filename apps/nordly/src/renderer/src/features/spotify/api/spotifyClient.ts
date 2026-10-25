@@ -10,5 +10,7 @@ export {
   noteSpotifyRedirectError,
   queueSpotifyVolume,
   refreshSpotifyVolume,
+  refreshSpotifyPlayback,
+  toggleSpotifyPlayback,
   setSpotifyVolumeLock,
 } from '../lib/spotifySession';

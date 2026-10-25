@@ -30,6 +30,8 @@ func (i *Implementation) ShareNoteToWeb(
 		return nil, err
 	}
 	res, err := i.service.ShareNoteToWeb(ctx, userID, req.GetNoteId(), req.GetPlaintextMd(), notesservice.PublishOptions{
+		ContentOnly:  req.GetContentOnly(),
+		ExpectedSlug: req.GetExpectedSlug(),
 		AccessMode:   accessMode,
 		Password:     req.GetPassword(),
 		ExpiryPolicy: expiryPolicy,

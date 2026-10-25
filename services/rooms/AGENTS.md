@@ -4,6 +4,17 @@ Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/rooms`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/rooms/app/run.go`; keep transport thin.
+
+- Identity gRPC always dialed in `run.go`; WS hub/logger wired at startup (no `slog.Default`, no `Log != nil` / `hub != nil` mid-request).
+- Transport mappers: no nil → empty proto on success paths.
+- Ports use mockery; usecase `Now` required when configured (no soft `time.Now` invent).
+- Drop dead Store methods / unused Deps fields in the same change set.
+
 ## Purpose
 
 Live collab rooms: REST lifecycle + WebSocket Yjs sync for **code** (`Y.Text code`) and **system design** (Excalidraw: `Y.Map elements` + `Y.Array elementIds` + `Y.Map files`; legacy `Y.Text scene` auto-migrated).

@@ -32,7 +32,7 @@
 | ADR 003 границы | `repository` = IndexedDB, `remote` = HTTP, `sync` = координация, `api` = публичный фасад. Pages/widgets импортируют только `api/`, `hooks/`, `lib/`, `components/` | Каждая новая фича раскладывается по этим слоям. Исключение «`VaultSection` импортирует notes sync» **удаляется**: новая секция идёт через `features/notes/api/notesSync.ts` |
 | ADR 005 vault | Папка — источник правды; outbox `vault` по относительному пути | Сохраняется. §5 (Sync shape) дополняется согласием, индексом и сверкой — ADR 006 |
 | fail-fast | Без тихих фолбэков; ошибки видимы; без совместимости с неотгруженным поведением | Старые форматы и пути удаляются, а не мигрируются; при недоступном корне папки синк останавливается с ошибкой, а не удаляет; битая картинка показывает причину |
-| `nordly.mdc` | HTTP только через `apiFetch`; строгие JSON-ридеры `shared/api/json.ts` | Новые remote-вызовы (список заметок для мастера) — через существующий `notesRemote.ts` |
+| `apps/nordly/docs/engineering.md` | HTTP только через `apiFetch`; строгие JSON-ридеры `shared/api/json.ts` | Новые remote-вызовы (список заметок для мастера) — через существующий `notesRemote.ts` |
 
 ### 0.2. Новые и обновлённые ADR (`apps/nordly/docs/architecture/`)
 
@@ -859,7 +859,7 @@ Desktop требует папку: `NotesPage` показывает `VaultOnboar
 
 ### 8.3. Бюджет бандла
 
-После PR 3 и 4: `npm run build:vite && node scripts/check-bundle-budgets.mjs` в `apps/nordly`. `yjs` и live-модуль грузятся лениво вместе со страницей доски; страница Review — `React.lazy`, как остальные `PageStack`-страницы. `App.tsx` не импортирует их статически (правило `nordly.mdc`).
+После PR 3 и 4: `npm run build:vite && node scripts/check-bundle-budgets.mjs` в `apps/nordly`. `yjs` и live-модуль грузятся лениво вместе со страницей доски; страница Review — `React.lazy`, как остальные `PageStack`-страницы. `App.tsx` не импортирует их статически (правило `apps/nordly/docs/engineering.md`).
 
 ### 8.4. Наблюдаемость синка
 

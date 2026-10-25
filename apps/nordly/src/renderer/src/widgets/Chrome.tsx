@@ -7,7 +7,7 @@ export const NORDLY_HEADER_H = 40;
 
 const WORDMARK_ROOT_STYLE: CSSProperties = {
   position: 'absolute',
-  top: 36,
+  top: 'var(--nordly-page-top)',
   left: 40,
   zIndex: 10,
   pointerEvents: 'none',
@@ -18,7 +18,7 @@ const WORDMARK_LABEL_STYLE: CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
   letterSpacing: '0.34em',
-  lineHeight: '29px',
+  lineHeight: 'var(--nordly-page-heading-height)',
   color: 'var(--ink)',
   paddingBottom: 7,
   borderBottom: '1px solid var(--ink-60)',

@@ -1,3 +1,4 @@
+import { refreshPublishedContent } from './publishSync';
 import { requireUserId } from '@shared/db/nordlyDb';
 import { isApiHttpError } from '@shared/api/errors';
 import {
@@ -307,11 +308,13 @@ async function pushNotesOutboxLocked(entry: OutboxEntry): Promise<void> {
     try {
       if (e2ee) {
         await pushEncryptedNote(serverId, title, bodyMd);
+        await refreshPublishedContent(serverId, entry.entityId, title, bodyMd);
         const wire = await remoteGetNote(serverId);
         const plain = await decryptNoteFromRemote(wire);
         await notesStoreMergeRemote(noteToStored(plain, userId, true));
       } else {
         await pushPlainNote(serverId, title, bodyMd, wikiLinks);
+        await refreshPublishedContent(serverId, entry.entityId, title, bodyMd);
         const wire = await remoteGetNote(serverId);
         await notesStoreMergeRemote(noteToStored(wire, userId, false));
       }

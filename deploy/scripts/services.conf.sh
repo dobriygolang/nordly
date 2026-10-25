@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Canonical service lists — edit HERE when adding a service.
 # Verify: bash deploy/scripts/verify-service-registry.sh
-# Cursor: .cursor/rules/service-registry.mdc
+# Engineering guide: docs/engineering/service-registry.md
 
 # Skeleton only; not linted in CI or deployed.
 TEMPLATE_SERVICE=template

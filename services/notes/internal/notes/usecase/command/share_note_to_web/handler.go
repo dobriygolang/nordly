@@ -64,6 +64,8 @@ func (h *Handler) Handle(ctx context.Context, cmd Command) (*notesmodel.ShareToW
 		return nil, err
 	}
 	meta := notesmodel.PublishMeta{
+		ContentOnly:  cmd.Options.ContentOnly,
+		ExpectedSlug: cmd.Options.ExpectedSlug,
 		AccessMode:   cmd.Options.AccessMode,
 		ExpiryPolicy: cmd.Options.ExpiryPolicy,
 		Title:        cmd.Options.Title,

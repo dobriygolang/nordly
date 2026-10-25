@@ -315,7 +315,8 @@ async function findAuthenticatedCiphertext(userId: string): Promise<string | nul
     const note = noteBody.note;
     if (!note) throw new Error('The note from the server was not valid.');
     if (note.encrypted !== true) continue;
-    if (typeof note.title === 'string' && note.title.length > 0) return note.title;
+    // Remote v2 titles are random opaque identifiers, not ciphertext.
+    // Only the body contains the authenticated path/body envelope.
     if (typeof note.bodyMd === 'string' && note.bodyMd.length > 0) return note.bodyMd;
     throw new Error('An encrypted note has no data to check the password against.');
   }

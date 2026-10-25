@@ -14,6 +14,7 @@ import { FlashcardsSettingsBlock } from './general/FlashcardsSettingsBlock';
 import { TimerSettingsBlock } from './general/TimerSettingsBlock';
 
 interface GeneralSectionProps {
+  category?: 'general' | 'timer' | 'cards';
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
   boardCanvas: BoardCanvasTheme;
@@ -23,6 +24,7 @@ interface GeneralSectionProps {
 }
 
 export function GeneralSection({
+  category = 'general',
   theme,
   onThemeChange,
   boardCanvas,
@@ -37,22 +39,23 @@ export function GeneralSection({
 
   return (
     <>
-      <AppearanceSettingsBlock
+      {category === 'general' && <AppearanceSettingsBlock
         settings={settings}
         update={update}
         theme={theme}
         onThemeChange={onThemeChange}
         boardCanvas={boardCanvas}
         onBoardCanvasChange={onBoardCanvasChange}
-      />
-      <TimerSettingsBlock
+      />}
+      {category === 'timer' && <><TimerSettingsBlock
         settings={settings}
         update={update}
         onPomodoroSecondsChange={onPomoChange}
         onTimerModeChange={onTimerModeChange}
       />
       <RolloverSettingsBlock settings={settings} update={update} />
-      <FlashcardsSettingsBlock settings={settings} update={update} />
+      </>}
+      {category === 'cards' && <FlashcardsSettingsBlock settings={settings} update={update} />}
     </>
   );
 }

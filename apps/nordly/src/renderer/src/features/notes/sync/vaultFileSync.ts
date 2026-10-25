@@ -1,3 +1,4 @@
+import { refreshPublishedContent } from './publishSync';
 /** Push filesystem-vault markdown through the vault sync index. */
 
 import { isApiHttpError } from '@shared/api/errors';
@@ -129,10 +130,12 @@ async function upsertRemoteVaultNote(
       const { encTitle, encBody } = await encryptNoteForRemote(title, bodyMd);
       const updated = await remoteUpdateNote(serverId, encTitle, encBody);
       await remoteEncryptNoteBody(serverId, encBody);
+      await refreshPublishedContent(serverId, path, title, bodyMd);
       await rememberVaultFile(path, serverId, bodyMd, updated.updatedAt, userId);
       return;
     }
     const updated = await remoteUpdateNote(serverId, title, bodyMd);
+    await refreshPublishedContent(serverId, path, title, bodyMd);
     await rememberVaultFile(path, serverId, bodyMd, updated.updatedAt, userId);
   } catch (err) {
     if (!isRemoteNotFound(err)) throw err;

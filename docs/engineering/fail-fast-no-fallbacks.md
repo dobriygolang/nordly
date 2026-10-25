@@ -1,0 +1,95 @@
+# Fail Fast, No Silent Fallbacks
+
+**Principle:** Prefer a clear error, blocked action, or empty honest state over returning guessed, stale, or synthesized data. Wrong silence is worse than a visible failure.
+
+## Do not
+
+- Add silent fallbacks, legacy reads, compatibility shims, placeholder data, or catch-and-ignore paths when an operation fails.
+- Keep compatibility with unshipped branch behavior — replace it outright.
+- Call a legacy endpoint or synthesize a response when the current API/schema is missing.
+- Accept dual wire formats (e.g. `camelCase ?? snake_case`, `pickStr('a', 'b')`) — one canonical JSON shape per endpoint; throw on mismatch.
+- Mask failed parsing, storage, sync, or network with defaults or stale UI.
+- Add `if deps.X == nil` / `if s.x == nil` in domain/service/usecase **request handlers** for dependencies that must always be wired at startup — fail in `config.Load()` / `New(Deps)` / `run.go` instead.
+- Return empty proto / zero struct from mappers when input is `nil` on success paths — callers must guarantee non-nil or error before map.
+- Add redundant “just in case” conditionals that invent defaults after failed reads or re-check already-validated inputs.
+- Soft-fail required config with a zero value and hope later code notices (`cfg.DSN = ""` then “works” until first query).
+
+## Do
+
+- Throw a typed/user-visible error, surface `loadError` / banner / menu message, or block the action.
+- Use explicit one-way migrations only: observable, writes forward, removes old path after upgrade.
+- Allow UX defaults **before user intent** only (empty forms, first-run settings, unset optional env for dev) — not after a failed operation.
+- In catch blocks: rethrow, map to user-visible error, or document deliberate best-effort cleanup (Tauri dismiss, listener teardown, idempotent `Close()`).
+- Wire required adapters once in `run.go`; optional integrations (OAuth when env unset) use explicit `Configured()` — not nil checks scattered in handlers.
+- Delete unused RPCs and proto fields at the root (proto → gen → transport → service → repo), verified against clients.
+- **Fail at construction / config, not mid-request.** `config.Load()`, `cmd/*/app/run.go`, and `service.New(Deps)` / usecase `New`/`NewHandler` must reject missing required deps by returning an error. Prefer a failed start over a runtime invent-default branch that “keeps working”.
+- **Delete dead branches.** If a condition cannot be true given prior validation or invariants, remove it — do not keep “defensive” code that invents values or silently continues.
+- **Invariant violations → error** (e.g. unset WS role after `newWSConn`). Concurrent lifecycle nils that are documented exceptions stay documented.
+
+## Init-time vs mid-request (Go)
+
+| When | Action |
+|------|--------|
+| Missing required env / DSN / secret | `config.Load()` returns error → process exits |
+| Missing required repo/adapter in DI | `New(Deps)` / `run.go` returns error before serve |
+| Optional OAuth / vendor unset | Explicit `Configured() bool` on the adapter; callers check that API once |
+| Handler receives already-validated Command | Do not re-validate the same fields; do not nil-check `h.store` |
+| Mapper gets nil entity on success path | Return error *before* map — never empty success proto |
+
+```go
+// DO — fail in New
+func New(deps Deps) (Service, error) {
+    if deps.Repo == nil {
+        return nil, errors.New("notes.Service: Repo is required")
+    }
+    if strings.TrimSpace(deps.PublicBaseURL) == "" {
+        return nil, errors.New("notes.Service: PublicBaseURL is required")
+    }
+    return &notesService{repo: deps.Repo, publicBaseURL: deps.PublicBaseURL}, nil
+}
+
+// DON'T — defensive mid-request
+func (s *service) GetNote(ctx context.Context, id string) error {
+    if s.repo == nil {
+        return fmt.Errorf("repo not configured")
+    }
+    if id == "" { // already required by Command.Validate
+        return ErrInvalidArgument
+    }
+    ...
+}
+```
+
+## Nordly desktop (`apps/nordly`)
+
+- Rules: `apps/nordly/docs/engineering.md`
+- Cloud gate: `isCloudEnabled()` / `isSyncEnabled()` — not scattered `LOCAL_ONLY` checks.
+- Settings: `shared/model/settings.ts` only; invalid blobs throw.
+- Auth REST: `syncAuthHeaders()` / `requireAccessToken()` — no dev bearer bypass, no dev login.
+- JSON: grpc-gateway camelCase — `shared/api/json.ts` strict readers only.
+
+## Web companion (`apps/web`)
+
+- Rules: `apps/web/docs/engineering.md`
+- API JSON: read camelCase from wire; use `normalizeProtoJson()` then **snake_case internal types only** — never `field ?? otherField`.
+- Auth: `parseGuestAccessToken` (rooms guest only) — web has no identity session; do not revive user-token refresh.
+- API coverage: `docs/backend-client-matrix.md`
+
+## Go backend (`services/*`)
+
+- Work inside `services/<name>/` — follow that service's `AGENTS.md` and `docs/engineering/go-backend.md`.
+- **Required config fails in `config.Load()` or `cmd/*/app/run.go`** — not deep in handlers.
+- **Required deps fail in `New(Deps)`** — not `if s.x == nil` inside `Handle`/`Get*`.
+- **No legacy wire paths** — one JSON/proto shape per RPC.
+- **No silent degradation** — no stale cache as truth.
+- `getEnv(key, fallback)` for dev defaults only — production-required vars error in `Load()` when empty.
+- Layering + mockery + slices: [architecture-standard.md](architecture-standard.md)
+- API coverage: `docs/backend-client-matrix.md`
+
+## Intentional exceptions (document in code or AGENTS.md)
+
+| Pattern | Reason |
+|---------|--------|
+| Tracker Google/Zoom `Configured()` | OAuth optional when env unset |
+| WS hub `room == nil` after unregister | concurrent lifecycle |
+| `Close()` idempotent nil conn | cleanup |

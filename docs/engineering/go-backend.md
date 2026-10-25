@@ -1,0 +1,101 @@
+# Go backend
+
+Follow service-local `AGENTS.md`, [architecture-standard.md](architecture-standard.md), and **[fail-fast-no-fallbacks.md](fail-fast-no-fallbacks.md)** (always apply).
+
+## Fail fast (every service)
+
+- Required env → error in `internal/config/config.go` `Load()`; wire deps in `cmd/<service>/app/run.go` only.
+- No `if s.repo == nil` / `if s.store == nil` in service layer for required deps.
+- Transport mappers: no `if x == nil { return empty }` on success paths.
+- One wire format per RPC; remove deprecated proto fields and dead handlers with client grep.
+- Typed domain errors → gRPC codes in transport; no swallowed errors.
+- Tracker: `!google.Configured()` / `!zoom.Configured()` is the optional-integration pattern — not a nil guard on wired deps.
+
+## No redundant conditions
+
+- Do not add defensive `if` / early returns that cannot fail given validated input or wired deps.
+- Prefer one clear path over nested “just in case” branches, dual defaults, or invent-after-check.
+- Collapse `if x { return A }; return B` only when both arms stay readable — never invent values in the “else”.
+- Soft `if cfg.Now == nil { cfg.Now = time.Now }` is invent-default — either require `Now` in `New` or always wire it from DI; do not nil-check mid-construction as optional.
+
+## No unused fields / redundant SQL
+
+- Drop model/DTO/struct fields that nothing reads or maps to proto/DB.
+- Do not `SELECT` columns only to discard the scan; do not re-query data already loaded in the same flow (e.g. `GetRole` after `ListParticipants` already proves membership).
+- Remove dead Store methods and regenerate mockery mocks in the same change set.
+
+## Prefer `slices` / `sort` (stdlib)
+
+Use stdlib instead of hand-rolled loops where it fits:
+
+- `slices.Clone` instead of `append([]T(nil), x...)` / `make`+`copy`
+- `slices.Contains` / `ContainsFunc` instead of scan loops
+- `slices.Index` / `IndexFunc` instead of find-by-key loops
+- `slices.DeleteFunc` / `Compact` when filtering in place
+- `slices.Sort` / `slices.SortFunc` / `slices.SortStableFunc` instead of `sort.Slice` with index gymnastics (Go 1.21+)
+- `maps.Clone` / `maps.Copy` when copying maps
+
+Keep a `map` for non-consecutive uniqueness / set membership.
+
+## Construction fail-fast
+
+```go
+func New(deps Deps) (Service, error) {
+	if deps.Repo == nil {
+		return nil, errors.New("notes service: Repo is required")
+	}
+	if strings.TrimSpace(deps.PublicBaseURL) == "" {
+		return nil, errors.New("notes service: PublicBaseURL is required")
+	}
+	return &notesService{repo: deps.Repo, publicBaseURL: deps.PublicBaseURL}, nil
+}
+```
+
+Do **not** add later `if s.repo == nil { return invent }` — wiring bugs must surface at process start.
+
+## Tests: generated mocks only
+
+- **Do not** hand-write `fakeX` / `stubX` structs that implement domain ports in `*_test.go`.
+- Use **mockery** on the port (`//go:generate … mockery … --with-expecter`) + `mocks/` package; assert with expecters (`EXPECT().Method(...).Return(...)`).
+- Rewrite legacy handmade fakes when touching a package — do not leave dual test styles.
+- Exception: thin driver adapters (e.g. `pgx.Row`) when no port exists — keep minimal; do not grow them into domain fakes.
+- After changing a port: `go generate` in that package, then update tests.
+- Prefer `testify/require` + table tests; one behavior per test name.
+
+## Range loops (Go 1.22+)
+
+Do **not** copy the range variable before append/map calls — per-iteration loop vars are already distinct:
+
+```go
+// bad — leftover pre-1.22 closure workaround
+for _, item := range items {
+    x := item
+    out = append(out, toProto(x))
+}
+
+// good
+for _, item := range items {
+    out = append(out, toProto(item))
+}
+```
+
+Only copy when you genuinely need a stable pointer to the loop variable (rare; e.g. `&item` escaping into a goroutine).
+
+## govulncheck (CI gate)
+
+CI runs `govulncheck ./...` for every service in `CI_SERVICES` (`.github/workflows/ci.yml`).
+
+When fixing CI / Go deps / reviewing a failing govulncheck job:
+
+1. Read the report: module, **Found in**, **Fixed in**.
+2. Bump the vulnerable module in **all** affected `services/*/go.mod` (same versions across CI services; include `template` when it shares the dep).
+3. From each service root: `GOPROXY=https://proxy.golang.org,direct GOWORK=off go get <module>@<fixed> && go mod tidy`.
+4. Re-run: `cd services/<name> && GOWORK=off govulncheck ./...` (rebuild `govulncheck` with current Go if version mismatch).
+5. Do not silence findings with excludes unless product explicitly accepts residual risk — prefer upgrading.
+
+Common current floors (raise when CI reports newer Fixed-in):
+
+- `google.golang.org/grpc` ≥ `v1.83.2` (GO-2026-6443)
+- `golang.org/x/net` ≥ `v0.60.0` (GO-2026-6617)
+- `golang.org/x/text` ≥ `v0.42.0` (GO-2026-6629; required by `x/net` v0.60.0)
+- Go toolchain `1.26.10` (stdlib fixes are not backported to 1.25)

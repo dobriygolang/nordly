@@ -28,10 +28,10 @@ html.light .nordly-settings-group__body {
 
 .nordly-setting-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
   column-gap: 20px;
-  align-items: start;
-  padding: 16px 18px;
+  align-items: center;
+  padding: 18px 20px;
   border-top: 1px solid var(--ink-tint-06);
 }
 
@@ -41,7 +41,7 @@ html.light .nordly-settings-group__body {
 
 .nordly-setting-row__meta {
   flex: 1 1 240px;
-  min-width: min(100%, 200px);
+  min-width: 0;
 }
 
 .nordly-setting-row__label {
@@ -334,15 +334,17 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-settings-nav {
-  flex: 0 0 232px;
+  flex: 0 0 208px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 26px 16px;
+  padding: 0 12px 88px;
+  overflow-y: auto;
   border-right: 1px solid var(--ink-tint-08);
 }
 
 .nordly-settings-nav__back {
+  min-height: var(--nordly-page-heading-height);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -410,21 +412,22 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-settings-content__inner {
-  max-width: 640px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 44px 44px 96px;
+  padding: 0 40px 88px;
 }
 
 .nordly-settings-content__title {
-  margin: 0 0 30px;
-  font-size: 22px;
+  margin: 0;
+  font-size: var(--nordly-page-heading-size);
+  line-height: var(--nordly-page-heading-height);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .nordly-settings-block {
-  margin-bottom: 42px;
+  margin-bottom: 28px;
 }
 
 .nordly-settings-block:last-child {
@@ -432,14 +435,18 @@ html.light .nordly-settings-group__body {
 }
 
 .nordly-settings-block__title {
-  margin: 0 0 6px;
-  font-size: 20px;
+  margin: 0 0 12px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .nordly-settings-block__rows {
+  border: 1px solid var(--ink-tint-08);
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -851,3 +858,26 @@ html.light .nordly-shortcuts-card {
   }
 }
 
+
+.nordly-settings-content__header { margin-bottom: 30px; }
+.nordly-settings-content__description { margin: 10px 0 0; max-width: 540px; color: var(--ink-60); font-size: 13px; line-height: 1.6; }
+.nordly-settings-wallpaper-preview { width: 58px; height: 38px; object-fit: cover; border-radius: 5px; background: var(--bg); }
+.nordly-settings-change-btn:has(.nordly-settings-wallpaper-preview) { display: flex; align-items: center; gap: 12px; padding: 6px 12px 6px 6px; }
+.nordly-setting-row__hint { color: var(--ink-60); max-width: 360px; }
+.nordly-settings-block__rows > .nordly-settings-google-error,
+.nordly-settings-block__rows > .nordly-settings-capture__status { margin: 0; padding: 0 20px 16px; }
+.nordly-settings-google-actions { justify-content: flex-start; }
+.nordly-settings-google-status { text-align: left; }
+.nordly-settings-block__rows:has(.nordly-settings-google-actions) .nordly-setting-row__control { justify-content: flex-start; }
+@media (max-width: 1040px) {
+  .nordly-setting-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .nordly-setting-row__control { justify-content: flex-start; }
+  .nordly-settings-content__inner { padding: 0 28px 88px; }
+}
+@media (max-width: 720px) {
+  .nordly-settings-shell { flex-direction: column; }
+  .nordly-settings-nav { flex: 0 0 auto; padding: 14px 16px; gap: 10px; border-right: 0; border-bottom: 1px solid var(--ink-tint-08); }
+  .nordly-settings-nav__list { flex-direction: row; overflow-x: auto; }
+  .nordly-settings-nav__item { white-space: nowrap; }
+  .nordly-settings-content__inner { padding: 24px 18px 80px; }
+}

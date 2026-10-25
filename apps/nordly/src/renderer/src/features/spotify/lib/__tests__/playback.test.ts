@@ -30,6 +30,7 @@ describe('mapCurrentlyPlaying', () => {
       trackId: 'track-1',
       title: 'Atlas',
       artist: 'Ada, Bea',
+      isPlaying: false,
     });
   });
 
@@ -43,7 +44,7 @@ describe('mapCurrentlyPlaying', () => {
           show: { name: 'Night' },
         },
       }),
-    ).toEqual({ kind: 'other', title: 'Pilot', artist: 'Night' });
+    ).toEqual({ kind: 'other', title: 'Pilot', artist: 'Night', isPlaying: false });
   });
 
   it('rejects a malformed track', () => {

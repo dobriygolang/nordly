@@ -80,6 +80,8 @@ type PublishedNoteAsset struct {
 }
 
 type PublishOptions struct {
+	ContentOnly  bool
+	ExpectedSlug string
 	AccessMode   PublishAccessMode
 	Password     string
 	ExpiryPolicy PublishExpiryPolicy
@@ -112,6 +114,8 @@ type PublishedNote struct {
 
 // PublishMeta is stored when sharing a note to the web.
 type PublishMeta struct {
+	ContentOnly     bool
+	ExpectedSlug    string
 	AccessMode      PublishAccessMode
 	ExpiryPolicy    PublishExpiryPolicy
 	NewPasswordHash *string

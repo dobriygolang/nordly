@@ -9,7 +9,7 @@ import {
   parseSelKey,
   type SelectMods,
 } from './selectionKeys';
-import type { ListState } from './utils';
+import { NoteListStatus, type ListState } from './utils';
 
 const FOLDERS_OPEN_KEY = STORAGE_KEYS.notesFoldersOpen;
 const EMPTY_FOLDER_LIST: NoteFolder[] = [];
@@ -77,6 +77,7 @@ export function useNotesSidebarSelection({
   const selectionIdsRef = useRef(selectionIds);
   selectionIdsRef.current = selectionIds;
   const anchorIdRef = useRef<string | null>(selectedId ? noteSelKey(selectedId) : null);
+  const revealedNoteRef = useRef<string | null>(null);
 
   const setSelection = useCallback((next: Set<string>) => {
     selectionIdsRef.current = next;
@@ -117,6 +118,7 @@ export function useNotesSidebarSelection({
   }, [selectedId]);
 
   useEffect(() => {
+    if (list.status !== NoteListStatus.Ready) return;
     setSelectionIds((prev) => {
       const aliveNotes = new Set(list.notes.map((n) => noteSelKey(n.id)));
       const aliveFolders = new Set(folders.map((f) => folderSelKey(f.id)));
@@ -135,7 +137,7 @@ export function useNotesSidebarSelection({
       if (changed) selectionIdsRef.current = next;
       return changed ? next : prev;
     });
-  }, [list.notes, folders]);
+  }, [list.notes, list.status, folders]);
 
   const toggleFolder = useCallback((id: string) => {
     setOpenFolderIds((prev) => {
@@ -149,6 +151,7 @@ export function useNotesSidebarSelection({
   const folderIds = useMemo(() => new Set(folders.map((f) => f.id)), [folders]);
 
   useEffect(() => {
+    if (list.status !== NoteListStatus.Ready) return;
     setOpenFolderIds((prev) => {
       let changed = false;
       const next = new Set<string>();
@@ -158,7 +161,25 @@ export function useNotesSidebarSelection({
       }
       return changed ? next : prev;
     });
-  }, [folderIds]);
+  }, [folderIds, list.status]);
+
+  useEffect(() => {
+    if (list.status !== NoteListStatus.Ready || !selectedId) return;
+    if (revealedNoteRef.current === selectedId) return;
+    const note = list.notes.find((row) => row.id === selectedId);
+    if (!note) return;
+    revealedNoteRef.current = selectedId;
+    const ancestors = new Set<string>();
+    let id = note?.folderId;
+    while (id && !ancestors.has(id)) {
+      ancestors.add(id);
+      id = folders.find((folder) => folder.id === id)?.parentId;
+    }
+    setOpenFolderIds((prev) => {
+      if ([...ancestors].every((id) => prev.has(id))) return prev;
+      return new Set([...prev, ...ancestors]);
+    });
+  }, [selectedId, list.notes, list.status, folders]);
 
   const unfiledNotes = useMemo(
     () =>

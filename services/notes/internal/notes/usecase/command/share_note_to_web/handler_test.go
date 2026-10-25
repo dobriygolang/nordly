@@ -217,3 +217,18 @@ func TestHandleHashesPasswordAndEmbedsPrivateAssets(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 }
+
+func TestContentRefreshRequiresExistingSlugAndNoPolicyChange(t *testing.T) {
+	t.Parallel()
+	base := notesmodel.PublishOptions{ContentOnly: true, ExpectedSlug: "existing", AccessMode: notesmodel.PublishAccessModePassword, ExpiryPolicy: notesmodel.PublishExpiryPolicyNever}
+	cmd := share_note_to_web.Command{UserID: "user", NoteID: "note", Plaintext: "updated", Options: base}
+	require.NoError(t, cmd.Validate())
+	cmd.Options.ExpectedSlug = ""
+	require.ErrorIs(t, cmd.Validate(), notesmodel.ErrInvalidArgument)
+	cmd.Options = base
+	cmd.Options.Password = "new-password"
+	require.ErrorIs(t, cmd.Validate(), notesmodel.ErrInvalidArgument)
+	cmd.Options = base
+	cmd.Options.ExpiryPolicy = notesmodel.PublishExpiryPolicySevenDays
+	require.ErrorIs(t, cmd.Validate(), notesmodel.ErrInvalidArgument)
+}

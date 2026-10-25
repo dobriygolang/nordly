@@ -4,6 +4,15 @@ Work from `services/focus/` only. Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/focus`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/focus/app/run.go`; keep transport thin.
+
+- Transport mappers: no nil → empty proto on success paths.
+- `repository.Store` mockery only; thin `pgx.Row` stubs OK for SQL scan tests — no domain-port fakes.
+
 ## Purpose
 
 Pomodoro timer and focus statistics for Nordly (Tauri desktop):

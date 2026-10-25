@@ -3,8 +3,16 @@
   "name": "Nordly",
   "version": "0.1.0",
   "description": "Save a word and its translation into a Nordly note.",
+  "icons": {
+    "32": "icons/32.png",
+    "128": "icons/128.png"
+  },
   "action": {
-    "default_title": "Nordly"
+    "default_title": "Nordly",
+    "default_icon": {
+      "32": "icons/32.png",
+      "128": "icons/128.png"
+    }
   },
   "side_panel": {
     "default_path": "sidepanel.html"

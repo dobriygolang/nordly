@@ -86,7 +86,7 @@
 /* На главном экране постер живёт в полосе между шапкой и доком. */
 .nordly-canvas-shell .nordly-bg-poster-host {
   top: 56px;
-  bottom: 96px;
+  bottom: 68px;
 }
 .nordly-bg-poster-canvas {
   display: block;
@@ -213,9 +213,10 @@ body.nordly-task-dragging .nordly-page-layer[data-status='active'] {
 }
 
 .nordly-notes-editor-shell .nordly-notes-title {
-  font-size: 1.75em;
-  min-height: 2.25em;
-  padding-bottom: 0.65em;
+  font-size: 1.25em;
+  min-height: var(--nordly-page-heading-height);
+  line-height: 1.4;
+  padding: 0;
 }
 
 .nordly-notes-editor-shell .nordly-live-md {

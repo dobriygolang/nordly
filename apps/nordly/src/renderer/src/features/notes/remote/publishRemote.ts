@@ -69,8 +69,11 @@ export async function remoteShareNoteToWeb(
   title: string,
   options: PublishToWebOptions = DEFAULT_PUBLISH_OPTIONS,
   attachments: PublishedAttachmentInput[] = [],
-): Promise<ShareToWebResult> {
+  refresh?: { expectedSlug: string },
+): Promise<ShareToWebResult | null> {
   const body: Record<string, unknown> = {
+    contentOnly: Boolean(refresh),
+    expectedSlug: refresh?.expectedSlug ?? '',
     plaintextMd,
     title,
     accessMode: publishAccessModeToWire(shareAccessMode(options)),
@@ -86,13 +89,19 @@ export async function remoteShareNoteToWeb(
     body.password = options.password;
   }
   const resp = await apiFetch(
-    `${API_BASE_URL}/v1/notes/${encodeURIComponent(noteId)}/share-to-web`,
+    `${API_BASE_URL}/v1/notes/${encodeURIComponent(noteId)}/${refresh ? 'refresh-published-content' : 'share-to-web'}`,
     {
       method: 'POST',
       headers: syncAuthHeaders({ 'content-type': 'application/json' }),
       body: JSON.stringify(body),
     },
   );
+  // A refresh races safely with unpublish/expiry: the backend refuses to recreate it.
+  if (refresh && resp.status === 404) {
+    const current = await remoteGetPublishStatus(noteId);
+    if (!current?.published || (current.expiresAt && new Date(current.expiresAt).getTime() <= Date.now())) return null;
+    throw new Error('Published content could not be refreshed. Update the notes service and retry sync.');
+  }
   requireOk(resp, 'shareToWeb');
   const j = (await resp.json()) as Record<string, unknown>;
   return {

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -34,6 +34,7 @@ static STATE: Mutex<ListenerState> = Mutex::new(ListenerState {
     listening: false,
     error: None,
 });
+static TOKEN_WRITE: Mutex<()> = Mutex::new(());
 fn pending() -> &'static Mutex<HashMap<String, Sender<Reply>>> {
     static PENDING: OnceLock<Mutex<HashMap<String, Sender<Reply>>>> = OnceLock::new();
     PENDING.get_or_init(|| Mutex::new(HashMap::new()))
@@ -63,7 +64,7 @@ fn token_entry() -> Result<Entry, String> {
     Entry::new(KEYRING_SERVICE, "capture-token").map_err(|err| err.to_string())
 }
 
-fn load_token() -> Result<Option<String>, String> {
+fn load_legacy_token() -> Result<Option<String>, String> {
     match token_entry()?.get_password() {
         Ok(raw) => {
             let token = raw.trim().to_string();
@@ -78,10 +79,63 @@ fn load_token() -> Result<Option<String>, String> {
     }
 }
 
-fn store_token(token: &str) -> Result<(), String> {
-    token_entry()?
-        .set_password(token)
+fn token_path() -> Result<PathBuf, String> {
+    APP.get()
+        .ok_or("capture is not initialized")?
+        .path()
+        .app_data_dir()
+        .map(|dir| dir.join("capture-token"))
         .map_err(|err| err.to_string())
+}
+
+fn read_token(path: &Path) -> Result<Option<String>, String> {
+    match fs::read_to_string(path) {
+        Ok(token) => {
+            if token.len() != 64 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err("invalid capture token file".into());
+            }
+            Ok(Some(token))
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+fn load_token() -> Result<Option<String>, String> {
+    read_token(&token_path()?)
+}
+
+/// This local pairing credential must survive ad-hoc app updates without a
+/// Keychain ACL prompt. Keep it private to the OS user and replace atomically.
+fn write_token(path: &Path, token: &str) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or("capture token has no parent directory")?;
+    fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    let temporary = parent.join(format!(".capture-token-{}", random_hex(16)?));
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let result = (|| {
+        let mut file = options.open(&temporary)?;
+        file.write_all(token.as_bytes())?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)
+    })();
+    if result.is_err() && temporary.exists() {
+        if let Err(err) = fs::remove_file(&temporary) {
+            eprintln!("[nordly:capture] temporary token cleanup: {err}");
+        }
+    }
+    result.map_err(|err| err.to_string())
+}
+
+fn store_token(token: &str) -> Result<(), String> {
+    write_token(&token_path()?, token)
 }
 
 fn random_hex(bytes: usize) -> Result<String, String> {
@@ -125,10 +179,16 @@ pub fn status() -> CaptureStatus {
 }
 
 pub fn token_or_create() -> Result<String, String> {
+    let _guard = lock(&TOKEN_WRITE);
     if let Some(token) = load_token()? {
         return Ok(token);
     }
-    let created = random_hex(32)?;
+    // One-time migration, invoked only from Browser settings. Background
+    // requests never access Keychain or trigger a password dialog.
+    let created = match load_legacy_token()? {
+        Some(token) => token,
+        None => random_hex(32)?,
+    };
     store_token(&created)?;
     Ok(created)
 }
@@ -165,36 +225,23 @@ pub fn extension_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 pub fn reveal_extension(app: &AppHandle) -> Result<String, String> {
     let dir = extension_dir(app)?;
-    reveal_path(&dir)?;
+    tauri_plugin_opener::reveal_item_in_dir(&dir).map_err(|err| err.to_string())?;
     Ok(dir.to_string_lossy().into_owned())
 }
 
 pub fn open_chrome_extensions() -> Result<(), String> {
-    let status = Command::new("open")
-        .args(["-a", "Google Chrome", "chrome://extensions"])
-        .status()
-        .map_err(|err| err.to_string())?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err("Google Chrome did not open".into())
-    }
-}
-
-fn reveal_path(path: &Path) -> Result<(), String> {
-    let status = Command::new("open")
-        .args(["-R"])
-        .arg(path)
-        .status()
-        .map_err(|err| err.to_string())?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err("Finder did not open the extension folder".into())
-    }
+    #[cfg(target_os = "macos")]
+    let program = "Google Chrome";
+    #[cfg(target_os = "windows")]
+    let program = "chrome";
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let program = "google-chrome";
+    tauri_plugin_opener::open_url("chrome://extensions", Some(program))
+        .map_err(|err| err.to_string())
 }
 
 pub fn rotate_token() -> Result<String, String> {
+    let _guard = lock(&TOKEN_WRITE);
     let created = random_hex(32)?;
     store_token(&created)?;
     Ok(created)
@@ -432,6 +479,32 @@ fn write_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pairing_token_survives_reload_and_rotation_without_keychain() {
+        let directory =
+            std::env::temp_dir().join(format!("nordly-capture-{}", random_hex(16).unwrap()));
+        let path = directory.join("capture-token");
+        assert_eq!(read_token(&path).unwrap(), None);
+        let first = random_hex(32).unwrap();
+        write_token(&path, &first).unwrap();
+        assert_eq!(read_token(&path).unwrap(), Some(first.clone()));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let second = random_hex(32).unwrap();
+        write_token(&path, &second).unwrap();
+        assert_eq!(read_token(&path).unwrap(), Some(second));
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::write(&path, "broken").unwrap();
+        assert!(read_token(&path).is_err());
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     fn headers(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs

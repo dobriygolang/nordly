@@ -9,6 +9,10 @@
 
 * { box-sizing: border-box; }
 
+html, body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -21,12 +25,15 @@ main {
   flex-direction: column;
   gap: 10px;
   padding: 16px;
+  height: 100%;
+  min-height: 0;
 }
 
 section {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 section[hidden],
@@ -52,6 +59,21 @@ input, select, button {
 button {
   cursor: pointer;
   background: transparent;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+#translate {
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+#status, #hint {
+  flex-shrink: 0;
 }
 
 input:focus, select:focus, button:focus {
@@ -82,7 +104,8 @@ input:focus, select:focus, button:focus {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 50vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 

@@ -7,11 +7,13 @@ import { listBoards } from '@features/whiteboard/api/whiteboardClient';
 import { NotesSidebarDivider, NotesSidebarEdge } from '@shared/ui/SidebarDivider';
 import { VAULT_SIDEBAR_W } from '@shared/ui/vaultSidebar';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
+import { getDbUserId } from '@shared/db/nordlyDb';
 import type { EntityNavigationRequest } from '@shared/model/navigation';
 import { Sidebar } from './Sidebar';
 import { Editor } from './Editor';
 import { FileDropOverlay } from './FileDropOverlay';
-import { errorMessage } from './utils';
+import { errorMessage, NoteListStatus } from './utils';
 import { VaultOnboarding } from './VaultOnboarding';
 import { useNotesAutosave } from './useNotesAutosave';
 import { useNotesFileDrop } from './useNotesFileDrop';
@@ -32,12 +34,29 @@ export function NotesPage({
   onRegisterFlush,
 }: NotesPageProps) {
   const t = useT();
-  const [selectedId, setSelectedId] = useState<string | null>(openRequest?.id ?? null);
+  const selectedNoteKey = `${STORAGE_KEYS.notesLastSelected}:${getDbUserId()}`;
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (openRequest?.id) return openRequest.id;
+    try {
+      return window.localStorage.getItem(selectedNoteKey);
+    } catch (error) {
+      console.warn('[nordly:notes] last note load failed', error);
+      return null;
+    }
+  });
   const selectedIdRef = useRef<string | null>(selectedId);
   selectedIdRef.current = selectedId;
   const [active, setActive] = useState<Note | null>(null);
   const activeRef = useRef<Note | null>(null);
   activeRef.current = active;
+  useEffect(() => {
+    if (!active || active.id !== selectedId) return;
+    try {
+      window.localStorage.setItem(selectedNoteKey, active.id);
+    } catch (error) {
+      console.warn('[nordly:notes] last note save failed', error);
+    }
+  }, [active, selectedId, selectedNoteKey]);
   const [activeError, setActiveError] = useState<string | null>(null);
   const [createTargetFolderId, setCreateTargetFolderId] = useState<string | null>(null);
   const focusFolderIdRef = useRef<string | null>(null);
@@ -49,6 +68,15 @@ export function NotesPage({
   }, []);
 
   const listApi = useNotesList({ t, setSelectedId });
+  const restoredSelectionRef = useRef(false);
+  useEffect(() => {
+    if (restoredSelectionRef.current || listApi.list.status !== NoteListStatus.Ready) return;
+    restoredSelectionRef.current = true;
+    if (openRequest || !selectedId) return;
+    if (!listApi.list.notes.some((note) => note.id === selectedId)) {
+      setSelectedId(listApi.list.notes[0]?.id ?? null);
+    }
+  }, [listApi.list, openRequest, selectedId]);
   const loadList = listApi.loadList;
   const scheduleLoadList = listApi.scheduleLoadList;
   const autosave = useNotesAutosave({

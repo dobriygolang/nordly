@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -33,16 +33,23 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
   const [revealed, setRevealed] = useState(false);
   const [reviewed, setReviewed] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [exitGrade, setExitGrade] = useState<Grade | null>(null);
+  const [started, setStarted] = useState(Boolean(noteId || limit));
+  const [reload, setReload] = useState(0);
+  const gradingRef = useRef(false);
+  const sessionRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    sessionRef.current += 1;
+    gradingRef.current = false;
     setDeck(null);
     setError(null);
     setIndex(0);
     setRevealed(false);
     setReviewed(0);
+    setBusy(false);
+    setStarted(Boolean(noteId || limit));
     void buildCardDeck(noteId)
       .then((next) => {
         if (!cancelled) setDeck(next);
@@ -52,8 +59,9 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
       });
     return () => {
       cancelled = true;
+      sessionRef.current += 1;
     };
-  }, [enabled, noteId]);
+  }, [enabled, noteId, limit, reload]);
 
   const shown = deck
     ? { ...deck, queue: limit && limit > 0 ? deck.queue.slice(0, limit) : deck.queue }
@@ -62,46 +70,50 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
 
   const grade = useCallback(
     (next: Grade) => {
-      if (!card || busy || !revealed || exitGrade) return;
-      setExitGrade(next);
-      window.setTimeout(() => {
-        setBusy(true);
-        void gradeCard({ key: card.key, front: card.front }, next)
-          .then(() => {
-            setReviewed((count) => count + 1);
-            setIndex((current) => current + 1);
-            setRevealed(false);
-            setExitGrade(null);
-          })
-          .catch((err: unknown) => {
-            setExitGrade(null);
-            setError(err instanceof Error ? err.message : String(err));
-          })
-          .finally(() => setBusy(false));
-      }, 160);
+      if (!card || gradingRef.current || !revealed || !started) return;
+      gradingRef.current = true;
+      const session = sessionRef.current;
+      setBusy(true);
+      setError(null);
+      void gradeCard({ key: card.key, front: card.front }, next)
+        .then(() => {
+          if (session !== sessionRef.current) return;
+          setReviewed((count) => count + 1);
+          setIndex((current) => current + 1);
+          setRevealed(false);
+        })
+        .catch((err: unknown) => {
+          if (session !== sessionRef.current) return;
+          setError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (session !== sessionRef.current) return;
+          gradingRef.current = false;
+          setBusy(false);
+        });
     },
-    [busy, card, exitGrade, revealed],
+    [card, revealed, started],
   );
 
   useEffect(() => {
-    if (!enabled || !deck) return;
+    if (!enabled || !deck || !started) return;
     const onKey = (event: KeyboardEvent) => {
       const target = event.target;
-      if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      if (event.key === ' ' && card && !revealed) {
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && card && !revealed) {
         event.preventDefault();
         setRevealed(true);
         return;
       }
       const gradeIndex = ['1', '2', '3', '4'].indexOf(event.key);
-      if (gradeIndex >= 0 && revealed) {
+      if (gradeIndex >= 0 && revealed && !event.repeat) {
         event.preventDefault();
         grade(GRADES[gradeIndex]!);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [card, deck, enabled, grade, revealed]);
+  }, [card, deck, enabled, grade, revealed, started]);
 
   return (
     <section className="nordly-cards">
@@ -111,7 +123,7 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
         </button>
         <h1 className="nordly-cards__title">{t('nordly.cards.title')}</h1>
         <div className="nordly-cards__header-end">
-          {shown && card ? (
+          {shown && card && started ? (
             <p className="nordly-cards__progress">
               {t('nordly.cards.progress', {
                 current: String(index + 1),
@@ -119,6 +131,9 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
               })}
             </p>
           ) : null}
+          <button type="button" className="nordly-cards__text-btn focus-ring" onClick={() => openSettings({ section: SettingsSectionId.Cards })}>
+            {t('nordly.cards.settings')}
+          </button>
           {noteId ? (
             <button type="button" className="nordly-cards__text-btn focus-ring" onClick={onShowAll}>
               {t('nordly.cards.all_notes')}
@@ -126,8 +141,8 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
           ) : null}
         </div>
       </header>
-      {shown && shown.queue.length > 0 ? (
-        <div className="nordly-cards__track" aria-hidden="true">
+      {shown && shown.queue.length > 0 && started ? (
+        <div className="nordly-cards__track" role="progressbar" aria-label={t('nordly.cards.title')} aria-valuemin={0} aria-valuemax={shown.queue.length} aria-valuenow={index}>
           <div
             className="nordly-cards__track-fill"
             style={{ width: `${Math.min(100, (index / shown.queue.length) * 100)}%` }}
@@ -141,17 +156,30 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
             <button
               type="button"
               className="nordly-cards__primary focus-ring motion-press"
-              onClick={() => openSettings({ section: SettingsSectionId.General })}
+              onClick={() => openSettings({ section: SettingsSectionId.Cards })}
             >
               {t('nordly.cards.open_settings')}
             </button>
           </div>
         </div>
-      ) : error ? (
-        <p className="nordly-cards__error">{error}</p>
+      ) : error && !shown ? (
+        <div className="nordly-cards__stage"><div className="nordly-cards__panel">
+          <p className="nordly-cards__error" role="alert">{error}</p>
+          <button className="nordly-cards__primary focus-ring" onClick={() => setReload((value) => value + 1)}>{t('nordly.cards.retry')}</button>
+        </div></div>
       ) : !shown ? (
         <p className="nordly-cards__muted">{t('nordly.cards.loading')}</p>
+      ) : !started && card ? (
+        <div className="nordly-cards__stage"><div className="nordly-cards__intro">
+          <span className="nordly-cards__intro-icon"><Icon name="grid" size={26} /></span>
+          <p className="nordly-cards__queue-count">{t('nordly.cards.queue_count', { count: String(shown.queue.length) })}</p>
+          <h2>{t('nordly.cards.ready')}</h2>
+          <p className="nordly-cards__muted">{t('nordly.cards.ready_hint')}</p>
+          <button className="nordly-cards__primary focus-ring" onClick={() => setStarted(true)}>{t('nordly.cards.start')}</button>
+        </div></div>
       ) : (
+        <>
+        {error ? <p className="nordly-cards__error" role="alert">{error}</p> : null}
         <ReviewBody
           deck={shown}
           card={card}
@@ -159,10 +187,11 @@ export function CardsReviewPage({ noteId, limit = null, onClose, onShowAll }: Ca
           revealed={revealed}
           reviewed={reviewed}
           busy={busy}
-          exitGrade={exitGrade}
           onReveal={() => setRevealed(true)}
           onGrade={grade}
+          onClose={onClose}
         />
+        </>
       )}
     </section>
   );
@@ -175,9 +204,9 @@ function ReviewBody({
   revealed,
   reviewed,
   busy,
-  exitGrade,
   onReveal,
   onGrade,
+  onClose,
 }: {
   deck: CardDeck;
   card: DeckCard | null;
@@ -185,9 +214,9 @@ function ReviewBody({
   revealed: boolean;
   reviewed: number;
   busy: boolean;
-  exitGrade: Grade | null;
   onReveal: () => void;
   onGrade: (grade: Grade) => void;
+  onClose: () => void;
 }): JSX.Element {
   const t = useT();
   const today = toDayKey(new Date());
@@ -201,23 +230,26 @@ function ReviewBody({
         ) : null}
         {!card ? (
           <div className="nordly-cards__panel motion-pop-in">
-            <p className="nordly-cards__front">{t('nordly.cards.done', { count: String(reviewed) })}</p>
+            <span className="nordly-cards__intro-icon"><Icon name="check" size={26} /></span>
+            <p className="nordly-cards__front">{reviewed ? t('nordly.cards.done', { count: String(reviewed) }) : t('nordly.cards.no_due')}</p>
+            {!reviewed ? <p className="nordly-cards__muted">{t('nordly.cards.no_due_hint')}</p> : null}
+            <button className="nordly-cards__primary focus-ring" onClick={onClose}>{t('nordly.cards.finish')}</button>
           </div>
         ) : (
           <div
             key={index}
             className="nordly-cards__panel motion-pop-in"
-            data-exit={exitGrade ?? undefined}
           >
             <div className="nordly-cards__meta">
-              <span className="nordly-cards__note">{card.noteTitle}</span>
+              <span className="nordly-cards__note" title={card.noteTitle}>{t('nordly.cards.source', { name: card.noteTitle })}</span>
               <span className="nordly-cards__pill">
                 {card.isNew ? t('nordly.cards.new') : t('nordly.cards.due')}
               </span>
             </div>
-            <p className={revealed ? 'nordly-cards__front is-revealed' : 'nordly-cards__front'}>{card.front}</p>
-            {revealed ? <p className="nordly-cards__answer">{card.back}</p> : null}
+            <div className="nordly-cards__question"><p className="nordly-cards__kicker">{t('nordly.cards.question')}</p><p className="nordly-cards__front">{card.front}</p></div>
+            {revealed ? <div className="nordly-cards__answer" aria-live="polite"><p className="nordly-cards__kicker">{t('nordly.cards.answer')}</p><p>{card.back}</p></div> : null}
             {revealed ? (
+              <><p className="nordly-cards__hint">{t('nordly.cards.grade_hint')}</p>
               <div className="nordly-cards__grades">
                 {GRADES.map((grade, gradeIndex) => {
                   const interval = scheduleReview(card.review, grade, today).intervalDays;
@@ -227,7 +259,7 @@ function ReviewBody({
                       type="button"
                       className="nordly-cards__grade focus-ring"
                       data-grade={grade}
-                      disabled={busy || exitGrade !== null}
+                      disabled={busy}
                       onClick={() => onGrade(grade)}
                     >
                       <span className="nordly-cards__grade-key">{gradeIndex + 1}</span>
@@ -239,12 +271,13 @@ function ReviewBody({
                   );
                 })}
               </div>
+              </>
             ) : (
               <div className="nordly-cards__actions">
                 <button type="button" className="nordly-cards__primary focus-ring motion-press" onClick={onReveal}>
                   {t('nordly.cards.show')}
                 </button>
-                <p className="nordly-cards__hint">{t('nordly.cards.show_hint')}</p>
+                <p className="nordly-cards__hint">{t('nordly.cards.reveal_hint')}</p>
               </div>
             )}
           </div>

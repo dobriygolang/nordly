@@ -2,7 +2,8 @@
 
 Work from `apps/nordly/` only. Monorepo index: [../../AGENTS.md](../../AGENTS.md). Web companion: [../web/AGENTS.md](../web/AGENTS.md).
 
-Agent rules (HTTP, Tauri, fail-fast): [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc) + root [fail-fast-no-fallbacks.mdc](../../.cursor/rules/fail-fast-no-fallbacks.mdc).
+Before any work in this app, read [engineering conventions](docs/engineering.md)
+and the root [fail-fast policy](../../docs/engineering/fail-fast-no-fallbacks.md).
 
 ## Purpose
 
@@ -31,7 +32,9 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Whiteboard | `pages/Whiteboard/WhiteboardPage.tsx` | Multi-board Excalidraw, local IndexedDB only |
 | Calendar | `pages/Calendar/CalendarModal.tsx` | PageStack full-screen calendar page; closes/navigates via Home |
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
-| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Integrations / Files & Links / Sync / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. Sync holds the notes-sync switch and encryption. General holds Appearance (wallpaper carousel via `WallpaperCarousel`, locale, week starts on, text size, whiteboard canvas), Timer (default mode, duration, daily goal, end bell, notifications, volume, calendar/task reminders), Task Rollover. `NordlySettings` (`shared/model/settings.ts`) includes `weekStartsOn` (`monday` \| `sunday`, default Monday), `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
+| Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Timer / Flashcards / Integrations / Files & Links / Sync / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. Sync holds the notes-sync switch and encryption. General holds Appearance (wallpaper, locale, week starts on, text size, whiteboard canvas). Timer holds mode, duration, daily goal, sounds, reminders, and Task Rollover. Flashcards holds card settings. `NordlySettings` (`shared/model/settings.ts`) includes `weekStartsOn` (`monday` \| `sunday`, default Monday), `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
+
+Page headings share `--nordly-page-top` (40px) and `--nordly-page-heading-height` (28px), matching the home wordmark. Keep the first heading row free of extra top padding. Note review actions sit beside the note title so enabling cards does not shift it. Interface copy lives in `apps/shared/i18n/locales/{en,ru}.ts`; keep both key sets and interpolation parameters identical.
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
@@ -84,7 +87,7 @@ HTTP REST only (no gRPC in renderer). Prod base: `https://trynordly.app` via Vit
 | POST | `/v1/devices/register` | `shared/api/registerSyncDevice.ts` — sync device registration |
 | HEAD | `/healthz` | `SyncEngine.ts` via `apiFetch` |
 
-**Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+**Packaged builds:** all renderer HTTP goes through `apiFetch` → `tauri-plugin-http` (scope in `src-tauri/capabilities/default.json`). Dev (`npm run dev`) keeps browser `fetch` + Vite proxy. **Never add raw `fetch()` for `/v1/*` or `/healthz`** — see [engineering conventions](docs/engineering.md).
 
 **Tauri shell (Rust)** — `src-tauri/src/auth.rs` (Nordly session keychain):
 
@@ -218,7 +221,11 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 
 ### Shell code-splitting (bundle budgets)
 
-`app/App.tsx` must not **statically** import Home calendar/meetings widgets or other heavy chrome that can share into the Notes route graph. Use `React.lazy` + `Suspense` (same pattern as pages). Import calendar leaves (`calendarClient`, `lib/events`, hooks, components), not a barrel. After shell changes: `npm run build:vite && node scripts/check-bundle-budgets.mjs` — see [.cursor/rules/nordly.mdc](.cursor/rules/nordly.mdc).
+`app/App.tsx` must not **statically** import Home calendar/meetings widgets or other heavy chrome that can share into the Notes route graph. Use `React.lazy` + `Suspense` (same pattern as pages). Import calendar leaves (`calendarClient`, `lib/events`, hooks, components), not a barrel. After shell changes: `npm run build:vite && node scripts/check-bundle-budgets.mjs` — see [engineering conventions](docs/engineering.md).
+
+## Notes editor workspace
+
+The device remembers the last successfully loaded note per profile and the editor selection per profile/note in localStorage. Reopening the editor restores the selection (clamped to the current document length), rather than moving to EOF. Saved folder expansion is pruned only after a successful list load; selecting a note reveals its ancestor folders. These workspace preferences do not sync. Live preview styles only closed code fences as code. Clicking a language badge reveals its opening fence for editing; Enter on an opening fence still inserts its closer.
 
 ## Filesystem notes vault
 
@@ -228,7 +235,7 @@ Markdown files sync to the notes service (`POST/PUT/DELETE /v1/notes`) via outbo
 
 ## Encrypted vault (cloud E2EE)
 
-Client: PBKDF2 600k + AES-256-GCM. A remote note is one ciphertext of path and body; the server title is an opaque id. Server stores salt + ciphertext only. An unencrypted remote note is not written while encryption is on. Publishing writes a separate public snapshot and leaves the encrypted sync row unchanged. The recovery wrap is stored with the vault salt so the phrase works on another device.
+Client: PBKDF2 600k + AES-256-GCM. A remote note is one ciphertext of path and body; the server title is an opaque id. Server stores salt + ciphertext only. An unencrypted remote note is not written while encryption is on. Publishing writes a separate public copy and leaves the encrypted sync row unchanged. Successful note uploads refresh that copy through `/refresh-published-content` before acknowledging the outbox; the same slug, password, and absolute expiry are preserved. A revoked or expired share is never recreated by a delayed upload. Deploy the notes API before this client. The recovery wrap is stored with the vault salt so the phrase works on another device.
 
 | File | Role |
 |------|------|
@@ -268,7 +275,7 @@ Sharing (requires sign-in + network):
 
 ## Browser capture
 
-Settings → Browser shows how to load the unpacked Chrome folder and a pairing code stored in the OS keychain. The installer copies that folder into the app resources, so a downloaded Nordly still has it. `src-tauri/resources/extension` is committed so Rust checks can see it, and `npm run extension:stage` refreshes it before a desktop build. While the process is running, Nordly listens on `127.0.0.1:47231` for the Chrome extension only (header `X-Nordly-Capture`, bearer code; `Origin` may be absent on a privileged extension request, and any other origin is rejected). `GET /v1/capture/notes` returns the one note marked “Save words here” in that note’s menu, and only while Settings → General → Flashcards is on. `POST /v1/capture` appends `word ::: translation` to that note. The open note goes through the editor draft. Any other note uses `updateNote`. Appends to one note are serialized. A locked vault returns an error and does not write an empty note. Hiding the window does not stop the listener.
+Settings → Browser shows how to load the unpacked Chrome folder and a pairing code stored in a private `capture-token` file under the app data directory (`0600` on Unix). Existing Keychain codes migrate once when Browser settings request the code; background capture requests never read Keychain. The installer copies that folder into the app resources, so a downloaded Nordly still has it. `src-tauri/resources/extension` is committed so Rust checks can see it, and `npm run extension:stage` refreshes it before a desktop build. While the process is running, Nordly listens on `127.0.0.1:47231` for the Chrome extension only (header `X-Nordly-Capture`, bearer code; `Origin` may be absent on a privileged extension request, and any other origin is rejected). `GET /v1/capture/notes` returns the one note marked “Save words here” in that note’s menu, and only while Settings → General → Flashcards is on. `POST /v1/capture` appends `word ::: translation` to that note. The open note goes through the editor draft. Any other note uses `updateNote`. Appends to one note are serialized. A locked vault returns an error and does not write an empty note. Hiding the window does not stop the listener.
 
 ## Flashcards
 
@@ -287,7 +294,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
 | `spotify_secret_load/save/clear` | Spotify tokens and PKCE verifier in the OS keychain. Not cleared by `auth_logout` |
 | `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch, `notes_vault_find_image` (shortest image path by file name) |
-| `capture_status` / `capture_token` / `capture_token_rotate` / `capture_reply` | Loopback capture for the Chrome extension. Token is in the OS keychain |
+| `capture_status` / `capture_token` / `capture_token_rotate` / `capture_reply` | Loopback capture for the Chrome extension. Token is in the private app-data file |
 | `pomodoro_load/save` | Timer snapshot (Tauri store) |
 | `show_notification` | Themed always-on-top banner (top-right) when pomodoro completes; auto-hides after 60s |
 | `hide_notification` | Dismiss notification banner (swipe or timeout) |
@@ -300,7 +307,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-**Menu bar (desktop):** tray icon opens `tray-popover` window (timer + theme poster). When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. Hamburger in popover calls `tray_show_main`.
+**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, at status-window level. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. Hamburger in popover calls `tray_show_main`.
 
 Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `spotify:now-playing`, `spotify:cmd`, `tray-popover:show`, `tray-popover:hide`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth), `settings?code=…&state=…` (Spotify PKCE).
 
@@ -322,6 +329,12 @@ npm run build            # Tauri release
 Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 
 ## Release + updater
+
+Windows checks: [docs/windows-testing.md](docs/windows-testing.md). The separate
+`nordly-windows-check` workflow runs Windows tests and builds an unsigned NSIS
+artifact without publishing. Installation, native UI, and upgrade scenarios
+still need Windows runtime verification. Browser capture uses Tauri's
+cross-platform opener for Explorer/Finder and Chrome settings.
 
 | Piece | Location |
 |-------|----------|

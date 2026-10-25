@@ -1,5 +1,104 @@
 # AGENTS.md — project-nordly (monorepo index)
 
+## Codex: instruction loading
+
+Root and component `AGENTS.md` files are the canonical project instructions.
+Read the relevant instructions and required documents before working; a link
+does not load its contents automatically. Keep detailed standards in
+`docs/engineering/` and workflows in `.agents/skills/`; do not duplicate their
+bodies across instruction files and skills.
+
+Before repository work, read [fail-fast policy](docs/engineering/fail-fast-no-fallbacks.md).
+For service implementation, service architecture, or Go changes, also read
+[architecture standard](docs/engineering/architecture-standard.md) and
+[Go backend conventions](docs/engineering/go-backend.md).
+Before adding a service, editing proto, or changing CI/deploy service lists, read
+[service registry checklist](docs/engineering/service-registry.md).
+
+Before working in a service or app, read its `AGENTS.md` and any documents it
+requires for the task. Repeat for every component actually touched by a
+cross-component task; do not load unrelated components. Root and component
+instructions apply together; component instructions take precedence within
+their scope. Detailed standards describe target architecture, not a reason to
+rewrite unrelated code.
+
+Markdown links resolve relative to their containing file. Repository-root paths
+in prose (`services/`, `apps/`, `docs/`, `deploy/`) resolve from this repository.
+
+### Concise responses and terminal output
+
+- Caveman is a user-level skill. When available, read its `SKILL.md` and use its
+  concise response style by default for this project. Preserve technical detail
+  and the user's language; honor requests for normal or more detailed responses.
+  Do not compress persisted code, comments, or documentation into caveman prose.
+- Use the installed `rtk` for supported commands with verbose output, for example
+  `rtk git status --short`, `rtk git diff --stat`, `rtk go test ./...`,
+  `rtk go build ./...`, and `rtk golangci-lint run`. Run service commands from
+  that service's directory and retain required environment variables such as
+  `GOWORK=off`. Check `rtk <command> --help` when support is uncertain.
+- Read instruction files unfiltered. Use native commands for exact source reads,
+  line references, full patch review, or diagnostics hidden by compression.
+  RTK is output compression, not a substitute for inspecting failures or checking
+  exit status. Use explicit wrappers; no automatic hook is required.
+
+### Agent routing
+
+Use this model routing whenever delegating work in Nordly:
+
+- Repository search and code navigation: `explorer`, using `gpt-6-luna` with `high` reasoning.
+- Implementation, fixes, and refactoring: `worker`, using `gpt-6.1-sol` with `medium` reasoning.
+- Complex code review (cross-component behavior, concurrency, security, data integrity):
+  `reviewer`, using `gpt-6-astra` with `high` reasoning. Review is read-only.
+
+Project presets live in `.codex/agents/`. Use them for suitable delegated tasks.
+Keep trivial work in the main agent when delegation adds no value. Follow the
+active session's rules about when delegation is allowed.
+
+When a skill selects a Cavecrew preset instead, preserve its scope and output contract:
+use `gpt-6-luna` / `high` for `cavecrew-investigator`,
+`gpt-6.1-sol` / `medium` for `cavecrew-builder`, and
+`gpt-6-astra` / `high` for complex reviews with `cavecrew-reviewer`.
+Pass explicit model and reasoning settings with a self-contained task and
+`fork_turns="none"` when required by the delegation tool.
+
+Give implementation agents explicit file or component ownership. Tell them they
+share the workspace and must preserve other agents' and the user's changes.
+Require evidence with file references from search and review agents, and relevant
+validation results from implementation agents. Surface unavailable models instead
+of silently switching to another model.
+
+### Git commits
+
+When creating commits:
+
+- Prefix the subject with the Linear issue id: `[NOR-123] Brief summary`.
+- Write only a **brief summary** (1–2 sentences) focused on *why*, not a changelog.
+- Do **not** append trailers or footers: no `Co-authored-by`, no `Signed-off-by`, no tool attribution.
+- Never add agent/editor credits or attribution trailers.
+
+Example:
+
+```bash
+git commit -m "$(cat <<'EOF'
+[NOR-42] Reset prod databases before v0.0.1 launch.
+
+EOF
+)"
+```
+
+Release branches: see [docs/release-process.md](docs/release-process.md).
+
+### Project skills
+
+Skills live in `.agents/skills/` and load only when relevant:
+
+- `nordly-backend`: Go service implementation and focused backend fixes.
+- `nordly-system-design`: architecture decisions and cross-service flow design.
+- `nordly-ui`: UI implementation and refinement in the existing apps.
+
+Read the selected skill's `SKILL.md`; these workflows complement the rules above
+and do not replace component instructions.
+
 This repo groups independent services under `services/<name>/`.
 
 **Do not use a root Makefile** — each service is self-contained.
@@ -37,8 +136,8 @@ Root `go.work` is optional. Services build with `GOWORK=off`.
 Pattern from **identity** + **template**. **Start new services by copying `services/template/`.**
 
 > **Target architecture (CQRS + DDD + Clean Architecture):** see
-> [.cursor/rules/architecture-standard.mdc](.cursor/rules/architecture-standard.mdc)
-> and [.cursor/rules/fail-fast-no-fallbacks.mdc](.cursor/rules/fail-fast-no-fallbacks.mdc).
+> [architecture-standard.md](docs/engineering/architecture-standard.md)
+> and [fail-fast-no-fallbacks.md](docs/engineering/fail-fast-no-fallbacks.md).
 > Prefer `slices`/`sort`, mockery-only tests, fail at `New`/`Load`, delete dead branches,
 > drop unused fields/SQL. Per domain add `usecase/{command,query}/<op>/` packages (each = `command|query.go`
 > with `Validate()` + `handler.go` with `New`/`Handle` + `mocks/`) and a `repository/store.go`
@@ -79,12 +178,9 @@ services/<name>/
 │   ├── app/api/<name>/           # transport — see below
 │   ├── config/
 │   └── tools/                    # logger, humanerror
-├── scripts/
-│   ├── migrations/               # goose SQL
-│   └── dev/docker-compose.yml
-└── .cursor/rules/
-    ├── service.mdc
-    └── go-backend.mdc
+└── scripts/
+    ├── migrations/               # goose SQL
+    └── dev/docker-compose.yml
 ```
 
 ### Transport layer (`internal/app/api/<name>/`)
@@ -148,7 +244,7 @@ func NewRegisteredImplementation(s *grpc.Server, svc exampleservice.Service) *Im
 | **focus** | **8091** | **9101** | **5443** | **nordly_focus** |
 | template | 8099 | 9199 | 5439 | nordly_template |
 
-All prod HTTP services expose `GET /metrics` (request instrumentation + domain counters where implemented). See [deploy/grafana/README.md](../deploy/grafana/README.md).
+All prod HTTP services expose `GET /metrics` (request instrumentation + domain counters where implemented). See [deploy/grafana/README.md](deploy/grafana/README.md).
 
 Pick unused ports for each new service. Update `Makefile`, `config.go`, `docker-compose.yml`.
 
@@ -182,7 +278,7 @@ make migrate-new NAME=<snake> | migrate-up | migrate-down | stop
 
 Follow [services/template/AGENTS.md](services/template/AGENTS.md#copy-as-new-service): copy template, rename, pick ports, `make migrate-new NAME=init`, `make gen-proto && make lint && make build`, document in `AGENTS.md`.
 
-**Registry (CI/deploy):** edit [deploy/scripts/services.conf.sh](deploy/scripts/services.conf.sh), sync `.github/workflows/ci.yml` matrix + `go.work`, run `bash deploy/scripts/verify-service-registry.sh`. Full list: [.cursor/rules/service-registry.mdc](.cursor/rules/service-registry.mdc).
+**Registry (CI/deploy):** edit [deploy/scripts/services.conf.sh](deploy/scripts/services.conf.sh), sync `.github/workflows/ci.yml` matrix + `go.work`, run `bash deploy/scripts/verify-service-registry.sh`. Full list: [service-registry.md](docs/engineering/service-registry.md).
 
 ### Go proxy
 
@@ -190,4 +286,14 @@ Corporate proxy stale cache: `GOPROXY=https://proxy.golang.org,direct go mod tid
 
 ### Documentation
 
-Each `services/<name>/AGENTS.md` = source of truth for that service. Cross-service flows: [docs/onboarding/README.md](docs/onboarding/README.md). Update docs in the same PR as code — see [.cursor/rules/agents-md.mdc](.cursor/rules/agents-md.mdc).
+Each `services/<name>/AGENTS.md` is the source of truth for that service;
+`apps/<name>/AGENTS.md` owns app-specific instructions. Cross-service flows live
+in [docs/onboarding/README.md](docs/onboarding/README.md).
+
+Update relevant documentation in the same change set when changing HTTP/gRPC
+routes, auth, environment variables, ports, database names, worker intervals or
+batches, outbox events and their producers/consumers, adapter dependencies, or
+directory/usecase layout. For one component, update its `AGENTS.md` and relevant
+engineering guide; for cross-component flows, also update onboarding docs.
+Document implemented behavior only. If code and docs disagree, fix the mismatch
+in the same change set. Keep mandatory loading conditions explicit in AGENTS.md.

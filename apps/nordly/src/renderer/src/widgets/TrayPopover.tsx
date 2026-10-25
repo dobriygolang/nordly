@@ -12,6 +12,7 @@ import { listenEffect } from '@shared/lib/tauriListen';
 import {
   disconnectedNowPlaying,
   sendSpotifyLike,
+  sendSpotifyPlayback,
   SPOTIFY_NOW_EVENT,
   trayMusicLine,
   type SpotifyNowPlaying,
@@ -232,6 +233,11 @@ export function TrayPopoverApp(): JSX.Element {
     sendPomodoroCommand('toggle');
   }, []);
 
+  const musicPlaying = (nowPlaying.playback.kind === 'track' || nowPlaying.playback.kind === 'other') && nowPlaying.playback.isPlaying === true;
+  const rowPlaying = musicLine.mode === 'music' ? musicPlaying : running;
+  const rowActionLabel = musicLine.mode === 'music'
+    ? t(musicPlaying ? 'nordly.settings.spotify.pause' : 'nordly.settings.spotify.play')
+    : t(running ? 'nordly.dock.pause_timer' : 'nordly.dock.play_timer');
   const posterSrc = themePosterSrc(theme);
 
   return (
@@ -241,8 +247,8 @@ export function TrayPopoverApp(): JSX.Element {
           type="button"
           className="nordly-tray-popover__menu motion-press focus-ring"
           onClick={openMain}
-          aria-label="Open Nordly"
-          title="Open Nordly"
+          aria-label={t('nordly.tray.open_app')}
+          title={t('nordly.tray.open_app')}
         >
           <Icon name="menu" size={13} />
         </button>
@@ -252,23 +258,22 @@ export function TrayPopoverApp(): JSX.Element {
         </div>
 
         <div className="nordly-tray-popover__controls">
-          <TrayTimer totalSec={displaySec} running={running} openRollKey={openRollKey} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <TrayTimer totalSec={displaySec} running={running} openRollKey={openRollKey} />
+            {musicLine.mode === 'music' ? <button className="nordly-tray-popover__play focus-ring" onClick={toggleTimer} aria-label={t(running ? 'nordly.dock.pause_timer' : 'nordly.dock.play_timer')} aria-pressed={running}><Icon name={running ? 'pause' : 'play'} size={10} /></button> : null}
+          </div>
 
           <div className="nordly-tray-popover__focus-row">
             <button
               type="button"
-              className={`nordly-tray-popover__play motion-press focus-ring${running ? ' is-running' : ''}`}
-              onClick={toggleTimer}
-              aria-label={
-                running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
-              }
-              aria-pressed={running}
-              title={
-                running ? t('nordly.dock.pause_timer') : t('nordly.dock.play_timer')
-              }
+              className={`nordly-tray-popover__play motion-press focus-ring${rowPlaying ? ' is-running' : ''}`}
+              onClick={musicLine.mode === 'music' ? sendSpotifyPlayback : toggleTimer}
+              aria-label={rowActionLabel}
+              aria-pressed={rowPlaying}
+              title={rowActionLabel}
             >
               <span className="nordly-tray-popover__play-icon">
-                <Icon name={running ? 'pause' : 'play'} size={10} />
+                <Icon name={rowPlaying ? 'pause' : 'play'} size={10} />
               </span>
             </button>
             {musicLine.showLike ? (
@@ -283,6 +288,7 @@ export function TrayPopoverApp(): JSX.Element {
                 <Icon name={musicLine.liked ? 'heart-fill' : 'heart'} size={12} />
               </button>
             ) : null}
+            {musicLine.likeError ? <span role="img" aria-label={musicLine.likeError} title={musicLine.likeError}><Icon name="info" size={12} /></span> : null}
             <span className="nordly-tray-popover__focus-copy" title={musicLine.title}>
               <span className="nordly-tray-popover__focus-kicker mono">{musicLine.kicker}</span>
               <span className="nordly-tray-popover__focus-title">{musicLine.title}</span>

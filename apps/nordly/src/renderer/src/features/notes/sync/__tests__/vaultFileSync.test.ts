@@ -68,6 +68,7 @@ vi.mock('@shared/crypto/vault', () => cryptoVault);
 vi.mock('@shared/db/nordlyDb', () => ({
   requireUserId: () => 'user-1',
 }));
+vi.mock('../publishSync', () => ({ refreshPublishedContent: vi.fn(async () => undefined) }));
 vi.mock('../notesSync', () => ({
   withNotesRemoteMutation: async <T>(fn: () => Promise<T>) => fn(),
 }));
@@ -76,6 +77,7 @@ vi.mock('@features/notes/vault/vaultOutbox', () => ({
   enqueueVaultFilePut: vi.fn(),
 }));
 
+import { refreshPublishedContent } from '../publishSync';
 import { enqueueVaultFilePut } from '@features/notes/vault/vaultOutbox';
 
 import { isVaultRelPath, pullVaultFiles, pushVaultOutbox } from '../vaultFileSync';
@@ -190,6 +192,17 @@ describe('pushVaultOutbox', () => {
 
     expect(remote.remoteCreateNote).not.toHaveBeenCalled();
     expect(remote.remoteUpdateNote).toHaveBeenCalledWith('note-1', 'A.md', 'next');
+    expect(refreshPublishedContent).toHaveBeenCalledWith('note-1', 'A.md', 'A.md', 'next');
+  });
+
+  it('does not acknowledge a saved private note until its public copy is refreshed', async () => {
+    indexStore.getVaultSyncIndex.mockResolvedValue({ serverId: 'note-1' });
+    ipc.vaultReadNote.mockResolvedValue({ path: 'A.md', title: 'A', bodyMd: 'next', folderPath: null, updatedAtMs: 11, sizeBytes: 4 });
+    remote.remoteUpdateNote.mockResolvedValue({ id: 'note-1', updatedAt: new Date() });
+    vi.mocked(refreshPublishedContent).mockRejectedValueOnce(new Error('Public update failed'));
+    await expect(pushVaultOutbox(putEntry('A.md'))).rejects.toThrow('Public update failed');
+    expect(outbox.removeOutbox).not.toHaveBeenCalled();
+    expect(remote.remoteCreateNote).not.toHaveBeenCalled();
   });
 
   it('deletes the mapped remote note', async () => {

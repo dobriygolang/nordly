@@ -37,7 +37,7 @@ export function IntegrationsSection() {
         </SettingsBlock>
       )}
       {showCloud ? (
-        <SettingsBlock title={t('nordly.settings.section.integrations')}>
+        <><SettingsBlock title="Google Calendar">
           <GoogleCalendarSection
             pollMinutes={pollMinutes}
             onPollMinutesChange={(m) => {
@@ -45,8 +45,8 @@ export function IntegrationsSection() {
               setPollMinutes(m);
             }}
           />
-          <ZoomSection />
         </SettingsBlock>
+        <SettingsBlock title="Zoom"><ZoomSection /></SettingsBlock></>
       ) : (
         <p className="nordly-settings-empty">{t('nordly.settings.integrations_cloud_only')}</p>
       )}

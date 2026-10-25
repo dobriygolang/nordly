@@ -4,4 +4,5 @@
 deploy/.env
 deploy/secrets
 **/*_test.go
-.cursor
+.codex
+.agents

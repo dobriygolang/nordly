@@ -1,4 +1,4 @@
-import { type Locale } from '@nordly-i18n';
+import { getLocale, type Locale } from '@nordly-i18n';
 import { formatLocaleDate, formatLocaleTime } from '@shared/lib/localeFormat';
 import { TASK_DURATION_MIN, taskDurationMin } from '@shared/lib/taskDuration';
 
@@ -131,13 +131,15 @@ export function taskDayKey(task: { scheduledStart?: string; createdAt: string })
   return toDayKey(created);
 }
 
-export function formatDuration(totalMin: number): string {
-  if (totalMin <= 0) return '0m';
+export function formatDuration(totalMin: number, locale: Locale = getLocale()): string {
+  const minute = locale === 'ru' ? ' мин' : 'm';
+  const hour = locale === 'ru' ? ' ч' : 'h';
+  if (totalMin <= 0) return `0${minute}`;
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  if (h === 0) return `${m}${minute}`;
+  if (m === 0) return `${h}${hour}`;
+  return `${h}${hour} ${m}${minute}`;
 }
 
 /** Compact label for task row / duration menu (30m, 1h, 2h). */

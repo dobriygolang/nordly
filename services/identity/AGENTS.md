@@ -4,6 +4,16 @@ Work from this directory only. Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/identity`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/identity/app/run.go`; keep transport thin.
+
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, JWT keys required in `config.Load()`.
+- Auth flows use explicit `ErrNotFound` branches — not `user == nil` without error.
+- Ports use mockery; `service.New` / usecase `New` return an error on missing required deps (including Logger when wired).
+
 ## Purpose
 
 Auth and user profiles: **Telegram bot code**, **RS256 JWT** + Redis refresh.

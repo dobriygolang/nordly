@@ -119,7 +119,7 @@ export function InsightsGrid({
       />
       <SimpleStatCell
         value={String(insights.averageSessionMinutes)}
-        unit="min"
+        unit={t('nordly.settings.pomodoro.unit')}
         label={t('nordly.stats.avg_session')}
         sub={
           insights.totalSessions > 0

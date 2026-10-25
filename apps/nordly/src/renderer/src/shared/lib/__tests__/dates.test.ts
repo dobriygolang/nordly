@@ -51,3 +51,11 @@ describe('date invariants', () => {
     expect(formatDurationShort(90)).toBe('1h 30m');
   });
 });
+
+it('formats duration units in the selected language', () => {
+  expect(formatDuration(0, 'ru')).toBe('0 мин');
+  expect(formatDuration(45, 'ru')).toBe('45 мин');
+  expect(formatDuration(60, 'ru')).toBe('1 ч');
+  expect(formatDuration(90, 'ru')).toBe('1 ч 30 мин');
+  expect(formatDuration(90, 'en')).toBe('1h 30m');
+});

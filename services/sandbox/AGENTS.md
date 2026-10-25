@@ -4,6 +4,19 @@ Monorepo: [../../AGENTS.md](../../AGENTS.md).
 
 Module: `github.com/dobriygolang/project-nordly/services/sandbox`
 
+## Engineering requirements
+
+For Go changes, read the shared [Go conventions](../../docs/engineering/go-backend.md)
+and [architecture standard](../../docs/engineering/architecture-standard.md).
+Wire dependencies in `cmd/sandbox/app/run.go`; keep transport thin.
+
+- JWT validator always wired. User sessions omit `room_id`; editor tokens are
+  validated against the request's exact `editor:{room_id}` scope.
+- `service.New()` / usecase `New` return an error on missing required deps — no mid-path invent defaults.
+- Persistence: `repository.Store` (mockery), not concrete `*Repository` in service/usecase.
+- Running rows require a unique claim token + lease; only token-matched terminal
+  updates may clear a claim. Runner process output always uses bounded draining writers.
+
 ## Purpose
 
 Isolated code execution for **live coding rooms** (run, fetch result, format).

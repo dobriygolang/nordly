@@ -19,3 +19,10 @@ export function sendSpotifyLike(): void {
     console.error('[nordly:spotify] like command failed', error);
   });
 }
+
+export function sendSpotifyPlayback(): void {
+  if (!isTauriRuntime()) return;
+  void emit(SPOTIFY_CMD_EVENT, { action: 'playback' }).catch((error) => {
+    console.error('[nordly:spotify] playback command failed', error);
+  });
+}

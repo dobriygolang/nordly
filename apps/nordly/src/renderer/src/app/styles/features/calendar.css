@@ -34,7 +34,7 @@
 }
 .nordly-calendar-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 0 0 18px;
@@ -47,8 +47,9 @@
   min-width: 0;
 }
 .nordly-calendar-toolbar__title {
+  line-height: var(--nordly-page-heading-height);
   margin: 0;
-  font-size: 15px;
+  font-size: var(--nordly-page-heading-size);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);

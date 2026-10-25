@@ -1,0 +1,36 @@
+# Web companion (`apps/web`)
+
+Same policy as repo root [fail-fast-no-fallbacks.md](../../../docs/engineering/fail-fast-no-fallbacks.md).
+
+## JSON wire format
+
+- **grpc-gateway** responses use **camelCase** on the wire.
+- **`parseResponse` / `apiWithBearer()`** in `src/lib/apiClient.ts` run `normalizeProtoJson()` → internal TS types use **snake_case** field names.
+- **Do not** dual-read: `owner_id ?? ownerId`, `pickStr(j, 'sceneJson', 'scene_json')`, etc.
+- **Request bodies** to gateway: camelCase (`displayName`, `roomType`).
+- **No user identity auth on web** — `clearTokens()` on boot clears legacy localStorage keys.
+- **Rooms guest** (scoped JWT only): `parseGuestAccessToken()` — `accessToken` only; pass via `apiWithBearer`.
+
+## API helpers
+
+| File | Role |
+|------|------|
+| `src/lib/apiClient.ts` | `apiWithBearer`, `parseResponse`, guest token parser, `clearTokens` |
+| `src/lib/protoJson.ts` | camelCase → snake_case normalize |
+| `src/lib/api/rooms.ts` | strict `mapRoom`, `requireExpiresIn` |
+| `src/lib/api/publicBoards.ts` | strict field readers after `parseResponse` |
+| `src/lib/api/sandbox.ts` | guest bearer required (no anonymous `api()` fallthrough) |
+
+## Do not
+
+- Dev/login bypasses, synthetic tokens, or silent `?? 0` for required numeric API fields.
+- Keep legacy storage keys or dual parsers “just in case” — one-way migration or throw.
+- Early collab `Y.Text('scene')` blobs — removed; rooms use element map only.
+- Hand-written fake/stub classes for ports — use Vitest `vi.fn` / `vi.mock` only.
+- Redundant “just in case” conditionals that invent defaults after failed API reads.
+- Empty `catch` on storage/clipboard — log (`console.warn`) so failures stay visible.
+
+## Cross-reference
+
+- Client matrix: [docs/backend-client-matrix.md](../../../docs/backend-client-matrix.md)
+- Web AGENTS: [apps/web/AGENTS.md](../AGENTS.md)

@@ -2,6 +2,8 @@ import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 
 export const SettingsSectionId = {
   General: 'general',
+  Timer: 'timer',
+  Cards: 'cards',
   Integrations: 'integrations',
   FilesLinks: 'files_links',
   Sync: 'sync',

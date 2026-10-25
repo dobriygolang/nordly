@@ -892,6 +892,12 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   color: var(--ink-40);
 }
 
+.nordly-md-code-pending span:not([class*='nordly-md-']) {
+  color: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+}
+
 .nordly-md-code-block__lang-bar {
   position: absolute;
   right: 1rem;
@@ -900,7 +906,7 @@ body.nordly-note-dragging .nordly-note-row-wrap {
   justify-content: flex-end;
   align-items: center;
   min-height: 0;
-  pointer-events: none;
+  cursor: text;
   user-select: none;
 }
 
@@ -961,3 +967,14 @@ body.nordly-note-dragging .nordly-note-row-wrap {
  * Замена Milkdown'а — Obsidian-style: markdown маркеры (# / ** / >) видны
  * как обычный текст, стилизуются HighlightStyle'ом в TS-компоненте.
  * Здесь только: empty-state placeholder + минимальные CM-overrides. */
+
+.nordly-notes-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  min-height: var(--nordly-page-heading-height);
+  margin-bottom: 16px;
+}
+.nordly-notes-title-row .nordly-notes-title { min-width: 0; flex: 1; }
+.nordly-notes-title-row .nordly-notes-review-note { margin: 0; align-self: center; flex-shrink: 0; }

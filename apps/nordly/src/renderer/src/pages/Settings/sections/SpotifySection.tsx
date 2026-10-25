@@ -6,6 +6,8 @@ import {
   connectSpotify,
   disconnectSpotify,
   hydrateSpotify,
+  refreshSpotifyPlayback,
+  toggleSpotifyPlayback,
   useSpotifyStore,
   type SpotifyConnectError,
 } from '@features/spotify/api/spotifyClient';
@@ -30,6 +32,7 @@ export function SpotifySection(): JSX.Element {
   const displayName = useSpotifyStore((s) => s.displayName);
   const oauthPending = useSpotifyStore((s) => s.oauthPending);
   const connectError = useSpotifyStore((s) => s.connectError);
+  const now = useSpotifyStore((s) => s.nowPlaying);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -37,6 +40,15 @@ export function SpotifySection(): JSX.Element {
     void hydrateSpotify();
   }, []);
 
+  useEffect(() => {
+    if (!connected) return;
+    void refreshSpotifyPlayback();
+    const timer = window.setInterval(() => void refreshSpotifyPlayback(), 5000);
+    return () => window.clearInterval(timer);
+  }, [connected]);
+
+  const playback = now.playback;
+  const playing = (playback.kind === 'track' || playback.kind === 'other') && playback.isPlaying === true;
   const configured = isSpotifyConfigured();
   const controlsDisabled = !hydrated || busy || oauthPending;
   const connectDisabled = !configured || controlsDisabled;
@@ -129,6 +141,11 @@ export function SpotifySection(): JSX.Element {
           )}
         </div>
       </SettingRow>
+      {connected && !reauthRequired ? <SettingRow label={playback.kind === 'track' || playback.kind === 'other' ? `${playback.title} — ${playback.artist}` : t('nordly.settings.spotify.play')} hint={t('nordly.settings.spotify.playback_hint')}>
+        <button className="nordly-settings-vault-btn" disabled={busy} onClick={() => { setBusy(true); void toggleSpotifyPlayback().finally(() => setBusy(false)); }}>{t(playing ? 'nordly.settings.spotify.pause' : 'nordly.settings.spotify.play')}</button>
+      </SettingRow> : null}
+      {now.likeError ? <p className="nordly-settings-google-error" role="alert">{now.likeError}</p> : null}
+      {playback.kind === 'error' ? <p className="nordly-settings-google-error" role="alert">{playback.message}</p> : null}
       {oauthPending && !error ? (
         <p className="nordly-settings-google-error mono">{t('nordly.settings.spotify.oauth_pending')}</p>
       ) : null}

@@ -24,6 +24,7 @@ import {
 import { notesKeymap } from '@shared/lib/codemirror/notesKeymap';
 import { wikiLinkAutocomplete } from '@shared/lib/codemirror/wikiLinkAutocomplete';
 import { normalizedWikiTitles } from '@shared/lib/wikiLinkText';
+import { loadEditorSelection, saveEditorSelection } from '@shared/lib/editorSelection';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
@@ -43,6 +44,8 @@ interface LiveMarkdownEditorProps {
   onDocChanged?: (update: ViewUpdate) => void;
   /** Focus editor on mount (e.g. Notes opened via hotkey N). */
   autoFocus?: boolean;
+  /** Device-local selection identity; omitted for transient editors. */
+  selectionKey?: string;
 }
 
 function findSlashTrigger(state: EditorState): { slashStart: number; query: string } | null {
@@ -83,6 +86,7 @@ export function LiveMarkdownEditor({
   onAttachmentError,
   onDocChanged,
   autoFocus = false,
+  selectionKey,
 }: LiveMarkdownEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -91,6 +95,8 @@ export function LiveMarkdownEditor({
   const onInsertImageFileRef = useRef(onInsertImageFile);
   const onAttachmentErrorRef = useRef(onAttachmentError);
   const onDocChangedRef = useRef(onDocChanged);
+  const selectionKeyRef = useRef(selectionKey);
+  selectionKeyRef.current = selectionKey;
   /** Last doc string we pushed via onChange — ignore stale React props lagging behind. */
   const lastEmittedRef = useRef(value);
   const awaitingEchoRef = useRef(false);
@@ -143,6 +149,7 @@ export function LiveMarkdownEditor({
       parent,
       state: EditorState.create({
         doc: value,
+        selection: selectionKey ? loadEditorSelection(selectionKey, value.length) : undefined,
         extensions: [
           history(),
           notesMarkdownSupport,
@@ -277,6 +284,9 @@ export function LiveMarkdownEditor({
               onDocChangedRef.current?.(update);
             }
             if (update.docChanged || update.selectionSet) {
+              if (selectionKeyRef.current) {
+                saveEditorSelection(selectionKeyRef.current, update.state.selection.main);
+              }
               updateSlash(update.view);
             }
           }),
@@ -290,9 +300,8 @@ export function LiveMarkdownEditor({
       // Defer past page-layer paint so focus sticks after hotkey N → Notes.
       requestAnimationFrame(() => {
         if (viewRef.current !== view) return;
-        const end = view.state.doc.length;
         view.dispatch({
-          selection: { anchor: end },
+          selection: view.state.selection,
           scrollIntoView: true,
         });
         view.focus();
@@ -300,6 +309,9 @@ export function LiveMarkdownEditor({
     }
 
     return () => {
+      if (selectionKeyRef.current) {
+        saveEditorSelection(selectionKeyRef.current, view.state.selection.main);
+      }
       view.destroy();
       viewRef.current = null;
     };

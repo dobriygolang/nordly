@@ -11,7 +11,7 @@ import {
   themeLabelKey,
   type NordlySettings,
 } from '@shared/model/settings';
-import { persistTheme, THEME_IDS, type ThemeId } from '@shared/model/theme';
+import { persistTheme, themePosterSrc, THEME_IDS, type ThemeId } from '@shared/model/theme';
 import { SegmentedControl } from '@shared/ui/primitives/SegmentedControl';
 import { WallpaperCarousel } from '../../WallpaperCarousel';
 import { SettingRow, SettingsBlock } from '../../primitives/SettingRow';
@@ -123,6 +123,7 @@ export function AppearanceSettingsBlock({
             className="nordly-settings-change-btn focus-ring"
             onClick={() => setCarouselOpen(true)}
           >
+            {themePosterSrc(theme) ? <img className="nordly-settings-wallpaper-preview" src={themePosterSrc(theme)!} alt="" /> : null}
             {t('nordly.settings.wallpaper.change')}
           </button>
         </SettingRow>

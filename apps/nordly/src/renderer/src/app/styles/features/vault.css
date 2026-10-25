@@ -35,7 +35,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 10px 10px;
+  padding: 0 10px 10px;
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -90,7 +90,7 @@
   display: flex;
   justify-content: center;
   align-items: stretch;
-  padding: 16px 20px 32px;
+  padding: 0 20px 32px;
   min-height: 0;
 }
 .nordly-vault-editor__meta {

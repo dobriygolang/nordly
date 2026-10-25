@@ -23,6 +23,8 @@ export const STORAGE_KEYS = {
   notesSidebarCollapsed: 'nordly:notes:sidebar-collapsed',
   whiteboardSidebarCollapsed: 'nordly:whiteboard:sidebar-collapsed',
   notesFoldersOpen: 'nordly:notes:folders-open',
+  notesLastSelected: 'nordly:notes:last-selected',
+  notesEditorSelection: 'nordly:notes:editor-selection',
   notesEditorZoom: 'nordly:notes:editor-zoom',
   taskRolloverDay: 'nordly:task-rollover-day',
   devSession: 'nordly:dev-session:v1',

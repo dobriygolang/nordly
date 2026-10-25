@@ -16,6 +16,8 @@ import { countNoteCards } from '@features/cards/lib/parseCards';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { parseNordlyAssetId } from '@shared/lib/nordlyAsset';
 import { readSettings } from '@shared/model/settings';
+import { getDbUserId } from '@shared/db/nordlyDb';
+import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 import { Kbd } from '@shared/ui/primitives/Kbd';
 import { Icon } from '@shared/ui/primitives/Icon';
 import { LiveMarkdownEditor } from '@shared/ui/LiveMarkdownEditor';
@@ -214,19 +216,22 @@ function ActiveEditor({
 
   return (
     <div className="nordly-notes-editor-shell">
-      {cardsOn && cardCount > 0 && onReviewNote ? (
-        <button type="button" className="nordly-notes-review-note focus-ring" onClick={onReviewNote}>
-          {t('nordly.cards.review_note', { count: String(cardCount) })}
-        </button>
-      ) : null}
-      <input
-        className="nordly-notes-title"
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder={t('nordly.notes.editor.title_placeholder')}
-        autoFocus={titleEmpty}
-      />
+      <div className="nordly-notes-title-row">
+        <input
+          className="nordly-notes-title"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder={t('nordly.notes.editor.title_placeholder')}
+          autoFocus={titleEmpty}
+        />
+        {cardsOn && cardCount > 0 && onReviewNote ? (
+          <button type="button" className="nordly-notes-review-note focus-ring" onClick={onReviewNote}>
+            {t('nordly.cards.review_note', { count: String(cardCount) })}
+          </button>
+        ) : null}
+      </div>
       <LiveMarkdownEditor
+        selectionKey={`${STORAGE_KEYS.notesEditorSelection}:${getDbUserId()}:${noteId}`}
         value={body}
         onChange={onBodyChange}
         placeholder={t('nordly.notes.editor.body_placeholder')}
@@ -256,7 +261,7 @@ export function EmptyState({ onCreate, dim = false }: { onCreate: () => void; di
         {after}
       </p>
       {!dim && (
-        <button type="button" onClick={onCreate} className="nordly-vault-empty__cta focus-ring">
+        <button type="button" onClick={() => onCreate()} className="nordly-vault-empty__cta focus-ring">
           {t('nordly.notes.empty_cta')}
         </button>
       )}

@@ -2563,7 +2563,7 @@ dependencies = [
 
 [[package]]
 name = "nordly"
-version = "0.0.64"
+version = "0.0.65"
 dependencies = [
  "block",
  "chrono",

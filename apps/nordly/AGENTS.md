@@ -51,6 +51,9 @@ is inline before the explicit publish action; do not use native `window.confirm`
 Old publish-status responses cannot overwrite a newer publication. Shared note/board
 menu styles live in `shared/ui/VaultRowMenu.css`, imported by their menu consumers. The Chrome
 translation-capture switch targets a local Nordly note; it does not enable web editing.
+Keep the note menu compact: password/expiry controls sit in collapsed “Link settings”,
+opening the public page is an icon beside Copy link, and Chrome capture has one short
+label rather than an explanatory paragraph. The read-only notice stays in the section heading.
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 

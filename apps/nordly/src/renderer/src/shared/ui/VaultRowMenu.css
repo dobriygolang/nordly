@@ -185,3 +185,54 @@
   gap: 4px;
   padding: 2px 8px 6px;
 }
+
+.nordly-note-menu__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.nordly-note-menu__caption {
+  font-size: 10px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.nordly-note-menu__link-actions {
+  display: flex;
+  gap: 2px;
+}
+.nordly-note-menu__link-actions > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.nordly-note-menu__item--icon {
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  padding: 8px;
+}
+.nordly-note-menu__settings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--ink-60);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.nordly-note-menu__settings > summary::-webkit-details-marker {
+  display: none;
+}
+.nordly-note-menu__settings > summary:hover {
+  color: var(--ink);
+  background: var(--ink-tint-06);
+}
+.nordly-note-menu__settings > summary:focus-visible {
+  outline: 2px solid var(--ink-60);
+  outline-offset: -2px;
+}
+.nordly-note-menu__settings[open] > summary > span {
+  transform: rotate(180deg);
+}

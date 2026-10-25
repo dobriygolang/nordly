@@ -101,7 +101,8 @@ it('labels Chrome translation capture separately from public read-only sharing',
   patchSettings({ flashcards: { ...cards, enabled: true } });
   await render();
   expect(document.body.textContent).toContain(translate('nordly.notes.menu.publish_hint'));
-  expect(document.body.textContent).toContain(translate('nordly.notes.menu.capture_words_hint'));
+  expect(document.body.textContent).toContain(translate('nordly.notes.menu.words'));
+  expect(document.querySelector('details')?.open).toBe(false);
   const toggle = [...document.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find((element) => element.textContent?.includes(translate('nordly.notes.menu.capture_words')))!;
   await act(async () => toggle.click());
   expect(readSettings().flashcards.captureNoteId).toBe('note');

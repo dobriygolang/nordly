@@ -45,6 +45,17 @@ Defined in `src/components/AnimatedRoutes.tsx` (mounted from `src/App.tsx`):
 | `/login`, `/profile`, `/settings`, `/auth/callback` | → `/` | retired |
 | `/today`, `/dashboard`, `/learn/*`, `/mock/*`, `/interview/*`, `/tasks`, `/admin/*` | → `/` | retired |
 
+Published notes use the scoped reader palette and layout in `styles/published-note.css`.
+Light/dark reading mode is page-local and reuses `SiteThemeToggle` with
+`runThemeTransition`, including the landing page's circular reveal, reduced-motion
+handling and CSS transition when View Transitions are unavailable.
+`lib/markdown/publishedNoteDocument.ts` adds
+stable section ids and extracts the h1–h3 outline from the existing safe renderer's
+output, never from a second Markdown parser. Two or more headings show sticky
+desktop navigation and collapsible navigation below 1100px. Public notes remain
+read-only; the header copies the note URL without a section fragment. Loading,
+password, empty and error states share the same reader shell.
+
 ## Backend dependencies
 
 Base: `VITE_API_BASE` (default `/v1`). Dev proxy: `vite.config.ts`. Prod: same-origin via Caddy on `trynordly.app` (tracker OAuth callbacks at `/v1/tracker/integrations/*/callback`).

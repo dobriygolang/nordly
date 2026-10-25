@@ -73,4 +73,15 @@ describe('settings', () => {
       weekStartsOn: 'monday',
     });
   });
+  it('persists Spotify pause across reads and rejects malformed switch values', async () => {
+    const { patchSettings, readSettings } = await import('@shared/model/settings');
+    expect(readSettings().spotifyEnabled).toBe(true);
+    patchSettings({ spotifyEnabled: false });
+    expect(readSettings().spotifyEnabled).toBe(false);
+    const stored = JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!);
+    stored.spotifyEnabled = 'false';
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
+    expect(() => readSettings()).toThrow('spotifyEnabled');
+  });
+
 });

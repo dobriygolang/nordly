@@ -4,6 +4,7 @@ import { useT, type TFunc } from '@nordly-i18n';
 
 import {
   connectSpotify,
+  setSpotifyEnabled,
   disconnectSpotify,
   hydrateSpotify,
   watchSpotifyPlayback,
@@ -12,6 +13,7 @@ import {
 } from '@features/spotify/api/spotifyClient';
 import { isSpotifyConfigured } from '@features/spotify/lib/pkce';
 
+import { Toggle } from '../primitives/Toggle';
 import { SettingRow } from '../primitives/SettingRow';
 import { InlineOAuthSpinner } from '../useIntegrationOAuth';
 
@@ -26,6 +28,7 @@ function connectErrorText(t: TFunc, error: SpotifyConnectError): string {
 
 export function SpotifySection(): JSX.Element {
   const t = useT();
+  const enabled = useSpotifyStore((s) => s.enabled);
   const hydrated = useSpotifyStore((s) => s.hydrated);
   const connected = useSpotifyStore((s) => s.connected);
   const reauthRequired = useSpotifyStore((s) => s.reauthRequired);
@@ -37,19 +40,21 @@ export function SpotifySection(): JSX.Element {
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    void hydrateSpotify();
-  }, []);
+    if (enabled) void hydrateSpotify();
+  }, [enabled]);
 
   useEffect(() => {
-    if (!connected) return;
+    if (!enabled || !connected) return;
     return watchSpotifyPlayback();
-  }, [connected]);
+  }, [connected, enabled]);
 
   const playback = now.playback;
   const configured = isSpotifyConfigured();
-  const controlsDisabled = !hydrated || busy || oauthPending;
-  const connectDisabled = !configured || controlsDisabled;
-  const statusLabel = !configured
+  const controlsDisabled = (enabled && !hydrated) || busy || oauthPending;
+  const connectDisabled = !enabled || !configured || controlsDisabled;
+  const statusLabel = !enabled
+    ? t('nordly.settings.spotify.paused')
+    : !configured
     ? t('nordly.settings.spotify.missing_client')
     : !hydrated
     ? t('nordly.settings.spotify.loading')
@@ -92,13 +97,16 @@ export function SpotifySection(): JSX.Element {
 
   return (
     <>
+      <SettingRow label={t('nordly.settings.spotify.enabled')} hint={t('nordly.settings.spotify.enabled_hint')}>
+        <Toggle value={enabled} onChange={setSpotifyEnabled} label={t(enabled ? 'nordly.settings.vault.on' : 'nordly.settings.vault.off')} />
+      </SettingRow>
       <SettingRow
         label={t('nordly.settings.spotify.account_label')}
         hint={t('nordly.settings.spotify.account_hint')}
       >
         <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
-          <span className="mono nordly-settings-google-status" data-loading={hydrated ? undefined : 'true'}>
-            {hydrated ? null : <InlineOAuthSpinner />}
+          <span className="mono nordly-settings-google-status" data-loading={enabled && !hydrated ? 'true' : undefined}>
+            {!enabled || hydrated ? null : <InlineOAuthSpinner />}
             {oauthPending ? null : statusLabel}
           </span>
           {connected && !reauthRequired ? (
@@ -138,12 +146,12 @@ export function SpotifySection(): JSX.Element {
           )}
         </div>
       </SettingRow>
-      {now.likeError ? <p className="nordly-settings-google-error" role="alert">{now.likeError}</p> : null}
-      {playback.kind === 'error' ? <p className="nordly-settings-google-error" role="alert">{playback.message}</p> : null}
-      {oauthPending && !error ? (
+      {enabled && now.likeError ? <p className="nordly-settings-google-error" role="alert">{now.likeError}</p> : null}
+      {enabled && playback.kind === 'error' ? <p className="nordly-settings-google-error" role="alert">{playback.message}</p> : null}
+      {enabled && oauthPending && !error ? (
         <p className="nordly-settings-google-error mono">{t('nordly.settings.spotify.oauth_pending')}</p>
       ) : null}
-      {error ? <p className="nordly-settings-google-error mono">{error}</p> : null}
+      {enabled && error ? <p className="nordly-settings-google-error mono">{error}</p> : null}
     </>
   );
 }

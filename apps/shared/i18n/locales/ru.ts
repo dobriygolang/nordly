@@ -485,6 +485,9 @@ export const ru = {
   'nordly.settings.zoom.oauth_pending':
     'Закончи вход в браузере и вернись сюда. Статус обновится сам.',
   'nordly.settings.section.spotify': 'Spotify',
+  'nordly.settings.spotify.enabled': 'Использовать Spotify',
+  'nordly.settings.spotify.enabled_hint': 'Выключи, чтобы остановить запросы без выхода из аккаунта.',
+  'nordly.settings.spotify.paused': 'Интеграция выключена',
   'nordly.settings.spotify.account_label': 'Аккаунт Spotify',
   "nordly.settings.spotify.account_hint": "Управляй музыкой, громкостью и любимыми треками из Nordly. Воспроизведение идёт через Spotify.",
   'nordly.settings.spotify.connected': 'Подключено',

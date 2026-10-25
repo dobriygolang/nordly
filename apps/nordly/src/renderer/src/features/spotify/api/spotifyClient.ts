@@ -12,6 +12,7 @@ export {
   refreshSpotifyVolume,
   refreshSpotifyPlayback,
   setSpotifyPlayback,
+  setSpotifyEnabled,
   watchSpotifyPlayback,
   setSpotifyVolumeLock,
 } from '../lib/spotifySession';

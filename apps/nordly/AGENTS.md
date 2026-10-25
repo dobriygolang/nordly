@@ -294,6 +294,18 @@ The main renderer sends a leading command and coalesces subsequent values throug
 one writer (minimum 120ms between sends); delayed device reads cannot overwrite a
 newer user choice. A failed write restores the last confirmed volume and shows the error.
 
+Spotify has a persistent `spotifyEnabled` device setting (default on for existing
+installations). Integrations can pause it without disconnecting or deleting OAuth
+credentials. Off blocks new playback and accounts HTTP requests, cancels in-flight
+playback requests and queued volume writes, stops polling/timer coupling, and hides
+music controls. Responses from an earlier enabled generation cannot revive playback.
+Accounts requests already sent may finish saving tokens. On hydrates the saved
+session only when needed and resumes the shared poller for visible consumers.
+Toggling never resets Spotify rate-limit backoff. QUOTA_EXCEEDED without Retry-After
+uses a 15-minute client backoff; this is not a claimed Spotify quota-reset time.
+Spotify controller code and dock volume controls load asynchronously, and the
+OAuth callback loads its feature handler on demand.
+
 ## Secret access
 
 `src-tauri/src/credentials.rs` caches successful Keychain reads, including missing

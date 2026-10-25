@@ -1,5 +1,5 @@
 // Dock — persistent bottom timer pill on every page.
-import { type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, type CSSProperties, type ReactNode } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -8,7 +8,7 @@ import { TimerMode } from '@shared/model/settings';
 import { OdometerTimer } from '@shared/ui/OdometerTimer';
 import { Icon } from '@shared/ui/primitives/Icon';
 
-import { DockVolume } from './DockVolume';
+const DockVolume = lazy(() => import('./DockVolume').then((module) => ({ default: module.DockVolume })));
 
 interface DockProps {
   onMenu: () => void;
@@ -115,7 +115,7 @@ function TimerControls() {
       >
         <Icon name={running ? 'pause' : 'play'} size={13} />
       </DockBtn>
-      <DockVolume />
+      <Suspense fallback={null}><DockVolume /></Suspense>
     </>
   );
 }

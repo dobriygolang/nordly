@@ -1,5 +1,6 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
+import { readSettings } from '@shared/model/settings';
 import { isNativeHttpInTauri } from '@platform/runtime';
 
 import { SPOTIFY_REDIRECT_URI } from '../lib/nowPlaying';
@@ -40,7 +41,13 @@ function checkRateLimit(scope: RequestScope): void {
   if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt, reason);
 }
 
+const playbackRequests = new Set<AbortController>();
+export function abortSpotifyPlaybackRequests(): void {
+  for (const controller of playbackRequests) controller.abort();
+}
+
 function coreFetch(input: string, init?: RequestInit): Promise<Response> {
+  if (!readSettings().spotifyEnabled) return Promise.reject(new Error('Spotify integration is disabled'));
   return isNativeHttpInTauri() ? tauriFetch(input, init) : fetch(input, init);
 }
 
@@ -73,7 +80,9 @@ async function finish(resp: Response, scope: RequestScope): Promise<unknown> {
     limit.reason = reason;
     const seconds = Number(resp.headers.get('Retry-After'));
     const delay = Number.isFinite(seconds) && seconds > 0
-      ? seconds * 1000 : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(limit.count - 1, 5));
+      ? seconds * 1000
+      : reason === 'QUOTA_EXCEEDED' ? 15 * 60_000
+      : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(limit.count - 1, 5));
     limit.retryAt = Math.max(limit.retryAt, Date.now() + delay);
     throw new SpotifyHttpError(429, 'Too many requests', limit.retryAt, reason);
   }
@@ -93,14 +102,18 @@ export async function spotifySend(
   path: string,
 ): Promise<unknown> {
   checkRateLimit('playback');
-  const resp = await coreFetch(`${API}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  return finish(resp, 'playback');
+  const controller = new AbortController();
+  playbackRequests.add(controller);
+  try {
+    const resp = await coreFetch(`${API}${path}`, {
+      method,
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    return await finish(resp, 'playback');
+  } finally {
+    playbackRequests.delete(controller);
+  }
 }
 
 export async function exchangeAuthorizationCode(

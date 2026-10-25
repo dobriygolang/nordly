@@ -485,6 +485,9 @@ export const en = {
   'nordly.settings.zoom.oauth_pending':
     'Finish sign-in in the browser, then come back. Nordly will update on its own.',
   'nordly.settings.section.spotify': 'Spotify',
+  'nordly.settings.spotify.enabled': 'Use Spotify',
+  'nordly.settings.spotify.enabled_hint': 'Turn off to pause requests without signing out.',
+  'nordly.settings.spotify.paused': 'Integration paused',
   'nordly.settings.spotify.account_label': 'Spotify account',
   "nordly.settings.spotify.account_hint": "Control music, volume and Liked Songs from Nordly. Music plays through Spotify.",
   'nordly.settings.spotify.connected': 'Connected',

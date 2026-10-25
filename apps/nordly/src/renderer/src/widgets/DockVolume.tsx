@@ -21,13 +21,14 @@ function volumeErrorText(
 
 export function DockVolume(): JSX.Element | null {
   const t = useT();
+  const enabled = useSpotifyStore((s) => s.enabled);
   const connected = useSpotifyStore((s) => s.connected);
   const volumePercent = useSpotifyStore((s) => s.volumePercent);
   const volumeError = useSpotifyStore((s) => s.volumeError);
   const [pinned, setPinned] = useState(false);
   useEffect(() => () => setSpotifyVolumeLock(false), []);
 
-  if (!connected) return null;
+  if (!enabled || !connected) return null;
 
   const shown = volumePercent ?? 0;
   const muted = volumePercent === 0;

@@ -56,6 +56,7 @@ export interface NordlySettings {
   /** Notification / end-bell chime volume, 0–100. */
   notificationVolume: number;
   autoUpdate: boolean;
+  spotifyEnabled: boolean;
   taskRollover: boolean;
   dailyGoalMin: number;
   textScale: TextScale;
@@ -94,6 +95,7 @@ export const DEFAULTS: NordlySettings = {
   taskNotifications: true,
   notificationVolume: 80,
   autoUpdate: false,
+  spotifyEnabled: true,
   taskRollover: false,
   dailyGoalMin: 120,
   textScale: TextScale.Normal,
@@ -173,6 +175,12 @@ function parsePollMinutes(v: unknown): GoogleCalendarPollMinutes {
   throw new Error(`Invalid Google Calendar poll interval: ${String(v)}`);
 }
 
+function parseSpotifyEnabled(value: unknown): boolean {
+  if (value === undefined) return DEFAULTS.spotifyEnabled;
+  if (typeof value !== 'boolean') throw new Error('Invalid setting: spotifyEnabled');
+  return value;
+}
+
 function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: NordlySettings; migrated: boolean } {
   if (typeof parsed.notifications !== 'boolean') throw new Error('Invalid setting: notifications');
 
@@ -181,6 +189,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     typeof parsed.taskNotifications !== 'boolean' ||
     parsed.notificationVolume === undefined ||
     parsed.timerMode === undefined ||
+    parsed.spotifyEnabled === undefined ||
     typeof parsed.endBell !== 'boolean' ||
     typeof parsed.taskRollover !== 'boolean' ||
     parsed.textScale === undefined ||
@@ -214,6 +223,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
         ? DEFAULTS.notificationVolume
         : clampInt(parsed.notificationVolume, 0, 100, 'notificationVolume'),
     autoUpdate: typeof parsed.autoUpdate === 'boolean' ? parsed.autoUpdate : DEFAULTS.autoUpdate,
+    spotifyEnabled: parseSpotifyEnabled(parsed.spotifyEnabled),
     taskRollover:
       typeof parsed.taskRollover === 'boolean' ? parsed.taskRollover : DEFAULTS.taskRollover,
     dailyGoalMin: clampInt(parsed.dailyGoalMin, 15, 720, 'dailyGoalMin'),

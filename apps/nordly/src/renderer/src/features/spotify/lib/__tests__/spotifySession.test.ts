@@ -14,18 +14,19 @@ vi.mock('../../remote/spotifyRemote', async (original) => ({
 import { spotifySend, SpotifyHttpError, exchangeAuthorizationCode } from '../../remote/spotifyRemote';
 import { patchSpotify, useSpotifyStore } from '../spotifyStore';
 import { disconnectedNowPlaying } from '../nowPlaying';
-import { hydrateSpotify, acceptSpotifyRedirect, refreshSpotifyPlayback, setSpotifyPlayback, syncSpotifyWithTimer, watchSpotifyPlayback, queueSpotifyVolume, refreshSpotifyVolume, setSpotifyVolumeLock } from '../spotifySession';
+import { hydrateSpotify, acceptSpotifyRedirect, refreshSpotifyPlayback, setSpotifyPlayback, syncSpotifyWithTimer, watchSpotifyPlayback, queueSpotifyVolume, refreshSpotifyVolume, setSpotifyVolumeLock, setSpotifyEnabled } from '../spotifySession';
 import { usePomodoroStore } from '@shared/model/pomodoro';
-import { loadSpotifySecret } from '../secret';
+import { loadSpotifySecret, clearSpotifySecret } from '../secret';
 
 const track = { is_playing: true, item: { type: 'track', id: 'id', name: 'Song', artists: [{ name: 'Artist' }] } };
 let clock = Date.now();
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers();
   vi.setSystemTime(clock += 60_000);
   vi.mocked(spotifySend).mockReset();
   vi.mocked(loadSpotifySecret).mockClear();
-  patchSpotify({ connected: true, hydrated: false, nowPlaying: disconnectedNowPlaying() });
+  patchSpotify({ enabled: true, connected: true, hydrated: false, nowPlaying: disconnectedNowPlaying() });
 });
 afterEach(() => vi.useRealTimers());
 describe('Spotify playback', () => {
@@ -165,4 +166,64 @@ it('reports token throttling separately from failed credentials and preserves an
   patchSpotify({ connected: true, oauthPending: true, reauthRequired: false });
   await expect(acceptSpotifyRedirect('code', 'state')).rejects.toMatchObject({ status: 429 });
   expect(useSpotifyStore.getState()).toMatchObject({ connected: true, reauthRequired: false, oauthPending: false, connectError: { kind: 'rate_limit', retryAt } });
+});
+
+describe('Spotify integration switch', () => {
+  it('stops commands, volume and polling without disconnecting or deleting credentials', async () => {
+    vi.mocked(spotifySend).mockResolvedValue(null);
+    patchSpotify({ hydrated: true });
+    const stop = watchSpotifyPlayback();
+    await vi.advanceTimersByTimeAsync(0);
+    vi.mocked(spotifySend).mockClear();
+    vi.mocked(clearSpotifySecret).mockClear();
+    setSpotifyEnabled(false);
+    usePomodoroStore.getState().toggle();
+    await setSpotifyPlayback(true);
+    queueSpotifyVolume(80);
+    await refreshSpotifyVolume();
+    await refreshSpotifyPlayback();
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(spotifySend).not.toHaveBeenCalled();
+    expect(clearSpotifySecret).not.toHaveBeenCalled();
+    expect(useSpotifyStore.getState()).toMatchObject({ enabled: false, connected: true });
+    setSpotifyEnabled(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useSpotifyStore.getState().connected).toBe(true);
+    expect(spotifySend).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('does not hydrate secrets while disabled', async () => {
+    setSpotifyEnabled(false);
+    await hydrateSpotify();
+    expect(loadSpotifySecret).not.toHaveBeenCalled();
+    expect(useSpotifyStore.getState().hydrated).toBe(false);
+  });
+
+  it('ignores a response that arrives after the integration was disabled', async () => {
+    let release!: (body: unknown) => void;
+    vi.mocked(spotifySend).mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    const pending = refreshSpotifyPlayback();
+    await vi.waitFor(() => expect(spotifySend).toHaveBeenCalledTimes(1));
+    setSpotifyEnabled(false);
+    release(track);
+    await pending;
+    expect(useSpotifyStore.getState().nowPlaying).toEqual(disconnectedNowPlaying());
+    expect(spotifySend).toHaveBeenCalledTimes(1);
+  });
+});
+
+it('can resume immediately after Off and ignores stale pre-pause work without querying the library', async () => {
+  let release!: (body: unknown) => void;
+  vi.mocked(spotifySend).mockImplementationOnce(() => new Promise((resolve) => { release = resolve; })).mockResolvedValue(null);
+  patchSpotify({ hydrated: true });
+  const beforePause = refreshSpotifyPlayback();
+  await vi.waitFor(() => expect(spotifySend).toHaveBeenCalledTimes(1));
+  setSpotifyEnabled(false);
+  setSpotifyEnabled(true);
+  await refreshSpotifyPlayback();
+  expect(spotifySend).toHaveBeenCalledTimes(2);
+  release(track);
+  await beforePause;
+  expect(spotifySend).toHaveBeenCalledTimes(2);
 });

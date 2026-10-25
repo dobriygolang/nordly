@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 
 import { initPomodoroLeader } from '@features/focus/lib/pomodoroCrossWindow';
-import { initSpotifyLeader } from '@features/spotify/api/spotifyClient';
 import {
   startGoogleCalendarSyncWorker,
   stopGoogleCalendarSyncWorker,
@@ -73,7 +72,14 @@ export function useBackgroundWorkers({
     if (!isTauriRuntime()) return;
     return startCaptureBridge();
   }, []);
-  useEffect(() => initSpotifyLeader(), []);
+  useEffect(() => {
+    let active = true;
+    let stop = () => {};
+    void import('@features/spotify/api/spotifyClient').then((spotify) => {
+      if (active) stop = spotify.initSpotifyLeader();
+    }).catch(onError);
+    return () => { active = false; stop(); };
+  }, [onError]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;

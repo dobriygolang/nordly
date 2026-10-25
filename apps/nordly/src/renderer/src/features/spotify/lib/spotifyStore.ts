@@ -1,3 +1,4 @@
+import { readSettings } from '@shared/model/settings';
 import { create } from 'zustand';
 
 import { disconnectedNowPlaying, type SpotifyNowPlaying } from './nowPlaying';
@@ -14,6 +15,7 @@ export type SpotifyConnectError =
 export type SpotifyVolumeError = { kind: 'no_device' } | { kind: 'api'; message: string };
 
 export interface SpotifyState {
+  enabled: boolean;
   hydrated: boolean;
   connected: boolean;
   reauthRequired: boolean;
@@ -26,6 +28,7 @@ export interface SpotifyState {
 }
 
 export const useSpotifyStore = create<SpotifyState>(() => ({
+  enabled: readSettings().spotifyEnabled,
   hydrated: false,
   connected: false,
   reauthRequired: false,

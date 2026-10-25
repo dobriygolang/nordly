@@ -1,9 +1,5 @@
 import { useEffect, useRef } from 'react';
 
-import {
-  acceptSpotifyRedirect,
-  noteSpotifyRedirectError,
-} from '@features/spotify/api/spotifyClient';
 import { PageId } from '@shared/model/navigation';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import {
@@ -181,12 +177,18 @@ export async function executeDeepLink(
 
   if (action.spotifyCode && action.spotifyState) {
     try {
+      const { acceptSpotifyRedirect } = await import('@features/spotify/api/spotifyClient');
       await acceptSpotifyRedirect(action.spotifyCode, action.spotifyState);
     } catch (error) {
       handlers.onError(error);
     }
   } else if (action.spotifyError) {
-    noteSpotifyRedirectError(action.spotifyError);
+    try {
+      const { noteSpotifyRedirectError } = await import('@features/spotify/api/spotifyClient');
+      noteSpotifyRedirectError(action.spotifyError);
+    } catch (error) {
+      handlers.onError(error);
+    }
   }
 
   if (

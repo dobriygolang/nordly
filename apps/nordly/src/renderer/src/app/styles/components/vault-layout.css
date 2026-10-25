@@ -2,7 +2,7 @@
 .nordly-vault {
   position: absolute;
   inset: 0;
-  padding-bottom: 80px;
+  padding-bottom: 0;
   display: flex;
   min-height: 0;
   background: var(--bg);

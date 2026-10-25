@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@platform/runtime', () => ({ isTauriRuntime: () => false }));
 vi.mock('../secret', () => ({
@@ -12,13 +12,20 @@ vi.mock('../../remote/spotifyRemote', async (original) => ({
 import { spotifySend, SpotifyHttpError } from '../../remote/spotifyRemote';
 import { patchSpotify, useSpotifyStore } from '../spotifyStore';
 import { disconnectedNowPlaying } from '../nowPlaying';
-import { refreshSpotifyPlayback, toggleSpotifyPlayback } from '../spotifySession';
+import { hydrateSpotify, refreshSpotifyPlayback, setSpotifyPlayback, syncSpotifyWithTimer, watchSpotifyPlayback } from '../spotifySession';
+import { usePomodoroStore } from '@shared/model/pomodoro';
+import { loadSpotifySecret } from '../secret';
 
 const track = { is_playing: true, item: { type: 'track', id: 'id', name: 'Song', artists: [{ name: 'Artist' }] } };
+let clock = Date.now();
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(clock += 60_000);
   vi.mocked(spotifySend).mockReset();
-  patchSpotify({ connected: true, nowPlaying: disconnectedNowPlaying() });
+  vi.mocked(loadSpotifySecret).mockClear();
+  patchSpotify({ connected: true, hydrated: false, nowPlaying: disconnectedNowPlaying() });
 });
+afterEach(() => vi.useRealTimers());
 describe('Spotify playback', () => {
   it('keeps the current track when access to the library fails', async () => {
     vi.mocked(spotifySend).mockResolvedValueOnce(track).mockRejectedValueOnce(new SpotifyHttpError(403, 'Forbidden'));
@@ -27,15 +34,57 @@ describe('Spotify playback', () => {
     expect(useSpotifyStore.getState().nowPlaying.likeError).not.toBe('');
     expect(spotifySend).toHaveBeenLastCalledWith('test-token', 'GET', '/me/library/contains?uris=spotify%3Atrack%3Aid');
   });
-  it.each([true, false])('sends a real player command when playing=%s', async (playing) => {
-    vi.mocked(spotifySend).mockResolvedValueOnce({ is_playing: playing }).mockResolvedValueOnce(null).mockResolvedValueOnce(track).mockResolvedValueOnce([true]);
-    await toggleSpotifyPlayback();
-    expect(spotifySend).toHaveBeenNthCalledWith(2, 'test-token', 'PUT', playing ? '/me/player/pause' : '/me/player/play');
+  it.each([true, false])('sets desired playback=%s without fetching the player first', async (playing) => {
+    vi.mocked(spotifySend).mockResolvedValue(null);
+    await setSpotifyPlayback(playing);
+    expect(spotifySend).toHaveBeenCalledTimes(1);
+    expect(spotifySend).toHaveBeenCalledWith('test-token', 'PUT', playing ? '/me/player/play' : '/me/player/pause');
   });
   it('explains that an active Spotify device is required', async () => {
-    vi.mocked(spotifySend).mockResolvedValueOnce(null).mockRejectedValueOnce(new SpotifyHttpError(404, 'No active device'));
-    await toggleSpotifyPlayback();
+    vi.mocked(spotifySend).mockRejectedValueOnce(new SpotifyHttpError(404, 'No active device'));
+    await setSpotifyPlayback(true);
     expect(useSpotifyStore.getState().nowPlaying.playback).toMatchObject({ kind: 'error' });
     expect(JSON.stringify(useSpotifyStore.getState().nowPlaying)).not.toContain('No active device');
+  });
+  it('shares a playback refresh and avoids library reads for an unchanged track', async () => {
+    vi.mocked(spotifySend).mockResolvedValueOnce(track).mockResolvedValueOnce([true]);
+    await Promise.all([refreshSpotifyPlayback(), refreshSpotifyPlayback()]);
+    expect(spotifySend).toHaveBeenCalledTimes(2);
+    vi.setSystemTime(Date.now() + 5000);
+    vi.mocked(spotifySend).mockResolvedValueOnce(track);
+    await refreshSpotifyPlayback();
+    expect(spotifySend).toHaveBeenCalledTimes(3);
+  });
+  it('shares one polling interval between settings and the tray', async () => {
+    vi.mocked(spotifySend).mockResolvedValue(null);
+    const stopSettings = watchSpotifyPlayback();
+    const stopTray = watchSpotifyPlayback();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(spotifySend).toHaveBeenCalledTimes(3);
+    stopSettings();
+    stopTray();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(spotifySend).toHaveBeenCalledTimes(3);
+  });
+  it('does not reload an already hydrated session when settings mount', async () => {
+    patchSpotify({ hydrated: true });
+    await hydrateSpotify();
+    expect(loadSpotifySecret).not.toHaveBeenCalled();
+  });
+  it('changes the timer immediately and coalesces rapid music commands while the API is pending', async () => {
+    usePomodoroStore.setState({ running: false });
+    let release!: () => void;
+    vi.mocked(spotifySend).mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(null); })).mockResolvedValue(null);
+    const stop = syncSpotifyWithTimer();
+    usePomodoroStore.getState().toggle();
+    expect(usePomodoroStore.getState().running).toBe(true);
+    await vi.waitFor(() => expect(spotifySend).toHaveBeenCalledTimes(1));
+    usePomodoroStore.getState().toggle();
+    expect(usePomodoroStore.getState().running).toBe(false);
+    const pending = setSpotifyPlayback(false);
+    release();
+    await pending;
+    expect(spotifySend).toHaveBeenLastCalledWith('test-token', 'PUT', '/me/player/pause');
+    stop();
   });
 });

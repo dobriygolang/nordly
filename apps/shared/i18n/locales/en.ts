@@ -30,6 +30,7 @@ export const en = {
   "nordly.settings.spotify.playback_hint": "Playback controls need Spotify Premium. Open Spotify and choose a device.",
   "nordly.spotify.error.access": "Spotify denied access. Check that this account is allowed for the Nordly Spotify app and that Premium is active.",
   "nordly.spotify.error.premium": "Spotify Premium is required for playback controls.",
+  "nordly.spotify.error.rate_limit": "Spotify is limiting requests. Playback will refresh after the waiting period.",
   "nordly.spotify.error.device": "Open Spotify and start a track on a device, then try again.",
   "nordly.spotify.error.scope": "Reconnect Spotify to grant the required permissions.",
   'common.lang.en': 'English',

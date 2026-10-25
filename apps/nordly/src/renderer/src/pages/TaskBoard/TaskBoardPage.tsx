@@ -37,7 +37,7 @@ export function TaskBoardPage({
         left: 0,
         right: 0,
         bottom: 0,
-        padding: '0 20px 88px',
+        padding: '0 20px 0',
         display: 'flex',
         gap: 12,
         minHeight: 0,

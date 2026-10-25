@@ -12,7 +12,6 @@ import { listenEffect } from '@shared/lib/tauriListen';
 import {
   disconnectedNowPlaying,
   sendSpotifyLike,
-  sendSpotifyPlayback,
   SPOTIFY_NOW_EVENT,
   trayMusicLine,
   type SpotifyNowPlaying,
@@ -230,14 +229,13 @@ export function TrayPopoverApp(): JSX.Element {
   }, []);
 
   const toggleTimer = useCallback(() => {
-    sendPomodoroCommand('toggle');
+    const store = usePomodoroStore.getState();
+    store.toggle();
+    sendPomodoroCommand('set-running', usePomodoroStore.getState().running);
   }, []);
 
-  const musicPlaying = (nowPlaying.playback.kind === 'track' || nowPlaying.playback.kind === 'other') && nowPlaying.playback.isPlaying === true;
-  const rowPlaying = musicLine.mode === 'music' ? musicPlaying : running;
-  const rowActionLabel = musicLine.mode === 'music'
-    ? t(musicPlaying ? 'nordly.settings.spotify.pause' : 'nordly.settings.spotify.play')
-    : t(running ? 'nordly.dock.pause_timer' : 'nordly.dock.play_timer');
+  const rowPlaying = running;
+  const rowActionLabel = t(running ? 'nordly.dock.pause_timer' : 'nordly.dock.play_timer');
   const posterSrc = themePosterSrc(theme);
 
   return (
@@ -260,14 +258,14 @@ export function TrayPopoverApp(): JSX.Element {
         <div className="nordly-tray-popover__controls">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <TrayTimer totalSec={displaySec} running={running} openRollKey={openRollKey} />
-            {musicLine.mode === 'music' ? <button className="nordly-tray-popover__play focus-ring" onClick={toggleTimer} aria-label={t(running ? 'nordly.dock.pause_timer' : 'nordly.dock.play_timer')} aria-pressed={running}><Icon name={running ? 'pause' : 'play'} size={10} /></button> : null}
+
           </div>
 
           <div className="nordly-tray-popover__focus-row">
             <button
               type="button"
               className={`nordly-tray-popover__play motion-press focus-ring${rowPlaying ? ' is-running' : ''}`}
-              onClick={musicLine.mode === 'music' ? sendSpotifyPlayback : toggleTimer}
+              onClick={toggleTimer}
               aria-label={rowActionLabel}
               aria-pressed={rowPlaying}
               title={rowActionLabel}

@@ -86,7 +86,7 @@
 /* На главном экране постер живёт в полосе между шапкой и доком. */
 .nordly-canvas-shell .nordly-bg-poster-host {
   top: 56px;
-  bottom: 68px;
+  bottom: var(--nordly-content-bottom);
 }
 .nordly-bg-poster-canvas {
   display: block;
@@ -156,7 +156,7 @@
   top: var(--nordly-page-top);
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--nordly-content-bottom);
   min-height: 0;
   z-index: 1;
   opacity: 1;

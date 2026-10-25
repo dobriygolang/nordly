@@ -11,6 +11,7 @@ export {
   queueSpotifyVolume,
   refreshSpotifyVolume,
   refreshSpotifyPlayback,
-  toggleSpotifyPlayback,
+  setSpotifyPlayback,
+  watchSpotifyPlayback,
   setSpotifyVolumeLock,
 } from '../lib/spotifySession';

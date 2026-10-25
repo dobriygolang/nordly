@@ -139,6 +139,8 @@ fn toggle_popover(app: &tauri::AppHandle) {
         Ok(true) => {
             if let Err(e) = popover.hide() {
                 log_err("hide popover", e);
+            } else if let Err(e) = app.emit("tray-popover:hide", ()) {
+                log_err("emit tray-popover:hide", e);
             }
             return;
         }
@@ -152,25 +154,21 @@ fn toggle_popover(app: &tauri::AppHandle) {
     if let Err(e) = window_macos::set_content_corner_radius(&popover, 16.0) {
         log_err("popover corner radius", e);
     }
-    if let Err(e) = popover.show() {
+    if let Err(e) = window_macos::show_tray_popover(&popover) {
         log_err("show popover", e);
+        return;
     }
-    if let Err(e) = popover.set_focus() {
-        log_err("focus popover", e);
+    if let Err(e) = app.emit("tray-popover:show", ()) {
+        log_err("emit tray-popover:show", e);
     }
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(120));
-        if let Err(e) = handle.emit("tray-popover:show", ()) {
-            log_err("emit tray-popover:show", e);
-        }
-    });
 }
 
 pub fn tray_show_main(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(popover) = app.get_webview_window(POPOVER_LABEL) {
         if let Err(e) = popover.hide() {
             log_err("hide popover before show_main", e);
+        } else if let Err(e) = app.emit("tray-popover:hide", ()) {
+            log_err("emit tray-popover:hide", e);
         }
     }
     show_main(&app)?;

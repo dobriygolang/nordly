@@ -30,6 +30,7 @@ export const ru = {
   "nordly.settings.spotify.playback_hint": "Для управления нужен Spotify Premium. Открой Spotify и выбери устройство.",
   "nordly.spotify.error.access": "Spotify запретил доступ. Проверь, что аккаунт добавлен в список пользователей приложения Nordly в Spotify и Premium активен.",
   "nordly.spotify.error.premium": "Для управления воспроизведением нужен Spotify Premium.",
+  "nordly.spotify.error.rate_limit": "Spotify временно ограничил запросы. Обновление продолжится после паузы.",
   "nordly.spotify.error.device": "Открой Spotify и запусти трек на устройстве, затем попробуй ещё раз.",
   "nordly.spotify.error.scope": "Подключи Spotify заново, чтобы предоставить нужные разрешения.",
   'common.lang.en': 'English',

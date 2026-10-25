@@ -34,6 +34,8 @@ Dock/palette pages (`widgets/Dock.tsx`, `widgets/Palette.tsx`): `home`, `today`,
 | Daily Planning | `pages/DailyPlanning/DailyPlanningModal.tsx` | PageStack full-screen planning wizard |
 | Settings | `pages/Settings/index.tsx` | Sidebar-navigated shell (General / Timer / Flashcards / Integrations / Files & Links / Sync / Shortcuts / About). Files & Links binds the Obsidian-style vault folder + attachment path. Sync holds the notes-sync switch and encryption. General holds Appearance (wallpaper, locale, week starts on, text size, whiteboard canvas). Timer holds mode, duration, daily goal, sounds, reminders, and Task Rollover. Flashcards holds card settings. `NordlySettings` (`shared/model/settings.ts`) includes `weekStartsOn` (`monday` \| `sunday`, default Monday), `timerMode`, `endBell`, `taskRollover`, `taskNotifications`, `notificationVolume` |
 
+The PageStack shell owns the dock reservation; pages must not add another bottom spacer. Home poster and page content share `--nordly-content-bottom` (68px plus safe area), reserving the same space above the dock on Notes, Today, Whiteboard, Settings, Calendar, Planning and Cards.
+
 Page headings share `--nordly-page-top` (40px) and `--nordly-page-heading-height` (28px), matching the home wordmark. Keep the first heading row free of extra top padding. Note review actions sit beside the note title so enabling cards does not shift it. Interface copy lives in `apps/shared/i18n/locales/{en,ru}.ts`; keep both key sets and interpolation parameters identical.
 
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
@@ -225,7 +227,7 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 
 ## Notes editor workspace
 
-The device remembers the last successfully loaded note per profile and the editor selection per profile/note in localStorage. Reopening the editor restores the selection (clamped to the current document length), rather than moving to EOF. Saved folder expansion is pruned only after a successful list load; selecting a note reveals its ancestor folders. These workspace preferences do not sync. Live preview styles only closed code fences as code. Clicking a language badge reveals its opening fence for editing; Enter on an opening fence still inserts its closer.
+The device remembers the last successfully loaded note per profile and the editor selection and scroll position per profile/note in localStorage. Reopening the editor restores the selection (clamped to the current document length), rather than moving to EOF. Saved folder expansion is pruned only after a successful list load; selecting a note reveals its ancestor folders. Scroll is restored independently of the cursor; save it before the editor DOM is detached. These workspace preferences do not sync. Live preview styles only closed code fences as code. Clicking a language badge reveals its opening fence for editing; Enter on an opening fence still inserts its closer.
 
 ## Filesystem notes vault
 
@@ -281,6 +283,16 @@ Settings → Browser shows how to load the unpacked Chrome folder and a pairing 
 
 `front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. The Chrome extension in `apps/extension` asks once on Enter and appends `word ::: translation` through the local capture port while this app is running. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced). Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
+## Secret access
+
+`src-tauri/src/credentials.rs` caches successful Keychain reads, including missing
+entries, in process memory shared by all webviews. Writes and deletes update the
+cache only after the OS store succeeds. Secrets remain in the OS store on disk;
+they are not moved to localStorage or plaintext files. Spotify hydrates once per
+renderer session instead of rereading credentials on each settings mount.
+Ad-hoc macOS updates can still require a first authorization for each distinct
+Keychain entry; process caching cannot establish signing continuity across releases.
+
 ## Tauri IPC commands
 
 Registered in `src-tauri/src/lib.rs`:
@@ -307,7 +319,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, at status-window level. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. Hamburger in popover calls `tray_show_main`.
+**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, as a nonactivating NSPanel at floating level, below the system menu bar. The panel is clamped below the menu bar on its current screen. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. A single play/pause button changes the timer immediately; the main renderer independently sends the desired Spotify state without waiting before updating the timer. All visible consumers share one Spotify poller, stopped when none remain. HTTP 429 pauses all Spotify requests until Retry-After (or exponential backoff), without marking a valid session as signed out. Hamburger in popover calls `tray_show_main`.
 
 Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `spotify:now-playing`, `spotify:cmd`, `tray-popover:show`, `tray-popover:hide`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth), `settings?code=…&state=…` (Spotify PKCE).
 

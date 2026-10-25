@@ -1,7 +1,7 @@
 // LiveMarkdownEditor — Obsidian-style live preview on CodeMirror 6.
 // Markdown source is stored as plain text; syntax markers hide when the
 // cursor leaves the line and block styles apply immediately (headings, lists, …).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
@@ -24,7 +24,7 @@ import {
 import { notesKeymap } from '@shared/lib/codemirror/notesKeymap';
 import { wikiLinkAutocomplete } from '@shared/lib/codemirror/wikiLinkAutocomplete';
 import { normalizedWikiTitles } from '@shared/lib/wikiLinkText';
-import { loadEditorSelection, saveEditorSelection } from '@shared/lib/editorSelection';
+import { loadEditorScroll, loadEditorSelection, saveEditorScroll, saveEditorSelection } from '@shared/lib/editorSelection';
 import { SlashMenu, type EditorAPI } from './SlashMenu';
 
 interface LiveMarkdownEditorProps {
@@ -139,12 +139,13 @@ export function LiveMarkdownEditor({
     });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const parent = mountRef.current;
     if (!parent) return;
 
     lastEmittedRef.current = value;
 
+    const savedScroll = selectionKey ? loadEditorScroll(selectionKey) : undefined;
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -296,13 +297,28 @@ export function LiveMarkdownEditor({
     viewRef.current = view;
     updateSlash(view);
 
+    let restored = false;
+    const saveScroll = () => {
+      if (!restored || !selectionKeyRef.current || !view.scrollDOM.isConnected) return;
+      saveEditorScroll(selectionKeyRef.current, { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft });
+    };
+    view.scrollDOM.addEventListener('scroll', saveScroll);
+    const restoreFrame = requestAnimationFrame(() => {
+      if (viewRef.current !== view) return;
+      if (savedScroll) {
+        view.scrollDOM.scrollTop = savedScroll.top;
+        view.scrollDOM.scrollLeft = savedScroll.left;
+      }
+      restored = true;
+    });
+
     if (autoFocus) {
       // Defer past page-layer paint so focus sticks after hotkey N → Notes.
       requestAnimationFrame(() => {
         if (viewRef.current !== view) return;
         view.dispatch({
           selection: view.state.selection,
-          scrollIntoView: true,
+          scrollIntoView: !savedScroll,
         });
         view.focus();
       });
@@ -312,6 +328,9 @@ export function LiveMarkdownEditor({
       if (selectionKeyRef.current) {
         saveEditorSelection(selectionKeyRef.current, view.state.selection.main);
       }
+      cancelAnimationFrame(restoreFrame);
+      saveScroll();
+      view.scrollDOM.removeEventListener('scroll', saveScroll);
       view.destroy();
       viewRef.current = null;
     };

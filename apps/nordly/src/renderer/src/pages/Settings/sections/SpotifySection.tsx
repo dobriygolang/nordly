@@ -6,8 +6,7 @@ import {
   connectSpotify,
   disconnectSpotify,
   hydrateSpotify,
-  refreshSpotifyPlayback,
-  toggleSpotifyPlayback,
+  watchSpotifyPlayback,
   useSpotifyStore,
   type SpotifyConnectError,
 } from '@features/spotify/api/spotifyClient';
@@ -42,13 +41,10 @@ export function SpotifySection(): JSX.Element {
 
   useEffect(() => {
     if (!connected) return;
-    void refreshSpotifyPlayback();
-    const timer = window.setInterval(() => void refreshSpotifyPlayback(), 5000);
-    return () => window.clearInterval(timer);
+    return watchSpotifyPlayback();
   }, [connected]);
 
   const playback = now.playback;
-  const playing = (playback.kind === 'track' || playback.kind === 'other') && playback.isPlaying === true;
   const configured = isSpotifyConfigured();
   const controlsDisabled = !hydrated || busy || oauthPending;
   const connectDisabled = !configured || controlsDisabled;
@@ -141,9 +137,6 @@ export function SpotifySection(): JSX.Element {
           )}
         </div>
       </SettingRow>
-      {connected && !reauthRequired ? <SettingRow label={playback.kind === 'track' || playback.kind === 'other' ? `${playback.title} — ${playback.artist}` : t('nordly.settings.spotify.play')} hint={t('nordly.settings.spotify.playback_hint')}>
-        <button className="nordly-settings-vault-btn" disabled={busy} onClick={() => { setBusy(true); void toggleSpotifyPlayback().finally(() => setBusy(false)); }}>{t(playing ? 'nordly.settings.spotify.pause' : 'nordly.settings.spotify.play')}</button>
-      </SettingRow> : null}
       {now.likeError ? <p className="nordly-settings-google-error" role="alert">{now.likeError}</p> : null}
       {playback.kind === 'error' ? <p className="nordly-settings-google-error" role="alert">{playback.message}</p> : null}
       {oauthPending && !error ? (

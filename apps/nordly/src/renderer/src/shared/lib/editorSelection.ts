@@ -26,3 +26,30 @@ export function saveEditorSelection(key: string, selection: SavedEditorSelection
     console.warn('[nordly:editor] selection save failed', error);
   }
 }
+
+export interface SavedEditorScroll {
+  top: number;
+  left: number;
+}
+
+export function loadEditorScroll(key: string): SavedEditorScroll | undefined {
+  try {
+    const raw = localStorage.getItem(`${key}:scroll`);
+    if (raw === null) return undefined;
+    const scroll = JSON.parse(raw) as SavedEditorScroll;
+    if (!scroll || !Number.isFinite(scroll.top) || !Number.isFinite(scroll.left)
+      || scroll.top < 0 || scroll.left < 0) throw new Error('Invalid saved editor scroll');
+    return scroll;
+  } catch (error) {
+    console.warn('[nordly:editor] scroll load failed', error);
+    return undefined;
+  }
+}
+
+export function saveEditorScroll(key: string, scroll: SavedEditorScroll): void {
+  try {
+    localStorage.setItem(`${key}:scroll`, JSON.stringify(scroll));
+  } catch (error) {
+    console.warn('[nordly:editor] scroll save failed', error);
+  }
+}

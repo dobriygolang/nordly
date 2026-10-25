@@ -35,36 +35,27 @@ pub fn ensure_persistent_store() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn load_session(_app: &AppHandle) -> Result<Option<AuthSession>, String> {
-    let entry = auth_entry()?;
-    match entry.get_password() {
-        Ok(raw) => {
+    match crate::credentials::load("auth-session")? {
+        Some(raw) => {
             let parsed: AuthSession = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
-            if parsed.user_id.is_empty() {
-                return Ok(None);
-            }
-            // Access may be empty after a partial write; refresh alone is enough to restore.
-            if parsed.access_token.is_empty() && parsed.refresh_token.is_empty() {
+            if parsed.user_id.is_empty()
+                || (parsed.access_token.is_empty() && parsed.refresh_token.is_empty())
+            {
                 return Ok(None);
             }
             Ok(Some(parsed))
         }
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
+        None => Ok(None),
     }
 }
 
 pub fn save_session(_app: &AppHandle, session: &AuthSession) -> Result<(), String> {
-    let entry = auth_entry()?;
     let raw = serde_json::to_string(session).map_err(|e| e.to_string())?;
-    entry.set_password(&raw).map_err(|e| e.to_string())
+    crate::credentials::save("auth-session", &raw)
 }
 
 pub fn clear_session(_app: &AppHandle) -> Result<(), String> {
-    let entry = auth_entry()?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+    crate::credentials::clear("auth-session")
 }
 
 #[cfg(all(test, any(target_os = "macos", target_os = "windows")))]

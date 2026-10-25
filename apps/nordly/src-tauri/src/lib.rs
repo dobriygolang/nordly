@@ -2,6 +2,7 @@ mod auth;
 #[cfg(desktop)]
 mod aux_windows;
 mod capture;
+mod credentials;
 mod eventkit;
 mod notes_vault;
 mod notification;

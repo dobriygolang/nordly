@@ -2,9 +2,10 @@ import { translate } from '@nordly-i18n';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import { isTauriRuntime } from '@platform/runtime';
+import { usePomodoroStore } from '@shared/model/pomodoro';
 import { listenEffects } from '@shared/lib/tauriListen';
 
-import { SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifySend } from '../remote/spotifyRemote';
+import { SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifyRetryAt, spotifySend } from '../remote/spotifyRemote';
 import {
   disconnectedNowPlaying,
   SPOTIFY_CMD_EVENT,
@@ -39,6 +40,9 @@ let pollTimer: number | null = null;
 let volumeTimer: number | null = null;
 let volumeLocked = false;
 let leaderStarted = false;
+let playbackRefresh: Promise<void> | null = null;
+let lastPlaybackReadAt = 0;
+let playbackWatchers = 0;
 
 async function openExternal(url: string): Promise<void> {
   const open = window.nordly?.shell?.openExternal;
@@ -47,7 +51,7 @@ async function openExternal(url: string): Promise<void> {
 }
 
 function connectFailure(error: unknown): SpotifyConnectError {
-  if (error instanceof SpotifyHttpError) return { kind: 'exchange', detail: error.message };
+  if (error instanceof SpotifyHttpError) return { kind: 'exchange', detail: spotifyErrorText(error) };
   if (error instanceof Error && error.message) return { kind: 'exchange', detail: error.message };
   return { kind: 'exchange', detail: 'Spotify sign-in failed' };
 }
@@ -135,6 +139,10 @@ async function readNowPlaying(): Promise<SpotifyNowPlaying> {
   if (playback.kind !== 'track') {
     return { connected: true, playback, liked: false, likeError: '' };
   }
+  const previous = useSpotifyStore.getState().nowPlaying;
+  if (previous.playback.kind === 'track' && previous.playback.trackId === playback.trackId) {
+    return { connected: true, playback, liked: previous.liked, likeError: previous.likeError };
+  }
   try {
     const likedBody = await withToken((token) =>
       spotifySend(token, 'GET', `/me/library/contains?uris=${encodeURIComponent(`spotify:track:${playback.trackId}`)}`),
@@ -145,7 +153,15 @@ async function readNowPlaying(): Promise<SpotifyNowPlaying> {
   }
 }
 
-export async function refreshSpotifyPlayback(): Promise<void> {
+export function refreshSpotifyPlayback(): Promise<void> {
+  if (playbackRefresh) return playbackRefresh;
+  if (Date.now() < spotifyRetryAt() || Date.now() - lastPlaybackReadAt < 1000) return Promise.resolve();
+  lastPlaybackReadAt = Date.now();
+  playbackRefresh = readPlayback().finally(() => { playbackRefresh = null; });
+  return playbackRefresh;
+}
+
+async function readPlayback(): Promise<void> {
   if (!useSpotifyStore.getState().connected) {
     await broadcast(disconnectedNowPlaying());
     return;
@@ -177,6 +193,16 @@ function stopWatch(): void {
   pollTimer = null;
 }
 
+/** All visible consumers share a single poller in the main webview. */
+export function watchSpotifyPlayback(): () => void {
+  playbackWatchers += 1;
+  if (playbackWatchers === 1) startWatch();
+  return () => {
+    playbackWatchers -= 1;
+    if (playbackWatchers === 0) stopWatch();
+  };
+}
+
 async function toggleLike(): Promise<void> {
   const current = useSpotifyStore.getState().nowPlaying;
   const playback: PlaybackItem | { kind: 'error'; message: string } = current.playback;
@@ -202,6 +228,7 @@ async function toggleLike(): Promise<void> {
 
 export function spotifyErrorText(error: unknown): string {
   if (error instanceof SpotifyHttpError) {
+    if (error.status === 429) return translate('nordly.spotify.error.rate_limit');
     if (error.status === 404) return translate('nordly.spotify.error.device');
     if (error.status === 403) {
       if (/premium/i.test(error.message)) return translate('nordly.spotify.error.premium');
@@ -212,27 +239,33 @@ export function spotifyErrorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Spotify playback failed';
 }
 
-let playbackBusy = false;
-export async function toggleSpotifyPlayback(): Promise<void> {
-  if (playbackBusy || !useSpotifyStore.getState().connected) return;
-  playbackBusy = true;
-  try {
-    // Read the device state before deciding, since playback may change outside Nordly.
-    const body = await withToken((token) => spotifySend(token, 'GET', '/me/player'));
-    if (body !== null && (typeof body !== 'object' || !('is_playing' in body) || typeof body.is_playing !== 'boolean')) {
-      throw new Error('Invalid Spotify player response');
+/** Timer state is authoritative: PUT a desired state without a preliminary GET. */
+let desiredPlayback: boolean | null = null;
+let playbackCommand: Promise<void> | null = null;
+export function setSpotifyPlayback(playing: boolean): Promise<void> {
+  if (!useSpotifyStore.getState().connected) return Promise.resolve();
+  desiredPlayback = playing;
+  if (playbackCommand) return playbackCommand;
+  playbackCommand = (async () => {
+    while (desiredPlayback !== null) {
+      const target = desiredPlayback;
+      desiredPlayback = null;
+      try {
+        await withToken((token) => spotifySend(token, 'PUT', target ? '/me/player/play' : '/me/player/pause'));
+        const current = useSpotifyStore.getState().nowPlaying;
+        if (current.playback.kind === 'track' || current.playback.kind === 'other') {
+          await broadcast({ ...current, playback: { ...current.playback, isPlaying: target } });
+        }
+      } catch (error) {
+        await broadcast({ connected: true, playback: { kind: 'error', message: spotifyErrorText(error) }, liked: false, likeError: '' });
+      }
     }
-    const playing = body !== null && body.is_playing === true;
-    await withToken((token) => spotifySend(token, 'PUT', playing ? '/me/player/pause' : '/me/player/play'));
-    await refreshSpotifyPlayback();
-  } catch (error) {
-    await broadcast({ connected: true, playback: { kind: 'error', message: spotifyErrorText(error) }, liked: false, likeError: '' });
-  } finally {
-    playbackBusy = false;
-  }
+  })().finally(() => { playbackCommand = null; });
+  return playbackCommand;
 }
 
 export function hydrateSpotify(): Promise<void> {
+  if (useSpotifyStore.getState().hydrated) return Promise.resolve();
   if (!hydratePromise) {
     hydratePromise = loadSession().finally(() => {
       hydratePromise = null;
@@ -253,6 +286,7 @@ async function loadSession(): Promise<void> {
       hydrated: true,
       connected,
       reauthRequired: false,
+      connectError: null,
       displayName: connected ? useSpotifyStore.getState().displayName : '',
       nowPlaying: connected ? useSpotifyStore.getState().nowPlaying : disconnectedNowPlaying(),
     });
@@ -265,7 +299,8 @@ async function loadSession(): Promise<void> {
     const reauthRequired = useSpotifyStore.getState().reauthRequired;
     patchSpotify({
       hydrated: true,
-      connectError: reauthRequired ? null : connectFailure(error),
+      connectError: useSpotifyStore.getState().connected || reauthRequired ? null : connectFailure(error),
+      ...(useSpotifyStore.getState().connected ? { nowPlaying: { connected: true, playback: { kind: 'error' as const, message: spotifyErrorText(error) }, liked: false, likeError: '' } } : {}),
     });
   }
 }
@@ -337,15 +372,16 @@ export async function acceptSpotifyRedirect(code: string, state: string): Promis
       codeVerifier: '',
       oauthState: '',
     });
-    const profile = mapProfile(await withToken((token) => spotifySend(token, 'GET', '/me')));
     patchSpotify({
       hydrated: true,
       connected: true,
       reauthRequired: false,
-      displayName: profile.displayName,
+      displayName: '',
+      nowPlaying: disconnectedNowPlaying(),
       oauthPending: false,
       connectError: null,
     });
+    if (playbackWatchers > 0) startWatch();
   } catch (error) {
     console.error('[nordly:spotify] token exchange failed', error);
     patchSpotify({ oauthPending: false, connectError: connectFailure(error) });
@@ -379,7 +415,7 @@ export async function refreshSpotifyVolume(): Promise<void> {
   } catch (error) {
     if (volumeLocked) return;
     console.error('[nordly:spotify] volume read failed', error);
-    const message = error instanceof Error ? error.message : 'Spotify volume failed';
+    const message = spotifyErrorText(error);
     patchSpotify({ volumeError: { kind: 'api', message } });
   }
 }
@@ -405,44 +441,59 @@ async function commitSpotifyVolume(percent: number): Promise<void> {
       patchSpotify({ volumeError: { kind: 'no_device' } });
       return;
     }
-    const message = error instanceof Error ? error.message : 'Spotify volume failed';
+    const message = spotifyErrorText(error);
     patchSpotify({ volumeError: { kind: 'api', message } });
   }
+}
+
+export function syncSpotifyWithTimer(): () => void {
+  return usePomodoroStore.subscribe((state, previous) => {
+    if (state.running !== previous.running) void setSpotifyPlayback(state.running);
+  });
 }
 
 export function initSpotifyLeader(): () => void {
   if (leaderStarted || !isTauriRuntime() || !isSpotifyConfigured()) return () => undefined;
   leaderStarted = true;
+  const stopTimerSync = syncSpotifyWithTimer();
   void hydrateSpotify();
 
+  let stopTrayWatch: (() => void) | null = null;
+  let trayVisible = false;
   const stop = listenEffects((track) => {
     track(
       listen('tray-popover:show', () => {
+        trayVisible = true;
         void hydrateSpotify().then(() => {
+          if (!trayVisible) return;
           if (!useSpotifyStore.getState().connected) {
             void broadcast(disconnectedNowPlaying());
             return;
           }
-          startWatch();
+          stopTrayWatch?.();
+          stopTrayWatch = watchSpotifyPlayback();
         });
       }),
     );
     track(
       listen('tray-popover:hide', () => {
-        stopWatch();
+        trayVisible = false;
+        stopTrayWatch?.();
+        stopTrayWatch = null;
       }),
     );
     track(
       listen<{ action?: string }>(SPOTIFY_CMD_EVENT, ({ payload }) => {
         if (payload?.action === 'like') void toggleLike();
-        if (payload?.action === 'playback') void toggleSpotifyPlayback();
       }),
     );
   });
 
   return () => {
     leaderStarted = false;
-    stopWatch();
+    trayVisible = false;
+    stopTimerSync();
+    stopTrayWatch?.();
     stop();
   };
 }

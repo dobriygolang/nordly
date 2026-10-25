@@ -14,12 +14,23 @@ const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 
 export class SpotifyHttpError extends Error {
   readonly status: number;
+  readonly retryAt: number;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAt = 0) {
     super(message);
     this.name = 'SpotifyHttpError';
     this.status = status;
+    this.retryAt = retryAt;
   }
+}
+
+let retryAt = 0;
+let rateLimitCount = 0;
+
+export function spotifyRetryAt(): number { return retryAt; }
+
+function checkRateLimit(): void {
+  if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt);
 }
 
 function coreFetch(input: string, init?: RequestInit): Promise<Response> {
@@ -37,6 +48,15 @@ async function parseBody(resp: Response): Promise<unknown> {
 }
 
 async function finish(resp: Response): Promise<unknown> {
+  if (resp.status === 429) {
+    rateLimitCount += 1;
+    const seconds = Number(resp.headers.get('Retry-After'));
+    const delay = Number.isFinite(seconds) && seconds > 0
+      ? seconds * 1000 : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(rateLimitCount - 1, 5));
+    retryAt = Math.max(retryAt, Date.now() + delay);
+    throw new SpotifyHttpError(429, 'Too many requests', retryAt);
+  }
+  if (resp.ok) rateLimitCount = 0;
   const body = await parseBody(resp);
   if (resp.status === 204) return null;
   if (!resp.ok) {
@@ -51,6 +71,7 @@ export async function spotifySend(
   method: 'GET' | 'PUT' | 'DELETE',
   path: string,
 ): Promise<unknown> {
+  checkRateLimit();
   const resp = await coreFetch(`${API}${path}`, {
     method,
     headers: {
@@ -89,6 +110,7 @@ export async function refreshAccessToken(
 }
 
 async function tokenRequest(body: URLSearchParams, previousRefresh: string): Promise<SpotifyTokens> {
+  checkRateLimit();
   const resp = await coreFetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },

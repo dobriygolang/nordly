@@ -43,3 +43,22 @@ it('restores the cursor after switching notes without autofocus moving it to EOF
   expect(restored.state.selection.main.anchor).toBe(3);
   expect(restored.state.selection.main.head).toBe(8);
 });
+
+it('restores each note scroll independently of its cursor', async () => {
+  const render = async (id: string) => {
+    await act(async () => root.render(createElement(LiveMarkdownEditor, {
+      key: id, selectionKey: id, value: Array.from({ length: 200 }, (_, i) => `Line ${i}`).join('\n'), onChange: vi.fn(), autoFocus: true,
+    })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 40)); });
+    return EditorView.findFromDOM(container.querySelector('.cm-editor')!)!;
+  };
+  const first = await render('scroll-a');
+  first.scrollDOM.scrollTop = 440;
+  first.scrollDOM.scrollLeft = 12;
+  first.scrollDOM.dispatchEvent(new Event('scroll'));
+  await render('scroll-b');
+  const restored = await render('scroll-a');
+  expect(restored.scrollDOM.scrollTop).toBe(440);
+  expect(restored.scrollDOM.scrollLeft).toBe(12);
+  expect(restored.state.selection.main.head).toBe(0);
+});

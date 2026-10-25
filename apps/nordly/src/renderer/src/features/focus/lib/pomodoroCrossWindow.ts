@@ -29,7 +29,7 @@ export interface PomodoroExpiredPayload {
   savedAt: number;
 }
 
-export type PomodoroCmdAction = 'toggle' | 'reset';
+export type PomodoroCmdAction = 'toggle' | 'reset' | 'set-running';
 
 let leaderVersion = 0;
 
@@ -68,10 +68,12 @@ export function initPomodoroLeader(): () => void {
   unsubs.push(
     listenEffects((track) => {
       track(
-        listen<{ action: PomodoroCmdAction }>(CMD_EVENT, ({ payload }) => {
+        listen<{ action: PomodoroCmdAction; running?: boolean }>(CMD_EVENT, ({ payload }) => {
           if (!active) return;
           const store = usePomodoroStore.getState();
-          if (payload.action === 'toggle') store.toggle();
+          if (payload.action === 'set-running' && typeof payload.running === 'boolean') {
+            if (store.running !== payload.running) store.toggle();
+          } else if (payload.action === 'toggle') store.toggle();
           else if (payload.action === 'reset') store.reset();
         }),
       );
@@ -227,14 +229,16 @@ export function initPomodoroFollower(): () => void {
   };
 }
 
-export function sendPomodoroCommand(action: PomodoroCmdAction): void {
+export function sendPomodoroCommand(action: PomodoroCmdAction, running?: boolean): void {
   if (!isTauriRuntime()) {
     const store = usePomodoroStore.getState();
-    if (action === 'toggle') store.toggle();
+    if (action === 'set-running') {
+      if (typeof running === 'boolean' && store.running !== running) store.toggle();
+    } else if (action === 'toggle') store.toggle();
     else store.reset();
     return;
   }
-  void emit(CMD_EVENT, { action }).catch((error) => {
+  void emit(CMD_EVENT, { action, running }).catch((error) => {
     console.error('[nordly:pomodoro] command broadcast failed', error);
   });
 }

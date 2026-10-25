@@ -2,7 +2,9 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 
 use crate::window_macos;
 
@@ -52,6 +54,8 @@ fn wire_tray_popover_events(app: &AppHandle, popover: &WebviewWindow) {
                         }
                         if let Err(e) = w.hide() {
                             eprintln!("[nordly:aux] hide tray popover on blur: {e}");
+                        } else if let Err(e) = main_handle.emit("tray-popover:hide", ()) {
+                            eprintln!("[nordly:aux] emit tray popover hide: {e}");
                         }
                     }
                 });

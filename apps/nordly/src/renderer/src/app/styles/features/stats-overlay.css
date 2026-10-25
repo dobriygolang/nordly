@@ -2,7 +2,7 @@
   position: absolute;
   right: 32px;
   top: var(--nordly-page-top);
-  bottom: 24px;
+  bottom: var(--nordly-content-bottom);
   width: 320px;
   display: flex;
   flex-direction: column;

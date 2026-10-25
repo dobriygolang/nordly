@@ -338,7 +338,7 @@ html.light .nordly-settings-group__body {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0 12px 88px;
+  padding: 0 12px 0;
   overflow-y: auto;
   border-right: 1px solid var(--ink-tint-08);
 }
@@ -414,7 +414,7 @@ html.light .nordly-settings-group__body {
 .nordly-settings-content__inner {
   max-width: 900px;
   margin: 0 auto;
-  padding: 0 40px 88px;
+  padding: 0 40px 0;
 }
 
 .nordly-settings-content__title {
@@ -844,14 +844,14 @@ html.light .nordly-shortcuts-card {
 @media (max-width: 1040px) {
   .nordly-setting-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .nordly-setting-row__control { justify-content: flex-start; }
-  .nordly-settings-content__inner { padding: 0 28px 88px; }
+  .nordly-settings-content__inner { padding: 0 28px 0; }
 }
 @media (max-width: 720px) {
   .nordly-settings-shell { flex-direction: column; }
   .nordly-settings-nav { flex: 0 0 auto; padding: 14px 16px; gap: 10px; border-right: 0; border-bottom: 1px solid var(--ink-tint-08); }
   .nordly-settings-nav__list { flex-direction: row; overflow-x: auto; }
   .nordly-settings-nav__item { white-space: nowrap; }
-  .nordly-settings-content__inner { padding: 24px 18px 80px; }
+  .nordly-settings-content__inner { padding: 24px 18px 0; }
 }
 
 

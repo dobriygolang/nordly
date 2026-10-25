@@ -1,50 +1,50 @@
 # Release process
 
-Production releases use **release branches** and **Linear** for task tracking.
+Development and releases use `main`. Linear is optional.
 
 ## Branches
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Integration; always deployable |
-| `release/vX.Y.Z` | Stabilization before a tagged release (bugfixes only) |
+| `main` | Development and tagged releases; always deployable |
 
-### Cut a release branch
+### Prepare a release
 
 ```bash
 git checkout main && git pull
-git checkout -b release/v0.0.2
-# fix-only commits on this branch
-git push -u origin release/v0.0.2
+# run relevant local checks and commit the release changes
+git push origin main
 ```
 
-Merge `release/vX.Y.Z` → `main` when stable, then tag.
+Tag the intended commit on `main`. Create other branches only when the user asks.
+After pushing, report the commit or tag. The user checks pipelines and reports
+failures; agents inspect or monitor CI only when explicitly requested.
 
 ## Tags
 
 | Artifact | Tag format | Example |
 |----------|------------|---------|
 | Nordly desktop (Tauri) | `nordly-vMAJOR.MINOR.PATCH` | `nordly-v0.0.1` |
-| Backend deploy | git SHA on `main` / release branch | `make deploy` on VPS |
+| Backend deploy | git SHA on `main` | `make deploy` on VPS |
 
 CI builds desktop installers on `nordly-v*` tags (see `.github/workflows/nordly-release.yml`).
 
 ## Commits
 
-Every commit references a Linear issue:
+When the user provides a Linear issue, reference it:
 
 ```
 [NOR-123] Short description focused on why.
 ```
 
-Create the Linear task first; use its id in the commit subject.
+Otherwise use a brief commit subject without Linear. Do not require creating a task.
 
 ## Production deploy
 
 From the VPS (`/opt/project-nordly`):
 
 ```bash
-git fetch && git checkout main && git pull   # or release branch
+git fetch && git checkout main && git pull
 cd deploy
 make deploy                                  # incremental build + migrate + up
 ```
@@ -58,7 +58,7 @@ bash scripts/prod-clean-slate.sh
 
 ## Pre-release checklist
 
-- [ ] Linear release epic closed or tagged
+- [ ] If a Linear release epic is used, close or tag it
 - [ ] `bash deploy/scripts/audit-env.sh` — no obsolete `.env` keys
 - [ ] Grafana: all Prometheus targets `up`; **Product** dashboard provisioned (`deploy/grafana/dashboards/nordly-product.json`)
 - [ ] Smoke: `make smoke` from `deploy/` — check `identity_auth_total` / `http_requests_total` after login

@@ -71,7 +71,7 @@ of silently switching to another model.
 
 When creating commits:
 
-- Prefix the subject with the Linear issue id: `[NOR-123] Brief summary`.
+- If the user provides a Linear issue id, prefix the subject with it: `[NOR-123] Brief summary`. Otherwise commit without Linear; do not require an issue.
 - Write only a **brief summary** (1–2 sentences) focused on *why*, not a changelog.
 - Do **not** append trailers or footers: no `Co-authored-by`, no `Signed-off-by`, no tool attribution.
 - Never add agent/editor credits or attribution trailers.
@@ -86,7 +86,12 @@ EOF
 )"
 ```
 
-Release branches: see [docs/release-process.md](docs/release-process.md).
+Work directly on `main` by default. Do not create task or release branches unless
+the user asks. After pushing, report the commit and stop monitoring CI: the user
+checks pipelines and reports failures. Inspect CI only when explicitly requested.
+Run relevant local checks before pushing.
+
+Releases: see [docs/release-process.md](docs/release-process.md).
 
 ### Project skills
 

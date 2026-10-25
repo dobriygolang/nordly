@@ -6,12 +6,13 @@ import {
   connectSpotify,
   setSpotifyEnabled,
   disconnectSpotify,
-  hydrateSpotify,
+  requestSpotifyLocalAccess,
   watchSpotifyPlayback,
   useSpotifyStore,
   type SpotifyConnectError,
 } from '@features/spotify/api/spotifyClient';
 import { isSpotifyConfigured } from '@features/spotify/lib/pkce';
+import { isMacOsDesktop } from '@platform/macos';
 
 import { Toggle } from '../primitives/Toggle';
 import { SettingRow } from '../primitives/SettingRow';
@@ -29,42 +30,32 @@ function connectErrorText(t: TFunc, error: SpotifyConnectError): string {
 export function SpotifySection(): JSX.Element {
   const t = useT();
   const enabled = useSpotifyStore((s) => s.enabled);
-  const hydrated = useSpotifyStore((s) => s.hydrated);
-  const connected = useSpotifyStore((s) => s.connected);
+  const localStatus = useSpotifyStore((s) => s.localStatus);
+  const nativeError = useSpotifyStore((s) => s.localError);
+  const connected = useSpotifyStore((s) => s.libraryConnected);
   const reauthRequired = useSpotifyStore((s) => s.reauthRequired);
-  const displayName = useSpotifyStore((s) => s.displayName);
   const oauthPending = useSpotifyStore((s) => s.oauthPending);
   const connectError = useSpotifyStore((s) => s.connectError);
   const now = useSpotifyStore((s) => s.nowPlaying);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (enabled) void hydrateSpotify();
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled || !connected) return;
+    if (!enabled) return;
     return watchSpotifyPlayback();
-  }, [connected, enabled]);
+  }, [enabled]);
 
   const playback = now.playback;
   const configured = isSpotifyConfigured();
-  const controlsDisabled = (enabled && !hydrated) || busy || oauthPending;
+  const controlsDisabled = busy || oauthPending;
   const connectDisabled = !enabled || !configured || controlsDisabled;
-  const statusLabel = !enabled
-    ? t('nordly.settings.spotify.paused')
-    : !configured
-    ? t('nordly.settings.spotify.missing_client')
-    : !hydrated
-    ? t('nordly.settings.spotify.loading')
-    : reauthRequired
-      ? t('nordly.settings.spotify.reauth')
-      : connected
-        ? displayName
-          ? t('nordly.settings.spotify.connected_as', { name: displayName })
-          : t('nordly.settings.spotify.connected')
-        : t('nordly.settings.spotify.not_connected');
+  const statusLabel = reauthRequired
+    ? t('nordly.settings.spotify.reauth')
+    : connected ? t('nordly.settings.spotify.connected') : t('nordly.settings.spotify.not_connected');
+  const localLabel = !enabled ? t('nordly.settings.spotify.paused')
+    : localStatus === null ? t('nordly.settings.spotify.loading')
+    : t(`nordly.settings.spotify.local_${localStatus}`);
   const error = localError ?? (connectError ? connectErrorText(t, connectError) : null);
 
   const connect = async (): Promise<void> => {
@@ -100,13 +91,26 @@ export function SpotifySection(): JSX.Element {
       <SettingRow label={t('nordly.settings.spotify.enabled')} hint={t('nordly.settings.spotify.enabled_hint')}>
         <Toggle value={enabled} onChange={setSpotifyEnabled} label={t(enabled ? 'nordly.settings.vault.on' : 'nordly.settings.vault.off')} />
       </SettingRow>
-      <SettingRow
+      <SettingRow label={t('nordly.settings.spotify.local_label')} hint={t('nordly.settings.spotify.local_hint')}>
+        <div className="nordly-settings-google-actions" aria-busy={checking}>
+          <span className="mono nordly-settings-google-status" role="status">{localLabel}</span>
+          <button type="button" className="nordly-settings-vault-btn" disabled={!enabled || checking}
+            onClick={() => {
+              setChecking(true);
+              void requestSpotifyLocalAccess().finally(() => setChecking(false));
+            }}>
+            {checking ? t('nordly.settings.spotify.loading') : t(localStatus === 'permission_required' ? 'nordly.settings.spotify.local_allow' : 'nordly.settings.spotify.local_check')}
+          </button>
+        </div>
+      </SettingRow>
+      {enabled && nativeError ? <p className="nordly-settings-google-error" role="alert">{nativeError}</p> : null}
+      {enabled && localStatus === 'permission_denied' ? <p className="mono">{t('nordly.settings.spotify.local_permission_help')}</p> : null}
+      {configured && isMacOsDesktop() ? <SettingRow
         label={t('nordly.settings.spotify.account_label')}
         hint={t('nordly.settings.spotify.account_hint')}
       >
         <div className="nordly-settings-google-actions" aria-busy={controlsDisabled}>
-          <span className="mono nordly-settings-google-status" data-loading={enabled && !hydrated ? 'true' : undefined}>
-            {!enabled || hydrated ? null : <InlineOAuthSpinner />}
+          <span className="mono nordly-settings-google-status">
             {oauthPending ? null : statusLabel}
           </span>
           {connected && !reauthRequired ? (
@@ -145,7 +149,7 @@ export function SpotifySection(): JSX.Element {
             </button>
           )}
         </div>
-      </SettingRow>
+      </SettingRow> : null}
       {enabled && now.likeError ? <p className="nordly-settings-google-error" role="alert">{now.likeError}</p> : null}
       {enabled && playback.kind === 'error' ? <p className="nordly-settings-google-error" role="alert">{playback.message}</p> : null}
       {enabled && oauthPending && !error ? (

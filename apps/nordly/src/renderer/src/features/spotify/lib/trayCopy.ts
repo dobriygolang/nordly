@@ -50,7 +50,7 @@ export function trayMusicLine(
     title = playback.message;
   }
 
-  const showLike = playback.kind === 'track' && !now.likeError;
+  const showLike = playback.kind === 'track' && now.canLike === true && !now.likeError;
   return {
     mode: 'music',
     kicker: copy.musicKicker,

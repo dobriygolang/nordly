@@ -1,59 +1,25 @@
 import { translate } from '@nordly-i18n';
-import { emit, listen } from '@tauri-apps/api/event';
-
+import { listen } from '@tauri-apps/api/event';
 import { isTauriRuntime } from '@platform/runtime';
+import { listenEffects } from '@shared/lib/tauriListen';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { patchSettings, readSettings } from '@shared/model/settings';
-import { usePomodoroStore } from '@shared/model/pomodoro';
-import { listenEffects } from '@shared/lib/tauriListen';
-
-import { abortSpotifyPlaybackRequests, SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifyAuthRetryAt, spotifyRetryAt, spotifySend } from '../remote/spotifyRemote';
-import {
-  disconnectedNowPlaying,
-  SPOTIFY_CMD_EVENT,
-  SPOTIFY_NOW_EVENT,
-  SPOTIFY_POLL_MS,
-  type SpotifyNowPlaying,
-} from './nowPlaying';
-import {
-  createPkce,
-  isSpotifyConfigured,
-  spotifyAuthorizeUrl,
-  spotifyClientId,
-} from './pkce';
-import {
-  mapCurrentlyPlaying,
-  mapDeviceVolume,
-  mapProfile,
-  mapTrackLiked,
-  type PlaybackItem,
-} from './playback';
+import { SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifyAuthRetryAt, spotifyLibrarySend } from '../remote/spotifyRemote';
+import { SPOTIFY_CMD_EVENT } from './nowPlaying';
+import { createPkce, spotifyAuthorizeUrl, spotifyClientId } from './pkce';
+import { mapTrackLiked } from './playback';
 import { clearSpotifySecret, emptySecret, loadSpotifySecret, saveSpotifySecret, type SpotifySecret } from './secret';
 import { patchSpotify, useSpotifyStore, type SpotifyConnectError } from './spotifyStore';
+import { broadcastSpotifyNow, initLocalSpotifyLeader } from './localPlayer';
 
 const OAUTH_TIMEOUT_MS = 3 * 60_000;
-const VOLUME_SEND_INTERVAL_MS = 120;
 const TOKEN_SKEW_MS = 60_000;
-
-let hydratePromise: Promise<void> | null = null;
 let refreshPromise: Promise<string> | null = null;
 let oauthGeneration = 0;
-let pollTimer: number | null = null;
-let volumeTimer: number | null = null;
-let volumeLocked = false;
-let volumeVersion = 0;
-let volumeSession = 0;
-let queuedVolume: number | null = null;
-let volumeWrite: Promise<void> | null = null;
-let volumeRead: Promise<void> | null = null;
-let lastVolumeSentAt = 0;
-let lastVolumeReadAt = 0;
-let confirmedVolume: number | null = null;
+let libraryEpoch = 0;
+let credentialEpoch = 0;
+let likePending = false;
 let leaderStarted = false;
-let integrationEpoch = 0;
-let playbackRefresh: Promise<void> | null = null;
-let lastPlaybackReadAt = 0;
-let playbackWatchers = 0;
 
 async function openExternal(url: string): Promise<void> {
   const open = window.nordly?.shell?.openExternal;
@@ -100,6 +66,7 @@ async function validAccessToken(): Promise<string> {
 }
 
 async function forceRefresh(secret: SpotifySecret): Promise<string> {
+  const epoch = credentialEpoch;
   const clientId = spotifyClientId();
   if (!clientId) throw new Error('Spotify client id is not configured');
   if (!secret.refreshToken) {
@@ -114,6 +81,7 @@ async function forceRefresh(secret: SpotifySecret): Promise<string> {
       refreshToken: tokens.refreshToken,
       expiresAt: Date.now() + tokens.expiresIn * 1000,
     };
+    if (epoch !== credentialEpoch) throw new Error('Spotify library operation was cancelled');
     await saveSpotifySecret(next);
     patchSpotify({ reauthRequired: false });
     return next.accessToken;
@@ -127,131 +95,17 @@ async function forceRefresh(secret: SpotifySecret): Promise<string> {
 
 async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T> {
   if (!useSpotifyStore.getState().enabled) throw new Error('Spotify integration is disabled');
-  const epoch = integrationEpoch;
+  const epoch = libraryEpoch;
   const token = await validAccessToken();
-  if (epoch !== integrationEpoch || !useSpotifyStore.getState().enabled) throw new Error('Spotify operation was cancelled');
+  if (epoch !== libraryEpoch || !useSpotifyStore.getState().enabled) throw new Error('Spotify operation was cancelled');
   try {
     return await fn(token);
   } catch (error) {
     if (!(error instanceof SpotifyHttpError) || error.status !== 401) throw error;
     const refreshed = await singleFlight(async () => forceRefresh(await readSecret()));
-    if (epoch !== integrationEpoch || !useSpotifyStore.getState().enabled) throw new Error('Spotify operation was cancelled');
+    if (epoch !== libraryEpoch || !useSpotifyStore.getState().enabled) throw new Error('Spotify operation was cancelled');
     if (refreshed === token) throw error;
     return fn(refreshed);
-  }
-}
-
-async function broadcast(now: SpotifyNowPlaying): Promise<void> {
-  patchSpotify({ nowPlaying: now });
-  if (!isTauriRuntime()) return;
-  await emit(SPOTIFY_NOW_EVENT, now);
-}
-
-async function readNowPlaying(epoch: number): Promise<SpotifyNowPlaying> {
-  const body = await withToken((token) =>
-    spotifySend(token, 'GET', '/me/player/currently-playing?additional_types=track,episode'),
-  );
-  if (epoch !== integrationEpoch) return disconnectedNowPlaying();
-  const playback = mapCurrentlyPlaying(body);
-  if (playback.kind !== 'track') {
-    return { connected: true, playback, liked: false, likeError: '' };
-  }
-  const previous = useSpotifyStore.getState().nowPlaying;
-  if (previous.playback.kind === 'track' && previous.playback.trackId === playback.trackId) {
-    return { connected: true, playback, liked: previous.liked, likeError: previous.likeError };
-  }
-  try {
-    const likedBody = await withToken((token) =>
-      spotifySend(token, 'GET', `/me/library/contains?uris=${encodeURIComponent(`spotify:track:${playback.trackId}`)}`),
-    );
-    return { connected: true, playback, liked: mapTrackLiked(likedBody), likeError: '' };
-  } catch (error) {
-    return { connected: true, playback, liked: false, likeError: spotifyErrorText(error) };
-  }
-}
-
-export function refreshSpotifyPlayback(): Promise<void> {
-  if (!useSpotifyStore.getState().enabled) return Promise.resolve();
-  if (playbackRefresh) return playbackRefresh;
-  if (Date.now() < spotifyRetryAt() || Date.now() - lastPlaybackReadAt < 1000) return Promise.resolve();
-  lastPlaybackReadAt = Date.now();
-  const pending = readPlayback().finally(() => {
-    if (playbackRefresh === pending) playbackRefresh = null;
-  });
-  playbackRefresh = pending;
-  return pending;
-}
-
-async function readPlayback(): Promise<void> {
-  const epoch = integrationEpoch;
-  if (!useSpotifyStore.getState().connected) {
-    await broadcast(disconnectedNowPlaying());
-    return;
-  }
-  try {
-    const now = await readNowPlaying(epoch);
-    if (epoch !== integrationEpoch) return;
-    await broadcast(now);
-  } catch (error) {
-    if (epoch !== integrationEpoch) return;
-    const message = spotifyErrorText(error);
-    console.error('[nordly:spotify] now playing failed', error);
-    await broadcast({
-      connected: true,
-      playback: { kind: 'error', message },
-      liked: false,
-      likeError: '',
-    });
-  }
-}
-
-function startWatch(): void {
-  if (!useSpotifyStore.getState().enabled || !useSpotifyStore.getState().connected) return;
-  if (pollTimer !== null) window.clearInterval(pollTimer);
-  void refreshSpotifyPlayback();
-  pollTimer = window.setInterval(() => {
-    void refreshSpotifyPlayback();
-  }, SPOTIFY_POLL_MS);
-}
-
-function stopWatch(): void {
-  if (pollTimer !== null) window.clearInterval(pollTimer);
-  pollTimer = null;
-}
-
-/** All visible consumers share a single poller in the main webview. */
-export function watchSpotifyPlayback(): () => void {
-  playbackWatchers += 1;
-  if (playbackWatchers === 1) startWatch();
-  return () => {
-    playbackWatchers -= 1;
-    if (playbackWatchers === 0) stopWatch();
-  };
-}
-
-async function toggleLike(): Promise<void> {
-  const current = useSpotifyStore.getState().nowPlaying;
-  const playback: PlaybackItem | { kind: 'error'; message: string } = current.playback;
-  if (!useSpotifyStore.getState().enabled || !current.connected || playback.kind !== 'track' || current.likeError) return;
-  const trackId = playback.trackId;
-  const epoch = integrationEpoch;
-  try {
-    await withToken((token) =>
-      spotifySend(
-        token,
-        current.liked ? 'DELETE' : 'PUT',
-        `/me/library?uris=${encodeURIComponent(`spotify:track:${trackId}`)}`,
-      ),
-    );
-    if (epoch !== integrationEpoch) return;
-    const latest = useSpotifyStore.getState().nowPlaying;
-    if (latest.playback.kind !== 'track' || latest.playback.trackId !== trackId) return;
-    await broadcast({ ...latest, liked: !current.liked, likeError: '' });
-  } catch (error) {
-    const message = spotifyErrorText(error);
-    if (epoch !== integrationEpoch) return;
-    console.error('[nordly:spotify] like failed', error);
-    await broadcast({ ...current, likeError: message });
   }
 }
 
@@ -259,88 +113,12 @@ export function spotifyErrorText(error: unknown): string {
   if (error instanceof SpotifyHttpError) {
     if (error.status === 429 && error.reason === 'QUOTA_EXCEEDED') return translate('nordly.spotify.error.quota');
     if (error.status === 429) return translate('nordly.spotify.error.rate_limit');
-    if (error.status === 404) return translate('nordly.spotify.error.device');
     if (error.status === 403) {
-      if (/premium/i.test(error.message)) return translate('nordly.spotify.error.premium');
       if (/scope/i.test(error.message)) return translate('nordly.spotify.error.scope');
       return translate('nordly.spotify.error.access');
     }
   }
   return error instanceof Error ? error.message : 'Spotify playback failed';
-}
-
-/** Timer state is authoritative: PUT a desired state without a preliminary GET. */
-let desiredPlayback: boolean | null = null;
-let playbackCommand: Promise<void> | null = null;
-export function setSpotifyPlayback(playing: boolean): Promise<void> {
-  if (!useSpotifyStore.getState().enabled || !useSpotifyStore.getState().connected) return Promise.resolve();
-  desiredPlayback = playing;
-  if (playbackCommand) return playbackCommand;
-  playbackCommand = (async () => {
-    while (desiredPlayback !== null) {
-      const epoch = integrationEpoch;
-      const target = desiredPlayback;
-      desiredPlayback = null;
-      try {
-        await withToken((token) => spotifySend(token, 'PUT', target ? '/me/player/play' : '/me/player/pause'));
-        if (epoch !== integrationEpoch) continue;
-        const current = useSpotifyStore.getState().nowPlaying;
-        if (current.playback.kind === 'track' || current.playback.kind === 'other') {
-          await broadcast({ ...current, playback: { ...current.playback, isPlaying: target } });
-        }
-      } catch (error) {
-        if (epoch !== integrationEpoch) continue;
-        await broadcast({ connected: true, playback: { kind: 'error', message: spotifyErrorText(error) }, liked: false, likeError: '' });
-      }
-    }
-  })().finally(() => { playbackCommand = null; });
-  return playbackCommand;
-}
-
-export function hydrateSpotify(): Promise<void> {
-  if (!useSpotifyStore.getState().enabled || useSpotifyStore.getState().hydrated) return Promise.resolve();
-  if (!hydratePromise) {
-    const pending = loadSession().finally(() => {
-      if (hydratePromise === pending) hydratePromise = null;
-    });
-    hydratePromise = pending;
-  }
-  return hydratePromise;
-}
-
-async function loadSession(): Promise<void> {
-  const epoch = integrationEpoch;
-  if (!isTauriRuntime()) {
-    patchSpotify({ hydrated: true, connected: false });
-    return;
-  }
-  try {
-    const secret = await loadSpotifySecret();
-    if (epoch !== integrationEpoch) return;
-    const connected = Boolean(secret && (secret.accessToken || secret.refreshToken));
-    patchSpotify({
-      hydrated: true,
-      connected,
-      reauthRequired: false,
-      connectError: null,
-      displayName: connected ? useSpotifyStore.getState().displayName : '',
-      nowPlaying: connected ? useSpotifyStore.getState().nowPlaying : disconnectedNowPlaying(),
-    });
-    if (!connected) return;
-    const profile = await withToken((token) => spotifySend(token, 'GET', '/me'));
-    if (epoch !== integrationEpoch) return;
-    const mapped = mapProfile(profile);
-    patchSpotify({ displayName: mapped.displayName, reauthRequired: false });
-  } catch (error) {
-    if (epoch !== integrationEpoch) return;
-    console.error('[nordly:spotify] session load failed', error);
-    const reauthRequired = useSpotifyStore.getState().reauthRequired;
-    patchSpotify({
-      hydrated: true,
-      connectError: useSpotifyStore.getState().connected || reauthRequired ? null : connectFailure(error),
-      ...(useSpotifyStore.getState().connected ? { nowPlaying: { connected: true, playback: { kind: 'error' as const, message: spotifyErrorText(error) }, liked: false, likeError: '' } } : {}),
-    });
-  }
 }
 
 export async function connectSpotify(): Promise<void> {
@@ -350,6 +128,13 @@ export async function connectSpotify(): Promise<void> {
   if (!isTauriRuntime() || !window.nordly?.spotify) {
     patchSpotify({ connectError: { kind: 'desktop' } });
     throw new Error('Spotify connect requires the desktop app');
+  }
+  const saved = await loadSpotifySecret();
+  if (saved && (saved.accessToken || saved.refreshToken) && !useSpotifyStore.getState().reauthRequired) {
+    patchSpotify({ libraryConnected: true, connectError: null });
+    patchSettings({ spotifyLikedSongs: true });
+    await updateLibraryAvailability();
+    return;
   }
   const retryAt = spotifyAuthRetryAt();
   if (Date.now() < retryAt) {
@@ -380,31 +165,23 @@ export async function connectSpotify(): Promise<void> {
 }
 
 export async function disconnectSpotify(): Promise<void> {
+  libraryEpoch += 1;
+  credentialEpoch += 1;
   oauthGeneration += 1;
-  stopWatch();
-  if (volumeTimer !== null) window.clearTimeout(volumeTimer);
-  volumeTimer = null;
-  volumeLocked = false;
-  volumeVersion += 1;
-  volumeSession += 1;
-  queuedVolume = null;
-  confirmedVolume = null;
   if (isTauriRuntime() && window.nordly?.spotify) await clearSpotifySecret();
+  patchSettings({ spotifyLikedSongs: false });
   patchSpotify({
-    connected: false,
+    libraryConnected: false,
     reauthRequired: false,
-    displayName: '',
     oauthPending: false,
     connectError: null,
-    volumePercent: null,
-    volumeError: null,
-    nowPlaying: disconnectedNowPlaying(),
   });
-  if (isTauriRuntime()) await emit(SPOTIFY_NOW_EVENT, disconnectedNowPlaying());
+  await updateLibraryAvailability();
 }
 
 export async function acceptSpotifyRedirect(code: string, state: string): Promise<void> {
   if (!useSpotifyStore.getState().enabled) return;
+  const epoch = credentialEpoch;
   oauthGeneration += 1;
   const clientId = spotifyClientId();
   if (!clientId) throw new Error('Spotify client id is not configured');
@@ -415,6 +192,7 @@ export async function acceptSpotifyRedirect(code: string, state: string): Promis
   }
   try {
     const tokens = await exchangeAuthorizationCode(clientId, code, secret.codeVerifier);
+    if (epoch !== credentialEpoch) return;
     await saveSpotifySecret({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -423,15 +201,13 @@ export async function acceptSpotifyRedirect(code: string, state: string): Promis
       oauthState: '',
     });
     patchSpotify({
-      hydrated: true,
-      connected: true,
+      libraryConnected: true,
       reauthRequired: false,
-      displayName: '',
-      nowPlaying: disconnectedNowPlaying(),
-      oauthPending: false,
+        oauthPending: false,
       connectError: null,
     });
-    if (playbackWatchers > 0) startWatch();
+    patchSettings({ spotifyLikedSongs: true });
+    await updateLibraryAvailability();
   } catch (error) {
     console.error('[nordly:spotify] token exchange failed', error);
     patchSpotify({ oauthPending: false, connectError: connectFailure(error) });
@@ -447,173 +223,63 @@ export function noteSpotifyRedirectError(error: string): void {
   });
 }
 
-export function setSpotifyVolumeLock(locked: boolean): void {
-  volumeLocked = locked;
+
+async function updateLibraryAvailability(): Promise<void> {
+  const { nowPlaying, libraryConnected } = useSpotifyStore.getState();
+  await broadcastSpotifyNow({ ...nowPlaying, canLike: libraryConnected, liked: false, likeError: '' });
 }
 
-export function refreshSpotifyVolume(): Promise<void> {
-  if (!useSpotifyStore.getState().enabled || !useSpotifyStore.getState().connected || volumeLocked || volumeWrite || queuedVolume !== null) return Promise.resolve();
-  if (volumeRead) return volumeRead;
-  if (Date.now() < spotifyRetryAt() || Date.now() - lastVolumeReadAt < 1500) return Promise.resolve();
-  lastVolumeReadAt = Date.now();
-  const requestedVersion = volumeVersion;
-  volumeRead = readSpotifyVolume(requestedVersion).finally(() => { volumeRead = null; });
-  return volumeRead;
-}
-
-async function readSpotifyVolume(requestedVersion: number): Promise<void> {
+/** The library is read only on a heart click, never by local playback polling. */
+export async function toggleSpotifyLike(): Promise<void> {
+  const { enabled, libraryConnected, nowPlaying: current } = useSpotifyStore.getState();
+  if (!enabled || !libraryConnected || current.playback.kind !== 'track' || likePending) return;
+  const trackId = current.playback.trackId;
+  const epoch = libraryEpoch;
+  const uri = encodeURIComponent(`spotify:track:${trackId}`);
+  likePending = true;
   try {
-    const body = await withToken((token) => spotifySend(token, 'GET', '/me/player'));
-    if (volumeLocked || requestedVersion !== volumeVersion) return;
-    const volume = body === null ? null : mapDeviceVolume(body);
-    if (volume === null) {
-      patchSpotify({ volumeError: { kind: 'no_device' } });
-      return;
+    const liked = mapTrackLiked(await withToken((token) => spotifyLibrarySend(token, 'GET', `/me/library/contains?uris=${uri}`)));
+    if (!useSpotifyStore.getState().enabled || epoch !== libraryEpoch) return;
+    await withToken((token) => spotifyLibrarySend(token, liked ? 'DELETE' : 'PUT', `/me/library?uris=${uri}`));
+    const latest = useSpotifyStore.getState().nowPlaying;
+    if (!useSpotifyStore.getState().enabled || epoch !== libraryEpoch || latest.playback.kind !== 'track' || latest.playback.trackId !== trackId) return;
+    await broadcastSpotifyNow({ ...latest, liked: !liked, likeError: '' });
+  } catch (error) {
+    if (epoch !== libraryEpoch || !useSpotifyStore.getState().enabled) return;
+    const latest = useSpotifyStore.getState().nowPlaying;
+    if (latest.playback.kind === 'track' && latest.playback.trackId === trackId) {
+      await broadcastSpotifyNow({ ...latest, likeError: spotifyErrorText(error) });
     }
-    confirmedVolume = volume;
-    patchSpotify({ volumePercent: volume, volumeError: null });
-  } catch (error) {
-    if (volumeLocked || requestedVersion !== volumeVersion) return;
-    console.error('[nordly:spotify] volume read failed', error);
-    patchSpotify({ volumeError: { kind: 'api', message: spotifyErrorText(error) } });
-  }
-}
-
-export function queueSpotifyVolume(percent: number): void {
-  if (!useSpotifyStore.getState().enabled || !useSpotifyStore.getState().connected) return;
-  const next = Math.max(0, Math.min(100, Math.round(percent)));
-  volumeVersion += 1;
-  queuedVolume = next;
-  // The thumb follows the user's input, including after pointer-up. API latency
-  // must not reset it to the last device reading.
-  patchSpotify({ volumePercent: next, volumeError: null });
-  scheduleVolumeWrite();
-}
-
-function scheduleVolumeWrite(): void {
-  if (volumeWrite || volumeTimer !== null || queuedVolume === null) return;
-  const wait = Math.max(0, lastVolumeSentAt + VOLUME_SEND_INTERVAL_MS - Date.now());
-  if (wait > 0) {
-    volumeTimer = window.setTimeout(() => {
-      volumeTimer = null;
-      scheduleVolumeWrite();
-    }, wait);
-    return;
-  }
-  const target = queuedVolume;
-  const requestedVersion = volumeVersion;
-  queuedVolume = null;
-  lastVolumeSentAt = Date.now();
-  volumeWrite = commitSpotifyVolume(target, requestedVersion).finally(() => {
-    volumeWrite = null;
-    scheduleVolumeWrite();
-  });
-}
-
-async function commitSpotifyVolume(percent: number, requestedVersion: number): Promise<void> {
-  const session = volumeSession;
-  try {
-    await withToken((token) =>
-      spotifySend(token, 'PUT', `/me/player/volume?volume_percent=${percent}`),
-    );
-    if (!useSpotifyStore.getState().connected || session !== volumeSession) return;
-    confirmedVolume = percent;
-    if (requestedVersion === volumeVersion) patchSpotify({ volumeError: null });
-  } catch (error) {
-    if (requestedVersion !== volumeVersion) return;
-    console.error('[nordly:spotify] volume write failed', error);
-    patchSpotify({
-      volumePercent: confirmedVolume,
-      volumeError: error instanceof SpotifyHttpError && error.status === 404
-        ? { kind: 'no_device' } : { kind: 'api', message: spotifyErrorText(error) },
-    });
-  }
-}
-
-/** Pause the integration without revoking or removing saved OAuth credentials. */
-export function setSpotifyEnabled(enabled: boolean): void {
-  patchSettings({ spotifyEnabled: enabled });
-  applySpotifyEnabled(enabled);
-}
-
-function applySpotifyEnabled(enabled: boolean): void {
-  if (useSpotifyStore.getState().enabled === enabled) return;
-  integrationEpoch += 1;
-  patchSpotify({ enabled, nowPlaying: disconnectedNowPlaying(), volumeError: null, connectError: null, oauthPending: false });
-  if (!enabled) {
-    oauthGeneration += 1;
-    stopWatch();
-    abortSpotifyPlaybackRequests();
-    if (volumeTimer !== null) window.clearTimeout(volumeTimer);
-    volumeTimer = null;
-    queuedVolume = null;
-    desiredPlayback = null;
-    volumeVersion += 1;
-    volumeSession += 1;
-    hydratePromise = null;
-    playbackRefresh = null;
-    lastPlaybackReadAt = 0;
-    void broadcast(disconnectedNowPlaying()).catch((error) => console.error('[nordly:spotify] pause broadcast failed', error));
-    return;
-  }
-  void hydrateSpotify().then(() => {
-    if (useSpotifyStore.getState().enabled && playbackWatchers > 0) startWatch();
-  }).catch((error) => console.error('[nordly:spotify] resume failed', error));
-}
-
-export function syncSpotifyWithTimer(): () => void {
-  return usePomodoroStore.subscribe((state, previous) => {
-    if (state.running !== previous.running) void setSpotifyPlayback(state.running);
-  });
+  } finally { likePending = false; }
 }
 
 export function initSpotifyLeader(): () => void {
-  if (leaderStarted || !isTauriRuntime() || !isSpotifyConfigured()) return () => undefined;
+  if (leaderStarted || !isTauriRuntime()) return () => undefined;
   leaderStarted = true;
-  const stopTimerSync = syncSpotifyWithTimer();
-  const syncEnabled = () => applySpotifyEnabled(readSettings().spotifyEnabled);
-  window.addEventListener(NORDLY_EVENTS.settingsChanged, syncEnabled);
-  syncEnabled();
-  void hydrateSpotify();
-
-  let stopTrayWatch: (() => void) | null = null;
-  let trayVisible = false;
-  const stop = listenEffects((track) => {
-    track(
-      listen('tray-popover:show', () => {
-        trayVisible = true;
-        stopTrayWatch?.();
-        stopTrayWatch = watchSpotifyPlayback();
-        void hydrateSpotify().then(() => {
-          if (!trayVisible) return;
-          if (!useSpotifyStore.getState().connected) {
-            void broadcast(disconnectedNowPlaying());
-            return;
-          }
-          if (useSpotifyStore.getState().enabled) startWatch();
-        });
-      }),
-    );
-    track(
-      listen('tray-popover:hide', () => {
-        trayVisible = false;
-        stopTrayWatch?.();
-        stopTrayWatch = null;
-      }),
-    );
-    track(
-      listen<{ action?: string }>(SPOTIFY_CMD_EVENT, ({ payload }) => {
-        if (payload?.action === 'like') void toggleLike();
-      }),
-    );
-  });
-
-  return () => {
-    leaderStarted = false;
-    trayVisible = false;
-    stopTimerSync();
-    window.removeEventListener(NORDLY_EVENTS.settingsChanged, syncEnabled);
-    stopTrayWatch?.();
-    stop();
+  const stopLocal = initLocalSpotifyLeader();
+  // Opt-in library support only loads credentials; playback never hydrates OAuth.
+  const syncLibrary = () => {
+    if (!useSpotifyStore.getState().enabled) {
+      libraryEpoch += 1;
+      oauthGeneration += 1;
+      patchSpotify({ oauthPending: false });
+      return;
+    }
+    if (readSettings().spotifyLikedSongs && !useSpotifyStore.getState().libraryConnected) {
+      const epoch = libraryEpoch;
+      void loadSpotifySecret().then(async (secret) => {
+        if (epoch !== libraryEpoch || !useSpotifyStore.getState().enabled) return;
+        patchSpotify({ libraryConnected: Boolean(secret && (secret.accessToken || secret.refreshToken)) });
+        await updateLibraryAvailability();
+      }).catch((error) => patchSpotify({ connectError: connectFailure(error) }));
+    }
   };
+  window.addEventListener(NORDLY_EVENTS.settingsChanged, syncLibrary);
+  syncLibrary();
+  const stopLibrary = listenEffects((track) => {
+    track(listen<{ action?: string }>(SPOTIFY_CMD_EVENT, ({ payload }) => {
+      if (payload?.action === 'like') void toggleSpotifyLike();
+    }));
+  });
+  return () => { leaderStarted = false; libraryEpoch += 1; stopLocal(); stopLibrary(); window.removeEventListener(NORDLY_EVENTS.settingsChanged, syncLibrary); };
 }

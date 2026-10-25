@@ -1,5 +1,6 @@
 import { readSettings } from '@shared/model/settings';
 import { create } from 'zustand';
+import type { SpotifyLocalStatus } from '@platform/ipc';
 
 import { disconnectedNowPlaying, type SpotifyNowPlaying } from './nowPlaying';
 
@@ -12,14 +13,16 @@ export type SpotifyConnectError =
   | { kind: 'rate_limit'; retryAt: number }
   | { kind: 'exchange'; detail: string };
 
-export type SpotifyVolumeError = { kind: 'no_device' } | { kind: 'api'; message: string };
+export type SpotifyVolumeError = { kind: 'api'; message: string };
 
 export interface SpotifyState {
   enabled: boolean;
   hydrated: boolean;
   connected: boolean;
+  localStatus: SpotifyLocalStatus | null;
+  localError: string | null;
+  libraryConnected: boolean;
   reauthRequired: boolean;
-  displayName: string;
   oauthPending: boolean;
   connectError: SpotifyConnectError | null;
   volumePercent: number | null;
@@ -31,8 +34,10 @@ export const useSpotifyStore = create<SpotifyState>(() => ({
   enabled: readSettings().spotifyEnabled,
   hydrated: false,
   connected: false,
+  localStatus: null,
+  localError: null,
+  libraryConnected: false,
   reauthRequired: false,
-  displayName: '',
   oauthPending: false,
   connectError: null,
   volumePercent: null,

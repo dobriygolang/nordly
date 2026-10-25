@@ -57,6 +57,15 @@ Use a clean test account/VM and a separate notes folder, then exercise:
    the UI must not report successful revocation before the server confirms it.
 8. Test an upgrade from the previous production version in a disposable profile.
    Keep the real updater keys/feed separate from unsigned CI artifacts.
+9. Open the Spotify desktop app (test the direct installer and Microsoft Store
+   builds). Select this computer as the playback device and start a track. In
+   Nordly, verify track/artist, timer Play/Pause, and immediate volume feedback.
+   Play audio in Chrome at the same time: Nordly must change only Spotify's
+   playback and mixer volume. Also route Spotify to a non-default output device.
+   Check Off/On, closing/reopening Spotify, no audio session yet, and disconnected
+   audio hardware. Local playback must work without a Spotify developer client
+   id, OAuth credentials, or Web API connectivity. Windows SMTC has no reliable
+   Spotify track URI, so Liked Songs setup and the heart must be hidden.
 
 For unattended native UI testing, Tauri supports `tauri-driver` with Microsoft
 Edge WebDriver on Windows. That test harness is not installed by the current

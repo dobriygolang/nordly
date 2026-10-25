@@ -37,6 +37,7 @@ describe('trayMusicLine', () => {
     const row = line({
       connected: true,
       playback: { kind: 'track', trackId: 't1', title: 'Atlas', artist: 'Ada' },
+      canLike: true,
       liked: true,
       likeError: '',
     }, 'Write spec', true);

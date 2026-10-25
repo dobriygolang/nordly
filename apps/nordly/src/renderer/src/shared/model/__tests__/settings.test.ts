@@ -64,6 +64,7 @@ describe('settings', () => {
     expect(settings.notificationVolume).toBe(80);
     expect(settings.textScale).toBe('normal');
     expect(settings.weekStartsOn).toBe('monday');
+    expect(settings.spotifyLikedSongs).toBe(false);
     expect(settings.flashcards).toEqual({ enabled: false, dailyNewLimit: 20, captureNoteId: null });
     expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!)).toMatchObject({
       calendarNotifications: true,
@@ -82,6 +83,17 @@ describe('settings', () => {
     stored.spotifyEnabled = 'false';
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
     expect(() => readSettings()).toThrow('spotifyEnabled');
+  });
+
+  it('persists optional Spotify library opt-in independently of local playback', async () => {
+    const { patchSettings, readSettings } = await import('@shared/model/settings');
+    expect(readSettings().spotifyLikedSongs).toBe(false);
+    patchSettings({ spotifyLikedSongs: true });
+    expect(readSettings()).toMatchObject({ spotifyEnabled: true, spotifyLikedSongs: true });
+    const stored = JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!);
+    stored.spotifyLikedSongs = 'true';
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
+    expect(() => readSettings()).toThrow('spotifyLikedSongs');
   });
 
 });

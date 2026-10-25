@@ -7,6 +7,7 @@ mod eventkit;
 mod notes_vault;
 mod notification;
 mod spotify;
+mod spotify_player;
 mod store;
 mod tray;
 mod vault;
@@ -176,6 +177,9 @@ pub fn run() {
             spotify_secret_load,
             spotify_secret_save,
             spotify_secret_clear,
+            spotify_local_read,
+            spotify_local_playback,
+            spotify_local_volume,
             confirm_app_exit,
             vault_pass_load,
             vault_pass_save,
@@ -383,6 +387,48 @@ fn spotify_secret_save(window: WebviewWindow, secret: SpotifySecret) -> Result<(
 fn spotify_secret_clear(window: WebviewWindow) -> Result<(), String> {
     require_main_window(&window)?;
     spotify::clear_secret()
+}
+
+#[tauri::command]
+async fn spotify_local_read(
+    window: WebviewWindow,
+    request_access: bool,
+) -> Result<spotify_player::Snapshot, String> {
+    require_main_window(&window)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        spotify_player::execute(spotify_player::Command::Read { request_access })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn spotify_local_playback(
+    window: WebviewWindow,
+    playing: bool,
+) -> Result<spotify_player::Snapshot, String> {
+    require_main_window(&window)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        spotify_player::execute(spotify_player::Command::Playback(playing))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn spotify_local_volume(
+    window: WebviewWindow,
+    percent: u8,
+) -> Result<spotify_player::Snapshot, String> {
+    require_main_window(&window)?;
+    if percent > 100 {
+        return Err("Invalid Spotify volume".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        spotify_player::execute(spotify_player::Command::Volume(percent))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

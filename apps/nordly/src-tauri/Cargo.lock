@@ -2492,6 +2492,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "url",
+ "windows",
 ]
 
 [[package]]

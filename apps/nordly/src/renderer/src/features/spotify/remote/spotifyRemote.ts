@@ -27,13 +27,13 @@ export class SpotifyHttpError extends Error {
   }
 }
 
-type RequestScope = 'playback' | 'accounts';
+type RequestScope = 'library' | 'accounts';
 const limits: Record<RequestScope, { retryAt: number; count: number; reason: string }> = {
-  playback: { retryAt: 0, count: 0, reason: '' },
+  library: { retryAt: 0, count: 0, reason: '' },
   accounts: { retryAt: 0, count: 0, reason: '' },
 };
 
-export function spotifyRetryAt(): number { return limits.playback.retryAt; }
+export function spotifyLibraryRetryAt(): number { return limits.library.retryAt; }
 export function spotifyAuthRetryAt(): number { return limits.accounts.retryAt; }
 
 function checkRateLimit(scope: RequestScope): void {
@@ -41,9 +41,9 @@ function checkRateLimit(scope: RequestScope): void {
   if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt, reason);
 }
 
-const playbackRequests = new Set<AbortController>();
-export function abortSpotifyPlaybackRequests(): void {
-  for (const controller of playbackRequests) controller.abort();
+const libraryRequests = new Set<AbortController>();
+export function abortSpotifyLibraryRequests(): void {
+  for (const controller of libraryRequests) controller.abort();
 }
 
 function coreFetch(input: string, init?: RequestInit): Promise<Response> {
@@ -96,23 +96,26 @@ async function finish(resp: Response, scope: RequestScope): Promise<unknown> {
 }
 
 /** Spotify is not Nordly REST. apiFetch would treat a 401 as a Nordly logout. */
-export async function spotifySend(
+export async function spotifyLibrarySend(
   token: string,
   method: 'GET' | 'PUT' | 'DELETE',
   path: string,
 ): Promise<unknown> {
-  checkRateLimit('playback');
+  if (!/^\/me\/library(?:\/contains)?\?uris=/.test(path)) {
+    throw new Error('Only explicit Spotify library actions use the Web API');
+  }
+  checkRateLimit('library');
   const controller = new AbortController();
-  playbackRequests.add(controller);
+  libraryRequests.add(controller);
   try {
     const resp = await coreFetch(`${API}${path}`, {
       method,
       signal: controller.signal,
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
-    return await finish(resp, 'playback');
+    return await finish(resp, 'library');
   } finally {
-    playbackRequests.delete(controller);
+    libraryRequests.delete(controller);
   }
 }
 

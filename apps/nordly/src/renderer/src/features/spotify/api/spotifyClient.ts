@@ -5,9 +5,12 @@ export {
   acceptSpotifyRedirect,
   connectSpotify,
   disconnectSpotify,
-  hydrateSpotify,
   initSpotifyLeader,
   noteSpotifyRedirectError,
+} from '../lib/spotifySession';
+export {
+  hydrateSpotify,
+  requestSpotifyLocalAccess,
   queueSpotifyVolume,
   refreshSpotifyVolume,
   refreshSpotifyPlayback,
@@ -15,4 +18,4 @@ export {
   setSpotifyEnabled,
   watchSpotifyPlayback,
   setSpotifyVolumeLock,
-} from '../lib/spotifySession';
+} from '../lib/localPlayer';

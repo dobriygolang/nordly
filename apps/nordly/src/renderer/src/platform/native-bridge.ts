@@ -11,6 +11,7 @@ import {
   type NordlyAPI,
   type PomodoroSnapshot,
   type SpotifySecret,
+  type SpotifyLocalSnapshot,
 } from '@platform/ipc';
 
 import { isTauriRuntime } from '@platform/runtime';
@@ -49,6 +50,11 @@ export function installNativeBridge(): void {
       load: () => invoke<SpotifySecret | null>('spotify_secret_load'),
       save: (secret) => invoke('spotify_secret_save', { secret }),
       clear: () => invoke('spotify_secret_clear'),
+    },
+    spotifyPlayer: {
+      read: (requestAccess) => invoke<SpotifyLocalSnapshot>('spotify_local_read', { requestAccess }),
+      playback: (playing) => invoke<SpotifyLocalSnapshot>('spotify_local_playback', { playing }),
+      volume: (percent) => invoke<SpotifyLocalSnapshot>('spotify_local_volume', { percent }),
     },
     on: (channel, listener) => {
       const wire = eventWire(channel);

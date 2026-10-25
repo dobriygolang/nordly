@@ -10,6 +10,8 @@
   <string>nordly</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Nordly controls music and volume in Spotify when you use the focus timer.</string>
   <key>NSCalendarsUsageDescription</key>
   <string>Nordly shows your Apple Calendar events alongside tasks in the day timeline.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>

@@ -57,6 +57,7 @@ export interface NordlySettings {
   notificationVolume: number;
   autoUpdate: boolean;
   spotifyEnabled: boolean;
+  spotifyLikedSongs: boolean;
   taskRollover: boolean;
   dailyGoalMin: number;
   textScale: TextScale;
@@ -96,6 +97,7 @@ export const DEFAULTS: NordlySettings = {
   notificationVolume: 80,
   autoUpdate: false,
   spotifyEnabled: true,
+  spotifyLikedSongs: false,
   taskRollover: false,
   dailyGoalMin: 120,
   textScale: TextScale.Normal,
@@ -175,9 +177,9 @@ function parsePollMinutes(v: unknown): GoogleCalendarPollMinutes {
   throw new Error(`Invalid Google Calendar poll interval: ${String(v)}`);
 }
 
-function parseSpotifyEnabled(value: unknown): boolean {
-  if (value === undefined) return DEFAULTS.spotifyEnabled;
-  if (typeof value !== 'boolean') throw new Error('Invalid setting: spotifyEnabled');
+function parseSpotifyFlag(value: unknown, key: 'spotifyEnabled' | 'spotifyLikedSongs'): boolean {
+  if (value === undefined) return DEFAULTS[key];
+  if (typeof value !== 'boolean') throw new Error(`Invalid setting: ${key}`);
   return value;
 }
 
@@ -190,6 +192,7 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
     parsed.notificationVolume === undefined ||
     parsed.timerMode === undefined ||
     parsed.spotifyEnabled === undefined ||
+    parsed.spotifyLikedSongs === undefined ||
     typeof parsed.endBell !== 'boolean' ||
     typeof parsed.taskRollover !== 'boolean' ||
     parsed.textScale === undefined ||
@@ -223,7 +226,8 @@ function parseStoredSettings(parsed: Partial<NordlySettings>): { settings: Nordl
         ? DEFAULTS.notificationVolume
         : clampInt(parsed.notificationVolume, 0, 100, 'notificationVolume'),
     autoUpdate: typeof parsed.autoUpdate === 'boolean' ? parsed.autoUpdate : DEFAULTS.autoUpdate,
-    spotifyEnabled: parseSpotifyEnabled(parsed.spotifyEnabled),
+    spotifyEnabled: parseSpotifyFlag(parsed.spotifyEnabled, 'spotifyEnabled'),
+    spotifyLikedSongs: parseSpotifyFlag(parsed.spotifyLikedSongs, 'spotifyLikedSongs'),
     taskRollover:
       typeof parsed.taskRollover === 'boolean' ? parsed.taskRollover : DEFAULTS.taskRollover,
     dailyGoalMin: clampInt(parsed.dailyGoalMin, 15, 720, 'dailyGoalMin'),

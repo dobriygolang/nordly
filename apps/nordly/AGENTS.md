@@ -56,14 +56,16 @@ Calendar and task reminders keep checking while the main window is hidden (the r
 | `VITE_NORDLY_LOCAL_API` | unset | Vite proxy to local services (8080/8087/8089/8090/8091) |
 | `VITE_NORDLY_API_BASE` | unset | Direct API base (skip proxy) |
 | `VITE_NORDLY_WEB_BASE` | optional | Unused by renderer today (share/publish URLs come from rooms/notes API) |
-| `VITE_SPOTIFY_CLIENT_ID` | unset | Spotify PKCE app id. Settings → Integrations still shows Spotify on the desktop app. Connect stays disabled until this id is set |
+| `VITE_SPOTIFY_CLIENT_ID` | unset | Spotify PKCE app id. Optional macOS Liked Songs sign-in only; local playback needs no client id |
 | `VITE_SPOTIFY_REDIRECT_URI` | `https://trynordly.app/oauth/spotify` | Must match a Redirect URI on the Spotify app. The page forwards `code` and `state` to `nordly://settings` |
 
 Prod desktop CI sets `VITE_NORDLY_LOCAL_ONLY=false` so cloud APIs (identity + tracker) are on — Google Calendar and Zoom appear under Settings → Integrations.
 
 Google/Zoom OAuth runs through **tracker** (server-stored tokens). Connect opens the browser via `GET /v1/tracker/integrations/{google,zoom}/url`; callbacks land on the web companion and deep-link back as `nordly://settings?google_calendar=…` / `?zoom=…`. Meet/Zoom on tasks use `POST /v1/tracker/work/tasks/{id}/conference`. These features require `LOCAL_ONLY=false`, a signed-in session, and a reachable API.
 
-**Spotify** (`features/spotify/`) is device-local and does not use Nordly cloud or `LOCAL_ONLY`. Tokens live in the OS keychain (`spotify_secret_*`), not in `NordlySettings` and not on a Nordly user id. Sign-out does not clear them. Disconnect does. One Spotify account per machine. OAuth is PKCE in the desktop app: authorize URL opens in the browser, Spotify redirects to `https://trynordly.app/oauth/spotify`, and that page opens `nordly://settings?code=…&state=…` (denial: `error` + `state`). Spotify does not accept `nordly://` as a registered redirect URI. The main window polls currently-playing only while the tray popover is open and broadcasts `spotify:now-playing`. The tray heart saves the current track to Liked Songs. The dock volume slider appears only when Spotify is connected and calls `PUT /v1/me/player/volume`; it does not change `notificationVolume`. Starting or pausing the timer does not send playback commands. Spotify JSON is snake_case and is not read through `apiFetch` (a 401 must not log out of Nordly). Development Mode caps authorized Spotify accounts; Extended Quota Mode is a Spotify dashboard setting.
+**Spotify** (`features/spotify/`) is device-local and independent of Nordly cloud / `LOCAL_ONLY`. Playback, current-track metadata and volume use native IPC (`spotify_local_read/playback/volume`), never the Spotify Web API or OAuth. The main renderer owns one shared **2-second local IPC poller** only while Settings or the tray is visible; startup/window focus also reads once. macOS uses Spotify's ScriptingBridge interface and Apple-event permission preflight. Only the explicit Settings **Allow control / Check Spotify** action may request Automation permission; background reads/commands never prompt. Windows selects Spotify's SMTC session by application id (not the global current player), and adjusts only Spotify.exe audio sessions through Core Audio across active output devices. Neither adapter launches Spotify; the user opens it and selects this computer as the playback device. Unsupported platforms and denied permissions are shown honestly. Main/tray timer state changes immediately; native commands run separately and rapid desired states/volume values are coalesced. Native work already dispatched may finish after Off; generation guards discard its result.
+
+**Liked Songs** is optional and separate from local control. `spotifyLikedSongs` defaults off; existing tokens remain untouched until the user enables likes. On macOS, library support can reuse saved credentials or open PKCE sign-in (`VITE_SPOTIFY_CLIENT_ID`, HTTPS callback → `nordly://settings`). Tokens remain in the OS keychain, per device, independent of Nordly sign-out. Only a heart click reads the library state and saves/removes that track; no cloud profile/playback/library polling. Provider quota errors affect likes only. Windows SMTC does not supply a reliable Spotify track id, so library setup and the heart are hidden there. Disconnect removes only optional library credentials; local playback keeps working. `spotifyEnabled` Off pauses both parts without signing out. OAuth scopes request library read/write only.
 
 ## Backend dependencies
 
@@ -289,22 +291,7 @@ Settings → Browser shows how to load the unpacked Chrome folder and a pairing 
 
 `front :: back` in a note is one card. `front ::: back` is that card and the reverse. The first `:` on a card line asks MyMemory once and fills an empty right side when the line is `::` or `:::`. The Chrome extension in `apps/extension` asks once on Enter and appends `word ::: translation` through the local capture port while this app is running. List markers are ignored. Progress is local IndexedDB `card_reviews` (not synced); daily answer/new-card totals are in `meta`. The Statistics overlay reads them through `features/cards/api/cardStats.ts`, not by scanning note bodies. Settings → General → Flashcards is off by default and caps new cards per day. Review is `PageId.cards`, opened from the palette (`R`), from the note header, from a home chip when cards are due, or from the pomodoro-finished banner (five cards). Same question text keeps one progress record across notes. Changing the question starts a new card.
 
-Spotify volume updates the displayed target immediately, including after pointer-up.
-The main renderer sends a leading command and coalesces subsequent values through
-one writer (minimum 120ms between sends); delayed device reads cannot overwrite a
-newer user choice. A failed write restores the last confirmed volume and shows the error.
-
-Spotify has a persistent `spotifyEnabled` device setting (default on for existing
-installations). Integrations can pause it without disconnecting or deleting OAuth
-credentials. Off blocks new playback and accounts HTTP requests, cancels in-flight
-playback requests and queued volume writes, stops polling/timer coupling, and hides
-music controls. Responses from an earlier enabled generation cannot revive playback.
-Accounts requests already sent may finish saving tokens. On hydrates the saved
-session only when needed and resumes the shared poller for visible consumers.
-Toggling never resets Spotify rate-limit backoff. QUOTA_EXCEEDED without Retry-After
-uses a 15-minute client backoff; this is not a claimed Spotify quota-reset time.
-Spotify controller code and dock volume controls load asynchronously, and the
-OAuth callback loads its feature handler on demand.
+Spotify volume updates its target immediately, including after pointer-up. One native writer sends at most once every 120ms and coalesces intermediate values; late reads cannot overwrite a newer choice. Errors restore the last confirmed volume. `spotifyEnabled` is persistent, default on. Off stops new native operations, queued writes and visible polling, and hides music controls; optional library requests are blocked/cancelled. On refreshes local state without OAuth. Library backoff survives toggling: respect Retry-After; QUOTA_EXCEEDED without it uses a conservative 15-minute client pause, not a claimed provider reset time. Spotify controller and dock volume controls load asynchronously.
 
 ## Secret access
 
@@ -321,8 +308,8 @@ migration write leaves the old item and in-memory state unchanged and can retry.
 First migration may require separate authorizations for the old items.
 Windows retains separate entries to avoid Credential Manager blob-size limits.
 Secrets remain in the OS store on disk, never in plaintext files or localStorage.
-Spotify hydrates once per renderer session instead of rereading credentials on
-each settings mount. Ad-hoc signatures cannot prevent reauthorization after an
+Spotify library credentials load only after opting into Liked Songs, never for
+local player control or on each settings mount. Ad-hoc signatures cannot prevent reauthorization after an
 update, and choosing Allow instead of Always Allow can prompt again next launch.
 
 The notes sync wizard uses two labelled, styled password fields for new vaults,
@@ -340,6 +327,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_logout` | Clear session |
 | `confirm_app_exit` | Finish quit after the renderer rewrites the keychain session |
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
+| `spotify_local_read/playback/volume` | Local player access, guarded to the main window; only explicit `requestAccess` can prompt |
 | `spotify_secret_load/save/clear` | Spotify tokens and PKCE verifier in the OS keychain. Not cleared by `auth_logout` |
 | `notes_vault_*` | Filesystem vault: config, CRUD, paste image, watch, `notes_vault_find_image` (shortest image path by file name) |
 | `capture_status` / `capture_token` / `capture_token_rotate` / `capture_reply` | Loopback capture for the Chrome extension. Token is in the private app-data file |
@@ -355,7 +343,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, as a nonactivating NSPanel at floating level, below the system menu bar. The panel is clamped below the menu bar on its current screen. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. A single play/pause button changes the timer immediately; the main renderer independently sends the desired Spotify state without waiting before updating the timer. All visible consumers share one Spotify poller every 30 seconds, stopped when none remain. QUOTA_EXCEEDED is reported separately from short-term throttling. HTTP 429 pauses requests to the affected endpoint family until Retry-After (or exponential backoff); playback Web API limits must not block accounts token exchange/refresh. An accounts limit has its own retry time and UI message, without marking a valid session as signed out. Hamburger in popover calls `tray_show_main`.
+**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, as a nonactivating NSPanel at floating level, below the system menu bar. The panel is clamped below the menu bar on its current screen. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When local Spotify is ready, the timer caption shows the current track. The heart is available only for an identified track with optional Liked Songs enabled. One play/pause button changes the timer immediately and sends the desired local Spotify state independently. Visible consumers share a 2-second **local IPC** poller; there is no Spotify Web API polling. API quota/retry handling is confined to optional library actions and accounts token requests. Hamburger in popover calls `tray_show_main`.
 
 Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `spotify:now-playing`, `spotify:cmd`, `tray-popover:show`, `tray-popover:hide`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth), `settings?code=…&state=…` (Spotify PKCE).
 

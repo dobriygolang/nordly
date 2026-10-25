@@ -37,6 +37,11 @@ export interface NordlyAPI {
     save: (secret: SpotifySecret) => Promise<void>;
     clear: () => Promise<void>;
   };
+  spotifyPlayer?: {
+    read: (requestAccess: boolean) => Promise<SpotifyLocalSnapshot>;
+    playback: (playing: boolean) => Promise<SpotifyLocalSnapshot>;
+    volume: (percent: number) => Promise<SpotifyLocalSnapshot>;
+  };
   on: <K extends keyof typeof eventChannels>(
     channel: K,
     listener: (payload: EventPayload[K]) => void,
@@ -49,6 +54,16 @@ export interface SpotifySecret {
   expiresAt: number;
   codeVerifier: string;
   oauthState: string;
+}
+
+export type SpotifyLocalStatus = 'ready' | 'not_running' | 'permission_required' | 'permission_denied' | 'unsupported';
+export interface SpotifyLocalSnapshot {
+  status: SpotifyLocalStatus;
+  title: string;
+  artist: string;
+  trackId: string | null;
+  playing: boolean;
+  volume: number | null;
 }
 
 export interface AuthSession {

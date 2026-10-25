@@ -2,7 +2,8 @@ import type { PlaybackItem } from './playback';
 
 export const SPOTIFY_NOW_EVENT = 'spotify:now-playing';
 export const SPOTIFY_CMD_EVENT = 'spotify:cmd';
-export const SPOTIFY_POLL_MS = 30_000;
+/** Local IPC only, shared by visible settings / tray consumers. No Web API polling. */
+export const SPOTIFY_POLL_MS = 2_000;
 const DEFAULT_SPOTIFY_REDIRECT_URI = 'https://trynordly.app/oauth/spotify';
 
 function readSpotifyRedirectUri(): string {
@@ -19,6 +20,7 @@ export interface SpotifyNowPlaying {
   playback: PlaybackItem | { kind: 'error'; message: string };
   liked: boolean;
   likeError: string;
+  canLike?: boolean;
 }
 
 export function disconnectedNowPlaying(): SpotifyNowPlaying {

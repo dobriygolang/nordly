@@ -7,17 +7,8 @@ import {
   refreshSpotifyVolume,
   setSpotifyVolumeLock,
   useSpotifyStore,
-  type SpotifyVolumeError,
 } from '@features/spotify/api/spotifyClient';
 import { Icon } from '@shared/ui/primitives/Icon';
-
-function volumeErrorText(
-  t: ReturnType<typeof useT>,
-  error: SpotifyVolumeError,
-): string {
-  if (error.kind === 'no_device') return t('nordly.dock.spotify_volume_no_device');
-  return error.message;
-}
 
 export function DockVolume(): JSX.Element | null {
   const t = useT();
@@ -28,12 +19,12 @@ export function DockVolume(): JSX.Element | null {
   const [pinned, setPinned] = useState(false);
   useEffect(() => () => setSpotifyVolumeLock(false), []);
 
-  if (!enabled || !connected) return null;
+  if (!enabled || !connected || (volumePercent === null && !volumeError)) return null;
 
   const shown = volumePercent ?? 0;
   const muted = volumePercent === 0;
   const title = volumeError
-    ? volumeErrorText(t, volumeError)
+    ? volumeError.message
     : t('nordly.dock.spotify_volume', { volume: shown });
 
   return (

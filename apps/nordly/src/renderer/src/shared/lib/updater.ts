@@ -1,7 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { check, type DownloadEvent } from '@tauri-apps/plugin-updater';
+import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater';
 
 import { isTauriRuntime } from '@platform/runtime';
 
@@ -57,9 +57,17 @@ export type UpdateErrorCode = 'no_release' | 'network' | 'unknown';
 
 export type UpdateCheckResult =
   | { kind: 'unavailable' }
+  | { kind: 'cancelled' }
   | { kind: 'up_to_date' }
   | { kind: 'installed'; version: string }
   | { kind: 'error'; code: UpdateErrorCode; message: string };
+
+export interface UpdateCheckEventDetail {
+  published?: string;
+  installed?: string;
+  phase?: UpdatePhase;
+  error?: Extract<UpdateCheckResult, { kind: 'error' }>;
+}
 
 export function classifyUpdateError(message: string): UpdateErrorCode {
   const lower = message.toLowerCase();
@@ -82,15 +90,58 @@ export function classifyUpdateError(message: string): UpdateErrorCode {
   return 'unknown';
 }
 
+interface UpdateListener {
+  onPhase: (phase: UpdatePhase) => void;
+  onProgress?: (downloaded: number, total: number | null) => void;
+  shouldInstall?: () => boolean;
+}
+const updateListeners = new Set<UpdateListener>();
+let activeUpdate: Promise<UpdateCheckResult> | null = null;
+let currentPhase: UpdatePhase = 'idle';
+
+/** Manual and automatic checks share one download/install operation. */
 export async function checkForUpdate(
   onPhase: (phase: UpdatePhase) => void,
   onProgress?: (downloaded: number, total: number | null) => void,
+  shouldInstall?: () => boolean,
 ): Promise<UpdateCheckResult> {
   if (!isTauriRuntime()) return { kind: 'unavailable' };
+  const listener = { onPhase, onProgress, shouldInstall };
+  updateListeners.add(listener);
+  try {
+    if (!activeUpdate) {
+      activeUpdate = performUpdate(
+        (phase) => {
+          currentPhase = phase;
+          for (const subscriber of updateListeners) subscriber.onPhase(phase);
+        },
+        (downloaded, total) => {
+          for (const subscriber of updateListeners) subscriber.onProgress?.(downloaded, total);
+        },
+        () => [...updateListeners].some((subscriber) => subscriber.shouldInstall?.() ?? true),
+      ).finally(() => { activeUpdate = null; });
+    } else {
+      onPhase(currentPhase);
+    }
+    return await activeUpdate;
+  } finally {
+    updateListeners.delete(listener);
+  }
+}
 
+async function performUpdate(
+  onPhase: (phase: UpdatePhase) => void,
+  onProgress: ((downloaded: number, total: number | null) => void) | undefined,
+  shouldInstall: () => boolean,
+): Promise<UpdateCheckResult> {
+  let update: Update | null = null;
   onPhase('checking');
   try {
-    const update = await check();
+    update = await check();
+    if (!shouldInstall()) {
+      onPhase('idle');
+      return { kind: 'cancelled' };
+    }
     if (!update) {
       onPhase('idle');
       const current = await readAppVersion();
@@ -121,5 +172,8 @@ export async function checkForUpdate(
     onPhase('idle');
     const message = err instanceof Error ? err.message : String(err);
     return { kind: 'error', code: classifyUpdateError(message), message };
+  } finally {
+    // Native resource cleanup must not replace an install result with a teardown error.
+    await update?.close().catch((error) => console.warn('[nordly:updater] cleanup failed', error));
   }
 }

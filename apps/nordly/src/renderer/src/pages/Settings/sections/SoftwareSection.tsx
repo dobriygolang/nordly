@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { useT } from '@nordly-i18n';
+import { useT, type TFunc } from '@nordly-i18n';
 
 import {
   checkForUpdate,
@@ -9,6 +9,8 @@ import {
   isTauriRuntime,
   readAppVersion,
   type UpdatePhase,
+  type UpdateCheckEventDetail,
+  type UpdateCheckResult,
 } from '@shared/lib/updater';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { patchSettings, readSettings } from '@shared/model/settings';
@@ -18,6 +20,15 @@ import { Toggle } from '../primitives/Toggle';
 
 function formatVersion(version: string): string {
   return version.startsWith('v') ? version : `v${version}`;
+}
+
+function updateErrorText(t: TFunc, result: Extract<UpdateCheckResult, { kind: 'error' }>): string {
+  if (result.code === 'no_release') return t('nordly.settings.update.no_release');
+  if (result.code === 'network') return t('nordly.settings.update.network_error');
+  if (result.message.includes('published') && result.message.includes('updater returned none')) {
+    return t('nordly.settings.update.version_mismatch');
+  }
+  return t('nordly.settings.update.error', { message: result.message });
 }
 
 export function SoftwareSection() {
@@ -54,16 +65,18 @@ export function SoftwareSection() {
 
   useEffect(() => {
     const onUpdateAvailable = (event: Event): void => {
-      const detail = (event as CustomEvent<{ published?: string }>).detail;
-      if (detail?.published) {
-        setPublishedVersion(detail.published);
-        return;
+      const detail = (event as CustomEvent<UpdateCheckEventDetail>).detail;
+      if (detail?.phase) {
+        setPhase(detail.phase);
+        if (detail.phase === 'checking') setStatus(null);
       }
-      refreshPublished();
+      if (detail?.published) setPublishedVersion(detail.published);
+      if (detail?.error) setStatus(updateErrorText(t, detail.error));
+      if (!detail?.published && !detail?.phase && !detail?.error) refreshPublished();
     };
     window.addEventListener(NORDLY_EVENTS.updateAvailable, onUpdateAvailable);
     return () => window.removeEventListener(NORDLY_EVENTS.updateAvailable, onUpdateAvailable);
-  }, [refreshPublished]);
+  }, [refreshPublished, t]);
 
   useEffect(() => {
     const onSettingsChanged = (): void => setAutoUpdate(readSettings().autoUpdate);
@@ -89,6 +102,7 @@ export function SoftwareSection() {
     setStatus(null);
 
     const result = await checkForUpdate(setPhase);
+    if (result.kind === 'cancelled') return;
     if (result.kind === 'unavailable') {
       setStatus(t('nordly.settings.update.unavailable'));
       return;
@@ -99,22 +113,13 @@ export function SoftwareSection() {
       return;
     }
     if (result.kind === 'error') {
-      if (result.code === 'no_release') {
-        setStatus(t('nordly.settings.update.no_release'));
-      } else if (result.code === 'network') {
-        setStatus(t('nordly.settings.update.network_error'));
-      } else if (result.message.includes('published') && result.message.includes('updater returned none')) {
-        setStatus(t('nordly.settings.update.version_mismatch'));
-      } else {
-        setStatus(t('nordly.settings.update.error', { message: result.message }));
-      }
+      setStatus(updateErrorText(t, result));
       return;
     }
     setStatus(t('nordly.settings.update.installed', { version: formatVersion(result.version) }));
   }, [desktop, phase, refreshPublished, t]);
 
   const handleAutoUpdateChange = useCallback((next: boolean) => {
-    setAutoUpdate(next);
     patchSettings({ autoUpdate: next });
   }, []);
 

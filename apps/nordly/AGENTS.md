@@ -366,6 +366,16 @@ Local backend: `VITE_NORDLY_LOCAL_API=true` + `make start` in each service.
 
 ## Release + updater
 
+Auto-update is a persistent device setting. Off → On checks immediately even
+after a recent daily check; unrelated setting changes do not trigger a check.
+The background worker reports phases/errors to Software settings through
+`NORDLY_EVENTS.updateAvailable`. Failed checks/installs do not consume the daily
+interval: focus/visibility can retry after a five-minute cooldown, or the user
+can retry immediately with Off → On. Manual and automatic updates share one
+download/install. Switching Off during the native check prevents an automatic
+download; an explicit manual install still proceeds. A download/install already
+started is allowed to finish. The worker loads asynchronously at app startup.
+
 Windows checks: [docs/windows-testing.md](docs/windows-testing.md). The separate
 `nordly-windows-check` workflow runs Windows tests and builds an unsigned NSIS
 artifact without publishing. Installation, native UI, and upgrade scenarios

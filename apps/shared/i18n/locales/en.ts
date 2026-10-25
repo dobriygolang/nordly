@@ -432,7 +432,7 @@ export const en = {
   'nordly.settings.update.unavailable': 'Updates only work in the installed app.',
   'nordly.settings.update.badge': '{{published}} available',
   'nordly.settings.update.auto_label': 'Automatic updates',
-  "nordly.settings.update.auto_hint": "Check for and install updates daily. When off, Nordly only notifies you about new versions.",
+  'nordly.settings.update.auto_hint': 'Install updates when enabled, then check daily. When off, only notify about new versions.',
   'nordly.settings.update.auto_on': 'On',
   'nordly.settings.update.auto_off': 'Off',
   'nordly.settings.update.notify_title': 'Update available',

@@ -432,7 +432,7 @@ export const ru = {
   'nordly.settings.update.unavailable': 'Обновления работают только в установленном приложении.',
   'nordly.settings.update.badge': 'Есть {{published}}',
   'nordly.settings.update.auto_label': 'Обновлять само',
-  "nordly.settings.update.auto_hint": "Проверять и устанавливать обновления раз в день. Если выключить, Nordly только сообщит о новой версии.",
+  'nordly.settings.update.auto_hint': 'Устанавливать обновления при включении и раз в день. Если выключено — только уведомления.',
   'nordly.settings.update.auto_on': 'Вкл',
   'nordly.settings.update.auto_off': 'Выкл',
   'nordly.settings.update.notify_title': 'Есть обновление',

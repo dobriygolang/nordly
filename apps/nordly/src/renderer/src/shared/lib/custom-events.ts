@@ -32,7 +32,7 @@ export const NORDLY_EVENTS = {
   googleCalendarRefreshRequested: 'nordly:google-calendar-refresh-requested',
   /** Local app settings persisted (poll interval, etc.). */
   settingsChanged: 'nordly:settings-changed',
-  /** Background update worker found a newer published version. */
+  /** Update worker → settings: available version, progress phase, or failure. */
   updateAvailable: 'nordly:update-available',
   /** Sync banner → App: open re-login overlay. */
   openReauthLogin: 'nordly:open-reauth-login',

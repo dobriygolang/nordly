@@ -15,7 +15,7 @@ export const STORAGE_KEYS = {
   settings: 'nordly:settings',
   /** Device-owned Google write-target calendar id (not tokens). */
   integrationPrefs: 'nordly:integration-prefs',
-  /** Theme id ('winter' | 'drift' | 'visor' | 'debris' | 'launch' | 'birthday-light' | 'particles'). */
+  /** Theme id ('drift' | 'visor' | 'debris' | 'launch' | 'birthday-light' | 'particles'). */
   theme: 'nordly:theme',
   /** Last background update check + notified version. */
   updateCheck: 'nordly:update-check',

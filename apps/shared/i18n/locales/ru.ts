@@ -722,7 +722,6 @@ export const ru = {
   'nordly.theme.launch': 'Старт',
   'nordly.theme.particles': 'Частицы',
   'nordly.theme.visor': 'Визор',
-  'nordly.theme.winter': 'Зима',
   'nordly.planning.title': 'План на день',
   "nordly.planning.pick_title": "Что сделаем сегодня?",
   "nordly.planning.pick_subtitle": "Выбери задачи на сегодня.",

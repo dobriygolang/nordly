@@ -3,7 +3,6 @@ import { DEFAULT_THEME_ID, type ThemeId } from '@shared/model/theme';
 import { ImageBg } from './ImageBg';
 import { ParticlesBg } from './ParticlesBg';
 import { prefersReducedMotion, type CanvasMode } from './types';
-import { WinterBg } from './WinterBg';
 
 export type { CanvasMode } from './types';
 
@@ -59,8 +58,5 @@ export function CanvasBg({
       );
     case 'particles':
       return <ParticlesBg mode={mode} animated={effectiveAnimated} />;
-    case 'winter':
-    default:
-      return <WinterBg mode={mode} animated={effectiveAnimated} />;
   }
 }

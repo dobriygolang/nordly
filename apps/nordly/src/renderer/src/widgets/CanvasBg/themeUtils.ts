@@ -1,37 +1,3 @@
-export interface Star {
-  x: number;
-  y: number;
-  size: number;
-  baseOp: number;
-  floatDur: number;
-  floatDelay: number;
-  twinkleDur: number;
-  twinkleDelay: number;
-  dx: number;
-  dy: number;
-}
-
-export function makeStars(count: number, seed: number): Star[] {
-  const rng = mulberry32(seed);
-  const out: Star[] = [];
-  for (let i = 0; i < count; i++) {
-    const big = rng() < 0.18;
-    out.push({
-      x: rng() * 100,
-      y: rng() * 100,
-      size: big ? 1.7 + rng() * 0.7 : 1.0 + rng() * 0.5,
-      baseOp: big ? 0.45 + rng() * 0.3 : 0.18 + rng() * 0.2,
-      floatDur: 14 + rng() * 18,
-      floatDelay: -rng() * 18,
-      twinkleDur: 3 + rng() * 4,
-      twinkleDelay: -rng() * 5,
-      dx: rng() * 12 - 6,
-      dy: rng() * 10 - 5,
-    });
-  }
-  return out;
-}
-
 /** Resolve the current `--ink-rgb` token (e.g. "255 255 255") to a concrete triplet. */
 export function readInkRgb(): [number, number, number] {
   if (typeof window === 'undefined') return [255, 255, 255];

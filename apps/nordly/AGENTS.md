@@ -38,6 +38,10 @@ The PageStack shell owns the dock reservation; pages must not add another bottom
 
 Page headings share `--nordly-page-top` (40px) and `--nordly-page-heading-height` (28px), matching the home wordmark. Keep the first heading row free of extra top padding. Note review actions sit beside the note title so enabling cards does not shift it. Interface copy lives in `apps/shared/i18n/locales/{en,ru}.ts`; keep both key sets and interpolation parameters identical.
 
+Wallpaper choices live in `shared/model/theme.ts`. Removed Winter and local Horizon
+selections migrate once to Launch and persist the replacement; other unknown ids
+remain errors. Do not restore deleted Winter canvas styles or helpers.
+
 The note-menu publish action keeps the menu open, waits for the server's canonical
 URL and copies it through `shared/lib/clipboard.ts`. Desktop writes use the
 main-window-only `clipboard_write_text` command; browser previews start a promised

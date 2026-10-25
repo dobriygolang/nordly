@@ -5,7 +5,6 @@ type Palette = 'light' | 'dark';
 const THEME_PALETTE: Record<ThemeId, Palette> = {
   drift: 'light',
   visor: 'light',
-  winter: 'dark',
   'birthday-light': 'light',
   particles: 'dark',
   debris: 'dark',

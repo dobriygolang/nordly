@@ -3,7 +3,6 @@ import { STORAGE_KEYS } from '@shared/lib/storage-keys';
 export type ThemeId =
   | 'drift'
   | 'visor'
-  | 'winter'
   | 'birthday-light'
   | 'particles'
   | 'debris'
@@ -12,7 +11,6 @@ export type ThemeId =
 export const THEME_IDS: ThemeId[] = [
   'drift',
   'visor',
-  'winter',
   'birthday-light',
   'particles',
   'debris',
@@ -41,6 +39,11 @@ export function readStoredTheme(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME_ID;
   const v = window.localStorage.getItem(THEME_KEY);
   if (!v) return DEFAULT_THEME_ID;
+  // One-way migration for removed wallpapers, including the local Horizon preview.
+  if (v === 'winter' || v === 'horizon') {
+    persistTheme(DEFAULT_THEME_ID);
+    return DEFAULT_THEME_ID;
+  }
   if ((THEME_IDS as readonly string[]).includes(v)) return v as ThemeId;
   throw new Error(`Invalid stored theme: ${v}`);
 }

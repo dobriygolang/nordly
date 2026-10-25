@@ -722,7 +722,6 @@ export const en = {
   'nordly.theme.launch': 'Launch',
   'nordly.theme.particles': 'Particles',
   'nordly.theme.visor': 'Visor',
-  'nordly.theme.winter': 'Winter',
   'nordly.planning.title': 'Daily planning',
   "nordly.planning.pick_title": "What will you work on today?",
   "nordly.planning.pick_subtitle": "Choose your tasks for today.",

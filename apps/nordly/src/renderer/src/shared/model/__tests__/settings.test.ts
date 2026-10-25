@@ -52,6 +52,17 @@ describe('settings', () => {
     expect(readStoredTheme()).toBe('launch');
   });
 
+  it.each(['winter', 'horizon'])('replaces removed wallpaper %s with Launch and persists it', async (removed) => {
+    const { STORAGE_KEYS } = await import('@shared/lib/storage-keys');
+    const { readStoredTheme, THEME_IDS } = await import('@shared/model/theme');
+    window.localStorage.setItem(STORAGE_KEYS.theme, removed);
+    expect(readStoredTheme()).toBe('launch');
+    expect(window.localStorage.getItem(STORAGE_KEYS.theme)).toBe('launch');
+    expect(THEME_IDS).not.toContain(removed);
+    window.localStorage.setItem(STORAGE_KEYS.theme, 'unknown');
+    expect(() => readStoredTheme()).toThrow('Invalid stored theme');
+  });
+
   it('migrates legacy settings blob missing new fields', async () => {
     window.localStorage.setItem(
       SETTINGS_KEY,

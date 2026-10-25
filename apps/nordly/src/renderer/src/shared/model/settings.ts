@@ -328,8 +328,6 @@ export function themeLabelKey(id: string): string {
       return 'nordly.theme.drift';
     case 'visor':
       return 'nordly.theme.visor';
-    case 'winter':
-      return 'nordly.theme.winter';
     case 'birthday-light':
       return 'nordly.theme.birthday-light';
     case 'particles':

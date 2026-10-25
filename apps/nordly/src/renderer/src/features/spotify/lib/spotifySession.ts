@@ -5,7 +5,7 @@ import { isTauriRuntime } from '@platform/runtime';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { listenEffects } from '@shared/lib/tauriListen';
 
-import { SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifyRetryAt, spotifySend } from '../remote/spotifyRemote';
+import { SpotifyHttpError, exchangeAuthorizationCode, refreshAccessToken, spotifyAuthRetryAt, spotifyRetryAt, spotifySend } from '../remote/spotifyRemote';
 import {
   disconnectedNowPlaying,
   SPOTIFY_CMD_EVENT,
@@ -59,6 +59,7 @@ async function openExternal(url: string): Promise<void> {
 }
 
 function connectFailure(error: unknown): SpotifyConnectError {
+  if (error instanceof SpotifyHttpError && error.status === 429) return { kind: 'rate_limit', retryAt: error.retryAt };
   if (error instanceof SpotifyHttpError) return { kind: 'exchange', detail: spotifyErrorText(error) };
   if (error instanceof Error && error.message) return { kind: 'exchange', detail: error.message };
   return { kind: 'exchange', detail: 'Spotify sign-in failed' };
@@ -319,6 +320,12 @@ export async function connectSpotify(): Promise<void> {
   if (!isTauriRuntime() || !window.nordly?.spotify) {
     patchSpotify({ connectError: { kind: 'desktop' } });
     throw new Error('Spotify connect requires the desktop app');
+  }
+  const retryAt = spotifyAuthRetryAt();
+  if (Date.now() < retryAt) {
+    const error = new SpotifyHttpError(429, 'Too many requests', retryAt);
+    patchSpotify({ connectError: connectFailure(error) });
+    throw error;
   }
   const generation = ++oauthGeneration;
   const pkce = await createPkce();

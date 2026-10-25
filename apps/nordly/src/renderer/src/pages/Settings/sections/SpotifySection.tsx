@@ -16,6 +16,7 @@ import { SettingRow } from '../primitives/SettingRow';
 import { InlineOAuthSpinner } from '../useIntegrationOAuth';
 
 function connectErrorText(t: TFunc, error: SpotifyConnectError): string {
+  if (error.kind === 'rate_limit') return t('nordly.settings.spotify.error_rate_limit', { time: new Date(error.retryAt).toLocaleTimeString() });
   if (error.kind === 'denied') return t('nordly.settings.spotify.error_oauth');
   if (error.kind === 'timeout') return t('nordly.settings.spotify.error_oauth_timeout');
   if (error.kind === 'desktop') return t('nordly.settings.spotify.error_desktop');

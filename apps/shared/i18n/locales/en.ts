@@ -501,6 +501,7 @@ export const en = {
   "nordly.settings.spotify.error_oauth_timeout": "Spotify sign-in timed out. Try again.",
   "nordly.settings.spotify.error_state": "Could not verify sign-in. Connect Spotify again.",
   'nordly.settings.spotify.error_desktop': 'Spotify connect is available in the desktop app.',
+  'nordly.settings.spotify.error_rate_limit': 'Spotify has temporarily limited sign-in requests. Try again after {{time}}.',
   'nordly.settings.spotify.error_detail': 'Spotify sign-in failed: {{detail}}',
   'nordly.calendar.title': 'Calendar',
   'nordly.calendar.view_week': 'Week',

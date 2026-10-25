@@ -8,6 +8,7 @@ export type SpotifyConnectError =
   | { kind: 'state' }
   | { kind: 'timeout' }
   | { kind: 'desktop' }
+  | { kind: 'rate_limit'; retryAt: number }
   | { kind: 'exchange'; detail: string };
 
 export type SpotifyVolumeError = { kind: 'no_device' } | { kind: 'api'; message: string };

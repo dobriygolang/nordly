@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@platform/runtime', () => ({ isTauriRuntime: () => false }));
+vi.mock('../pkce', () => ({ spotifyClientId: () => 'client-id' }));
 vi.mock('../secret', () => ({
   loadSpotifySecret: vi.fn(async () => ({ accessToken: 'test-token', refreshToken: '', expiresAt: Date.now() + 3600_000 })),
   saveSpotifySecret: vi.fn(), clearSpotifySecret: vi.fn(), emptySecret: vi.fn(),
@@ -8,11 +9,12 @@ vi.mock('../secret', () => ({
 vi.mock('../../remote/spotifyRemote', async (original) => ({
   ...await original<typeof import('../../remote/spotifyRemote')>(),
   spotifySend: vi.fn(),
+  exchangeAuthorizationCode: vi.fn(),
 }));
-import { spotifySend, SpotifyHttpError } from '../../remote/spotifyRemote';
+import { spotifySend, SpotifyHttpError, exchangeAuthorizationCode } from '../../remote/spotifyRemote';
 import { patchSpotify, useSpotifyStore } from '../spotifyStore';
 import { disconnectedNowPlaying } from '../nowPlaying';
-import { hydrateSpotify, refreshSpotifyPlayback, setSpotifyPlayback, syncSpotifyWithTimer, watchSpotifyPlayback, queueSpotifyVolume, refreshSpotifyVolume, setSpotifyVolumeLock } from '../spotifySession';
+import { hydrateSpotify, acceptSpotifyRedirect, refreshSpotifyPlayback, setSpotifyPlayback, syncSpotifyWithTimer, watchSpotifyPlayback, queueSpotifyVolume, refreshSpotifyVolume, setSpotifyVolumeLock } from '../spotifySession';
 import { usePomodoroStore } from '@shared/model/pomodoro';
 import { loadSpotifySecret } from '../secret';
 
@@ -154,4 +156,13 @@ describe('Spotify volume', () => {
     expect(useSpotifyStore.getState().volumePercent).toBe(45);
     expect(useSpotifyStore.getState().volumeError).toEqual({ kind: 'no_device' });
   });
+});
+
+it('reports token throttling separately from failed credentials and preserves an existing session', async () => {
+  vi.mocked(loadSpotifySecret).mockResolvedValueOnce({ accessToken: 'test-token', refreshToken: '', expiresAt: Date.now() + 3600_000, codeVerifier: 'verifier', oauthState: 'state' } as Awaited<ReturnType<typeof loadSpotifySecret>>);
+  const retryAt = Date.now() + 60_000;
+  vi.mocked(exchangeAuthorizationCode).mockRejectedValueOnce(new SpotifyHttpError(429, 'Too many requests', retryAt));
+  patchSpotify({ connected: true, oauthPending: true, reauthRequired: false });
+  await expect(acceptSpotifyRedirect('code', 'state')).rejects.toMatchObject({ status: 429 });
+  expect(useSpotifyStore.getState()).toMatchObject({ connected: true, reauthRequired: false, oauthPending: false, connectError: { kind: 'rate_limit', retryAt } });
 });

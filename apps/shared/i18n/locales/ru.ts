@@ -501,6 +501,7 @@ export const ru = {
   "nordly.settings.spotify.error_oauth_timeout": "Не удалось дождаться входа в Spotify. Попробуй снова.",
   "nordly.settings.spotify.error_state": "Не удалось подтвердить вход. Подключи Spotify ещё раз.",
   'nordly.settings.spotify.error_desktop': 'Spotify подключается в приложении для компьютера.',
+  'nordly.settings.spotify.error_rate_limit': 'Spotify временно ограничил попытки входа. Попробуй снова после {{time}}.',
   'nordly.settings.spotify.error_detail': 'Вход в Spotify не удался: {{detail}}',
   'nordly.calendar.title': 'Календарь',
   'nordly.calendar.view_week': 'Неделя',

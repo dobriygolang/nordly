@@ -24,12 +24,17 @@ export class SpotifyHttpError extends Error {
   }
 }
 
-let retryAt = 0;
-let rateLimitCount = 0;
+type RequestScope = 'playback' | 'accounts';
+const limits: Record<RequestScope, { retryAt: number; count: number }> = {
+  playback: { retryAt: 0, count: 0 },
+  accounts: { retryAt: 0, count: 0 },
+};
 
-export function spotifyRetryAt(): number { return retryAt; }
+export function spotifyRetryAt(): number { return limits.playback.retryAt; }
+export function spotifyAuthRetryAt(): number { return limits.accounts.retryAt; }
 
-function checkRateLimit(): void {
+function checkRateLimit(scope: RequestScope): void {
+  const { retryAt } = limits[scope];
   if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt);
 }
 
@@ -47,16 +52,17 @@ async function parseBody(resp: Response): Promise<unknown> {
   }
 }
 
-async function finish(resp: Response): Promise<unknown> {
+async function finish(resp: Response, scope: RequestScope): Promise<unknown> {
+  const limit = limits[scope];
   if (resp.status === 429) {
-    rateLimitCount += 1;
+    limit.count += 1;
     const seconds = Number(resp.headers.get('Retry-After'));
     const delay = Number.isFinite(seconds) && seconds > 0
-      ? seconds * 1000 : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(rateLimitCount - 1, 5));
-    retryAt = Math.max(retryAt, Date.now() + delay);
-    throw new SpotifyHttpError(429, 'Too many requests', retryAt);
+      ? seconds * 1000 : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(limit.count - 1, 5));
+    limit.retryAt = Math.max(limit.retryAt, Date.now() + delay);
+    throw new SpotifyHttpError(429, 'Too many requests', limit.retryAt);
   }
-  if (resp.ok) rateLimitCount = 0;
+  if (resp.ok) limit.count = 0;
   const body = await parseBody(resp);
   if (resp.status === 204) return null;
   if (!resp.ok) {
@@ -71,7 +77,7 @@ export async function spotifySend(
   method: 'GET' | 'PUT' | 'DELETE',
   path: string,
 ): Promise<unknown> {
-  checkRateLimit();
+  checkRateLimit('playback');
   const resp = await coreFetch(`${API}${path}`, {
     method,
     headers: {
@@ -79,7 +85,7 @@ export async function spotifySend(
       Accept: 'application/json',
     },
   });
-  return finish(resp);
+  return finish(resp, 'playback');
 }
 
 export async function exchangeAuthorizationCode(
@@ -110,12 +116,12 @@ export async function refreshAccessToken(
 }
 
 async function tokenRequest(body: URLSearchParams, previousRefresh: string): Promise<SpotifyTokens> {
-  checkRateLimit();
+  checkRateLimit('accounts');
   const resp = await coreFetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: body.toString(),
   });
-  const parsed = await finish(resp);
+  const parsed = await finish(resp, 'accounts');
   return mapTokenResponse(parsed, previousRefresh);
 }

@@ -234,6 +234,16 @@
   flex-direction: column;
   gap: 10px;
 }
+.nordly-vault-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink-80);
+  font-size: 12px;
+}
+.nordly-vault-modal__field .nordly-vault-pass-input[aria-invalid='true'] {
+  border-color: var(--red);
+}
 .nordly-vault-modal__phrase {
   margin: 0 0 12px;
   padding: 12px;

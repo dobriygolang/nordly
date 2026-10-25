@@ -15,27 +15,29 @@ const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 export class SpotifyHttpError extends Error {
   readonly status: number;
   readonly retryAt: number;
+  readonly reason: string;
 
-  constructor(status: number, message: string, retryAt = 0) {
+  constructor(status: number, message: string, retryAt = 0, reason = '') {
     super(message);
     this.name = 'SpotifyHttpError';
     this.status = status;
     this.retryAt = retryAt;
+    this.reason = reason;
   }
 }
 
 type RequestScope = 'playback' | 'accounts';
-const limits: Record<RequestScope, { retryAt: number; count: number }> = {
-  playback: { retryAt: 0, count: 0 },
-  accounts: { retryAt: 0, count: 0 },
+const limits: Record<RequestScope, { retryAt: number; count: number; reason: string }> = {
+  playback: { retryAt: 0, count: 0, reason: '' },
+  accounts: { retryAt: 0, count: 0, reason: '' },
 };
 
 export function spotifyRetryAt(): number { return limits.playback.retryAt; }
 export function spotifyAuthRetryAt(): number { return limits.accounts.retryAt; }
 
 function checkRateLimit(scope: RequestScope): void {
-  const { retryAt } = limits[scope];
-  if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt);
+  const { retryAt, reason } = limits[scope];
+  if (Date.now() < retryAt) throw new SpotifyHttpError(429, 'Too many requests', retryAt, reason);
 }
 
 function coreFetch(input: string, init?: RequestInit): Promise<Response> {
@@ -56,11 +58,24 @@ async function finish(resp: Response, scope: RequestScope): Promise<unknown> {
   const limit = limits[scope];
   if (resp.status === 429) {
     limit.count += 1;
+    // 429 may be JSON (quota metadata) or a plain-text rate-limit response.
+    // Optional diagnostic metadata must not hide the HTTP throttling status.
+    let reason = '';
+    const raw = await resp.text();
+    if (raw.trimStart().startsWith('{')) {
+      try {
+        const body = JSON.parse(raw) as { error?: { reason?: unknown } } | null;
+        if (typeof body?.error?.reason === 'string') reason = body.error.reason;
+      } catch (error) {
+        console.warn('[nordly:spotify] invalid rate-limit metadata', error);
+      }
+    }
+    limit.reason = reason;
     const seconds = Number(resp.headers.get('Retry-After'));
     const delay = Number.isFinite(seconds) && seconds > 0
       ? seconds * 1000 : Math.min(15 * 60_000, 30_000 * 2 ** Math.min(limit.count - 1, 5));
     limit.retryAt = Math.max(limit.retryAt, Date.now() + delay);
-    throw new SpotifyHttpError(429, 'Too many requests', limit.retryAt);
+    throw new SpotifyHttpError(429, 'Too many requests', limit.retryAt, reason);
   }
   if (resp.ok) limit.count = 0;
   const body = await parseBody(resp);

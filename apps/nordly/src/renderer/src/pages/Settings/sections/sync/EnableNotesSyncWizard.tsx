@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -36,6 +36,7 @@ export function EnableNotesSyncWizard({
   onChooseOtherFolder,
 }: EnableNotesSyncWizardProps) {
   const t = useT();
+  const formId = useId();
   const userId = useSessionStore((s) => s.userId);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [plan, setPlan] = useState<NotesSyncEnablePlan | null>(null);
@@ -109,6 +110,8 @@ export function EnableNotesSyncWizard({
       await finish();
       return;
     }
+    setPwd1('');
+    setPwd2('');
     setStep('passphrase');
   }, [encrypt, finish, plan]);
 
@@ -214,30 +217,47 @@ export function EnableNotesSyncWizard({
                 : t('nordly.notes.sync.passphrase_hint')}
             </p>
             <form
+              id={formId}
               className="nordly-vault-modal__form"
               onSubmit={(event) => {
                 event.preventDefault();
                 void submitPassphrase();
               }}
             >
-              <input
-                type="password"
-                value={pwd1}
-                autoFocus
-                onChange={(event) => setPwd1(event.target.value)}
-                aria-label={t('nordly.vault.input.passphrase')}
-              />
+              <label className="nordly-vault-modal__field">
+                <span>{t('nordly.vault.input.passphrase')}</span>
+                <input
+                  className="nordly-vault-pass-input focus-ring"
+                  type="password"
+                  value={pwd1}
+                  autoFocus
+                  autoComplete={isVaultEnabledSync() ? 'current-password' : 'new-password'}
+                  required
+                  disabled={busy}
+                  onChange={(event) => { setPwd1(event.target.value); setError(null); }}
+                  placeholder={t('nordly.vault.input.passphrase')}
+                />
+              </label>
               {!isVaultEnabledSync() ? (
                 <>
-                  <input
-                    type="password"
-                    value={pwd2}
-                    onChange={(event) => setPwd2(event.target.value)}
-                    aria-label={t('nordly.vault.input.confirm')}
-                  />
+                  <label className="nordly-vault-modal__field">
+                    <span>{t('nordly.vault.input.confirm')}</span>
+                    <input
+                      className="nordly-vault-pass-input focus-ring"
+                      type="password"
+                      value={pwd2}
+                      autoComplete="new-password"
+                      required
+                      disabled={busy}
+                      onChange={(event) => { setPwd2(event.target.value); setError(null); }}
+                      placeholder={t('nordly.vault.input.confirm')}
+                      aria-invalid={pwd2.length > 0 && pwd1 !== pwd2}
+                    />
+                  </label>
                   <p className="mono nordly-vault-modal__body">
                     {t(`nordly.notes.sync.passphrase_${strength}`)}
                   </p>
+                  {pwd2 && pwd1 !== pwd2 ? <p className="nordly-vault-modal__error mono" role="alert">{t('nordly.vault.err.mismatch')}</p> : null}
                 </>
               ) : null}
             </form>
@@ -294,10 +314,10 @@ export function EnableNotesSyncWizard({
             ) : null}
             {step === 'passphrase' ? (
               <button
-                type="button"
+                type="submit"
                 className="nordly-vault-modal__primary"
-                disabled={busy || (!isVaultEnabledSync() && passphraseStrength(pwd1) !== 'ok')}
-                onClick={() => void submitPassphrase()}
+                form={formId}
+                disabled={busy || !pwd1 || (!isVaultEnabledSync() && (passphraseStrength(pwd1) !== 'ok' || pwd1 !== pwd2))}
               >
                 {t('nordly.notes.sync.continue')}
               </button>

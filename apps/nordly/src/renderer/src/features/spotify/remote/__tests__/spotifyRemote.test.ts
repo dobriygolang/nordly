@@ -39,3 +39,10 @@ it('honours an actual accounts rate limit without blocking playback with a valid
   await expect(exchangeAuthorizationCode('client', 'code', 'verifier')).resolves.toMatchObject({ accessToken: 'access' });
   expect(fetchMock).toHaveBeenCalledTimes(3);
 });
+
+it('preserves developer quota metadata during the pause instead of mislabelling it as sign-in failure', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ error: { status: 429, message: 'Too many requests', reason: 'QUOTA_EXCEEDED' } }), { status: 429, headers: { 'Retry-After': '3600' } })));
+  const { spotifySend } = await import('../spotifyRemote');
+  await expect(spotifySend('token', 'GET', '/me')).rejects.toMatchObject({ status: 429, reason: 'QUOTA_EXCEEDED' });
+  await expect(spotifySend('token', 'GET', '/me/player')).rejects.toMatchObject({ status: 429, reason: 'QUOTA_EXCEEDED' });
+});

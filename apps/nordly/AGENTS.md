@@ -227,7 +227,7 @@ Architecture decisions: [local-first consistency](docs/architecture/001-local-fi
 
 ## Notes editor workspace
 
-The device remembers the last successfully loaded note per profile and the editor selection and scroll position per profile/note in localStorage. Reopening the editor restores the selection (clamped to the current document length), rather than moving to EOF. Saved folder expansion is pruned only after a successful list load; selecting a note reveals its ancestor folders. Scroll is restored independently of the cursor; save it before the editor DOM is detached. These workspace preferences do not sync. Live preview styles only closed code fences as code. Clicking a language badge reveals its opening fence for editing; Enter on an opening fence still inserts its closer.
+The device remembers the last successfully loaded note per profile and the editor selection and scroll position per profile/note in localStorage. Reopening the editor restores the selection (clamped to the current document length), rather than moving to EOF. Saved folder expansion is pruned only after a successful list load; selecting a note reveals its ancestor folders. The editor draws the active cursor at the head of non-empty keyboard selections. Scroll is restored independently of the cursor; save it before the editor DOM is detached. These workspace preferences do not sync. Live preview styles only closed code fences as code. Clicking a language badge reveals its opening fence for editing; Enter on an opening fence still inserts its closer.
 
 ## Filesystem notes vault
 
@@ -291,12 +291,25 @@ newer user choice. A failed write restores the last confirmed volume and shows t
 ## Secret access
 
 `src-tauri/src/credentials.rs` caches successful Keychain reads, including missing
-entries, in process memory shared by all webviews. Writes and deletes update the
-cache only after the OS store succeeds. Secrets remain in the OS store on disk;
-they are not moved to localStorage or plaintext files. Spotify hydrates once per
-renderer session instead of rereading credentials on each settings mount.
-Ad-hoc macOS updates can still require a first authorization for each distinct
-Keychain entry; process caching cannot establish signing continuity across releases.
+entries, in process memory shared by all webviews. On macOS, `credentials-v1`
+is one JSON map of account names to secrets (or null migration/logout markers)
+in the OS Keychain. It is read once per process, so an ad-hoc update normally
+needs authorization for one item after migration. Previously separate auth,
+Spotify and per-user vault items migrate lazily: write the bundle before recording
+success; retained old items support rollback, which may require signing in again
+after tokens have rotated. Clearing an account writes a durable null marker and
+also deletes its old item so it cannot restore a logged-out session. A failed
+migration write leaves the old item and in-memory state unchanged and can retry.
+First migration may require separate authorizations for the old items.
+Windows retains separate entries to avoid Credential Manager blob-size limits.
+Secrets remain in the OS store on disk, never in plaintext files or localStorage.
+Spotify hydrates once per renderer session instead of rereading credentials on
+each settings mount. Ad-hoc signatures cannot prevent reauthorization after an
+update, and choosing Allow instead of Always Allow can prompt again next launch.
+
+The notes sync wizard uses two labelled, styled password fields for new vaults,
+and one existing-password field when unlocking. Continue and Enter submit the same
+form; setup requires matching passwords, and errors clear when either field changes.
 
 ## Tauri IPC commands
 
@@ -324,7 +337,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `tray_show_main` | Show main window + open palette (from tray popover) |
 | `deep_link_initial` | Returns the URL that cold-launched the app (custom scheme), if any |
 
-**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, as a nonactivating NSPanel at floating level, below the system menu bar. The panel is clamped below the menu bar on its current screen. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. A single play/pause button changes the timer immediately; the main renderer independently sends the desired Spotify state without waiting before updating the timer. All visible consumers share one Spotify poller, stopped when none remain. HTTP 429 pauses requests to the affected endpoint family until Retry-After (or exponential backoff); playback Web API limits must not block accounts token exchange/refresh. An accounts limit has its own retry time and UI message, without marking a valid session as signed out. Hamburger in popover calls `tray_show_main`.
+**Menu bar (desktop):** left clicks toggle the `tray-popover` window (timer + theme poster). On macOS it joins all Spaces, including fullscreen app Spaces, as a nonactivating NSPanel at floating level, below the system menu bar. The panel is clamped below the menu bar on its current screen. Status-item activation does not open the main window; Dock reopen and the hamburger remain explicit ways to open it. When Spotify is connected, the timer caption becomes the current track and a heart saves it to Liked Songs. A single play/pause button changes the timer immediately; the main renderer independently sends the desired Spotify state without waiting before updating the timer. All visible consumers share one Spotify poller every 15 seconds, stopped when none remain. QUOTA_EXCEEDED is reported separately from short-term throttling. HTTP 429 pauses requests to the affected endpoint family until Retry-After (or exponential backoff); playback Web API limits must not block accounts token exchange/refresh. An accounts limit has its own retry time and UI message, without marking a valid session as signed out. Hamburger in popover calls `tray_show_main`.
 
 Events: `app:deep-link` (warm-start), `auth:changed`, `app:open-palette`, `pomodoro:sync`, `theme:sync`, `spotify:now-playing`, `spotify:cmd`, `tray-popover:show`, `tray-popover:hide`. Cold-start deep links are pulled once via `deep_link_initial` on renderer mount. Deep link schemes: `focus`, `task.open?id=…`, `note.open?id=…`, `settings?google_calendar=…` (Google Calendar OAuth), `settings?zoom=…` (Zoom OAuth), `settings?code=…&state=…` (Spotify PKCE).
 

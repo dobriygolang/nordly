@@ -62,3 +62,15 @@ it('restores each note scroll independently of its cursor', async () => {
   expect(restored.scrollDOM.scrollLeft).toBe(12);
   expect(restored.state.selection.main.head).toBe(0);
 });
+
+it('draws a range cursor at the active end of keyboard selections', async () => {
+  const { getDrawSelectionConfig } = await import('@codemirror/view');
+  const { selectCharRight, selectCharLeft } = await import('@codemirror/commands');
+  await act(async () => root.render(createElement(LiveMarkdownEditor, { value: 'first line', onChange: vi.fn() })));
+  const view = EditorView.findFromDOM(container.querySelector('.cm-editor')!)!;
+  expect(getDrawSelectionConfig(view.state)?.drawRangeCursor).toBe(true);
+  await act(async () => { selectCharRight(view); selectCharRight(view); });
+  expect(view.state.selection.main).toMatchObject({ anchor: 0, head: 2 });
+  await act(async () => { selectCharLeft(view); });
+  expect(view.state.selection.main).toMatchObject({ anchor: 0, head: 1 });
+});

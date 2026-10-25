@@ -601,12 +601,13 @@ export const notesEditorTheme = EditorView.theme({
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'var(--ink)',
+    borderLeftWidth: '2px',
   },
   '.cm-selectionBackground, ::selection': {
-    backgroundColor: 'rgb(var(--ink-rgb) / 0.14) !important',
+    backgroundColor: 'rgb(var(--ink-rgb) / 0.22) !important',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'rgb(var(--ink-rgb) / 0.18) !important',
+    backgroundColor: 'rgb(var(--ink-rgb) / 0.28) !important',
   },
   /* Live preview wins over CM markdown token colors — not inside code blocks */
   '.cm-line:not(.nordly-md-code-block) .cm-header, .cm-line:not(.nordly-md-code-block) .tok-heading, .cm-line:not(.nordly-md-code-block) .tok-heading1, .cm-line:not(.nordly-md-code-block) .tok-heading2, .cm-line:not(.nordly-md-code-block) .tok-heading3, .cm-line:not(.nordly-md-code-block) .tok-strong, .cm-line:not(.nordly-md-code-block) .tok-emphasis, .cm-line:not(.nordly-md-code-block) .tok-monospace, .cm-line:not(.nordly-md-code-block) .tok-strikethrough, .cm-line:not(.nordly-md-code-block) .tok-link, .cm-line:not(.nordly-md-code-block) .tok-url': {

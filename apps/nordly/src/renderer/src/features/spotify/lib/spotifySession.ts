@@ -237,6 +237,7 @@ async function toggleLike(): Promise<void> {
 
 export function spotifyErrorText(error: unknown): string {
   if (error instanceof SpotifyHttpError) {
+    if (error.status === 429 && error.reason === 'QUOTA_EXCEEDED') return translate('nordly.spotify.error.quota');
     if (error.status === 429) return translate('nordly.spotify.error.rate_limit');
     if (error.status === 404) return translate('nordly.spotify.error.device');
     if (error.status === 403) {

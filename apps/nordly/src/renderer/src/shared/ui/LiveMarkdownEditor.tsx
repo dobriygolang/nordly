@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
-import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
+import { EditorView, drawSelection, keymap, type ViewUpdate } from '@codemirror/view';
 
 import { httpsLinkAt, wikiMatchAt, type WikiTarget } from '@nordly-markdown/wikiTarget';
 import {
@@ -153,6 +153,7 @@ export function LiveMarkdownEditor({
         selection: selectionKey ? loadEditorSelection(selectionKey, value.length) : undefined,
         extensions: [
           history(),
+          drawSelection({ drawRangeCursor: true }),
           notesMarkdownSupport,
           notesCodeSyntaxHighlighting,
           codeBlockField,

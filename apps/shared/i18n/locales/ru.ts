@@ -1,4 +1,7 @@
 export const ru = {
+  'nordly.notes.syntax_help': 'Справочник Markdown',
+  'nordly.stats.card_new_today': 'Новых сегодня',
+  'nordly.stats.card_answers_today': 'Ответов сегодня',
   "nordly.sidebar.hide": "Скрыть боковую панель",
   "nordly.sidebar.show": "Показать боковую панель",
   "nordly.tray.open_app": "Открыть Nordly",

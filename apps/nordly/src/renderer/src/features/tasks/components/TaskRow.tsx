@@ -174,7 +174,11 @@ export const TaskRow = memo(function TaskRow({
     >
       <div
         className="nordly-task-row__card"
-        {...(overlay ? {} : dragHandleProps)}
+        {...(overlay || editing ? {} : dragHandleProps)}
+        onPointerDown={(event) => {
+          if (overlay || editing || (event.target as HTMLElement).closest('button, input, textarea, a, [data-no-drag]')) return;
+          dragHandleProps?.onPointerDown?.(event);
+        }}
         onClick={
           overlay
             ? undefined
@@ -205,6 +209,7 @@ export const TaskRow = memo(function TaskRow({
               {editing ? (
                 <textarea
                   ref={textareaRef}
+                  onPointerDown={(event) => event.stopPropagation()}
                   data-no-drag
                   value={draft}
                   rows={1}
@@ -247,13 +252,14 @@ export const TaskRow = memo(function TaskRow({
                   role="textbox"
                   tabIndex={0}
                   className="nordly-task-row__title"
-                  onClick={(e) => {
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => {
                     e.stopPropagation();
                     setDraft(task.title);
                     setEditing(true);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' || e.key === 'F2') {
                       e.preventDefault();
                       setDraft(task.title);
                       setEditing(true);

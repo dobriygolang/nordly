@@ -48,7 +48,12 @@ export function useStatsOverlayData() {
     const load = (): void => {
       if (document.hidden) return;
       const request = ++requestSequence;
-      void getStats()
+      const publish = (data: NordlyStats): void => {
+        if (cancelled || request !== requestSequence) return;
+        setState((prev) => prev.status === FocusStatsFetchStatus.Ready && sameNordlyStats(prev.data, data)
+          ? prev : { status: FocusStatsFetchStatus.Ready, data });
+      };
+      void getStats(undefined, publish)
         .then((data) => {
           if (cancelled || request !== requestSequence) return;
           setState((prev) => {

@@ -42,6 +42,7 @@ export const NORDLY_EVENTS = {
   openPlanning: 'nordly:open-planning',
   /** Notes → App: open card review, optionally for one note. */
   openCards: 'nordly:open-cards',
+  cardsChanged: 'nordly:cards-changed',
   /** Timeline / Home → App: show calendar / meeting details in-app. */
   calendarInspect: 'nordly:calendar-inspect',
 } as const;

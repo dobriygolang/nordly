@@ -31,6 +31,6 @@ export const AnimatedStatsOverlay = memo(function AnimatedStatsOverlay({
     return () => window.clearTimeout(t);
   }, [open, mounted]);
 
-  if (!mounted) return null;
+  if (!open && !mounted) return null;
   return <StatsOverlayCards onClose={onClose} closing={closing} />;
 });

@@ -294,7 +294,7 @@ body.nordly-task-dragging .nordly-task-row__check {
   color: rgb(var(--ink-rgb) / 0.8);
   white-space: pre-wrap;
   word-break: break-word;
-  cursor: text;
+  cursor: grab;
 }
 
 .nordly-task-row[data-done='true'] .nordly-task-row__title {

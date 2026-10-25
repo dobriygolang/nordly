@@ -1,4 +1,7 @@
 export const en = {
+  'nordly.notes.syntax_help': 'Markdown guide',
+  'nordly.stats.card_new_today': 'New today',
+  'nordly.stats.card_answers_today': 'Answers today',
   "nordly.sidebar.hide": "Hide sidebar",
   "nordly.sidebar.show": "Show sidebar",
   "nordly.tray.open_app": "Open Nordly",

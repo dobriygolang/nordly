@@ -1,4 +1,5 @@
 import { getNote, listNotes } from '@features/notes/api/notesClient';
+import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { toDayKey } from '@shared/lib/dates';
 import { useSessionStore } from '@shared/model/session';
 import { readSettings } from '@shared/model/settings';
@@ -174,6 +175,7 @@ export async function gradeCard(
     reviewed: daily.reviewed + 1,
     new: daily.new + (prev ? 0 : 1),
   });
+  window.dispatchEvent(new Event(NORDLY_EVENTS.cardsChanged));
   return next;
 }
 

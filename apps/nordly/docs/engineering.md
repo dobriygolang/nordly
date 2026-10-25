@@ -87,7 +87,9 @@ Move shared helpers out of `pages/` when features or widgets need them (`shared/
 
 ## Stylesheet ownership
 
-`app/styles/globals.css` loads the styles; keep each rule with its owner:
+`app/styles/globals.css` loads shared styles; the statistics overlay loads its own
+`features/stats-overlay.css` with the lazy overlay module so unopened statistics
+do not increase other routes. Keep each rule with its owner:
 
 - `base/`: app tokens and general utilities.
 - `components/`: shared editor, error pane, sidebar, vault layout, chrome and backgrounds.

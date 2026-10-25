@@ -216,8 +216,9 @@ async function buildLocalStats(upToDate?: string): Promise<NordlyStats> {
   return statsFromSessions(sessions, upToDate);
 }
 
-export async function getStats(upToDate?: string): Promise<NordlyStats> {
+export async function getStats(upToDate?: string, onLocal?: (stats: NordlyStats) => void): Promise<NordlyStats> {
   const local = await buildLocalStats(upToDate);
+  onLocal?.(local);
   if (!isSyncEnabled() || !canReachNetwork()) return local;
 
   const remote = await remoteGetStats(upToDate);

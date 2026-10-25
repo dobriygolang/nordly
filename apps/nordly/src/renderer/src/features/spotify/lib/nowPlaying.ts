@@ -2,7 +2,7 @@ import type { PlaybackItem } from './playback';
 
 export const SPOTIFY_NOW_EVENT = 'spotify:now-playing';
 export const SPOTIFY_CMD_EVENT = 'spotify:cmd';
-export const SPOTIFY_POLL_MS = 15_000;
+export const SPOTIFY_POLL_MS = 30_000;
 const DEFAULT_SPOTIFY_REDIRECT_URI = 'https://trynordly.app/oauth/spotify';
 
 function readSpotifyRedirectUri(): string {

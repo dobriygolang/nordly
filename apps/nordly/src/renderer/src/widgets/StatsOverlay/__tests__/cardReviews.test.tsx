@@ -1,0 +1,20 @@
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, it, vi } from 'vitest';
+vi.mock('@features/cards/api/cardStats', () => ({ getCardStats: vi.fn(async () => ({ todayReviewed: 8, todayNew: 3, weekReviewed: 20 })) }));
+import { CardReviewsStats } from '../cardReviews';
+import NotesSyntaxHelp from '../../../pages/Notes/NotesSyntaxHelp';
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+it('renders saved answer totals and the syntax guide with real interface translations', async () => {
+  const container = document.createElement('div'); document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => root.render(createElement(CardReviewsStats)));
+  expect(container.textContent).toContain('8');
+  expect(container.textContent).toContain('20');
+  expect(container.textContent).toContain('3');
+  await act(async () => root.render(createElement(NotesSyntaxHelp, { onClose: vi.fn() })));
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expect(dialog.textContent).toContain('```go');
+  expect(dialog.textContent).toContain(':::');
+  await act(async () => root.unmount()); container.remove();
+});

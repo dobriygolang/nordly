@@ -61,11 +61,11 @@ describe('Spotify playback', () => {
     vi.mocked(spotifySend).mockResolvedValue(null);
     const stopSettings = watchSpotifyPlayback();
     const stopTray = watchSpotifyPlayback();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(spotifySend).toHaveBeenCalledTimes(3);
     stopSettings();
     stopTray();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(spotifySend).toHaveBeenCalledTimes(3);
   });
   it('does not reload an already hydrated session when settings mount', async () => {

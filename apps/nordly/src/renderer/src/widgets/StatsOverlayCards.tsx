@@ -1,3 +1,4 @@
+import '../app/styles/features/stats-overlay.css';
 import { useT, useLocale } from '@nordly-i18n';
 
 import {
@@ -5,6 +6,7 @@ import {
   useStatsOverlayData,
 } from '@features/focus/hooks/useStatsOverlayData';
 import { useRef } from 'react';
+import { CardReviewsStats } from './StatsOverlay/cardReviews';
 
 import { useDialogSurface } from '@shared/hooks/useDialogSurface';
 
@@ -50,7 +52,7 @@ export function StatsOverlayCards({
         </BigCard>
       </div>
 
-      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '80ms' : '80ms' }}>
+      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '80ms' : '0ms' }}>
         <BigCard>
           <CardHead title={t('nordly.stats.current_streak')} />
           <div
@@ -87,7 +89,7 @@ export function StatsOverlayCards({
         </BigCard>
       </div>
 
-      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '40ms' : '160ms' }}>
+      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '40ms' : '0ms' }}>
         <BigCard>
           <CardHead
             title={t('nordly.stats.focused_time')}
@@ -97,12 +99,14 @@ export function StatsOverlayCards({
         </BigCard>
       </div>
 
-      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: closing ? '0ms' : '240ms' }}>
+      <div className={closing ? 'slide-to-right' : 'slide-from-right'} style={{ animationDelay: '0ms' }}>
         <BigCard>
           <CardHead title={t('nordly.stats.insights')} />
           <InsightsGrid data={data} t={t} />
         </BigCard>
       </div>
+
+      <CardReviewsStats />
 
       <TodayPlanReviewCard closing={closing} t={t} />
 

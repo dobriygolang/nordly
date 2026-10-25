@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
@@ -38,6 +38,8 @@ import {
 } from './noteDnd';
 import { type ListState } from './utils';
 import { useNotesSidebarSelection } from './useNotesSidebarSelection';
+
+const NotesSyntaxHelp = lazy(() => import('./NotesSyntaxHelp'));
 
 const CREATE_MENU_W = 168;
 
@@ -91,6 +93,7 @@ export const Sidebar = memo(function Sidebar({
   onError,
 }: SidebarProps) {
   const t = useT();
+  const [syntaxOpen, setSyntaxOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [createMenuPos, setCreateMenuPos] = useState<{ top: number; right: number } | null>(null);
@@ -323,7 +326,14 @@ export const Sidebar = memo(function Sidebar({
         >
           <Icon name="plus" size={16} strokeWidth={1.8} />
         </button>
+        <button type="button" className="nordly-vault-sidebar__btn nordly-icon-btn focus-ring"
+          title={t('nordly.notes.syntax_help')} aria-label={t('nordly.notes.syntax_help')}
+          onClick={() => { setSyntaxOpen(true); setCreateMenuOpen(false); setOpenMenuId(null); }}>
+          <Icon name="more" size={16} />
+        </button>
       </div>
+
+      {syntaxOpen ? <Suspense fallback={null}><NotesSyntaxHelp onClose={() => setSyntaxOpen(false)} /></Suspense> : null}
 
       {createMenuOpen &&
         createMenuPos &&

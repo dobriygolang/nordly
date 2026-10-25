@@ -1,0 +1,26 @@
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, it, vi } from 'vitest';
+vi.mock('@nordly-i18n', () => ({ useT: () => (key: string) => key }));
+vi.mock('@features/tasks/api/tasks', () => ({ displayTaskTitle: (title: string) => title }));
+vi.mock('../DurationPicker', () => ({ DurationPicker: () => null }));
+vi.mock('../TaskDetailPopover', () => ({ TaskDetailPopover: () => null }));
+import { TaskRow } from '../TaskRow';
+import type { TaskCard } from '../../model/task';
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+it('requires a double click to rename and never starts dragging from the editable title', async () => {
+  const container = document.createElement('div'); document.body.append(container);
+  const root = createRoot(container);
+  const drag = vi.fn();
+  const task: TaskCard = { id: 'task', title: 'Select this text', status: 'todo', kind: 'custom', createdAt: '', updatedAt: '' };
+  await act(async () => root.render(createElement(TaskRow, { task, epics: [], settings: null, dragging: false, detailOpen: false, dragHandleProps: { onPointerDown: drag }, onToggleDone: vi.fn(), onDurationChange: vi.fn(), onTitleChange: vi.fn(), onOpenDetail: vi.fn(), onCloseDetail: vi.fn(), onEpicChange: vi.fn(), onCreateConference: vi.fn(), onClearConference: vi.fn() })));
+  const title = container.querySelector('[role="textbox"]')!;
+  await act(async () => title.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  expect(container.querySelector('textarea')).toBeNull();
+  await act(async () => title.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  const field = container.querySelector('textarea')!;
+  expect(field).not.toBeNull();
+  await act(async () => field.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
+  expect(drag).not.toHaveBeenCalled();
+  await act(async () => root.unmount()); container.remove();
+});

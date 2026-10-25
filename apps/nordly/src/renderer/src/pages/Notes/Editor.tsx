@@ -213,6 +213,7 @@ function ActiveEditor({
   );
 
   const titleEmpty = !title.trim();
+  const [titleEditing, setTitleEditing] = useState(titleEmpty);
 
   return (
     <div className="nordly-notes-editor-shell">
@@ -220,6 +221,18 @@ function ActiveEditor({
         <input
           className="nordly-notes-title"
           value={title}
+          readOnly={!titleEditing}
+          style={{ cursor: titleEditing ? 'text' : 'default' }}
+          onDoubleClick={() => setTitleEditing(true)}
+          onPointerDown={(event) => event.stopPropagation()}
+          onBlur={() => setTitleEditing(false)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === 'F2') {
+              event.preventDefault();
+              if (titleEditing) event.currentTarget.blur();
+              else setTitleEditing(true);
+            }
+          }}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder={t('nordly.notes.editor.title_placeholder')}
           autoFocus={titleEmpty}

@@ -25,6 +25,7 @@ import { Icon } from '@shared/ui/primitives/Icon';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { noteMenuPos } from '@shared/lib/noteMenuPos';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
+import { copyText } from '@shared/lib/clipboard';
 import { useVaultRowMenuDismiss } from '@shared/lib/useVaultRowMenuDismiss';
 import { patchSettings, readSettings } from '@shared/model/settings';
 
@@ -70,6 +71,9 @@ export const NoteRow = memo(function NoteRow({
   const [hover, setHover] = useState(false);
   const closeMenu = useCallback(() => onMenuOpenChange(false), [onMenuOpenChange]);
   const [pubStatus, setPubStatus] = useState<PublishStatus | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [publishOptions, setPublishOptions] = useState<PublishToWebOptions>(DEFAULT_PUBLISH_OPTIONS);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const syncStatus = useNotesSyncStatus();
@@ -91,6 +95,7 @@ export const NoteRow = memo(function NoteRow({
   const publishOptionsDirtyRef = useRef(false);
   const publishOptionsRef = useRef(publishOptions);
   const publishInFlightRef = useRef<Promise<PublishStatus | void> | null>(null);
+  const publishStatusVersionRef = useRef(0);
   const pubStatusRef = useRef(pubStatus);
   const menuOpenRef = useRef(menuOpen);
   publishOptionsRef.current = publishOptions;
@@ -142,6 +147,7 @@ export const NoteRow = memo(function NoteRow({
   useEffect(() => {
     if (!menuOpen || !publishingAvailable || publishBlocked) return;
     publishOptionsDirtyRef.current = false;
+    const version = publishStatusVersionRef.current;
     let live = true;
     void (async () => {
       if (publishInFlightRef.current) {
@@ -151,7 +157,7 @@ export const NoteRow = memo(function NoteRow({
         if (!live) return;
       }
       const status = await getPublishStatus(note.id);
-      if (!live) return;
+      if (!live || version !== publishStatusVersionRef.current) return;
       setPubStatus(status);
       if (!publishOptionsDirtyRef.current) {
         const opts = publishOptionsFromStatus(status);
@@ -162,7 +168,7 @@ export const NoteRow = memo(function NoteRow({
         lastAppliedOptionsRef.current = serializePublishOptions(opts);
       }
     })().catch((err: unknown) => {
-      if (!live) return;
+      if (!live || version !== publishStatusVersionRef.current) return;
       setPubStatus(null);
       onError?.(err instanceof Error ? err.message : String(err));
     });
@@ -173,6 +179,8 @@ export const NoteRow = memo(function NoteRow({
 
   useEffect(() => {
     if (!menuOpen) {
+      setLinkCopied(false);
+      setCopyError(null);
       setMenuPos(null);
       return;
     }
@@ -216,13 +224,16 @@ export const NoteRow = memo(function NoteRow({
   const copyLink = useCallback(async () => {
     const url = publishedNoteUrl(pubStatus);
     if (!url) return;
-    closeMenu();
+    setLinkCopied(false);
+    setCopyError(null);
     try {
-      await navigator.clipboard.writeText(url);
+      await copyText(url);
+      setLinkCopied(true);
     } catch (err: unknown) {
-      onError?.(err instanceof Error ? err.message : String(err));
+      console.error('[nordly:notes] copy link failed', err);
+      setCopyError(t('nordly.notes.menu.copy_error'));
     }
-  }, [pubStatus, closeMenu, onError]);
+  }, [pubStatus, t]);
 
   const viewPublic = useCallback(() => {
     const url = publishedNoteUrl(pubStatus);
@@ -241,8 +252,12 @@ export const NoteRow = memo(function NoteRow({
   }, [pubStatus, closeMenu, onError]);
 
   const handlePublish = useCallback(async () => {
+    if (publishInFlightRef.current) return;
+    publishStatusVersionRef.current += 1;
     const optionsToPublish = publishOptionsRef.current;
-    closeMenu();
+    setPublishing(true);
+    setLinkCopied(false);
+    setCopyError(null);
     const publishPromise = onPublish(note.id, optionsToPublish)
       .then((res) => {
         if (res) {
@@ -256,14 +271,33 @@ export const NoteRow = memo(function NoteRow({
         }
       });
     publishInFlightRef.current = publishPromise;
+    // Start the clipboard operation in the original click gesture. The URL is
+    // provided only once the server has actually published the current draft.
+    const copying = copyText(publishPromise.then((result) => {
+      const url = publishedNoteUrl(result || null);
+      if (!url) throw new Error('Note publication did not produce a link');
+      return url;
+    }));
     try {
-      await publishPromise;
-    } catch {
-      /* error surfaced in NotesPage */
+      const [published, copied] = await Promise.allSettled([publishPromise, copying]);
+      if (published.status === 'rejected') {
+        onError?.(published.reason instanceof Error ? published.reason.message : String(published.reason));
+        return;
+      }
+      if (!published.value?.published) return; // Cancelled sign-in / errors are shown by NotesPage.
+      if (copied.status === 'rejected') {
+        console.error('[nordly:notes] copy published link failed', copied.reason);
+        setCopyError(t('nordly.notes.menu.copy_error'));
+      } else {
+        setLinkCopied(true);
+      }
+    } finally {
+      setPublishing(false);
     }
-  }, [note.id, onPublish, closeMenu, applyPublishResult]);
+  }, [note.id, onPublish, applyPublishResult, onError, t]);
 
   const handleUnpublish = useCallback(async () => {
+    publishStatusVersionRef.current += 1;
     const previous = pubStatusRef.current;
     setPubStatus({ published: false });
     closeMenu();
@@ -351,6 +385,9 @@ export const NoteRow = memo(function NoteRow({
           <NoteRowMenu
             ref={menuRef}
             published={!!pubStatus?.published}
+            publishing={publishing}
+            linkCopied={linkCopied}
+            copyError={copyError}
             publishingAvailable={publishingAvailable}
             publishBlocked={publishBlocked}
             vaultReady={isVaultReadyForPublish()}

@@ -6,7 +6,7 @@ import { registerSyncDevice } from '@shared/api/registerSyncDevice';
 import { getDbUserId } from '@shared/db/nordlyDb';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
 import { canReachNetwork } from '@shared/lib/network';
-import { readAppVersion } from '@shared/lib/updater';
+import { readAppVersion } from '@shared/lib/appVersion';
 import { useDeviceRegistrationStore } from '@shared/model/deviceRegistration';
 import { useSyncStore } from '@shared/model/sync';
 import {

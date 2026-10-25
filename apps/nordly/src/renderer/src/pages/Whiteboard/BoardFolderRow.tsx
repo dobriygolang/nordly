@@ -1,3 +1,4 @@
+import '@shared/ui/VaultRowMenu.css';
 import { memo, useCallback, useEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 

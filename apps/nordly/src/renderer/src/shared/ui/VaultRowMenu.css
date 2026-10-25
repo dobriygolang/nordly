@@ -1,0 +1,187 @@
+.nordly-note-menu {
+  z-index: 200;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 10px;
+  background: #000000;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.4),
+    0 16px 40px rgb(0 0 0 / 0.65);
+  transform-origin: top right;
+  animation: nordly-menu-in var(--motion-dur-small) var(--motion-ease-emphasized) backwards;
+}
+.nordly-note-menu__label {
+  flex-shrink: 0;
+  padding: 6px 10px 4px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  line-height: 1.2;
+}
+.nordly-note-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--ink-90);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-dur-small) var(--motion-ease-standard),
+    color var(--motion-dur-small) var(--motion-ease-standard);
+}
+
+.nordly-note-menu__hint {
+  margin: 2px 0 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-60);
+}
+
+.nordly-note-menu__error { color: var(--red); }
+.nordly-note-menu__item:hover {
+  background: var(--ink-tint-06);
+  color: var(--ink);
+}
+.nordly-note-menu__item[data-danger='true'] {
+  color: #b34e4e;
+}
+.nordly-note-menu__item[data-danger='true']:hover {
+  background: rgba(179, 78, 78, 0.1);
+  color: #b34e4e;
+}
+.nordly-note-menu__item[data-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+.nordly-note-menu__item[data-disabled='true']:hover {
+  background: transparent;
+  color: var(--ink-90);
+}
+.nordly-note-menu__item[data-disabled='true'][data-danger='true'] {
+  color: #b34e4e;
+}
+.nordly-note-menu__item[data-disabled='true'][data-danger='true']:hover {
+  color: #b34e4e;
+}
+.nordly-note-menu__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: inherit;
+}
+.nordly-note-menu__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.nordly-note-menu__divider {
+  flex-shrink: 0;
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ink-tint-06);
+}
+.nordly-note-menu__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 4px;
+}
+.nordly-note-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-90);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--t-fast);
+}
+.nordly-note-menu__toggle:hover:not([data-disabled='true']) {
+  background: rgb(255 255 255 / 0.06);
+}
+.nordly-note-menu__toggle[data-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.nordly-note-menu__toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  transition: background-color var(--t-fast);
+}
+.nordly-note-menu__toggle[data-checked='true'] .nordly-note-menu__toggle-track {
+  background: rgb(255 255 255 / 0.72);
+}
+.nordly-note-menu__toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left var(--t-base), background-color var(--t-fast);
+}
+.nordly-note-menu__toggle[data-checked='true'] .nordly-note-menu__toggle-thumb {
+  left: 14px;
+  background: #000;
+}
+.nordly-note-menu__toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.nordly-note-menu__password {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px 6px;
+}
+.nordly-note-menu__password-label {
+  font-size: 10px;
+  color: var(--ink-40);
+}
+.nordly-note-menu__password-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--ink-90);
+  font-size: 12px;
+  outline: none;
+}
+.nordly-note-menu__password-input:focus {
+  border-color: rgb(255 255 255 / 0.28);
+}
+.nordly-note-menu__expiry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 8px 6px;
+}

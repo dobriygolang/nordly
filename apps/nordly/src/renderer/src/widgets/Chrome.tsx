@@ -1,7 +1,7 @@
 // Chrome — top-left wordmark + top-right version (home screen).
 import { memo, useEffect, useState, type CSSProperties } from 'react';
 
-import { readAppVersion } from '@shared/lib/updater';
+import { readAppVersion } from '@shared/lib/appVersion';
 
 export const NORDLY_HEADER_H = 40;
 

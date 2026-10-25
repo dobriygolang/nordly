@@ -20,7 +20,7 @@ import { loadNotesSyncConsent } from '@features/notes/lib/notesSyncConsent';
 import { isCloudEnabled } from '@shared/model/features';
 import { AuthStatus } from '@shared/model/session';
 import { startSyncEngine, stopSyncEngine } from '@shared/sync/SyncEngine';
-import { readAppVersion } from '@shared/lib/updater';
+import { readAppVersion } from '@shared/lib/appVersion';
 import { startCaptureBridge } from '@features/capture/captureBridge';
 import { isTauriRuntime } from '@platform/runtime';
 import {

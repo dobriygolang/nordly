@@ -22,6 +22,7 @@ export function installNativeBridge(): void {
   if (window.nordly) return;
 
   const api: NordlyAPI = {
+    clipboard: { writeText: (text) => invoke('clipboard_write_text', { text }) },
     auth: {
       session: () => invoke<AuthSession | null>('auth_session'),
       persist: (s) => invoke('auth_persist', { session: s }),

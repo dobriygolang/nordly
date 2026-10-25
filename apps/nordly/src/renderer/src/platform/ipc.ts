@@ -7,6 +7,7 @@ export const eventChannels = {
 } as const;
 
 export interface NordlyAPI {
+  clipboard?: { writeText: (text: string) => Promise<void> };
   auth: {
     session: () => Promise<AuthSession | null>;
     persist: (s: AuthSession) => Promise<void>;

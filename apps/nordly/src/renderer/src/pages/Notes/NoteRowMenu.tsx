@@ -1,3 +1,4 @@
+import '@shared/ui/VaultRowMenu.css';
 import { forwardRef, memo, useCallback } from 'react';
 
 import { useT } from '@nordly-i18n';
@@ -13,6 +14,9 @@ import { openSettings, SettingsHighlightId, SettingsSectionId } from '@shared/mo
 
 export interface NoteRowMenuProps {
   published: boolean;
+  publishing?: boolean;
+  linkCopied?: boolean;
+  copyError?: string | null;
   publishingAvailable: boolean;
   publishBlocked: 'sync_off' | 'encryption_locked' | null;
   vaultReady: boolean;
@@ -68,10 +72,12 @@ function MenuToggle({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -86,6 +92,7 @@ function MenuToggle({
       type="button"
       className="nordly-note-menu__toggle"
       role="switch"
+      disabled={disabled}
       aria-checked={checked}
       data-checked={checked ? 'true' : 'false'}
       onClick={handleClick}
@@ -103,15 +110,18 @@ function MenuToggle({
 function PublishOptionsSection({
   publishOptions,
   onPublishOptionsChange,
+  disabled = false,
 }: {
   publishOptions: PublishToWebOptions;
   onPublishOptionsChange: (patch: Partial<PublishToWebOptions>) => void;
+  disabled?: boolean;
 }) {
   const t = useT();
 
   return (
     <div className="nordly-note-menu__options">
       <MenuToggle
+        disabled={disabled}
         label={t('nordly.notes.menu.private_link')}
         checked={publishOptions.passwordProtected}
         onChange={(passwordProtected) =>
@@ -130,6 +140,7 @@ function PublishOptionsSection({
             </span>
             <input
               type="password"
+              disabled={disabled}
               className="nordly-note-menu__password-input mono"
               value={publishOptions.password}
               placeholder={t('nordly.notes.menu.private_link_password_placeholder')}
@@ -144,6 +155,7 @@ function PublishOptionsSection({
             <span className="nordly-select-wrap nordly-select-wrap--block">
               <select
                 className="nordly-select nordly-select--block mono focus-ring"
+                disabled={disabled}
                 value={publishOptions.expiresInDays}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) =>
@@ -170,6 +182,9 @@ export const NoteRowMenu = memo(
   forwardRef<HTMLDivElement, NoteRowMenuProps>(function NoteRowMenu(
     {
       published,
+      publishing = false,
+      linkCopied = false,
+      copyError = null,
       publishingAvailable,
       publishBlocked,
       vaultReady,
@@ -231,8 +246,9 @@ export const NoteRowMenu = memo(
               <>
                 <MenuItem
                   icon={<Icon name="copy" size={14} strokeWidth={1.5} />}
-                  label={t('nordly.notes.menu.copy_link')}
+                  label={t(linkCopied ? 'nordly.notes.menu.link_copied' : 'nordly.notes.menu.copy_link')}
                   onClick={onCopyLink}
+                  disabled={publishing}
                 />
                 <MenuItem
                   icon={<Icon name="external" size={14} strokeWidth={1.5} />}
@@ -240,6 +256,7 @@ export const NoteRowMenu = memo(
                   onClick={onViewPublic}
                 />
                 <PublishOptionsSection
+                  disabled={publishing}
                   publishOptions={publishOptions}
                   onPublishOptionsChange={onPublishOptionsChange}
                 />
@@ -247,23 +264,27 @@ export const NoteRowMenu = memo(
                   icon={<Icon name="unlink" size={14} strokeWidth={1.5} />}
                   label={t('nordly.notes.menu.unpublish')}
                   onClick={onUnpublish}
+                  disabled={publishing}
                   danger
                 />
               </>
             ) : (
               <>
+                <p className="nordly-note-menu__hint">{t('nordly.notes.menu.publish_hint')}</p>
                 <PublishOptionsSection
+                  disabled={publishing}
                   publishOptions={publishOptions}
                   onPublishOptionsChange={onPublishOptionsChange}
                 />
                 <MenuItem
                   icon={<Icon name="link" size={14} strokeWidth={1.5} />}
-                  label={t('nordly.notes.menu.publish')}
+                  label={t(publishing ? 'nordly.notes.menu.publish_busy' : 'nordly.notes.menu.publish')}
                   onClick={onPublish}
-                  disabled={!vaultReady || passwordInvalid}
+                  disabled={publishing || !vaultReady || passwordInvalid}
                 />
               </>
             )}
+            {copyError ? <p className="nordly-note-menu__hint nordly-note-menu__error" role="alert">{copyError}</p> : null}
             <MenuDivider />
           </>
           )
@@ -277,6 +298,7 @@ export const NoteRowMenu = memo(
               checked={captureWords}
               onChange={onCaptureWordsChange}
             />
+            <p className="nordly-note-menu__hint">{t('nordly.notes.menu.capture_words_hint')}</p>
             <MenuDivider />
           </>
         ) : null}

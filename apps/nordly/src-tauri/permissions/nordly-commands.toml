@@ -5,6 +5,7 @@ commands.allow = [
   "auth_session",
   "auth_persist",
   "auth_logout",
+  "clipboard_write_text",
   "spotify_secret_load",
   "spotify_secret_save",
   "spotify_secret_clear",

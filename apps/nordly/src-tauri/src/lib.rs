@@ -118,6 +118,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -174,6 +175,7 @@ pub fn run() {
             auth_session,
             auth_persist,
             auth_logout,
+            clipboard_write_text,
             spotify_secret_load,
             spotify_secret_save,
             spotify_secret_clear,
@@ -375,6 +377,13 @@ fn auth_persist(window: WebviewWindow, app: AppHandle, session: AuthSession) -> 
 fn spotify_secret_load(window: WebviewWindow) -> Result<Option<SpotifySecret>, String> {
     require_main_window(&window)?;
     spotify::load_secret()
+}
+
+#[tauri::command]
+fn clipboard_write_text(window: WebviewWindow, app: AppHandle, text: String) -> Result<(), String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    require_main_window(&window)?;
+    app.clipboard().write_text(text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

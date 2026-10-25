@@ -1,3 +1,4 @@
+import '@shared/ui/VaultRowMenu.css';
 import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {

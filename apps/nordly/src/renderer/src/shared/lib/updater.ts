@@ -1,19 +1,14 @@
-import { getVersion } from '@tauri-apps/api/app';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater';
 
 import { isTauriRuntime } from '@platform/runtime';
+import { readAppVersion } from './appVersion';
 
-export { isTauriRuntime };
+export { isTauriRuntime, readAppVersion };
 
 /** Public updater + installer CDN (same files as /download). */
 export const NORDLY_UPDATER_JSON_URL = 'https://trynordly.app/desktop/latest.json';
-
-export async function readAppVersion(): Promise<string> {
-  if (!isTauriRuntime()) return 'dev';
-  return getVersion();
-}
 
 /** Semver compare: 1 if a>b, -1 if a<b, 0 if equal (MAJOR.MINOR.PATCH only). */
 export function compareSemver(a: string, b: string): number {

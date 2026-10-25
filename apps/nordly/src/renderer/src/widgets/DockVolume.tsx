@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@nordly-i18n';
 
@@ -17,7 +17,27 @@ export function DockVolume(): JSX.Element | null {
   const volumePercent = useSpotifyStore((s) => s.volumePercent);
   const volumeError = useSpotifyStore((s) => s.volumeError);
   const [pinned, setPinned] = useState(false);
-  useEffect(() => () => setSpotifyVolumeLock(false), []);
+  const pointerHeld = useRef(false);
+  const pointerInteraction = useRef(false);
+  const stopDrag = useCallback(() => {
+    if (!pointerHeld.current) return;
+    pointerHeld.current = false;
+    setPinned(false);
+    setSpotifyVolumeLock(false);
+  }, []);
+  useEffect(() => {
+    window.addEventListener('pointerup', stopDrag);
+    window.addEventListener('mouseup', stopDrag);
+    window.addEventListener('pointercancel', stopDrag);
+    window.addEventListener('blur', stopDrag);
+    return () => {
+      window.removeEventListener('pointerup', stopDrag);
+      window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('pointercancel', stopDrag);
+      window.removeEventListener('blur', stopDrag);
+      setSpotifyVolumeLock(false);
+    };
+  }, [stopDrag]);
 
   if (!enabled || !connected || (volumePercent === null && !volumeError)) return null;
 
@@ -63,19 +83,26 @@ export function DockVolume(): JSX.Element | null {
           aria-valuetext={title}
           className="nordly-dock-vol"
           onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
+            if (event.button !== 0) return;
+            pointerHeld.current = true;
+            pointerInteraction.current = true;
             setPinned(true);
             setSpotifyVolumeLock(true);
           }}
-          onPointerUp={() => {
-            setPinned(false);
-            setSpotifyVolumeLock(false);
+          onPointerMove={(event) => {
+            if (pointerHeld.current && (event.buttons & 1) === 0) stopDrag();
           }}
-          onPointerCancel={() => {
-            setPinned(false);
-            setSpotifyVolumeLock(false);
-          }}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
+          onLostPointerCapture={stopDrag}
+          onKeyDown={() => { pointerInteraction.current = false; }}
+          onFocus={() => { if (!pointerHeld.current) pointerInteraction.current = false; }}
+          onBlur={stopDrag}
           onChange={(event) => {
+            if (pointerInteraction.current && !pointerHeld.current) {
+              event.currentTarget.value = String(useSpotifyStore.getState().volumePercent ?? 0);
+              return;
+            }
             const next = Number(event.target.value);
             queueSpotifyVolume(next);
           }}

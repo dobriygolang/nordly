@@ -38,6 +38,16 @@ The PageStack shell owns the dock reservation; pages must not add another bottom
 
 Page headings share `--nordly-page-top` (40px) and `--nordly-page-heading-height` (28px), matching the home wordmark. Keep the first heading row free of extra top padding. Note review actions sit beside the note title so enabling cards does not shift it. Interface copy lives in `apps/shared/i18n/locales/{en,ru}.ts`; keep both key sets and interpolation parameters identical.
 
+The note-menu publish action keeps the menu open, waits for the server's canonical
+URL and copies it through `shared/lib/clipboard.ts`. Desktop writes use the
+main-window-only `clipboard_write_text` command; browser previews start a promised
+ClipboardItem inside the click gesture. Copy success/error is shown in the menu,
+and clipboard failure does not roll back publication. The read-only sharing notice
+is inline before the explicit publish action; do not use native `window.confirm`.
+Old publish-status responses cannot overwrite a newer publication. Shared note/board
+menu styles live in `shared/ui/VaultRowMenu.css`, imported by their menu consumers. The Chrome
+translation-capture switch targets a local Nordly note; it does not enable web editing.
+
 Home-only overlays: `AnimatedStatsOverlay`. Also global: `PomodoroController`, `Palette` (Cmd+K). Calendar and Daily Planning are regular `PageStack` pages so their Home transition uses the same crossfade as Today/Notes/Settings.
 
 Task rollover (`features/tasks/lib/taskRollover.ts`): when `taskRollover` is on (default **off**), at startup and on window focus (after 03:00 local, once/day via a `nordly:task-rollover-day` marker) unfinished tasks scheduled on earlier days are re-anchored onto today at the same clock time. End-bell sound on timer completion is gated by the `endBell` setting; default focus timer mode is seeded from `timerMode`.
@@ -293,6 +303,10 @@ Settings → Browser shows how to load the unpacked Chrome folder and a pairing 
 
 Spotify volume updates its target immediately, including after pointer-up. One native writer sends at most once every 120ms and coalesces intermediate values; late reads cannot overwrite a newer choice. Errors restore the last confirmed volume. `spotifyEnabled` is persistent, default on. Off stops new native operations, queued writes and visible polling, and hides music controls; optional library requests are blocked/cancelled. On refreshes local state without OAuth. Library backoff survives toggling: respect Retry-After; QUOTA_EXCEEDED without it uses a conservative 15-minute client pause, not a claimed provider reset time. Spotify controller and dock volume controls load asynchronously.
 
+The native range input owns pointer capture. Pointer-driven changes require a held
+primary button; pointer-up/cancel, lost capture, window blur and a zero-button move
+end dragging and unlock volume reads. Keyboard adjustment remains available.
+
 ## Secret access
 
 `src-tauri/src/credentials.rs` caches successful Keychain reads, including missing
@@ -325,6 +339,7 @@ Registered in `src-tauri/src/lib.rs`:
 | `auth_session` | Load session from keychain |
 | `auth_persist` | Save session to keychain (no event; renderer already updated store) |
 | `auth_logout` | Clear session |
+| `clipboard_write_text` | Main window only: write text to the system clipboard; no clipboard read API exposed |
 | `confirm_app_exit` | Finish quit after the renderer rewrites the keychain session |
 | `vault_pass_load/save/clear` | Encrypted-vault passphrase keychain |
 | `spotify_local_read/playback/volume` | Local player access, guarded to the main window; only explicit `requestAccess` can prompt |

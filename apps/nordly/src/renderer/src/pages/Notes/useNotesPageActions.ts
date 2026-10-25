@@ -28,7 +28,6 @@ import { remapVaultPath } from '@features/notes/api/vault';
 import { openOrCreateBoardByTitle } from '@features/whiteboard/api/whiteboardClient';
 import { requireCloudCta } from '@shared/api/cloudCta';
 import { NORDLY_EVENTS } from '@shared/lib/custom-events';
-import { isVaultEnabledSync } from '@shared/crypto/vaultPrefs';
 import { isVaultReadyForPublish } from '@shared/crypto/vaultPublish';
 import { errorMessage, type ListState } from './utils';
 import type { NoteDraftSnapshot, NoteSavedSnapshot } from './noteDraftSafety';
@@ -488,10 +487,6 @@ export function useNotesPageActions({
   const handlePublish = useCallback(
     async (id: string, options: PublishToWebOptions): Promise<PublishStatus | void> => {
       if (!(await requirePublishCloud())) return;
-      if (isVaultEnabledSync()) {
-        const ok = window.confirm(t('nordly.notes.menu.publish_e2ee_warning'));
-        if (!ok) return;
-      }
       try {
         const publishingSelected = selectedIdRef.current === id;
         if (publishingSelected && !(await flushNow())) return;
